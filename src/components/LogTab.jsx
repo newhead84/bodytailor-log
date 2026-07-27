@@ -1,11 +1,9 @@
 import React, { useState } from 'react'
 import WorkoutInput from './WorkoutInput'
-import CalendarView from './CalendarView'
 import StatsView from './StatsView'
 
 const SUB_TABS = [
   { key: 'input', label: '입력' },
-  { key: 'calendar', label: '캘린더' },
   { key: 'stats', label: '통계' },
 ]
 
@@ -46,7 +44,6 @@ export default function LogTab({ uid, routineTemplate, restNotificationEnabled, 
       {sub === 'input' && (
         <WorkoutInput uid={uid} routineTemplate={routineTemplate} restNotificationEnabled={restNotificationEnabled} onSaved={onLogSaved} />
       )}
-      {sub === 'calendar' && <CalendarView uid={uid} />}
       {sub === 'stats' && <StatsView uid={uid} targetSessionsPerWeek={routineTemplate?.splitParts?.length || 3} />}
     </div>
   )

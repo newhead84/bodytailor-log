@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { Card, SectionTitle, Button, TierBadge, EmptyState } from './ui'
+import { Card, SectionTitle, Button, EmptyState } from './ui'
 import { getRecentWorkoutLogs, getLatestAiAdvice } from '../storage'
-import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
+import CalendarView from './CalendarView'
 
 export default function HomeTab({ uid, userDoc, onGoToLog }) {
   const [recentLogs, setRecentLogs] = useState([])
@@ -23,33 +23,11 @@ export default function HomeTab({ uid, userDoc, onGoToLog }) {
     }
   }, [uid])
 
-  const xp = userDoc?.seasonXp || 0
-  const tier = getTierByXp(xp)
-  const next = getNextTier(xp)
-  const progress = getTierProgress(xp)
-
   return (
     <div style={{ padding: '20px 20px 100px' }}>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 4px' }}>
         {userDoc?.nickname || '회원'}님, 오늘도 몸에 투자할 시간이에요.
       </p>
-
-      <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <TierBadge label={tier.label} size="lg" />
-          <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            {xp.toLocaleString()} XP
-          </span>
-        </div>
-        <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
-          <div style={{ width: `${progress * 100}%`, height: '100%', background: 'var(--color-primary-normal)' }} />
-        </div>
-        {next && (
-          <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '8px 0 0' }}>
-            다음 티어 {next.label}까지 {(next.min - xp).toLocaleString()} XP
-          </p>
-        )}
-      </Card>
 
       <SectionTitle>오늘의 운동</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
@@ -60,6 +38,11 @@ export default function HomeTab({ uid, userDoc, onGoToLog }) {
           오늘 운동 기록하러 가기
         </Button>
       </Card>
+
+      <SectionTitle>캘린더</SectionTitle>
+      <div style={{ margin: '0 -20px 4px' }}>
+        <CalendarView uid={uid} />
+      </div>
 
       <SectionTitle>AI 어드바이스</SectionTitle>
       <Card style={{ marginBottom: 20 }}>

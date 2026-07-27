@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Button, Chip, Card } from './ui'
-import { DEFAULT_SPLIT_PARTS, ALL_EXERCISE_NAMES } from '../utils/exerciseLibrary'
+import { DEFAULT_SPLIT_PARTS, getExercisesForPart } from '../utils/exerciseLibrary'
 
 const SPLIT_INFO = {
   '무분할': '전신 위주로 매회 비슷한 구성을 반복해요. 초급자·운동 복귀자에게 추천해요.',
@@ -91,6 +91,7 @@ export default function RoutineSetup({ onComplete }) {
         <PartEditor
           key={part.name}
           part={part}
+          availableExercises={getExercisesForPart(part.name)}
           onToggle={(name) => toggleExercise(idx, name)}
           onAddCustom={(name) => addCustomExercise(idx, name)}
         />
@@ -105,13 +106,13 @@ export default function RoutineSetup({ onComplete }) {
   )
 }
 
-function PartEditor({ part, onToggle, onAddCustom }) {
+function PartEditor({ part, availableExercises, onToggle, onAddCustom }) {
   const [customText, setCustomText] = useState('')
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{part.name}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-        {ALL_EXERCISE_NAMES.map((name) => (
+        {availableExercises.map((name) => (
           <Chip key={name} active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
             {name}
           </Chip>

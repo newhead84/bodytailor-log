@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { Card, SectionTitle, Button, Chip } from './ui'
+import { Card, SectionTitle, Button, Chip, TierBadge } from './ui'
 import { updateUserProfile, saveAiAdvice } from '../storage'
 import { requestAiAdvice } from '../utils/aiAdvice'
 import { logout } from '../firebase'
+import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
 
 const PROVIDERS = [
   { key: 'claude', label: 'Claude' },
@@ -22,6 +23,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   )
+
+  const xp = userDoc?.seasonXp || 0
+  const tier = getTierByXp(xp)
+  const nextTier = getNextTier(xp)
+  const tierProgress = getTierProgress(xp)
 
   async function saveNickname() {
     setSaving(true)
@@ -65,6 +71,24 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
 
   return (
     <div style={{ padding: '20px 20px 100px' }}>
+      <SectionTitle>등급</SectionTitle>
+      <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <TierBadge label={tier.label} size="lg" />
+          <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            {xp.toLocaleString()} XP
+          </span>
+        </div>
+        <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
+          <div style={{ width: `${tierProgress * 100}%`, height: '100%', background: 'var(--color-primary-normal)' }} />
+        </div>
+        {nextTier && (
+          <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '8px 0 0' }}>
+            다음 티어 {nextTier.label}까지 {(nextTier.min - xp).toLocaleString()} XP
+          </p>
+        )}
+      </Card>
+
       <SectionTitle>프로필</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -72,9 +96,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             placeholder="닉네임"
-            style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
+            style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
           />
-          <Button variant="secondary" onClick={saveNickname} disabled={saving}>
+          <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={saveNickname} disabled={saving}>
             저장
           </Button>
         </div>
@@ -121,7 +145,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
           비용은 본인 계정 기준으로 청구돼요. 지금은 키가 브라우저에서 직접 API를 호출하는 임시 방식이라,
           운영 단계에서는 서버 프록시로 전환하는 보안 설계가 필요해요.
         </p>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button variant="secondary" onClick={saveAiKey} disabled={saving || !apiKey}>
             키 저장
           </Button>

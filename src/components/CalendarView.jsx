@@ -54,7 +54,7 @@ export default function CalendarView({ uid }) {
   const selectedLogs = selectedDate ? logsByDate[selectedDate] || [] : []
 
   return (
-    <div style={{ padding: '16px 20px 100px' }}>
+    <div style={{ padding: '16px 20px 8px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <button onClick={() => setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }))} style={{ fontSize: 18, padding: 6 }}>
           ‹

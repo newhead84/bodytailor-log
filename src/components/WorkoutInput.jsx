@@ -227,13 +227,13 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
           gap: 12,
         }}
       >
-        <div style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
+        <div style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0, whiteSpace: 'nowrap' }}>
           오늘 볼륨
           <div className="record-notation" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>
             {totalVolume.toLocaleString()}
           </div>
         </div>
-        <Button full disabled={!hasAnyRecord || saving} onClick={handleFinishWorkout}>
+        <Button style={{ flex: 1, minWidth: 0 }} disabled={!hasAnyRecord || saving} onClick={handleFinishWorkout}>
           {saving ? '저장 중…' : '오늘 운동 완료'}
         </Button>
       </div>
