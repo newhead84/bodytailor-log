@@ -71,15 +71,18 @@ export async function updateUserProfile(uid, partial) {
 // ───────────── routineTemplates/{uid}/templates/{templateId} ─────────────
 
 export async function saveRoutineTemplate(uid, template) {
-  // template: { splitType, splitParts, cycleCount, lastCycleCompletedAt, weeklyFrequencyLog, isActive }
+  // template: { splitType, splitParts, cycleCount, lastCycleCompletedAt, weeklyFrequencyLog, isActive,
+  //             favoriteExercises: 분할과 별개로 자유롭게 관리하는 '내 루틴'(자주 하는 운동) 목록 }
   const col = collection(db, 'routineTemplates', uid, 'templates')
   if (template.id) {
     const ref = doc(col, template.id)
     await setDoc(ref, { ...template, updatedAt: serverTimestamp() }, { merge: true })
     return template.id
   }
+  const seededFavorites = template.favoriteExercises ?? (template.splitParts || []).flatMap((p) => p.exercises || [])
   const ref = await addDoc(col, {
     ...template,
+    favoriteExercises: seededFavorites,
     cycleCount: template.cycleCount ?? 0,
     lastCycleCompletedAt: template.lastCycleCompletedAt ?? null,
     weeklyFrequencyLog: template.weeklyFrequencyLog ?? [],

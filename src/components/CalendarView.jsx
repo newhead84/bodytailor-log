@@ -124,7 +124,7 @@ export default function CalendarView({ uid }) {
           selectedLogs.map((log) => (
             <Card key={log.id} style={{ marginBottom: 10 }}>
               <div style={{ fontWeight: 700, marginBottom: 8 }}>
-                {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '사이클 운동'}
+                {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'}
               </div>
               {log.exercises.map((ex) => (
                 <div key={ex.name} style={{ fontSize: 13, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'baseline' }}>

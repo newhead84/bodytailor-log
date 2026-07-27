@@ -10,14 +10,27 @@ const SPLIT_INFO = {
   '5분할': '등 / 가슴 / 어깨 / 팔 / 하체로 완전히 세분화해요. 주 5회 이상 운동 가능한 분들께 추천해요.',
 }
 
-export default function RoutineSetup({ onComplete }) {
-  const [splitType, setSplitType] = useState(null)
-  const [parts, setParts] = useState(null) // [{name, exercises: []}]
+// 앱 최초 진입(온보딩 직후)에는 initialTemplate 없이 새 루틴을 만들고,
+// MY 탭 "분할 방식 변경"으로 들어온 경우에는 initialTemplate으로 기존 구성을
+// 그대로 불러와 자유롭게 추가/수정한 뒤 저장(또는 취소)할 수 있다.
+export default function RoutineSetup({ initialTemplate, onComplete, onCancel }) {
+  const isEditing = !!initialTemplate
+  const [splitType, setSplitType] = useState(initialTemplate?.splitType || null)
+  const [parts, setParts] = useState(
+    initialTemplate?.splitParts
+      ? initialTemplate.splitParts.map((p) => ({ name: p.name, exercises: [...(p.exercises || [])] }))
+      : null
+  ) // [{name, exercises: []}]
   const [saving, setSaving] = useState(false)
 
   function selectSplit(type) {
     setSplitType(type)
-    setParts(DEFAULT_SPLIT_PARTS[type].map((name) => ({ name, exercises: [] })))
+    // 기존 루틴과 동일한 분할 방식을 다시 선택하면 기존 종목 구성을 그대로 유지한다.
+    if (initialTemplate?.splitType === type) {
+      setParts(initialTemplate.splitParts.map((p) => ({ name: p.name, exercises: [...(p.exercises || [])] })))
+    } else {
+      setParts(DEFAULT_SPLIT_PARTS[type].map((name) => ({ name, exercises: [] })))
+    }
   }
 
   function toggleExercise(partIdx, exName) {
@@ -35,35 +48,42 @@ export default function RoutineSetup({ onComplete }) {
     )
   }
 
-  function addCustomExercise(partIdx, name) {
-    if (!name.trim()) return
-    setParts((prev) =>
-      prev.map((p, i) => (i !== partIdx || p.exercises.includes(name) ? p : { ...p, exercises: [...p.exercises, name] }))
-    )
-  }
-
   const totalExercises = parts?.reduce((sum, p) => sum + p.exercises.length, 0) ?? 0
   const canSave = totalExercises > 0
 
   async function handleSave() {
     setSaving(true)
-    await onComplete({ splitType, splitParts: parts })
+    await onComplete({
+      ...(initialTemplate?.id ? { id: initialTemplate.id } : {}),
+      splitType,
+      splitParts: parts,
+    })
     setSaving(false)
   }
 
   if (!splitType) {
     return (
       <div style={{ padding: '28px 20px', height: '100%', overflowY: 'auto' }}>
+        {isEditing && (
+          <button onClick={onCancel} style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginBottom: 12 }}>
+            ← 취소하고 돌아가기
+          </button>
+        )}
         <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
-          운동 분할 방식을 선택해 주세요
+          {isEditing ? '분할 방식을 변경할 수 있어요' : '운동 분할 방식을 선택해 주세요'}
         </h1>
         <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-          나중에 MY 탭에서 언제든 다시 바꿀 수 있어요.
+          {isEditing ? '같은 분할을 다시 선택하면 기존 종목 구성이 그대로 유지돼요.' : '나중에 MY 탭에서 언제든 다시 바꿀 수 있어요.'}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {Object.keys(DEFAULT_SPLIT_PARTS).map((type) => (
             <Card key={type} onClick={() => selectSplit(type)}>
-              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{type}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>{type}</div>
+                {initialTemplate?.splitType === type && (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}>현재 사용 중</span>
+                )}
+              </div>
               <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
                 {SPLIT_INFO[type]}
               </div>
@@ -84,7 +104,7 @@ export default function RoutineSetup({ onComplete }) {
       </button>
       <h1 style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>{splitType} 종목 구성</h1>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-        파트마다 수행할 종목을 선택해 주세요.
+        파트마다 수행할 종목을 부위별 목록에서 선택해 주세요.
       </p>
 
       {parts.map((part, idx) => (
@@ -93,53 +113,45 @@ export default function RoutineSetup({ onComplete }) {
           part={part}
           availableExercises={getExercisesForPart(part.name)}
           onToggle={(name) => toggleExercise(idx, name)}
-          onAddCustom={(name) => addCustomExercise(idx, name)}
         />
       ))}
 
-      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, padding: '14px 20px calc(14px + var(--safe-bottom))', background: 'var(--color-static-white)', boxShadow: 'var(--shadow-nav)' }}>
-        <Button full disabled={!canSave || saving} onClick={handleSave}>
-          {saving ? '저장 중…' : `루틴 저장하고 시작하기 (${totalExercises}개 종목)`}
+      <div
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          padding: '14px 20px calc(14px + var(--safe-bottom))',
+          background: 'var(--color-static-white)',
+          boxShadow: 'var(--shadow-nav)',
+          display: 'flex',
+          gap: 8,
+        }}
+      >
+        {isEditing && (
+          <Button variant="ghost" onClick={onCancel} disabled={saving}>
+            취소
+          </Button>
+        )}
+        <Button full={!isEditing} style={isEditing ? { flex: 1 } : undefined} disabled={!canSave || saving} onClick={handleSave}>
+          {saving ? '저장 중…' : isEditing ? `변경사항 저장 (${totalExercises}개 종목)` : `루틴 저장하고 시작하기 (${totalExercises}개 종목)`}
         </Button>
       </div>
     </div>
   )
 }
 
-function PartEditor({ part, availableExercises, onToggle, onAddCustom }) {
-  const [customText, setCustomText] = useState('')
+function PartEditor({ part, availableExercises, onToggle }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{part.name}</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {availableExercises.map((name) => (
           <Chip key={name} active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
             {name}
           </Chip>
         ))}
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          value={customText}
-          onChange={(e) => setCustomText(e.target.value)}
-          placeholder="직접 종목 추가"
-          style={{
-            flex: 1,
-            padding: '10px 12px',
-            border: '1px solid var(--color-line)',
-            borderRadius: 10,
-            fontSize: 14,
-          }}
-        />
-        <Button
-          variant="secondary"
-          onClick={() => {
-            onAddCustom(customText)
-            setCustomText('')
-          }}
-        >
-          추가
-        </Button>
       </div>
     </div>
   )
