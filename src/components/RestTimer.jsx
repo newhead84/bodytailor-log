@@ -19,29 +19,77 @@ function playBeep() {
 }
 
 // 세트 저장 직후 자동 시작되는 휴게 타이머. resetKey가 바뀔 때마다 새로 시작.
-export default function RestTimer({ seconds, resetKey, notificationEnabled, onFinish, onCancel }) {
+// 남은 시간은 setInterval 카운트다운이 아니라 "종료 시각(endAt)"을 기준으로 매번 다시 계산한다.
+// 브라우저가 백그라운드 탭의 setInterval을 지연/스로틀링해도(화면을 껐다 켰을 때 등)
+// 실제 경과 시간 기준으로 정확히 재동기화되어 타이머가 밀리지 않는다.
+// wakeLockEnabled가 켜져 있으면 Screen Wake Lock을 요청해 휴식 중 화면이 자동으로 꺼지지 않게 한다
+// (화면이 꺼지면 브라우저 탭 자체가 정지되어 어떤 방법으로도 타이머를 이어갈 수 없기 때문).
+export default function RestTimer({ seconds, resetKey, notificationEnabled, wakeLockEnabled, onFinish, onCancel }) {
   const [remaining, setRemaining] = useState(seconds)
   const intervalRef = useRef(null)
+  const endAtRef = useRef(Date.now() + seconds * 1000)
+  const finishedRef = useRef(false)
+  const wakeLockRef = useRef(null)
+
+  function computeRemaining() {
+    return Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000))
+  }
+
+  async function acquireWakeLock() {
+    if (!wakeLockEnabled || typeof navigator === 'undefined' || !('wakeLock' in navigator)) return
+    try {
+      wakeLockRef.current = await navigator.wakeLock.request('screen')
+    } catch (e) {
+      // 화면 꺼짐 방지가 지원되지 않거나 실패해도 타이머 자체(시각 기반 계산)는 계속 동작
+    }
+  }
+
+  function releaseWakeLock() {
+    wakeLockRef.current?.release?.().catch(() => {})
+    wakeLockRef.current = null
+  }
+
+  function finish() {
+    if (finishedRef.current) return
+    finishedRef.current = true
+    clearInterval(intervalRef.current)
+    playBeep()
+    if (notificationEnabled && 'Notification' in window && Notification.permission === 'granted') {
+      new Notification('휴식 끝!', { body: '다음 세트를 시작할 시간이에요.' })
+    }
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200])
+    releaseWakeLock()
+    onFinish?.()
+  }
 
   useEffect(() => {
+    finishedRef.current = false
+    endAtRef.current = Date.now() + seconds * 1000
     setRemaining(seconds)
+    acquireWakeLock()
+
     clearInterval(intervalRef.current)
     intervalRef.current = setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) {
-          clearInterval(intervalRef.current)
-          playBeep()
-          if (notificationEnabled && 'Notification' in window && Notification.permission === 'granted') {
-            new Notification('휴식 끝!', { body: '다음 세트를 시작할 시간이에요.' })
-          }
-          if (navigator.vibrate) navigator.vibrate([200, 100, 200])
-          onFinish?.()
-          return 0
-        }
-        return r - 1
-      })
-    }, 1000)
-    return () => clearInterval(intervalRef.current)
+      const r = computeRemaining()
+      setRemaining(r)
+      if (r <= 0) finish()
+    }, 250)
+
+    function handleVisibility() {
+      if (document.visibilityState !== 'visible') return
+      // 화면을 다시 켰을 때 실제 경과 시간 기준으로 즉시 재동기화
+      const r = computeRemaining()
+      setRemaining(r)
+      if (r <= 0) finish()
+      else acquireWakeLock() // Wake Lock은 탭이 숨겨지면 브라우저가 자동 해제하므로 다시 요청
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      clearInterval(intervalRef.current)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      releaseWakeLock()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey, seconds])
 
@@ -75,6 +123,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, onFi
       <button
         onClick={() => {
           clearInterval(intervalRef.current)
+          releaseWakeLock()
           onCancel?.()
         }}
         style={{ color: '#fff', fontSize: 13, opacity: 0.8, padding: '4px 8px' }}

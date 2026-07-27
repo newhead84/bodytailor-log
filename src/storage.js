@@ -31,6 +31,7 @@ const DEFAULT_USER_DOC = {
   onboardingCompleted: false,
   physicalInfoSharedWithTrainer: false,
   restTimerNotificationPermission: false,
+  restTimerWakeLockEnabled: false,
   socialNotificationOptIn: false,
   seasonXp: 0,
   lifetimeXp: 0,

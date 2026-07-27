@@ -14,6 +14,8 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   )
+  const [wakeLockEnabled, setWakeLockEnabled] = useState(!!userDoc?.restTimerWakeLockEnabled)
+  const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileForm, setProfileForm] = useState(() => ({
     level: userDoc?.onboarding?.level || '',
@@ -79,6 +81,23 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
     const perm = await Notification.requestPermission()
     setNotifPermission(perm)
     await updateUserProfile(uid, { restTimerNotificationPermission: perm === 'granted' })
+  }
+
+  // Wake Lock API는 Notification처럼 별도 권한 팝업이 없어서, 지원 여부를 실제로
+  // 한 번 요청/해제해 확인한 뒤 사용자 설정(on/off)으로 저장한다.
+  async function toggleWakeLock() {
+    if (!wakeLockSupported) return
+    const next = !wakeLockEnabled
+    if (next) {
+      try {
+        const lock = await navigator.wakeLock.request('screen')
+        await lock.release()
+      } catch (e) {
+        return // 요청 실패 환경에서는 켜지 않음
+      }
+    }
+    setWakeLockEnabled(next)
+    await updateUserProfile(uid, { restTimerWakeLockEnabled: next })
   }
 
   return (
@@ -208,6 +227,22 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
           <span className="text-keep-all" style={{ fontSize: 14 }}>세트 휴게타이머 종료 알림</span>
           <Button variant={notifPermission === 'granted' ? 'ghost' : 'secondary'} onClick={requestNotifPermission}>
             {notifPermission === 'granted' ? '허용됨' : '권한 요청'}
+          </Button>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
+          <div style={{ minWidth: 0, marginRight: 12 }}>
+            <div className="text-keep-all" style={{ fontSize: 14 }}>휴식 중 화면 꺼짐 방지</div>
+            <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
+              화면이 꺼지면 타이머가 멈출 수 있어요. 휴식 중에는 화면을 켜진 상태로 유지해요.
+            </div>
+          </div>
+          <Button
+            variant={wakeLockEnabled ? 'ghost' : 'secondary'}
+            style={{ flexShrink: 0 }}
+            onClick={toggleWakeLock}
+            disabled={!wakeLockSupported}
+          >
+            {!wakeLockSupported ? '미지원' : wakeLockEnabled ? '사용 중' : '사용'}
           </Button>
         </div>
       </Card>

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Chip, Card } from './ui'
 import RestTimer from './RestTimer'
 import { calcVolume } from '../utils/exerciseLibrary'
-import { addWorkoutLog, getLastRecordForExercise } from '../storage'
+import { addWorkoutLog, getLastRecordForExercise, updateRoutineTemplate } from '../storage'
 
 const REST_OPTIONS = [
   { label: '1분', value: 60 },
@@ -18,7 +18,7 @@ function draftKey(uid) {
   return `bodytailor-draft-${uid}-${todayStr()}`
 }
 
-export default function WorkoutInput({ uid, routineTemplate, restNotificationEnabled, onSaved }) {
+export default function WorkoutInput({ uid, routineTemplate, restNotificationEnabled, restWakeLockEnabled, onSaved, onRoutineUpdated }) {
   const parts = routineTemplate?.splitParts || []
   const [sessionType, setSessionType] = useState('cycle')
   const [activePartIdx, setActivePartIdx] = useState(0)
@@ -29,8 +29,23 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
   const [restKey, setRestKey] = useState(0)
   const [restActive, setRestActive] = useState(false)
   const [saving, setSaving] = useState(false)
+  // 파트별 종목 표시 순서(드래그앤드롭 결과) - 루틴에 저장되어 다음에도 유지됨
+  const [partOrders, setPartOrders] = useState({}) // { [partName]: string[] }
+  // 오늘 세션에서만 숨긴 종목 - 루틴 자체는 건드리지 않음, 오늘 임시저장에만 함께 저장
+  const [hiddenByPart, setHiddenByPart] = useState({}) // { [partName]: string[] }
+  const [dragging, setDragging] = useState(null) // { partName, name, pointerId }
 
   const activePart = parts[activePartIdx]
+
+  // 루틴이 로드/변경될 때마다 표시 순서를 루틴 기준으로 동기화
+  useEffect(() => {
+    const map = {}
+    parts.forEach((p) => {
+      map[p.name] = p.exercises || []
+    })
+    setPartOrders(map)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routineTemplate])
 
   // 임시 저장 불러오기 (이어쓰기)
   useEffect(() => {
@@ -41,6 +56,7 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
         const draft = JSON.parse(raw)
         setRecords(draft.records || {})
         setSessionType(draft.sessionType || 'cycle')
+        setHiddenByPart(draft.hiddenByPart || {})
       }
     } catch (e) {
       // 손상된 draft는 무시
@@ -50,8 +66,8 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
   // 변경될 때마다 임시 저장
   useEffect(() => {
     if (!uid) return
-    localStorage.setItem(draftKey(uid), JSON.stringify({ records, sessionType }))
-  }, [uid, records, sessionType])
+    localStorage.setItem(draftKey(uid), JSON.stringify({ records, sessionType, hiddenByPart }))
+  }, [uid, records, sessionType, hiddenByPart])
 
   async function openExercise(name) {
     setExpandedExercise(expandedExercise === name ? null : name)
@@ -87,6 +103,52 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
     updateSet(name, idx, 'saved', true)
     setRestKey((k) => k + 1)
     setRestActive(true)
+  }
+
+  // "삭제": 루틴 자체는 그대로 두고, 오늘 세션 화면에서만 숨긴다 (다음에 다시 보임)
+  function hideExerciseToday(partName, name) {
+    setHiddenByPart((prev) => ({ ...prev, [partName]: [...(prev[partName] || []), name] }))
+    setRecords((r) => {
+      const { [name]: _omit, ...rest } = r
+      return rest
+    })
+    if (expandedExercise === name) setExpandedExercise(null)
+  }
+
+  // ── 드래그앤드롭 순서 변경 (루틴에 저장되어 다음 세션에도 유지) ──
+  function handleDragPointerDown(e, partName, name) {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDragging({ partName, name, pointerId: e.pointerId })
+  }
+
+  function handleDragPointerMove(e) {
+    if (!dragging) return
+    const overEl = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-ex-row]')
+    if (!overEl) return
+    const overName = overEl.getAttribute('data-ex-row')
+    const partName = dragging.partName
+    setPartOrders((prev) => {
+      const order = prev[partName] || []
+      const fromIdx = order.indexOf(dragging.name)
+      const toIdx = order.indexOf(overName)
+      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev
+      const next = [...order]
+      const [moved] = next.splice(fromIdx, 1)
+      next.splice(toIdx, 0, moved)
+      return { ...prev, [partName]: next }
+    })
+  }
+
+  async function handleDragPointerUp() {
+    if (!dragging) return
+    const { partName } = dragging
+    setDragging(null)
+    if (!routineTemplate?.id) return
+    const newSplitParts = (routineTemplate.splitParts || []).map((p) =>
+      p.name === partName ? { ...p, exercises: partOrders[partName] || p.exercises } : p
+    )
+    await updateRoutineTemplate(uid, routineTemplate.id, { splitParts: newSplitParts })
+    await onRoutineUpdated?.()
   }
 
   const totalVolume = useMemo(() => {
@@ -167,40 +229,79 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
 
       {/* 종목 리스트 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {(activePart?.exercises || []).map((name) => (
-          <Card key={name} style={{ padding: 0 }}>
-            <button
-              onClick={() => openExercise(name)}
-              style={{ width: '100%', textAlign: 'left', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        {(partOrders[activePart?.name] || activePart?.exercises || [])
+          .filter((name) => !(hiddenByPart[activePart?.name] || []).includes(name))
+          .map((name) => (
+            <Card
+              key={name}
+              data-ex-row={name}
+              style={{ padding: 0, opacity: dragging?.name === name ? 0.5 : 1 }}
             >
-              <span style={{ fontWeight: 700, fontSize: 15 }}>{name}</span>
-              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                {expandedExercise === name ? '접기 ▲' : '펼치기 ▼'}
-              </span>
-            </button>
-
-            {expandedExercise === name && (
-              <div style={{ padding: '0 16px 16px' }}>
-                {lastRecords[name] && (
-                  <p className="record-notation text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '0 0 10px' }}>
-                    직전({lastRecords[name].date}): {lastRecords[name].sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
-                  </p>
-                )}
-                {(records[name] || []).map((set, idx) => (
-                  <SetRow
-                    key={idx}
-                    set={set}
-                    onWeightChange={(v) => updateSet(name, idx, 'weight', v)}
-                    onRepsChange={(v) => updateSet(name, idx, 'reps', v)}
-                    onSave={() => saveSetAndStartRest(name, idx)}
-                    onCopy={() => copyLastSet(name, idx)}
-                    onRemove={(records[name] || []).length > 1 ? () => removeSet(name, idx) : null}
-                  />
-                ))}
+              <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 10px 6px', gap: 6 }}>
+                <button
+                  title="드래그해서 순서 변경"
+                  onPointerDown={(e) => handleDragPointerDown(e, activePart.name, name)}
+                  onPointerMove={handleDragPointerMove}
+                  onPointerUp={handleDragPointerUp}
+                  onPointerCancel={handleDragPointerUp}
+                  style={{
+                    flexShrink: 0,
+                    width: 32,
+                    height: 40,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--color-label-neutral)',
+                    fontSize: 18,
+                    touchAction: 'none',
+                    cursor: 'grab',
+                  }}
+                >
+                  ⠿
+                </button>
+                <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 15 }}>{name}</span>
+                <button
+                  onClick={() => openExercise(name)}
+                  style={{
+                    flexShrink: 0,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                    background: expandedExercise === name ? 'var(--color-bg-elevated)' : 'var(--color-primary-normal)',
+                    color: expandedExercise === name ? 'var(--color-label-neutral)' : '#fff',
+                  }}
+                >
+                  {expandedExercise === name ? '접기' : '시작'}
+                </button>
+                <IconButton title="오늘만 목록에서 삭제" onClick={() => hideExerciseToday(activePart.name, name)} muted>
+                  <path d="M7 7l10 10M17 7L7 17" />
+                </IconButton>
               </div>
-            )}
-          </Card>
-        ))}
+
+              {expandedExercise === name && (
+                <div style={{ padding: '0 16px 16px' }}>
+                  {lastRecords[name] && (
+                    <p className="record-notation text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '0 0 10px' }}>
+                      직전({lastRecords[name].date}): {lastRecords[name].sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
+                    </p>
+                  )}
+                  {(records[name] || []).map((set, idx) => (
+                    <SetRow
+                      key={idx}
+                      set={set}
+                      onWeightChange={(v) => updateSet(name, idx, 'weight', v)}
+                      onRepsChange={(v) => updateSet(name, idx, 'reps', v)}
+                      onSave={() => saveSetAndStartRest(name, idx)}
+                      onCopy={() => copyLastSet(name, idx)}
+                      onRemove={(records[name] || []).length > 1 ? () => removeSet(name, idx) : null}
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+          ))}
       </div>
 
       {restActive && (
@@ -208,6 +309,7 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
           seconds={restSeconds}
           resetKey={restKey}
           notificationEnabled={restNotificationEnabled}
+          wakeLockEnabled={restWakeLockEnabled}
           onFinish={() => setRestActive(false)}
           onCancel={() => setRestActive(false)}
         />
@@ -244,13 +346,13 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
 
 function SetRow({ set, onWeightChange, onRepsChange, onSave, onCopy, onRemove }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Stepper value={set.weight} onChange={onWeightChange} step={2.5} placeholder="kg" />
-        <span style={{ color: 'var(--color-label-neutral)' }}>×</span>
-        <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" />
+    <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 8, marginBottom: 8, overflowX: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+        <LabeledStepper label="kg" value={set.weight} onChange={onWeightChange} step={2.5} />
+        <span style={{ color: 'var(--color-label-neutral)', paddingBottom: 8, flexShrink: 0 }}>×</span>
+        <LabeledStepper label="회" value={set.reps} onChange={onRepsChange} step={1} />
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
         <button
           onClick={onSave}
           disabled={set.saved}
@@ -275,6 +377,16 @@ function SetRow({ set, onWeightChange, onRepsChange, onSave, onCopy, onRemove })
           </IconButton>
         )}
       </div>
+    </div>
+  )
+}
+
+// 중량(kg)과 횟수(회)를 헷갈리지 않도록 스테퍼 위에 작은 단위 라벨을 항상 표시
+function LabeledStepper({ label, value, onChange, step }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+      <span style={{ fontSize: 10, color: 'var(--color-label-neutral)', paddingLeft: 2 }}>{label}</span>
+      <Stepper value={value} onChange={onChange} step={step} placeholder={label} />
     </div>
   )
 }

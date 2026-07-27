@@ -34,7 +34,7 @@ export function Button({ children, onClick, variant = 'primary', disabled, style
   )
 }
 
-export function Card({ children, style, onClick }) {
+export function Card({ children, style, onClick, ...rest }) {
   return (
     <div
       onClick={onClick}
@@ -47,6 +47,7 @@ export function Card({ children, style, onClick }) {
         cursor: onClick ? 'pointer' : 'default',
         ...style,
       }}
+      {...rest}
     >
       {children}
     </div>

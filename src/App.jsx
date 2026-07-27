@@ -28,6 +28,21 @@
  *   |    고정바가 BottomNav(z-index:20)에 가려지던 문제 수정(위치+z-index 조정)
  *   | 4) MyPageTab.jsx: 온보딩 시 1회만 입력 가능했던 프로필(수준/성별/나이/몸무게/키/목표)을
  *   |    MY 탭에서 언제든 수정할 수 있도록 편집 모드 추가
+ * [2026-07-27] 휴게타이머 백그라운드 유지 + 중량/횟수 표기 개선
+ *   | 1) RestTimer.jsx: setInterval 카운트다운 → 종료시각(endAt) 기준 재계산 방식으로 변경,
+ *   |    visibilitychange 시 즉시 재동기화. Screen Wake Lock(옵트인) 요청 로직 추가
+ *   | 2) storage.js: users 기본값에 restTimerWakeLockEnabled 필드 추가
+ *   | 3) MyPageTab.jsx: "휴식 중 화면 꺼짐 방지" 설정 토글(Wake Lock on/off) 신규 추가
+ *   | 4) App.jsx, LogTab.jsx, WorkoutInput.jsx: restWakeLockEnabled prop 전달 체인 연결
+ *   | 5) WorkoutInput.jsx(SetRow): 중량/횟수 스테퍼 위에 작은 kg/회 라벨 상시 표시,
+ *   |    세트 행(중량×횟수·저장·복사·삭제)을 한 줄 레이아웃으로 변경
+ * [2026-07-27] 종목 리스트: 펼치기 버튼 → 시작/삭제 버튼 + 드래그앤드롭 순서 변경
+ *   | 1) WorkoutInput.jsx: 종목 카드의 "펼치기" 토글 버튼을 "시작"(펼치기/접기)과
+ *   |    "삭제"(오늘 세션에서만 숨김, 루틴은 유지) 두 버튼으로 분리
+ *   | 2) WorkoutInput.jsx: 드래그 핸들(⠿) + Pointer Events 기반 순서 변경 추가.
+ *   |    드롭 시 routineTemplates/{uid}/templates/{id}.splitParts에 즉시 저장(다음에도 유지)
+ *   | 3) ui.jsx(Card): data-* 등 추가 속성을 전달할 수 있도록 ...rest prop 지원(기존 사용처 영향 없음)
+ *   | 4) App.jsx→LogTab.jsx→WorkoutInput.jsx: onRoutineUpdated(=refreshRoutineTemplate) prop 체인 연결
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
@@ -136,7 +151,9 @@ export default function App() {
           uid={authUser.uid}
           routineTemplate={routineTemplate}
           restNotificationEnabled={!!userDoc.restTimerNotificationPermission}
+          restWakeLockEnabled={!!userDoc.restTimerWakeLockEnabled}
           onLogSaved={refreshUserDoc}
+          onRoutineUpdated={refreshRoutineTemplate}
         />
       )}
       {activeTab === 'ranking' && (
