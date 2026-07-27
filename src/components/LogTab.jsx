@@ -1,6 +1,17 @@
-import React, { useState } from 'react'
+import React, { useState, Suspense, lazy } from 'react'
 import WorkoutInput from './WorkoutInput'
-import StatsView from './StatsView'
+
+// recharts(+d3 계열, gzip 약 190KB)를 여기서 끌어오므로, 통계 서브탭을
+// 열 때만 필요한 코드를 받아오도록 동적 import로 분리 (초기 로딩 용량 절감)
+const StatsView = lazy(() => import('./StatsView'))
+
+function CenteredLoading() {
+  return (
+    <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--color-label-neutral)', fontSize: 14 }}>
+      불러오는 중…
+    </div>
+  )
+}
 
 const SUB_TABS = [
   { key: 'input', label: '입력' },
@@ -51,7 +62,11 @@ export default function LogTab({ uid, routineTemplate, restNotificationEnabled, 
           onRoutineUpdated={onRoutineUpdated}
         />
       )}
-      {sub === 'stats' && <StatsView uid={uid} targetSessionsPerWeek={routineTemplate?.splitParts?.length || 3} />}
+      {sub === 'stats' && (
+        <Suspense fallback={<CenteredLoading />}>
+          <StatsView uid={uid} targetSessionsPerWeek={routineTemplate?.splitParts?.length || 3} />
+        </Suspense>
+      )}
     </div>
   )
 }

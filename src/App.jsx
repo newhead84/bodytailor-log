@@ -71,9 +71,16 @@
  *   |    세트 표기(예: 20x14/45x10)가 길어 줄바꿈되던 것을 한 줄 유지 + 가로
  *   |    스크롤로 변경
  *   | 참고: 위치기반 출석 인정(헬스장 GPS 체크)은 이번 범위에서 제외(다음 단계)
+ * [2026-07-27] 번들 용량 최적화(코드 스플리팅), 기능/화면 변경 없음
+ *   | 1) App.jsx: 메인 4탭(HomeTab/LogTab/RankingTab/MyPageTab)을 정적 import →
+ *   |    React.lazy 동적 import로 전환, 탭 렌더링 블록을 Suspense로 감쌈
+ *   |    (fallback: 기존 "불러오는 중…" 문구 재사용)
+ *   | 2) LogTab.jsx: StatsView(recharts+d3 계열, gzip 약 190KB)를 동적 import로 분리,
+ *   |    통계 서브탭 진입 시에만 로드되도록 Suspense 추가
+ *   | → 초기 진입 시 받아야 하는 JS 용량 감소, 각 탭/화면 동작·데이터 흐름은 기존과 동일
  */
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, Suspense, lazy } from 'react'
 import { watchAuthState } from './firebase'
 import { ensureUserDoc, getUserDoc, saveOnboarding, getActiveRoutineTemplate, saveRoutineTemplate } from './storage'
 
@@ -81,11 +88,14 @@ import LoginScreen from './components/LoginScreen'
 import Onboarding from './components/Onboarding'
 import RoutineSetup from './components/RoutineSetup'
 import BottomNav from './components/BottomNav'
-import HomeTab from './components/HomeTab'
-import LogTab from './components/LogTab'
-import RankingTab from './components/RankingTab'
-import MyPageTab from './components/MyPageTab'
 import SplashScreen from './components/SplashScreen'
+
+// 메인 4탭은 한 번에 하나만 화면에 표시되므로, 동적 import로 분리해
+// 진입 시점(탭 클릭 시)에만 해당 탭 코드를 받아오도록 함
+const HomeTab = lazy(() => import('./components/HomeTab'))
+const LogTab = lazy(() => import('./components/LogTab'))
+const RankingTab = lazy(() => import('./components/RankingTab'))
+const MyPageTab = lazy(() => import('./components/MyPageTab'))
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
@@ -171,31 +181,33 @@ export default function App() {
   // 메인 4탭
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
-      {activeTab === 'home' && (
-        <HomeTab uid={authUser.uid} userDoc={userDoc} onGoToLog={() => setActiveTab('log')} />
-      )}
-      {activeTab === 'log' && (
-        <LogTab
-          uid={authUser.uid}
-          routineTemplate={routineTemplate}
-          restNotificationEnabled={!!userDoc.restTimerNotificationPermission}
-          restWakeLockEnabled={!!userDoc.restTimerWakeLockEnabled}
-          onLogSaved={refreshUserDoc}
-          onRoutineUpdated={refreshRoutineTemplate}
-        />
-      )}
-      {activeTab === 'ranking' && (
-        <RankingTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={routineTemplate.splitParts.length} />
-      )}
-      {activeTab === 'my' && (
-        <MyPageTab
-          uid={authUser.uid}
-          userDoc={userDoc}
-          routineTemplate={routineTemplate}
-          onReconfigureRoutine={() => setRoutineTemplate(null)}
-          onProfileUpdated={refreshUserDoc}
-        />
-      )}
+      <Suspense fallback={<CenteredMessage>불러오는 중…</CenteredMessage>}>
+        {activeTab === 'home' && (
+          <HomeTab uid={authUser.uid} userDoc={userDoc} onGoToLog={() => setActiveTab('log')} />
+        )}
+        {activeTab === 'log' && (
+          <LogTab
+            uid={authUser.uid}
+            routineTemplate={routineTemplate}
+            restNotificationEnabled={!!userDoc.restTimerNotificationPermission}
+            restWakeLockEnabled={!!userDoc.restTimerWakeLockEnabled}
+            onLogSaved={refreshUserDoc}
+            onRoutineUpdated={refreshRoutineTemplate}
+          />
+        )}
+        {activeTab === 'ranking' && (
+          <RankingTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={routineTemplate.splitParts.length} />
+        )}
+        {activeTab === 'my' && (
+          <MyPageTab
+            uid={authUser.uid}
+            userDoc={userDoc}
+            routineTemplate={routineTemplate}
+            onReconfigureRoutine={() => setRoutineTemplate(null)}
+            onProfileUpdated={refreshUserDoc}
+          />
+        )}
+      </Suspense>
       <BottomNav active={activeTab} onChange={setActiveTab} />
     </div>
   )
