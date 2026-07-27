@@ -1,0 +1,128 @@
+/* tokens.css
+   출처: BodyTailor_Log_디자인_가이드.md (Wanted Design System 근사치 기반)
+   화이트 배경 + 블루 포인트 + 쿨그레이 텍스트 톤앤매너 */
+
+:root {
+  /* Static */
+  --color-static-white: #ffffff;
+  --color-static-black: #000000;
+
+  /* Primary (Blue) */
+  --color-primary-normal: #3182f6;
+  --color-primary-strong: #1b64da;
+  --color-primary-heavy: #0d3f8c;
+  --color-primary-bg: #eff6ff;
+
+  /* Label (Cool gray) */
+  --color-label-strong: #191f28;
+  --color-label-normal: #4e5968;
+  --color-label-neutral: #8b95a1;
+  --color-label-disable: #b0b8c1;
+
+  /* Surface / Line */
+  --color-bg: #ffffff;
+  --color-bg-elevated: #f9fafb;
+  --color-line: #e5e8eb;
+  --color-line-strong: #d1d6db;
+
+  /* Semantic accents (가이드 미지정, 실사용을 위해 보수적으로 추가) */
+  --color-success: #00c471;
+  --color-danger: #f04452;
+  --color-warning: #ff9500;
+
+  /* Tier colors */
+  --tier-iron: #8b95a1;
+  --tier-bronze: #b5651d;
+  --tier-silver: #9aa5b1;
+  --tier-gold: #f5b400;
+  --tier-platinum: #34c0c9;
+  --tier-diamond: #4f7cff;
+  --tier-legend: linear-gradient(135deg, #ff9f43, #ff4d9d 50%, #7b5cff);
+
+  /* Typography scale */
+  --fs-headline1: 20px;
+  --lh-headline1: 26px;
+  --fs-headline2: 17px;
+  --lh-headline2: 24px;
+  --fs-body1: 15px;
+  --lh-body1: 26px;
+  --fs-body2: 13px;
+  --lh-body2: 21px;
+  --fs-body3: 15px;
+  --lh-body3: 24px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+
+  --shadow-card: 0 2px 8px rgba(25, 31, 40, 0.06);
+  --shadow-nav: 0 -2px 12px rgba(25, 31, 40, 0.06);
+
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-label-strong);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: var(--fs-body1);
+  line-height: var(--lh-body1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 한글 줄바꿈 가독성 규칙: 사용자 노출 텍스트 기본 적용 (프로젝트 지침 7번) */
+body,
+p,
+h1,
+h2,
+h3,
+label,
+button,
+.text-keep-all {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 예외: 운동기록 표기(20x14/45x10), 숫자열 등은 break-all 허용 대상이므로 keep-all 미적용 */
+.record-notation {
+  word-break: normal;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.multiline-list {
+  white-space: pre-line;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--color-primary-normal);
+  outline-offset: 2px;
+}
+
+input {
+  font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}

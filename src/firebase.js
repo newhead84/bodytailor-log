@@ -1,8 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
-} from "firebase/auth";
+import { initializeApp } from 'firebase/app'
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
+import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,23 +9,22 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-
-export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-
-export function signInWithGoogle() {
-  return signInWithPopup(auth, googleProvider);
 }
 
-export function signOutUser() {
-  return signOut(auth);
+export const app = initializeApp(firebaseConfig)
+export const auth = getAuth(app)
+export const db = getFirestore(app)
+
+const googleProvider = new GoogleAuthProvider()
+
+export function loginWithGoogle() {
+  return signInWithPopup(auth, googleProvider)
 }
 
-// Subscribes to auth state; callback receives the Firebase user or null.
-// Returns the unsubscribe function.
-export function subscribeAuth(callback) {
-  return onAuthStateChanged(auth, callback);
+export function logout() {
+  return signOut(auth)
+}
+
+export function watchAuthState(callback) {
+  return onAuthStateChanged(auth, callback)
 }

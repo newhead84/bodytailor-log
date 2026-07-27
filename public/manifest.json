@@ -1,0 +1,9 @@
+{
+  "name": "BodyTailor Log",
+  "short_name": "BodyTailor",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#3182F6",
+  "icons": []
+}

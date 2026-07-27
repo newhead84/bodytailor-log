@@ -1,0 +1,180 @@
+import React, { useState } from 'react'
+import { Button, Chip } from './ui'
+
+const LEVELS = ['입문', '초급', '중급', '고급']
+const GENDERS = ['남성', '여성']
+const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
+
+const STEPS = ['level', 'gender', 'basic', 'goals']
+
+export default function Onboarding({ onComplete }) {
+  const [step, setStep] = useState(0)
+  const [form, setForm] = useState({
+    level: '',
+    gender: '',
+    age: '',
+    weightKg: '',
+    heightCm: '',
+    goals: [],
+  })
+  const [saving, setSaving] = useState(false)
+
+  function update(key, value) {
+    setForm((f) => ({ ...f, [key]: value }))
+  }
+
+  function toggleGoal(goal) {
+    setForm((f) => ({
+      ...f,
+      goals: f.goals.includes(goal) ? f.goals.filter((g) => g !== goal) : [...f.goals, goal],
+    }))
+  }
+
+  const canNext = {
+    level: !!form.level,
+    gender: !!form.gender,
+    basic: form.age && form.weightKg && form.heightCm,
+    goals: form.goals.length > 0,
+  }[STEPS[step]]
+
+  async function handleFinish() {
+    setSaving(true)
+    await onComplete({
+      ...form,
+      age: Number(form.age),
+      weightKg: Number(form.weightKg),
+      heightCm: Number(form.heightCm),
+    })
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '28px 20px' }}>
+      {/* 진행도 */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 28 }}>
+        {STEPS.map((s, i) => (
+          <div
+            key={s}
+            style={{
+              flex: 1,
+              height: 4,
+              borderRadius: 2,
+              background: i <= step ? 'var(--color-primary-normal)' : 'var(--color-line)',
+            }}
+          />
+        ))}
+      </div>
+
+      <div style={{ flex: 1 }}>
+        {STEPS[step] === 'level' && (
+          <StepBlock title="현재 운동 수준을 알려주세요">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {LEVELS.map((l) => (
+                <OptionRow key={l} label={l} selected={form.level === l} onClick={() => update('level', l)} />
+              ))}
+            </div>
+          </StepBlock>
+        )}
+
+        {STEPS[step] === 'gender' && (
+          <StepBlock title="성별을 알려주세요">
+            <div style={{ display: 'flex', gap: 10 }}>
+              {GENDERS.map((g) => (
+                <OptionRow key={g} label={g} selected={form.gender === g} onClick={() => update('gender', g)} flex />
+              ))}
+            </div>
+          </StepBlock>
+        )}
+
+        {STEPS[step] === 'basic' && (
+          <StepBlock title="기본 신체 정보를 입력해 주세요">
+            <FieldRow label="나이" unit="세" value={form.age} onChange={(v) => update('age', v)} />
+            <FieldRow label="몸무게" unit="kg" value={form.weightKg} onChange={(v) => update('weightKg', v)} />
+            <FieldRow label="키" unit="cm" value={form.heightCm} onChange={(v) => update('heightCm', v)} />
+            <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginTop: 12 }}>
+              신체 정보는 기본적으로 비공개이며, VIP 회원만 연동 트레이너에게 자동 공유돼요.
+            </p>
+          </StepBlock>
+        )}
+
+        {STEPS[step] === 'goals' && (
+          <StepBlock title="운동 목표를 선택해 주세요 (복수 선택 가능)">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {GOALS.map((g) => (
+                <Chip key={g} active={form.goals.includes(g)} onClick={() => toggleGoal(g)}>
+                  {g}
+                </Chip>
+              ))}
+            </div>
+          </StepBlock>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        {step > 0 && (
+          <Button variant="ghost" onClick={() => setStep((s) => s - 1)}>
+            이전
+          </Button>
+        )}
+        {step < STEPS.length - 1 ? (
+          <Button full disabled={!canNext} onClick={() => setStep((s) => s + 1)}>
+            다음
+          </Button>
+        ) : (
+          <Button full disabled={!canNext || saving} onClick={handleFinish}>
+            {saving ? '저장 중…' : '시작하기'}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StepBlock({ title, children }) {
+  return (
+    <div>
+      <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', lineHeight: 'var(--lh-headline1)', margin: '0 0 22px' }}>
+        {title}
+      </h1>
+      {children}
+    </div>
+  )
+}
+
+function OptionRow({ label, selected, onClick, flex }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: flex ? 1 : undefined,
+        textAlign: 'left',
+        padding: '16px 18px',
+        borderRadius: 12,
+        border: selected ? '2px solid var(--color-primary-normal)' : '1px solid var(--color-line)',
+        background: selected ? 'var(--color-primary-bg)' : '#fff',
+        color: selected ? 'var(--color-primary-strong)' : 'var(--color-label-strong)',
+        fontSize: 15,
+        fontWeight: 600,
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+function FieldRow({ label, unit, value, onChange }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--color-line)' }}>
+      <label style={{ width: 64, fontSize: 15, fontWeight: 600, color: 'var(--color-label-normal)' }}>{label}</label>
+      <input
+        type="number"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="0"
+        style={{ flex: 1, border: 'none', fontSize: 17, fontWeight: 700, outline: 'none', color: 'var(--color-label-strong)' }}
+      />
+      <span style={{ fontSize: 14, color: 'var(--color-label-neutral)' }}>{unit}</span>
+    </div>
+  )
+}

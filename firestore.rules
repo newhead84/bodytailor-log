@@ -1,8 +1,41 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid}/data/{docId} {
+
+    // users/{uid} — 본인 문서만 읽기/쓰기
+    match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // routineTemplates/{uid}/templates/{templateId} — 본인 소유 서브컬렉션
+    match /routineTemplates/{uid}/templates/{templateId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // workoutLogs/{uid}/logs/{logId} — 본인 소유 서브컬렉션
+    match /workoutLogs/{uid}/logs/{logId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // aiAdvice/{uid}/advices/{adviceId} — 본인 소유 서브컬렉션
+    match /aiAdvice/{uid}/advices/{adviceId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // leaderboard/{group}/{period}/{uid}
+    // 랭킹은 로그인한 모든 사용자가 열람 가능(전체 랭킹 노출 목적),
+    // 쓰기는 본인 문서만 허용. 부정 점수 조작 방지가 중요해지면
+    // 이 쓰기 권한은 Cloud Functions 전용으로 옮기고 클라이언트 쓰기를 막는 것을 권장.
+    match /leaderboard/{group}/{period}/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Phase2 이후 컬렉션(gymRoster, roleRequests, connections, programs,
+    // feedback, messages, diet)은 아직 화면/로직이 없으므로 기본 거부.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
