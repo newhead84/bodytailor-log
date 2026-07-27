@@ -46,9 +46,11 @@ export default function HomeTab({ uid, userDoc, onGoToLog }) {
             <Card key={log.id} style={{ marginBottom: 10 }}>
               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{log.date}</div>
               {log.exercises.slice(0, 3).map((ex) => (
-                <div key={ex.name} style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
-                  {ex.name}{' '}
-                  <span className="record-notation">{ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}</span>
+                <div key={ex.name} style={{ fontSize: 13, color: 'var(--color-label-normal)', display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                  <span style={{ flexShrink: 0 }}>{ex.name}</span>
+                  <span className="record-notation h-scroll" style={{ display: 'block', minWidth: 0 }}>
+                    {ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
+                  </span>
                 </div>
               ))}
             </Card>

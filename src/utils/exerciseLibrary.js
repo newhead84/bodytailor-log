@@ -37,8 +37,34 @@ export const EXERCISE_LIBRARY = {
   '이두': ['케이블컬', '덤벨컬', '리버스바벨컬'],
   '삼두': ['더블홀로프푸시다운', '패러럴머신프레스', '로프푸시다운', '케이블푸시다운바'],
   '하체': ['레그익스텐션', '레그컬', '루마니안데드리프트', '레그프레스', '브이스쿼트'],
-  '코어': ['행잉레그레이즈', '행잉레그레이즈(무릎굽힘)'],
-  '유산소': ['트레드밀', '왕복걷기', '천국의계단'],
+  '코어': ['행잉레그레이즈', '행잉레그레이즈(무릎굽힘)', '플랭크', '크런치', '러시안트위스트', '케이블크런치'],
+  '유산소': ['트레드밀', '왕복걷기', '천국의계단', '사이클(자전거)', '로잉머신', '실외러닝'],
+}
+
+// 부위별 대표 색상(원자 부위 기준). 종목 카드/칩 등에서 부위 구분용으로 사용.
+export const PART_COLORS = {
+  '가슴': '#FF6B6B',
+  '등': '#4D96FF',
+  '어깨': '#FFB84D',
+  '이두': '#6BCB77',
+  '삼두': '#4ECDC4',
+  '하체': '#9D65C9',
+  '코어': '#FF8FAB',
+  '유산소': '#54B4D3',
+}
+
+// 종목명 → 소속 원자 부위. 여러 부위에 속하지 않는 1:1 매핑 전제(라이브러리 등록 기준).
+export function getExerciseAtom(name) {
+  for (const [atom, list] of Object.entries(EXERCISE_LIBRARY)) {
+    if (list.includes(name)) return atom
+  }
+  return null
+}
+
+// 종목명 → 색상. 등록되지 않은(사용자 직접 추가) 종목은 중립색을 반환.
+export function getExerciseColor(name) {
+  const atom = getExerciseAtom(name)
+  return PART_COLORS[atom] || 'var(--color-label-neutral)'
 }
 
 // 복합/별칭 파트명 → 원자 부위 배열 매핑

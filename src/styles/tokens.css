@@ -106,6 +106,16 @@ button,
   white-space: pre-line;
 }
 
+/* 운동기록 등 한 줄 표기가 화면 폭을 넘길 때, 줄바꿈 대신 가로 스크롤을 허용 */
+.h-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.h-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 button {
   font-family: inherit;
   border: none;

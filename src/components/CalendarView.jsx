@@ -127,9 +127,9 @@ export default function CalendarView({ uid }) {
                 {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '사이클 운동'}
               </div>
               {log.exercises.map((ex) => (
-                <div key={ex.name} style={{ fontSize: 13, marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600 }}>{ex.name}</span>{' '}
-                  <span className="record-notation" style={{ color: 'var(--color-label-normal)' }}>
+                <div key={ex.name} style={{ fontSize: 13, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                  <span style={{ fontWeight: 600, flexShrink: 0 }}>{ex.name}</span>
+                  <span className="record-notation h-scroll" style={{ color: 'var(--color-label-normal)', display: 'block', minWidth: 0 }}>
                     {ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
                   </span>
                 </div>

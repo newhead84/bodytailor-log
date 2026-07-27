@@ -43,6 +43,34 @@
  *   |    드롭 시 routineTemplates/{uid}/templates/{id}.splitParts에 즉시 저장(다음에도 유지)
  *   | 3) ui.jsx(Card): data-* 등 추가 속성을 전달할 수 있도록 ...rest prop 지원(기존 사용처 영향 없음)
  *   | 4) App.jsx→LogTab.jsx→WorkoutInput.jsx: onRoutineUpdated(=refreshRoutineTemplate) prop 체인 연결
+ * [2026-07-27] 운동 흐름/타이머/기록 UX 개선 다건
+ *   | 1) WorkoutInput.jsx: 세션 진행단계(idle→warmup→main) 도입. "운동 시작" 클릭 시
+ *   |    웜업(3/5/7분 선택, 시간과 무관하게 "본운동 시작" 버튼으로 언제든 전환) →
+ *   |    본운동 순서로 진행. 하단 고정버튼도 단계별로 "운동 시작"/"본운동 시작"/
+ *   |    "오늘 운동 완료"로 전환. 세션 시작시각부터 누적되는 총 운동시간을 화면
+ *   |    상단에 표시하고, 완료 시 workoutLogs.totalDurationSec으로 저장
+ *   | 2) WorkoutInput.jsx: 세트별 "저장" 버튼과 별개로, 종목 펼침영역 하단에 해당
+ *   |    종목 전체를 마무리하는 "세트완료" 버튼 신규 추가. 완료 시 종목명 앞에 체크
+ *   |    표시 + 자동 접힘, 드래그 순서변경 대상에서 제외(순서 고정), 체크를 다시
+ *   |    누르면 완료 취소(재수정 가능)
+ *   | 3) WorkoutInput.jsx(saveSetAndStartRest): 세트 저장 시 다음 세트를 직전 값으로
+ *   |    자동 생성(기존 "복사" 버튼은 유지, 수동 추가도 계속 가능)
+ *   | 4) WorkoutInput.jsx(SetRow): kg/회 단위 라벨을 종목당 첫 세트에서만 표시하도록
+ *   |    변경(두 번째 세트부터는 라벨 없는 스테퍼만 노출)
+ *   | 5) WorkoutInput.jsx: 루틴 외 종목을 현재 파트에 즉시 추가하는 "+ 종목 추가"
+ *   |    (직접입력/추천칩) 및 루틴에서 완전히 삭제하는 아이콘(확인창 포함) 신규 추가.
+ *   |    routineTemplates.splitParts를 갱신하고 onRoutineUpdated로 반영
+ *   | 6) exerciseLibrary.js: PART_COLORS/getExerciseAtom/getExerciseColor 추가,
+ *   |    코어·유산소 종목 목록 확충. WorkoutInput.jsx 종목 카드 좌측에 부위별
+ *   |    색상 바(border-left) 표시
+ *   | 7) RestTimer.jsx: 알림을 2연타 비프+더 강한 진동 패턴으로 강화. 휴식시간이
+ *   |    지나도 자동으로 닫히지 않고 마이너스로 계속 카운트하며 20초 간격으로
+ *   |    재알림, 사용자가 "닫기"를 눌러야 종료(WorkoutInput.jsx onFinish는 더 이상
+ *   |    타이머를 닫지 않도록 수정, onCancel만 닫음)
+ *   | 8) CalendarView.jsx, HomeTab.jsx, tokens.css(.h-scroll 유틸 추가): 종목별
+ *   |    세트 표기(예: 20x14/45x10)가 길어 줄바꿈되던 것을 한 줄 유지 + 가로
+ *   |    스크롤로 변경
+ *   | 참고: 위치기반 출석 인정(헬스장 GPS 체크)은 이번 범위에서 제외(다음 단계)
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
