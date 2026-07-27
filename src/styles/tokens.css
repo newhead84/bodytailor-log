@@ -59,6 +59,7 @@
   --shadow-nav: 0 -2px 12px rgba(25, 31, 40, 0.06);
 
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-nav-height: 60px;
 }
 
 * {

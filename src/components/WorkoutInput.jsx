@@ -218,8 +218,9 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
           position: 'fixed',
           left: 0,
           right: 0,
-          bottom: 0,
-          padding: '14px 20px calc(14px + var(--safe-bottom))',
+          bottom: 'calc(var(--bottom-nav-height) + var(--safe-bottom))',
+          zIndex: 25,
+          padding: '14px 20px',
           background: 'var(--color-static-white)',
           boxShadow: 'var(--shadow-nav)',
           display: 'flex',
@@ -243,33 +244,62 @@ export default function WorkoutInput({ uid, routineTemplate, restNotificationEna
 
 function SetRow({ set, onWeightChange, onRepsChange, onSave, onCopy, onRemove }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-      <Stepper value={set.weight} onChange={onWeightChange} step={2.5} placeholder="kg" />
-      <span style={{ color: 'var(--color-label-neutral)' }}>×</span>
-      <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" />
-      <button
-        onClick={onSave}
-        disabled={set.saved}
-        style={{
-          padding: '8px 12px',
-          borderRadius: 8,
-          fontSize: 13,
-          fontWeight: 700,
-          background: set.saved ? 'var(--color-bg-elevated)' : 'var(--color-primary-normal)',
-          color: set.saved ? 'var(--color-label-neutral)' : '#fff',
-        }}
-      >
-        {set.saved ? '완료' : '저장'}
-      </button>
-      <button onClick={onCopy} title="세트 복사" style={{ fontSize: 16 }}>
-        ⧉
-      </button>
-      {onRemove && (
-        <button onClick={onRemove} title="세트 삭제" style={{ fontSize: 14, color: 'var(--color-label-neutral)' }}>
-          ✕
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Stepper value={set.weight} onChange={onWeightChange} step={2.5} placeholder="kg" />
+        <span style={{ color: 'var(--color-label-neutral)' }}>×</span>
+        <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+        <button
+          onClick={onSave}
+          disabled={set.saved}
+          style={{
+            padding: '8px 12px',
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+            background: set.saved ? 'var(--color-bg-elevated)' : 'var(--color-primary-normal)',
+            color: set.saved ? 'var(--color-label-neutral)' : '#fff',
+          }}
+        >
+          {set.saved ? '완료' : '저장'}
         </button>
-      )}
+        <IconButton title="세트 추가(직전 값 복사)" onClick={onCopy}>
+          <path d="M12 6v12M6 12h12" />
+        </IconButton>
+        {onRemove && (
+          <IconButton title="세트 삭제" onClick={onRemove} muted>
+            <path d="M7 7l10 10M17 7L7 17" />
+          </IconButton>
+        )}
+      </div>
     </div>
+  )
+}
+
+function IconButton({ children, onClick, title, muted }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        flexShrink: 0,
+        width: 32,
+        height: 32,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 8,
+        border: '1px solid var(--color-line)',
+        background: muted ? 'var(--color-static-white)' : 'var(--color-primary-bg)',
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={muted ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)'} strokeWidth="2.4" strokeLinecap="round">
+        {children}
+      </svg>
+    </button>
   )
 }
 

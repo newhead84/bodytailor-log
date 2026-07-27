@@ -4,7 +4,7 @@
  *   | 전체 구조: 인증(LoginScreen) → 온보딩(Onboarding) → 루틴설정(RoutineSetup)
  *   | → 메인 4탭(HomeTab/LogTab/RankingTab/MyPageTab) + BottomNav
  *   | 데이터 계층: storage.js(Firestore, v8 데이터 모델), firebase.js(Auth)
- *   | 유틸: exerciseLibrary.js, tier.js, scoring.js, aiAdvice.js
+ *   | 유틸: exerciseLibrary.js, tier.js, scoring.js
  * [2026-07-27] 화면 개편 4건 반영
  *   | 1) exerciseLibrary.js: 운동 DB를 부위별 원자 단위(가슴/등/어깨/이두/삼두/하체 등)로
  *   |    재구성 + getExercisesForPart() 추가. RoutineSetup.jsx가 파트별 운동만 노출하도록 수정
@@ -18,6 +18,16 @@
  *   |    신규 제작·등록(192/512/maskable/apple-touch). "홈 화면에 추가" 시 표시되는 아이콘 개선
  *   | 3) MyPageTab.jsx: 닉네임 입력행 input에 minWidth:0 부여 + 저장 버튼 flexShrink:0으로
  *   |    좁은 화면에서 저장 버튼이 프레임을 벗어나던 버그 수정, AI 연동 버튼행 flexWrap 추가
+ * [2026-07-27] AI 기능 삭제 + 버그 수정 3건 + 프로필 수정기능
+ *   | 1) AI 어드바이스/AI 모델 연동 기능 전면 삭제: MyPageTab.jsx("AI 모델 연동" 섹션),
+ *   |    utils/aiAdvice.js(삭제), storage.js(saveAiAdvice/getLatestAiAdvice/connectedAiModels 제거),
+ *   |    firestore.rules(aiAdvice 컬렉션 규칙 제거), HomeTab.jsx(AI 어드바이스 섹션 제거)
+ *   | 2) WorkoutInput.jsx: 세트 행(SetRow)을 flexWrap 레이아웃으로 재구성, 겹쳐 보이던 ⧉ 문자를
+ *   |    SVG +/✕ 아이콘으로 교체 → 좁은 화면에서 프레임 벗어남 버그 수정
+ *   | 3) WorkoutInput.jsx, RestTimer.jsx, tokens.css(--bottom-nav-height 추가): 하단 "오늘 볼륨"
+ *   |    고정바가 BottomNav(z-index:20)에 가려지던 문제 수정(위치+z-index 조정)
+ *   | 4) MyPageTab.jsx: 온보딩 시 1회만 입력 가능했던 프로필(수준/성별/나이/몸무게/키/목표)을
+ *   |    MY 탭에서 언제든 수정할 수 있도록 편집 모드 추가
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
@@ -80,9 +90,6 @@ export default function App() {
 
   async function handleOnboardingComplete(onboardingData) {
     await saveOnboarding(authUser.uid, onboardingData)
-    // 온보딩 완료 직후 AI 어드바이스 자동 제공(8.4)은 사용자가 연동한 AI 모델의 API 키가
-    // 있어야 가능하다. 이 시점엔 아직 키가 없을 수 있으므로, 여기서는 온보딩 스냅샷만
-    // 저장해 두고 실제 어드바이스 요청은 MY 탭(연동 완료 후) 또는 홈 탭에서 유도한다.
     await refreshUserDoc()
   }
 

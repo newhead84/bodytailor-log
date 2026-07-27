@@ -1,6 +1,6 @@
 // storage.js
 // v8 설계안(8.5 데이터 모델)을 기준으로 한 Firestore 래퍼.
-// Phase1 범위: users, routineTemplates, workoutLogs, aiAdvice, leaderboard
+// Phase1 범위: users, routineTemplates, workoutLogs, leaderboard
 // Phase2 컬렉션(gymRoster, roleRequests, connections, programs, feedback, messages, diet)은
 // 아직 화면/로직이 없으므로 이 파일에 포함하지 않음 (firestore.rules에서도 기본 거부).
 
@@ -32,7 +32,6 @@ const DEFAULT_USER_DOC = {
   physicalInfoSharedWithTrainer: false,
   restTimerNotificationPermission: false,
   socialNotificationOptIn: false,
-  connectedAiModels: { gpt: null, gemini: null, claude: null },
   seasonXp: 0,
   lifetimeXp: 0,
   lifetimeBadges: [],
@@ -148,23 +147,6 @@ export async function getLastRecordForExercise(uid, exerciseName, count = 30) {
     if (found) return { date: log.date, ...found }
   }
   return null
-}
-
-// ───────────────── aiAdvice/{uid}/advices/{adviceId} ─────────────────
-
-export async function saveAiAdvice(uid, adviceData) {
-  const col = collection(db, 'aiAdvice', uid, 'advices')
-  const ref = await addDoc(col, { ...adviceData, createdAt: serverTimestamp() })
-  return ref.id
-}
-
-export async function getLatestAiAdvice(uid) {
-  const col = collection(db, 'aiAdvice', uid, 'advices')
-  const q = query(col, orderBy('createdAt', 'desc'), limit(1))
-  const snap = await getDocs(q)
-  if (snap.empty) return null
-  const d = snap.docs[0]
-  return { id: d.id, ...d.data() }
 }
 
 // ───────────── leaderboard/{group}/{period}/{uid} ─────────────

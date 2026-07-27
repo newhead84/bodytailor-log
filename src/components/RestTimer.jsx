@@ -54,7 +54,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, onFi
         position: 'fixed',
         left: 16,
         right: 16,
-        bottom: 78,
+        bottom: 'calc(var(--bottom-nav-height) + var(--safe-bottom) + 78px)',
         zIndex: 30,
         background: 'var(--color-label-strong)',
         color: '#fff',
