@@ -4,6 +4,7 @@ import { updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '.
 import { logout } from '../firebase'
 import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset } from '../utils/exerciseLibrary'
+import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
 
 // [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
 // "운동조합 변경"(RoutineManager) 화면이 같은 프리셋 정의를 공유하도록 정리했다.
@@ -22,6 +23,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   )
   const [wakeLockEnabled, setWakeLockEnabled] = useState(!!userDoc?.restTimerWakeLockEnabled)
+  const [restSoundId, setRestSoundId] = useState(userDoc?.restTimerSoundId || 'beep')
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
   const [addingCustomGoal, setAddingCustomGoal] = useState(false)
@@ -145,6 +147,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
     }
     setWakeLockEnabled(next)
     await updateUserProfile(uid, { restTimerWakeLockEnabled: next })
+  }
+
+  async function selectRestSound(soundId) {
+    setRestSoundId(soundId)
+    await updateUserProfile(uid, { restTimerSoundId: soundId })
   }
 
   // "분할운동 템플릿" — 트레이너들이 자주 쓰는 2/3/4분할 프리셋을 그대로
@@ -422,6 +429,24 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
           >
             {!wakeLockSupported ? '미지원' : wakeLockEnabled ? '사용 중' : '사용'}
           </Button>
+        </div>
+
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
+          <div className="text-keep-all" style={{ fontSize: 14, marginBottom: 8 }}>휴게타이머 알림음</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {REST_SOUND_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.id}
+                active={restSoundId === opt.id}
+                onClick={() => {
+                  selectRestSound(opt.id)
+                  playSound(opt.id, 1)
+                }}
+              >
+                {opt.label}
+              </Chip>
+            ))}
+          </div>
         </div>
       </Card>
 

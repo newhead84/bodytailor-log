@@ -28,7 +28,22 @@ function pad(n) {
   return String(n).padStart(2, '0')
 }
 
-export default function CalendarView({ uid, onMonthSummary }) {
+// [2026-07-28] 종목별 입력방식(9.10 요청: 푸쉬업/행잉은 횟수만, 트레드밀 등 유산소는
+// 경사/속도/시간)에 맞춰, 저장된 log.exercises[].inputType 기준으로 표기 형식을 분기한다.
+// 과거(이 변경 이전)에 저장된 기록은 inputType이 없으므로 기존 "무게x횟수" 표기를 그대로 유지한다.
+function formatExerciseSets(ex) {
+  if (ex.inputType === 'cardio') {
+    return ex.sets
+      .map((s) => `경사${s.incline || 0}%·시속${s.speedKmh || 0}km/h·${s.durationMin || 0}분`)
+      .join(' / ')
+  }
+  if (ex.inputType === 'reps') {
+    return ex.sets.map((s) => `${s.reps}회`).join('/')
+  }
+  return ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')
+}
+
+export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
   const [cursor, setCursor] = useState(() => {
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() } // month: 0-indexed
@@ -67,7 +82,10 @@ export default function CalendarView({ uid, onMonthSummary }) {
     return () => {
       cancelled = true
     }
-  }, [loadMonth])
+    // logsVersion: 다른 탭(기록 입력)에서 운동을 저장하면 App.jsx가 이 값을 올려, 나갔다
+    // 들어오지 않아도 캘린더가 즉시 재조회되도록 한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadMonth, logsVersion])
 
   // 이번 달 운동일/휴식일 수를 부모(홈탭)로 전달한다. 오늘이 속한 달이면 "오늘까지"만 세고,
   // 지난 달을 보고 있으면 그 달 전체 일수를 기준으로 센다.
@@ -343,7 +361,7 @@ export default function CalendarView({ uid, onMonthSummary }) {
                   <div key={ex.name} style={{ fontSize: 13, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'baseline' }}>
                     <span style={{ fontWeight: 600, flexShrink: 0 }}>{ex.name}</span>
                     <span className="record-notation h-scroll" style={{ color: 'var(--color-label-normal)', display: 'block', minWidth: 0 }}>
-                      {ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
+                      {formatExerciseSets(ex)}
                     </span>
                   </div>
                 ))}

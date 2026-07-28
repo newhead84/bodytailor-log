@@ -31,7 +31,7 @@ function getSuggestedNext(routineTemplates, recentLogs) {
   return { template, part: template.parts[nextIdx] }
 }
 
-export default function HomeTab({ uid, userDoc, routineTemplates, onGoToLog }) {
+export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, onGoToLog }) {
   const [recentLogs, setRecentLogs] = useState([])
   const [showExtraCta, setShowExtraCta] = useState(false)
   const [monthSummary, setMonthSummary] = useState(null)
@@ -47,7 +47,8 @@ export default function HomeTab({ uid, userDoc, routineTemplates, onGoToLog }) {
     return () => {
       cancelled = true
     }
-  }, [uid])
+    // logsVersion: 운동 완료 직후(App.jsx) 값이 올라가며 재조회를 트리거한다(재진입 없이 즉시 반영).
+  }, [uid, logsVersion])
 
   const todayLogs = useMemo(() => recentLogs.filter((l) => l.date === todayStr()), [recentLogs])
   const doneToday = todayLogs.length > 0
@@ -92,7 +93,7 @@ export default function HomeTab({ uid, userDoc, routineTemplates, onGoToLog }) {
       </Card>
 
       <div style={{ margin: '0 -20px 4px' }}>
-        <CalendarView uid={uid} onMonthSummary={setMonthSummary} />
+        <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} />
       </div>
 
       {monthSummary && (

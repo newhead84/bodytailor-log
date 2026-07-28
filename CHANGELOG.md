@@ -2,6 +2,39 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-07-28] 운동기록 입력 화면에 종목별 "동작 가이드" 이미지 추가 (이전 대화에서 설계한 내용을 이번
+세션의 최신 WorkoutInput.jsx에 재적용 + 매핑 검증/수정)
+- 데이터 출처: free-exercise-db(Unlicense/퍼블릭 도메인, https://github.com/yuhonas/free-exercise-db),
+  jsDelivr CDN으로 앱 세션당 1회 fetch 후 캐싱. 시작/종료 자세 정지 사진 2장을 토글로 전환.
+  한글 종목명 110개 중 실제 데이터셋과 이름이 정확히 일치하는 79개만 매핑, 나머지는 "이미지 준비중" 노출
+  (이전 세션의 매핑안 중 실제 데이터셋에 없는 이름 9건 발견 → 실제 exercises.json 대조 후 교정/제외)
+  | 신규: exerciseImageMap.js(매핑표), exerciseImageApi.js(fetch/캐싱), ExerciseGuideImage.jsx(UI)
+  | 연결: WorkoutInput.jsx(ExerciseCard 펼침 영역 최상단, 종목별 입력방식 분화와 함께 사용)
+
+[2026-07-28] 버그수정 다건 + 종목별 입력방식 분화 + XP 보상 (사용자 확인 후 반영)
+- 운동 완료해도 XP가 전혀 오르지 않던 버그 수정: 세션 저장 시 XP를 계산해 users/{uid}.seasonXp/
+  lifetimeXp에 즉시 반영 | storage.js(addWorkoutLog, computeSessionXp)
+- 홈탭 캘린더/최근기록이 기록 저장 직후 갱신되지 않고 앱을 나갔다 들어와야 반영되던 버그 수정.
+  App.jsx에 logsVersion 카운터를 두어 저장 시마다 하위 재조회를 트리거 | App.jsx, HomeTab.jsx, CalendarView.jsx
+- 네비게이션 "뒤로가기"로 화면이 꺼지며 입력 중 기록이 사라지는 문제 방지: history 엔트리를
+  가드하여 뒤로가기가 앱을 언로드하지 않도록 함 | App.jsx
+- 기록탭 진입 애니메이션을 "위→아래로 떨어지는" 효과로 교체(탭은 계속 상시 마운트 유지,
+  래퍼 div의 클래스만 리플로우로 재생) | App.jsx, tokens.css(.tab-drop-in)
+- 휴식시간 초과 알림이 끝없이 반복되던 것을 최대 2회로 제한, 이후 자동 종료 | RestTimer.jsx
+- 휴게타이머 알림음 5종 추가 + MY탭에서 선택/미리듣기 | RestTimer.jsx(REST_SOUND_OPTIONS), MyPageTab.jsx
+- 휴식시간 설정(1분/1분30초/2분)이 앱 재진입 시 90초로 초기화되던 버그 수정(uid별 영속 저장)
+  | WorkoutInput.jsx(restSecondsKey)
+- 운동완료 시 진행 중이던 휴식타이머 즉시 종료 + 격려/축하 팝업(획득 XP 표시) 추가
+  | WorkoutInput.jsx(WorkoutCompleteModal), tokens.css(.bt-celebrate-*)
+- 종목별 입력방식 분화: 푸쉬업/행잉레그레이즈/행잉니레이즈는 횟수만 입력, '유산소' 부위
+  전체는 경사/속도/시간 입력(세트 개념 없음)으로 분기 | exerciseLibrary.js(getExerciseInputType),
+  WorkoutInput.jsx(SetRow/ExerciseCard), CalendarView.jsx(formatExerciseSets)
+- 종목별 중량 증량 단위 차등화: 덤벨 2kg, 머신/케이블 5kg, 그 외(바벨/스미스 등) 2.5kg 유지
+  | exerciseLibrary.js(getWeightStep)
+- 세트 입력 줄의 체크/복사/삭제 버튼이 중량 입력칸과 겹치던 문제 수정(입력칸/버튼 폭 축소)
+  | WorkoutInput.jsx(SetRow, Stepper, IconButton)
+- 당겨서 새로고침(pull-to-refresh) 제스처 비활성화 | tokens.css(overscroll-behavior-y)
+
 [2026-07-28] 홈/기록/MY탭 다건 수정 + 운동 종목 DB 개편 (사용자 확인 후 반영)
 - 홈탭: 캘린더에서 선택한 날짜의 기존 기록을 수정(중량/횟수/날짜 변경)·삭제 가능하도록 추가
   | CalendarView.jsx(편집 폼, startEdit/saveEdit/handleDeleteLog), storage.js(deleteWorkoutLog 신규)

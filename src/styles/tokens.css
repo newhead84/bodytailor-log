@@ -70,6 +70,8 @@ html,
 body,
 #root {
   height: 100%;
+  /* [2026-07-28] 안드로이드/크롬의 "당겨서 새로고침" 제스처 비활성화 */
+  overscroll-behavior-y: contain;
 }
 
 body {
@@ -147,4 +149,56 @@ input {
     transform: scale(1.08);
     opacity: 0.85;
   }
+}
+
+/* [2026-07-28] 기록탭 진입 시 위→아래로 떨어지는 애니메이션 */
+@keyframes bt-tab-drop-in {
+  from {
+    transform: translateY(-16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.tab-drop-in {
+  animation: bt-tab-drop-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* [2026-07-28] 운동완료 축하 팝업 애니메이션 */
+@keyframes bt-celebrate-pop {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.03);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.bt-celebrate-pop {
+  animation: bt-celebrate-pop 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes bt-celebrate-check {
+  0% {
+    transform: scale(0);
+  }
+  70% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.bt-celebrate-check {
+  animation: bt-celebrate-check 0.4s 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }

@@ -19,6 +19,7 @@ import {
   limit,
   getDocs,
   serverTimestamp,
+  increment,
 } from 'firebase/firestore'
 
 // ───────────────────────── users/{uid} ─────────────────────────
@@ -33,6 +34,7 @@ const DEFAULT_USER_DOC = {
   physicalInfoSharedWithTrainer: false,
   restTimerNotificationPermission: false,
   restTimerWakeLockEnabled: false,
+  restTimerSoundId: 'beep',
   socialNotificationOptIn: false,
   routineSetupSkipped: false, // 최초 루틴 설정에서 "나중에 입력"을 눌렀는지 여부
   seasonXp: 0,
@@ -117,6 +119,17 @@ export async function deleteRoutineTemplate(uid, templateId) {
 
 // ───────────────── workoutLogs/{uid}/logs/{logId} ─────────────────
 
+// [2026-07-28] 운동 완료 시 XP가 전혀 오르지 않던 버그 수정: 세션당 XP를 계산해
+// users/{uid}.seasonXp / lifetimeXp에 즉시 반영한다(혼자 운동해도 보상이 생기도록).
+// 공식은 Phase1 제안값: 기본 50xp(자유운동은 scoreWeight 0.7배) + 볼륨 보너스(최대 100) +
+// 운동시간 보너스(최대 30, 2분당 1xp). 추후 8.4 랭킹 점수식과 별도로 조정 가능.
+function computeSessionXp({ totalVolume, scoreWeight, totalDurationSec }) {
+  const base = 50 * (scoreWeight ?? 1)
+  const volumeBonus = Math.min(100, Math.round((totalVolume || 0) / 50))
+  const durationBonus = Math.min(30, Math.round((totalDurationSec || 0) / 120))
+  return Math.max(10, Math.round(base + volumeBonus + durationBonus))
+}
+
 export async function addWorkoutLog(uid, logData) {
   // logData: { date, exercises: [{name, part, sets:[{weight,reps}]}], totalVolume,
   //            totalDurationSec, caloriesKcal, routineTemplateId, partName, sessionType, scoreWeight }
@@ -127,7 +140,14 @@ export async function addWorkoutLog(uid, logData) {
     ...logData,
     createdAt: serverTimestamp(),
   })
-  return ref.id
+
+  const xpEarned = computeSessionXp(logData)
+  await updateDoc(doc(db, 'users', uid), {
+    seasonXp: increment(xpEarned),
+    lifetimeXp: increment(xpEarned),
+  })
+
+  return { id: ref.id, xpEarned }
 }
 
 export async function updateWorkoutLog(uid, logId, partial) {

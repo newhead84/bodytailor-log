@@ -2,12 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card } from './ui'
 import RestTimer from './RestTimer'
+import ExerciseGuideImage from './ExerciseGuideImage'
 import {
   calcVolume,
   getExercisesForPart,
   getExerciseColor,
   getExerciseAtom,
   getExerciseDisplayAtom,
+  getExerciseInputType,
+  getWeightStep,
   BODY_PART_ATOMS,
 } from '../utils/exerciseLibrary'
 import { estimateCalories } from '../utils/calories'
@@ -31,6 +34,12 @@ function draftKey(uid) {
   return `bodytailor-draft-${uid}-${todayStr()}`
 }
 
+// [2026-07-28] 휴식시간 설정(1분/1분30초/2분)이 앱을 나갔다 들어오면 90초로 초기화되던
+// 버그 수정: 날짜와 무관하게 uid별로 영속 저장한다(오늘의 세션 draft와는 별도 키).
+function restSecondsKey(uid) {
+  return `bodytailor-rest-seconds-${uid}`
+}
+
 function formatClock(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds))
   const h = Math.floor(s / 3600)
@@ -41,7 +50,7 @@ function formatClock(totalSeconds) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
-export default function WorkoutInput({ uid, routineTemplates, weightKg, restNotificationEnabled, restWakeLockEnabled, onSaved, onRoutineUpdated }) {
+export default function WorkoutInput({ uid, routineTemplates, weightKg, restNotificationEnabled, restWakeLockEnabled, restSoundId, onSaved, onRoutineUpdated }) {
   const templates = routineTemplates || []
   // 운동조합: 내 루틴(최대 8개) 중 하나 또는 '자유 추가 운동'
   const [sessionType, setSessionType] = useState('routine') // 'routine' | 'extra'
@@ -55,6 +64,8 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
   const [restKey, setRestKey] = useState(0)
   const [restActive, setRestActive] = useState(false)
   const [saving, setSaving] = useState(false)
+  // [2026-07-28] 운동완료 축하 팝업(획득 XP 표시). null이면 미노출.
+  const [celebration, setCelebration] = useState(null) // { xpEarned } | null
   // 현재 선택된 파트의 종목 표시 순서(드래그앤드랍 결과) - 파트에 저장되어 다음에도 유지됨
   const [partOrder, setPartOrder] = useState([]) // string[]
   // 오늘 세션에서만 숨긴 종목 - 루틴 자체는 건드리지 않음, 오늘 임시저장에만 함께 저장
@@ -108,6 +119,15 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
   useEffect(() => {
     if (!uid) return
     try {
+      const rawRest = localStorage.getItem(restSecondsKey(uid))
+      if (rawRest) {
+        const parsed = parseInt(rawRest, 10)
+        if (REST_OPTIONS.some((o) => o.value === parsed)) setRestSeconds(parsed)
+      }
+    } catch (e) {
+      // 무시
+    }
+    try {
       const raw = localStorage.getItem(draftKey(uid))
       if (raw) {
         const draft = JSON.parse(raw)
@@ -130,6 +150,12 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid])
+
+  // 휴식시간 설정은 오늘 draft와 별개로, 바뀔 때마다 uid 기준으로 영속 저장한다.
+  useEffect(() => {
+    if (!uid) return
+    localStorage.setItem(restSecondsKey(uid), String(restSeconds))
+  }, [uid, restSeconds])
 
   // 변경될 때마다 임시 저장
   useEffect(() => {
@@ -247,9 +273,30 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
 
     // 아직 이 종목에 값을 입력한 적이 없으면, 직전 기록의 마지막 세트 값을
     // 첫 세트의 기본값으로 미리 채워준다(그대로 저장해도 되고, 수정도 가능).
+    const inputType = getExerciseInputType(name)
     setRecords((r) => {
       if (r[name]) return r
       const lastSet = last?.sets?.[last.sets.length - 1]
+      if (inputType === 'cardio') {
+        return {
+          ...r,
+          [name]: [
+            {
+              weight: '0',
+              reps: '0',
+              incline: lastSet?.incline != null ? String(lastSet.incline) : '',
+              speedKmh: lastSet?.speedKmh != null ? String(lastSet.speedKmh) : '',
+              durationMin: lastSet?.durationMin != null ? String(lastSet.durationMin) : '',
+            },
+          ],
+        }
+      }
+      if (inputType === 'reps') {
+        return {
+          ...r,
+          [name]: [{ weight: '0', reps: lastSet ? String(lastSet.reps) : '' }],
+        }
+      }
       return {
         ...r,
         [name]: [{ weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
@@ -268,8 +315,8 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
   function copyLastSet(name, idx) {
     setRecords((r) => {
       const sets = r[name]
-      const base = sets[idx]
-      return { ...r, [name]: [...sets, { weight: base.weight, reps: base.reps }] }
+      const { saved, ...base } = sets[idx]
+      return { ...r, [name]: [...sets, { ...base }] }
     })
   }
 
@@ -277,12 +324,16 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
     setRecords((r) => ({ ...r, [name]: r[name].filter((_, i) => i !== idx) }))
   }
 
-  // 체크(V) 버튼으로 세트를 저장하기 전에, 중량/횟수 중 하나라도 비어있으면
-  // 그대로 저장할지 한 번 더 확인한다(실수로 빈 값을 저장하는 것을 방지).
+  // 체크(V) 버튼으로 세트를 저장하기 전에, 필수 값이 비어있으면 그대로 저장할지
+  // 한 번 더 확인한다(실수로 빈 값을 저장하는 것을 방지). 종목 입력방식에 따라
+  // 어떤 값이 "필수"인지가 다르다(중량+횟수 / 횟수만 / 시간).
   function trySaveSet(name, idx) {
     const set = records[name]?.[idx]
-    const isEmpty = !set || set.weight === '' || set.reps === ''
-    if (isEmpty && !window.confirm('중량 또는 횟수가 비어 있어요. 그대로 저장할까요?')) return
+    const inputType = getExerciseInputType(name)
+    const isEmpty =
+      !set ||
+      (inputType === 'cardio' ? set.durationMin === '' : inputType === 'reps' ? set.reps === '' : set.weight === '' || set.reps === '')
+    if (isEmpty && !window.confirm('값이 비어 있어요. 그대로 저장할까요?')) return
     saveSetAndStartRest(name, idx)
   }
 
@@ -290,9 +341,9 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
   function saveSetAndStartRest(name, idx) {
     setRecords((r) => {
       const sets = r[name].map((s, i) => (i === idx ? { ...s, saved: true } : s))
-      const base = sets[idx]
+      const { saved, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]
-      const nextSets = hasNext ? sets : [...sets, { weight: base.weight, reps: base.reps }]
+      const nextSets = hasNext ? sets : [...sets, { ...base }]
       return { ...r, [name]: nextSets }
     })
     setRestKey((k) => k + 1)
@@ -392,14 +443,21 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
 
   const totalVolume = useMemo(() => {
     let sum = 0
-    Object.values(records).forEach((sets) => {
+    Object.entries(records).forEach(([name, sets]) => {
+      const inputType = getExerciseInputType(name)
+      if (inputType !== 'sets') return // 유산소/횟수전용 종목은 볼륨 계산에서 제외
       const parsed = sets.filter((s) => s.weight !== '' && s.reps !== '').map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
       sum += calcVolume(parsed)
     })
     return sum
   }, [records])
 
-  const hasAnyRecord = Object.values(records).some((sets) => sets.some((s) => s.weight !== '' && s.reps !== ''))
+  const hasAnyRecord = Object.entries(records).some(([name, sets]) => {
+    const inputType = getExerciseInputType(name)
+    if (inputType === 'cardio') return sets.some((s) => s.durationMin !== '')
+    if (inputType === 'reps') return sets.some((s) => s.reps !== '')
+    return sets.some((s) => s.weight !== '' && s.reps !== '')
+  })
 
   const visibleExercises =
     sessionType === 'extra' ? freeExercises : partOrder.filter((name) => !hiddenToday.includes(name))
@@ -413,10 +471,26 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
     setSaving(true)
     const exercises = Object.entries(records)
       .map(([name, sets]) => {
-        const validSets = sets
-          .filter((s) => s.weight !== '' && s.reps !== '')
-          .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
-        return { name, part: getExerciseAtom(name) || '', sets: validSets }
+        const inputType = getExerciseInputType(name)
+        let validSets
+        if (inputType === 'cardio') {
+          validSets = sets
+            .filter((s) => s.durationMin !== '')
+            .map((s) => ({
+              weight: 0,
+              reps: 0,
+              incline: Number(s.incline) || 0,
+              speedKmh: Number(s.speedKmh) || 0,
+              durationMin: Number(s.durationMin) || 0,
+            }))
+        } else if (inputType === 'reps') {
+          validSets = sets.filter((s) => s.reps !== '').map((s) => ({ weight: 0, reps: Number(s.reps) }))
+        } else {
+          validSets = sets
+            .filter((s) => s.weight !== '' && s.reps !== '')
+            .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
+        }
+        return { name, part: getExerciseAtom(name) || '', inputType, sets: validSets }
       })
       .filter((e) => e.sets.length > 0)
 
@@ -427,7 +501,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
     const cardioHeavy = exercises.length > 0 && cardioCount / exercises.length >= 0.5
     const caloriesKcal = estimateCalories(weightKg, totalDurationSec, cardioHeavy)
 
-    await addWorkoutLog(uid, {
+    const { xpEarned } = await addWorkoutLog(uid, {
       date: todayStr(),
       exercises,
       totalVolume,
@@ -451,6 +525,9 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
     setFreeExercises([])
     setHiddenToday([])
     setSaving(false)
+    // 운동완료 시점에 진행 중이던 휴식타이머는 즉시 사라져야 한다.
+    setRestActive(false)
+    setCelebration({ xpEarned })
     onSaved?.()
   }
 
@@ -658,6 +735,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                     onComplete={() => completeExercise(name)}
                     onWeightChange={(idx, v) => updateSet(name, idx, 'weight', v)}
                     onRepsChange={(idx, v) => updateSet(name, idx, 'reps', v)}
+                    onFieldChange={(idx, field, v) => updateSet(name, idx, field, v)}
                     onSaveSet={(idx) => trySaveSet(name, idx)}
                     onCopySet={(idx) => copyLastSet(name, idx)}
                     onRemoveSet={(idx) => removeSet(name, idx)}
@@ -683,6 +761,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                   onComplete={() => completeExercise(name)}
                   onWeightChange={(idx, v) => updateSet(name, idx, 'weight', v)}
                   onRepsChange={(idx, v) => updateSet(name, idx, 'reps', v)}
+                  onFieldChange={(idx, field, v) => updateSet(name, idx, field, v)}
                   onSaveSet={(idx) => trySaveSet(name, idx)}
                   onCopySet={(idx) => copyLastSet(name, idx)}
                   onRemoveSet={(idx) => removeSet(name, idx)}
@@ -774,9 +853,14 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
           resetKey={restKey}
           notificationEnabled={restNotificationEnabled}
           wakeLockEnabled={restWakeLockEnabled}
+          soundId={restSoundId}
           onFinish={() => {}}
           onCancel={() => setRestActive(false)}
         />
+      )}
+
+      {celebration && (
+        <WorkoutCompleteModal xpEarned={celebration.xpEarned} onClose={() => setCelebration(null)} />
       )}
 
       <div
@@ -822,7 +906,81 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
   )
 }
 
-// Reorder.Item의 드래그 리스너를 끄고(dragListener=false), 좌측 핸들(⠿)을 누를 때만
+// [2026-07-28] 운동완료 축하 팝업. 격려 문구 + 획득 XP + 체크마크 애니메이션.
+// 배경을 눌러도 닫히지 않게(다음 행동 유도) 버튼으로만 닫는다.
+function WorkoutCompleteModal({ xpEarned, onClose }) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        background: 'rgba(25,31,40,0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        className="bt-celebrate-pop"
+        style={{
+          background: 'var(--color-static-white)',
+          borderRadius: 20,
+          padding: '32px 24px',
+          textAlign: 'center',
+          maxWidth: 320,
+          width: '100%',
+        }}
+      >
+        <div
+          className="bt-celebrate-check"
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: '50%',
+            background: 'var(--color-success)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}
+        >
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12l5 5L19 7" />
+          </svg>
+        </div>
+        <p className="text-keep-all" style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+          오늘도 득근 완료! 🎉
+        </p>
+        <p className="text-keep-all" style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--color-label-neutral)' }}>
+          수고하셨어요. 꾸준함이 곧 실력이 됩니다.
+        </p>
+        {xpEarned > 0 && (
+          <div
+            style={{
+              display: 'inline-block',
+              padding: '8px 16px',
+              borderRadius: 999,
+              background: 'var(--color-primary-bg)',
+              color: 'var(--color-primary-strong)',
+              fontWeight: 800,
+              fontSize: 15,
+              marginBottom: 20,
+            }}
+          >
+            +{xpEarned} XP 획득
+          </div>
+        )}
+        <Button full onClick={onClose}>
+          확인
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+
 // dragControls.start()로 드래그를 시작시켜 목록 가운데를 스크롤할 때 실수로 순서가
 // 바뀌지 않도록 한다.
 // [2026-07-28] 종목 카드를 펼치고 접을 때 카드 전체가 커졌다 작아지는 애니메이션이 남아있다는
@@ -839,6 +997,7 @@ function SortableExerciseItem({ name, onDragEnd, children }) {
       dragControls={dragControls}
       onDragEnd={onDragEnd}
       layout="position"
+      initial={false}
       style={{ listStyle: 'none' }}
     >
       {React.cloneElement(children, { dragControls })}
@@ -860,6 +1019,7 @@ function ExerciseCard({
   onComplete,
   onWeightChange,
   onRepsChange,
+  onFieldChange,
   onSaveSet,
   onCopySet,
   onRemoveSet,
@@ -869,6 +1029,8 @@ function ExerciseCard({
   onRemoveExtra,
 }) {
   const color = getExerciseColor(name)
+  const inputType = getExerciseInputType(name)
+  const weightStep = getWeightStep(name)
   return (
     <Card style={{ padding: 0, borderLeft: `4px solid ${color}` }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 10px 6px', gap: 6 }}>
@@ -977,13 +1139,20 @@ function ExerciseCard({
 
       {expanded && (
         <div style={{ padding: '0 16px 16px' }}>
+          <ExerciseGuideImage name={name} />
           {lastRecord && (
             <div
               className="record-notation text-keep-all h-scroll"
               style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '0 0 10px', display: 'flex', gap: 4 }}
             >
               <span style={{ flexShrink: 0 }}>직전({lastRecord.date}):</span>
-              <span>{lastRecord.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}</span>
+              <span>
+                {inputType === 'cardio'
+                  ? lastRecord.sets.map((s) => `경사${s.incline || 0}%·시속${s.speedKmh || 0}km/h·${s.durationMin || 0}분`).join(' / ')
+                  : inputType === 'reps'
+                  ? lastRecord.sets.map((s) => `${s.reps}회`).join('/')
+                  : lastRecord.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
+              </span>
             </div>
           )}
           {sets.map((set, idx) => (
@@ -991,8 +1160,11 @@ function ExerciseCard({
               key={idx}
               set={set}
               showLabel={idx === 0}
+              inputType={inputType}
+              weightStep={weightStep}
               onWeightChange={(v) => onWeightChange(idx, v)}
               onRepsChange={(v) => onRepsChange(idx, v)}
+              onFieldChange={(field, v) => onFieldChange(idx, field, v)}
               onSave={() => onSaveSet(idx)}
               onCopy={() => onCopySet(idx)}
               onRemove={sets.length > 1 ? () => onRemoveSet(idx) : null}
@@ -1007,23 +1179,51 @@ function ExerciseCard({
   )
 }
 
-function SetRow({ set, showLabel, onWeightChange, onRepsChange, onSave, onCopy, onRemove }) {
+function SetRow({ set, showLabel, inputType, weightStep, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'flex-end', gap: 6, marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, flexShrink: 1, minWidth: 0 }}>
-        {showLabel ? (
-          <LabeledStepper label="kg" value={set.weight} onChange={onWeightChange} step={2.5} />
+    <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'flex-end', gap: 4, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, flexShrink: 1, minWidth: 0 }}>
+        {inputType === 'cardio' ? (
+          <>
+            {showLabel ? (
+              <LabeledStepper label="경사%" value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} width={38} />
+            ) : (
+              <Stepper value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} placeholder="경사%" width={38} />
+            )}
+            {showLabel ? (
+              <LabeledStepper label="km/h" value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} width={40} />
+            ) : (
+              <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} placeholder="km/h" width={40} />
+            )}
+            {showLabel ? (
+              <LabeledStepper label="분" value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} width={36} />
+            ) : (
+              <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" width={36} />
+            )}
+          </>
+        ) : inputType === 'reps' ? (
+          showLabel ? (
+            <LabeledStepper label="회" value={set.reps} onChange={onRepsChange} step={1} width={44} />
+          ) : (
+            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={44} />
+          )
         ) : (
-          <Stepper value={set.weight} onChange={onWeightChange} step={2.5} placeholder="kg" />
-        )}
-        <span style={{ color: 'var(--color-label-neutral)', paddingBottom: 8, flexShrink: 0 }}>×</span>
-        {showLabel ? (
-          <LabeledStepper label="회" value={set.reps} onChange={onRepsChange} step={1} width={34} />
-        ) : (
-          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={34} />
+          <>
+            {showLabel ? (
+              <LabeledStepper label="kg" value={set.weight} onChange={onWeightChange} step={weightStep} width={44} />
+            ) : (
+              <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder="kg" width={44} />
+            )}
+            <span style={{ color: 'var(--color-label-neutral)', paddingBottom: 8, flexShrink: 0 }}>×</span>
+            {showLabel ? (
+              <LabeledStepper label="회" value={set.reps} onChange={onRepsChange} step={1} width={32} />
+            ) : (
+              <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={32} />
+            )}
+          </>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 'auto', flexShrink: 0 }}>
         <IconButton title={set.saved ? '저장됨' : '세트 저장'} onClick={onSave} disabled={set.saved} tone="save">
           <path d="M5 12l5 5L19 7" />
         </IconButton>
@@ -1062,8 +1262,8 @@ function IconButton({ children, onClick, title, muted, disabled, tone }) {
       disabled={disabled}
       style={{
         flexShrink: 0,
-        width: 32,
-        height: 32,
+        width: 28,
+        height: 28,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1073,7 +1273,7 @@ function IconButton({ children, onClick, title, muted, disabled, tone }) {
         opacity: disabled ? 0.55 : 1,
       }}
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={toneStyle.stroke} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={toneStyle.stroke} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
         {children}
       </svg>
     </button>
@@ -1086,7 +1286,7 @@ function Stepper({ value, onChange, step, placeholder, width = 52 }) {
     <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-line)', borderRadius: 8, flexShrink: 0 }}>
       <button
         onClick={() => onChange(String(Math.max(0, (Number(value) || 0) - step)))}
-        style={{ padding: '8px 8px', fontSize: 16, color: 'var(--color-label-normal)' }}
+        style={{ padding: '8px 6px', fontSize: 16, color: 'var(--color-label-normal)' }}
       >
         −
       </button>
@@ -1101,7 +1301,7 @@ function Stepper({ value, onChange, step, placeholder, width = 52 }) {
       />
       <button
         onClick={() => onChange(String((Number(value) || 0) + step))}
-        style={{ padding: '8px 8px', fontSize: 16, color: 'var(--color-label-normal)' }}
+        style={{ padding: '8px 6px', fontSize: 16, color: 'var(--color-label-normal)' }}
       >
         +
       </button>

@@ -201,6 +201,29 @@ export function buildPartName(atoms) {
 
 export const ALL_EXERCISE_NAMES = Object.values(EXERCISE_LIBRARY).flat()
 
+// [2026-07-28] 종목별 입력 방식 구분 추가.
+//   - 'reps'   : 중량 없이 횟수만 입력(자체중량 운동 일부: 푸쉬업/행잉 계열)
+//   - 'cardio' : 세트 개념 없이 경사(incline)/속도(speedKmh)/시간(durationMin) 입력('유산소' 부위 전체)
+//   - 'sets'   : 기본값(중량 kg × 횟수)
+// 이 목록에 없는 신규/사용자 추가 종목은 기본 'sets'로 동작한다.
+export const REPS_ONLY_EXERCISES = ['푸시업', '행잉레그레이즈', '행잉니레이즈']
+
+export function getExerciseInputType(name) {
+  if (!name) return 'sets'
+  if (REPS_ONLY_EXERCISES.includes(name)) return 'reps'
+  if (EXERCISE_LIBRARY['유산소'].includes(name)) return 'cardio'
+  return 'sets'
+}
+
+// 종목별 중량 증량 단위(kg). 덤벨은 2, 머신/케이블(웨이트 스택)은 5, 그 외
+// 바벨/스미스/이지바 등 플레이트 종목은 기존과 동일하게 2.5를 유지한다.
+export function getWeightStep(name) {
+  if (!name) return 2.5
+  if (name.includes('덤벨')) return 2
+  if (name.includes('머신') || name.includes('케이블') || name.includes('랫풀다운')) return 5
+  return 2.5
+}
+
 // 트레이너들이 자주 쓰는 분할 방식 프리셋(2/3/4분할). 부위는 BODY_PART_ATOMS 조합이며,
 // MY탭/운동조합 변경 화면 양쪽에서 "분할운동 템플릿에서 추가" 기능에 공통으로 사용한다.
 export const SPLIT_TEMPLATE_PRESETS = [

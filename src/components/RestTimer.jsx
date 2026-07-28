@@ -1,7 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react'
 
-// 알림기능이 약하다는 피드백 반영: 짧은 단일음 대신 2연타 비프 + 더 뚜렷한 진동 패턴
-function playBeep(times = 2) {
+// [2026-07-28] 알림음 5종 추가(사용자가 MY탭에서 선택, userDoc.restTimerSoundId로 저장).
+// 별도 음원 파일 없이 Web Audio API 오실레이터 파형/주파수 조합만으로 구현(오프라인에서도 항상 동작).
+export const REST_SOUND_OPTIONS = [
+  { id: 'beep', label: '기본 비프', wave: 'sine', freq: 880 },
+  { id: 'chime', label: '차임벨', wave: 'sine', freq: 659, freq2: 988 },
+  { id: 'bell', label: '벨', wave: 'triangle', freq: 660 },
+  { id: 'digital', label: '디지털', wave: 'square', freq: 1000 },
+  { id: 'soft', label: '부드럽게', wave: 'sine', freq: 440 },
+]
+
+export function playSound(soundId, times = 2) {
+  const profile = REST_SOUND_OPTIONS.find((s) => s.id === soundId) || REST_SOUND_OPTIONS[0]
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
     for (let i = 0; i < times; i++) {
@@ -9,13 +19,29 @@ function playBeep(times = 2) {
       const gain = ctx.createGain()
       osc.connect(gain)
       gain.connect(ctx.destination)
-      osc.frequency.value = 880
+      osc.type = profile.wave
+      osc.frequency.value = profile.freq
       const start = ctx.currentTime + i * 0.28
       gain.gain.setValueAtTime(0.001, start)
       gain.gain.exponentialRampToValueAtTime(0.5, start + 0.02)
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.55)
       osc.start(start)
       osc.stop(start + 0.6)
+      // 'chime'은 두 번째 음이 살짝 높은 음정으로 올라가는 2음 차임
+      if (profile.freq2) {
+        const osc2 = ctx.createOscillator()
+        const gain2 = ctx.createGain()
+        osc2.connect(gain2)
+        gain2.connect(ctx.destination)
+        osc2.type = profile.wave
+        osc2.frequency.value = profile.freq2
+        const start2 = start + 0.14
+        gain2.gain.setValueAtTime(0.001, start2)
+        gain2.gain.exponentialRampToValueAtTime(0.45, start2 + 0.02)
+        gain2.gain.exponentialRampToValueAtTime(0.001, start2 + 0.5)
+        osc2.start(start2)
+        osc2.stop(start2 + 0.55)
+      }
     }
   } catch (e) {
     // 오디오 재생 불가 환경은 조용히 무시 (알림/진동으로 대체)
@@ -36,14 +62,18 @@ function vibrateStrong() {
 // 휴식시간이 다 지나도 자동으로 닫히지 않고, 마이너스(초과 경과)로 계속 카운트하며
 // 일정 간격으로 알림을 반복한다. 사용자가 직접 "닫기"를 눌러야 종료된다.
 const OVERTIME_REPEAT_MS = 20000 // 초과 후 반복 알림 간격
+// [2026-07-28] 초과 알림이 끝없이 반복된다는 피드백 반영: "휴식 끝" 알림 포함 최대 2번까지만
+// 울리고, 그 이후에는 사용자가 "닫기"를 누르지 않아도 타이머가 자동으로 종료된다.
+const MAX_OVERTIME_ALERTS = 2
 
-export default function RestTimer({ seconds, resetKey, notificationEnabled, wakeLockEnabled, onFinish, onCancel }) {
+export default function RestTimer({ seconds, resetKey, notificationEnabled, wakeLockEnabled, soundId, onFinish, onCancel }) {
   const [remaining, setRemaining] = useState(seconds)
   const [overtime, setOvertime] = useState(false)
   const intervalRef = useRef(null)
   const endAtRef = useRef(Date.now() + seconds * 1000)
   const finishedRef = useRef(false)
   const lastOvertimeAlertRef = useRef(0)
+  const overtimeAlertCountRef = useRef(0)
   const wakeLockRef = useRef(null)
 
   function computeSignedRemaining() {
@@ -65,7 +95,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   }
 
   function fireAlert(isFirst) {
-    playBeep(isFirst ? 2 : 1)
+    playSound(soundId, isFirst ? 2 : 1)
     vibrateStrong()
     if (notificationEnabled && 'Notification' in window && Notification.permission === 'granted') {
       new Notification(isFirst ? '휴식 끝!' : '휴식 시간이 초과됐어요', {
@@ -79,14 +109,16 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
     finishedRef.current = true
     setOvertime(true)
     fireAlert(true)
+    overtimeAlertCountRef.current = 1
     lastOvertimeAlertRef.current = Date.now()
     onFinish?.()
-    // 여기서 타이머/인터벌을 멈추지 않는다: 0 이후에도 마이너스로 계속 카운트하며
-    // 사용자가 "닫기"를 누르기 전까지 화면에 남아 주기적으로 재알림한다.
+    // 0 이후에도 마이너스로 계속 카운트하며 화면에 남아있지만, 초과 알림 자체는
+    // MAX_OVERTIME_ALERTS(2회)까지만 울리고 이후 자동으로 타이머를 종료한다.
   }
 
   useEffect(() => {
     finishedRef.current = false
+    overtimeAlertCountRef.current = 0
     setOvertime(false)
     endAtRef.current = Date.now() + seconds * 1000
     setRemaining(seconds)
@@ -99,8 +131,14 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
       if (r <= 0) {
         if (!finishedRef.current) {
           finish()
+        } else if (overtimeAlertCountRef.current >= MAX_OVERTIME_ALERTS) {
+          // 알림을 다 썼으면 사용자가 닫지 않아도 타이머를 자동 종료한다.
+          clearInterval(intervalRef.current)
+          releaseWakeLock()
+          onCancel?.()
         } else if (Date.now() - lastOvertimeAlertRef.current >= OVERTIME_REPEAT_MS) {
           lastOvertimeAlertRef.current = Date.now()
+          overtimeAlertCountRef.current += 1
           fireAlert(false)
         }
       }

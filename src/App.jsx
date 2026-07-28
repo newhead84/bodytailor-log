@@ -1,12 +1,14 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-28] 캘린더 기록 수정/삭제, 홈탭 이모지·부위표시, 종목 펼치기 애니메이션 제거,
- *            팔→이두/삼두 분리, 운동 종목 DB 확충(정식 명칭으로 전면 교체), 운동조합변경 뒤로가기 버그 수정,
- *            분할운동 템플릿 공용화, 루틴 파트 수정 기능.
+ * 최신 변경: [2026-07-28] 종목별 동작 가이드 이미지 추가(free-exercise-db 연동), XP 보상 버그수정,
+ *            캘린더 자동갱신, 뒤로가기 시 기록 보존, 기록탭 진입 애니메이션 교체,
+ *            휴식타이머 초과알림 2회 제한+알림음 5종, 휴식시간 설정 영속화, 완료축하팝업,
+ *            종목별 입력방식(횟수전용/유산소) 분화, 종목별 중량 증량단위 차등화,
+ *            세트입력 버튼 겹침 수정, 당겨새로고침 비활성화.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { watchAuthState } from './firebase'
 import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile } from './storage'
 
@@ -31,6 +33,39 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home')
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
   const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동조합 변경" 진입 여부
+  // [2026-07-28] 홈탭/캘린더가 항상 마운트된 상태로 유지되어(위 주석 참고), 기록을 저장해도
+  // 자체적으로는 다시 불러오지 않던 버그 수정. 기록 저장 시마다 이 값을 올려서 하위 컴포넌트의
+  // 데이터 로딩 useEffect가 다시 실행되도록 만든다(재진입 없이 즉시 반영).
+  const [logsVersion, setLogsVersion] = useState(0)
+  const logTabWrapperRef = useRef(null)
+
+  // [2026-07-28] 네비게이션 "뒤로가기"(브라우저/기기 백 제스처)로 화면이 그대로 꺼지며
+  // 입력 중이던 기록이 사라진다는 피드백 수정. 이 앱은 라우터가 없어 history 엔트리가
+  // 하나뿐이라, 백 제스처가 곧바로 앱을 종료(page unload)시켜 버렸다. 마운트 시 더미
+  // history 엔트리를 하나 쌓아두고, popstate가 오면(=뒤로가기를 누르면) 즉시 그 엔트리를
+  // 되쌓아서 앱이 실제로 언로드되지 않게 막는다. (기록 draft 자체는 이미 localStorage에
+  // 매 변경마다 저장되므로, 앱이 안 꺼지기만 하면 더 이상 사라지지 않는다.)
+  useEffect(() => {
+    window.history.pushState({ bodytailorGuard: true }, '')
+    function handlePopState() {
+      window.history.pushState({ bodytailorGuard: true }, '')
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  // [2026-07-28] 기록탭 진입 애니메이션: 탭들은 항상 마운트된 상태를 유지해야 하므로(휴식
+  // 타이머 상태 보존 때문에) LogTab을 remount(key 변경)하지 않고, 대신 감싸는 div에
+  // 클래스를 강제로 뗐다 붙여 CSS 키프레임 애니메이션(위→아래로 떨어지는 효과)만 매번
+  // 새로 재생시킨다.
+  useEffect(() => {
+    if (activeTab !== 'log' || !logTabWrapperRef.current) return
+    const el = logTabWrapperRef.current
+    el.classList.remove('tab-drop-in')
+    // eslint-disable-next-line no-unused-expressions
+    el.offsetHeight // 강제 리플로우로 애니메이션 재시작
+    el.classList.add('tab-drop-in')
+  }, [activeTab])
 
   useEffect(() => {
     const t = setTimeout(() => setMinSplashElapsed(true), MIN_SPLASH_MS)
@@ -58,6 +93,12 @@ export default function App() {
     const doc = await getUserDoc(authUser.uid)
     setUserDoc(doc)
   }, [authUser])
+
+  // 운동기록 저장 직후 호출: 유저문서(XP/티어) 갱신 + 홈탭/캘린더 재조회 트리거를 함께 처리.
+  const handleLogSaved = useCallback(() => {
+    refreshUserDoc()
+    setLogsVersion((v) => v + 1)
+  }, [refreshUserDoc])
 
   const refreshRoutineTemplates = useCallback(async () => {
     if (!authUser) return
@@ -137,17 +178,19 @@ export default function App() {
           uid={authUser.uid}
           userDoc={userDoc}
           routineTemplates={routineTemplates}
+          logsVersion={logsVersion}
           onGoToLog={() => setActiveTab('log')}
         />
       </div>
-      <div style={{ display: activeTab === 'log' ? 'block' : 'none' }}>
+      <div ref={logTabWrapperRef} style={{ display: activeTab === 'log' ? 'block' : 'none' }}>
         <LogTab
           uid={authUser.uid}
           routineTemplates={routineTemplates}
           weightKg={userDoc.onboarding?.weightKg}
           restNotificationEnabled={!!userDoc.restTimerNotificationPermission}
           restWakeLockEnabled={!!userDoc.restTimerWakeLockEnabled}
-          onLogSaved={refreshUserDoc}
+          restSoundId={userDoc.restTimerSoundId || 'beep'}
+          onLogSaved={handleLogSaved}
           onRoutineUpdated={refreshRoutineTemplates}
         />
       </div>
