@@ -29,7 +29,7 @@ const DEFAULT_USER_DOC = {
   roleRequestStatus: 'none',
   nickname: '',
   profile: { name: '', phone: '', gymMemberNo: '' },
-  onboarding: null, // { level, gender, age, weightKg, heightCm, goals: [] }
+  onboarding: null, // { gender, age, weightKg, heightCm, goals: [] } — [2026-07-28] level(운동 수준) 질문 제거
   onboardingCompleted: false,
   physicalInfoSharedWithTrainer: false,
   restTimerNotificationPermission: false,

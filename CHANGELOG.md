@@ -2,6 +2,12 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-07-28] 온보딩 "운동 수준(입문/초급/중급/고급)" 질문 제거 (스펙 8.4와 배치되는 변경, 확인 후 반영)
+- 셀프 PT 로그 컨셉상 트레이너 개입 없이 스스로 기록하는 앱이라 수준을 미리 나누는 게 맞지 않다는
+  피드백 반영. 온보딩 단계 4단계→3단계(성별/기본정보/목표)로 축소, MY탭 프로필 수정 화면의
+  "운동 수준" 선택 UI 및 요약 표시도 함께 제거
+  | Onboarding.jsx(STEPS, LEVELS 제거), MyPageTab.jsx(profileForm, 요약줄), storage.js(주석)
+
 [2026-07-28] 운동기록 입력 화면에 종목별 "동작 가이드" 이미지 추가 (이전 대화에서 설계한 내용을 이번
 세션의 최신 WorkoutInput.jsx에 재적용 + 매핑 검증/수정)
 - 데이터 출처: free-exercise-db(Unlicense/퍼블릭 도메인, https://github.com/yuhonas/free-exercise-db),

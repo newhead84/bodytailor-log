@@ -1,16 +1,17 @@
 import React, { useState } from 'react'
 import { Button, Chip } from './ui'
 
-const LEVELS = ['입문', '초급', '중급', '고급']
 const GENDERS = ['남성', '여성']
 const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
 
-const STEPS = ['level', 'gender', 'basic', 'goals']
+// [2026-07-28] 앱 컨셉상(셀프 PT, 트레이너 개입 없이 스스로 기록) 운동 수준(입문/초급/중급/고급)을
+// 미리 묻는 게 맞지 않다는 사용자 피드백으로 온보딩에서 이 질문을 완전히 제거함(스펙 8.4와 배치되는
+// 변경이라 확인 후 반영). MY탭 프로필 수정 화면에서도 동일하게 제거.
+const STEPS = ['gender', 'basic', 'goals']
 
 export default function Onboarding({ onComplete }) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState({
-    level: '',
     gender: '',
     age: '',
     weightKg: '',
@@ -43,7 +44,6 @@ export default function Onboarding({ onComplete }) {
   }
 
   const canNext = {
-    level: !!form.level,
     gender: !!form.gender,
     basic: form.age && form.weightKg && form.heightCm,
     goals: form.goals.length > 0,
@@ -78,16 +78,6 @@ export default function Onboarding({ onComplete }) {
       </div>
 
       <div style={{ flex: 1 }}>
-        {STEPS[step] === 'level' && (
-          <StepBlock title="현재 운동 수준을 알려주세요">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {LEVELS.map((l) => (
-                <OptionRow key={l} label={l} selected={form.level === l} onClick={() => update('level', l)} />
-              ))}
-            </div>
-          </StepBlock>
-        )}
-
         {STEPS[step] === 'gender' && (
           <StepBlock title="성별을 알려주세요">
             <div style={{ display: 'flex', gap: 10 }}>

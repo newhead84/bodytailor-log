@@ -9,7 +9,6 @@ import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
 // [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
 // "운동조합 변경"(RoutineManager) 화면이 같은 프리셋 정의를 공유하도록 정리했다.
 
-const LEVELS = ['입문', '초급', '중급', '고급']
 const GENDERS = ['남성', '여성']
 const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
 
@@ -33,7 +32,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   const [templateError, setTemplateError] = useState('')
   const [profileForm, setProfileForm] = useState(() => ({
     nickname: userDoc?.nickname || '',
-    level: userDoc?.onboarding?.level || '',
     gender: userDoc?.onboarding?.gender || '',
     age: userDoc?.onboarding?.age ?? '',
     weightKg: userDoc?.onboarding?.weightKg ?? '',
@@ -97,7 +95,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   function startEditProfile() {
     setProfileForm({
       nickname: userDoc?.nickname || '',
-      level: userDoc?.onboarding?.level || '',
       gender: userDoc?.onboarding?.gender || '',
       age: userDoc?.onboarding?.age ?? '',
       weightKg: userDoc?.onboarding?.weightKg ?? '',
@@ -219,16 +216,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
               />
             </div>
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>운동 수준</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {LEVELS.map((l) => (
-                  <Chip key={l} active={profileForm.level === l} onClick={() => updateProfileForm('level', l)}>
-                    {l}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-            <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>성별</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {GENDERS.map((g) => (
@@ -294,7 +281,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
               {userDoc?.nickname || '닉네임 미설정'}
             </span>
             <br />
-            {userDoc?.role} · {userDoc?.onboarding?.level} · {userDoc?.onboarding?.gender} · {userDoc?.onboarding?.age}세
+            {userDoc?.role} · {userDoc?.onboarding?.gender} · {userDoc?.onboarding?.age}세
             <br />
             {userDoc?.onboarding?.weightKg}kg · {userDoc?.onboarding?.heightCm}cm
             {bmi != null && (
