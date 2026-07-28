@@ -18,6 +18,8 @@ export default function Onboarding({ onComplete }) {
     goals: [],
   })
   const [saving, setSaving] = useState(false)
+  const [addingCustomGoal, setAddingCustomGoal] = useState(false)
+  const [customGoalInput, setCustomGoalInput] = useState('')
 
   function update(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -28,6 +30,16 @@ export default function Onboarding({ onComplete }) {
       ...f,
       goals: f.goals.includes(goal) ? f.goals.filter((g) => g !== goal) : [...f.goals, goal],
     }))
+  }
+
+  // "기타: 자유입력" — 사전 정의된 목표에 없는 내용을 직접 적어 goals 배열에 추가한다.
+  function addCustomGoal() {
+    const trimmed = customGoalInput.trim().slice(0, 30)
+    if (trimmed && !form.goals.includes(trimmed)) {
+      setForm((f) => ({ ...f, goals: [...f.goals, trimmed] }))
+    }
+    setCustomGoalInput('')
+    setAddingCustomGoal(false)
   }
 
   const canNext = {
@@ -99,13 +111,39 @@ export default function Onboarding({ onComplete }) {
 
         {STEPS[step] === 'goals' && (
           <StepBlock title="운동 목표를 선택해 주세요 (복수 선택 가능)">
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: addingCustomGoal ? 12 : 0 }}>
               {GOALS.map((g) => (
                 <Chip key={g} active={form.goals.includes(g)} onClick={() => toggleGoal(g)}>
                   {g}
                 </Chip>
               ))}
+              {form.goals
+                .filter((g) => !GOALS.includes(g))
+                .map((g) => (
+                  <Chip key={g} active onClick={() => toggleGoal(g)}>
+                    {g}
+                  </Chip>
+                ))}
+              <Chip active={addingCustomGoal} onClick={() => setAddingCustomGoal((v) => !v)}>
+                기타: 자유입력
+              </Chip>
             </div>
+            {addingCustomGoal && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  autoFocus
+                  value={customGoalInput}
+                  onChange={(e) => setCustomGoalInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addCustomGoal()}
+                  placeholder="목표를 직접 입력해 주세요"
+                  className="text-keep-all"
+                  style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
+                />
+                <Button variant="secondary" onClick={addCustomGoal}>
+                  추가
+                </Button>
+              </div>
+            )}
           </StepBlock>
         )}
       </div>

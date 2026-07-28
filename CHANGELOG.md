@@ -2,6 +2,19 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-07-28] 사용자 요청 12건 반영 | 여러 파일
+- 운동시간 초기화 버튼(확인 팝업 포함) 추가 | WorkoutInput.jsx (handleResetElapsed)
+- 운동시간 10초 단위 +/- 조정 버튼 추가 | WorkoutInput.jsx (handleAdjustElapsed)
+- 최초 루틴 만들기 화면에 "나중에 입력" 버튼 추가, 건너뛰면 routineSetupSkipped 플래그로 메인 진입 허용 | RoutineSetup.jsx, RoutineManager.jsx, App.jsx, storage.js
+- 종목 열 때 직전 기록의 마지막 세트 값을 첫 세트 기본값으로 프리필 | WorkoutInput.jsx (openExercise)
+- 세트 저장(V버튼) 시 중량/횟수가 비어있으면 확인 팝업 후 진행 | WorkoutInput.jsx (trySaveSet)
+- 휴식 중 탭(홈/랭킹/MY) 이동 시 타이머가 사라지던 문제 수정: 4개 메인 탭을 항상 마운트하고 display로만 전환 | App.jsx
+- 운동목표 선택에 "기타: 자유입력" 추가 | Onboarding.jsx, MyPageTab.jsx
+- 내 루틴("운동조합") 최대 개수 5→8개로 확장, "운동방식" 명칭을 "운동조합"으로 통일 | storage.js, RoutineManager.jsx, MyPageTab.jsx, WorkoutInput.jsx
+- MY탭에 "분할운동 템플릿"(2/3/4분할 프리셋) 추가 기능 신설 | MyPageTab.jsx (SPLIT_TEMPLATE_PRESETS, handleAddSplitTemplate)
+- 홈탭 "최근 운동 기록" 목록 제거, 캘린더 아래 이번 달 운동일/휴식일 요약 카드 추가 | HomeTab.jsx, CalendarView.jsx (onMonthSummary)
+- MY탭 프로필에 키/몸무게 기반 BMI 자동계산 및 표시 추가 | MyPageTab.jsx
+
 CHANGELOG
 [2026-07-28] 홈/캘린더 UX 수정 2건 (사용자 확인 후 반영)
   | 1) HomeTab.jsx: 완료 후 CTA 버튼 문구 "대단하시네요 더 하시게요?" → "한 세트 더?"로 변경

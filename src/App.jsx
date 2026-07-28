@@ -1,13 +1,14 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-28] 홈/MY/기록 탭 개편 — 내 루틴 자유조합(최대 5개), 홈 칼로리/부위 요약,
- *            기록 탭 드래그앤드랍(framer-motion), 운동시간 자동측정 기반 칼로리 추정.
+ * 최신 변경: [2026-07-28] 운동시간 초기화/±10초 조정, 세트 저장 시 빈값 확인, 직전 기록 프리필,
+ *            휴식타이머 탭이동 유지, 내 루틴 5→8개+운동조합 명칭, 분할운동 템플릿, 홈 캘린더 요약,
+ *            BMI 자동계산, 운동목표 자유입력, 루틴 "나중에 입력".
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { watchAuthState } from './firebase'
-import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates } from './storage'
+import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile } from './storage'
 
 import LoginScreen from './components/LoginScreen'
 import Onboarding from './components/Onboarding'
@@ -29,7 +30,7 @@ export default function App() {
   const [routineTemplates, setRoutineTemplates] = useState(undefined) // undefined: 로딩중, []: 없음
   const [activeTab, setActiveTab] = useState('home')
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
-  const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동방식 변경" 진입 여부
+  const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동조합 변경" 진입 여부
 
   useEffect(() => {
     const t = setTimeout(() => setMinSplashElapsed(true), MIN_SPLASH_MS)
@@ -69,6 +70,13 @@ export default function App() {
     await refreshUserDoc()
   }
 
+  // 최초 루틴 설정에서 "나중에 입력"을 누르면, 루틴이 하나도 없어도
+  // 메인 화면으로 진입할 수 있게 플래그를 저장한다. (MY탭에서 언제든 루틴을 만들 수 있음)
+  async function handleSkipRoutineSetup() {
+    await updateUserProfile(authUser.uid, { routineSetupSkipped: true })
+    await refreshUserDoc()
+  }
+
   // 로딩 (최초 접속 시 로고 인트로 화면, 최소 노출시간 보장)
   if (authUser === undefined || !minSplashElapsed) {
     return <SplashScreen />
@@ -93,14 +101,16 @@ export default function App() {
     return <CenteredMessage>불러오는 중…</CenteredMessage>
   }
 
-  // 루틴이 하나도 없거나(최초), MY탭 "운동방식 변경"으로 들어온 경우
-  if (routineTemplates.length === 0 || managingRoutines) {
+  // 루틴이 하나도 없거나(최초, "나중에 입력"을 아직 누르지 않은 경우), MY탭 "운동조합 변경"으로 들어온 경우
+  const isFirstSetup = routineTemplates.length === 0
+  if ((isFirstSetup && !userDoc.routineSetupSkipped) || managingRoutines) {
     return (
       <RoutineManager
         uid={authUser.uid}
         templates={routineTemplates}
-        isFirstSetup={routineTemplates.length === 0}
+        isFirstSetup={isFirstSetup}
         onChanged={refreshRoutineTemplates}
+        onSkip={isFirstSetup ? handleSkipRoutineSetup : null}
         onClose={() => setManagingRoutines(false)}
       />
     )
@@ -111,17 +121,22 @@ export default function App() {
   const targetSessionsPerWeek = routineTemplates[0]?.parts?.length || 3
 
   // 메인 4탭
+  // 4개 탭을 항상 마운트한 상태로 두고 display로만 보이기/숨기기를 전환한다.
+  // (이전에는 activeTab에 따라 조건부로 마운트/언마운트했는데, 그 결과 기록 탭에서
+  //  휴식 타이머가 돌아가는 중에 홈/랭킹/MY로 이동하면 LogTab 전체가 unmount되며
+  //  타이머 상태가 통째로 사라지는 문제가 있었다. 항상 마운트해두면 세션/타이머
+  //  상태가 컴포넌트 안에 그대로 남아있어 탭을 이동해도 계속 진행된다.)
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
-      {activeTab === 'home' && (
+      <div style={{ display: activeTab === 'home' ? 'block' : 'none' }}>
         <HomeTab
           uid={authUser.uid}
           userDoc={userDoc}
           routineTemplates={routineTemplates}
           onGoToLog={() => setActiveTab('log')}
         />
-      )}
-      {activeTab === 'log' && (
+      </div>
+      <div style={{ display: activeTab === 'log' ? 'block' : 'none' }}>
         <LogTab
           uid={authUser.uid}
           routineTemplates={routineTemplates}
@@ -131,19 +146,20 @@ export default function App() {
           onLogSaved={refreshUserDoc}
           onRoutineUpdated={refreshRoutineTemplates}
         />
-      )}
-      {activeTab === 'ranking' && (
+      </div>
+      <div style={{ display: activeTab === 'ranking' ? 'block' : 'none' }}>
         <RankingTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={targetSessionsPerWeek} />
-      )}
-      {activeTab === 'my' && (
+      </div>
+      <div style={{ display: activeTab === 'my' ? 'block' : 'none' }}>
         <MyPageTab
           uid={authUser.uid}
           userDoc={userDoc}
           routineTemplates={routineTemplates}
           onManageRoutines={() => setManagingRoutines(true)}
+          onRoutineUpdated={refreshRoutineTemplates}
           onProfileUpdated={refreshUserDoc}
         />
-      )}
+      </div>
       <BottomNav active={activeTab} onChange={setActiveTab} />
     </div>
   )

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Card, SectionTitle, Button } from './ui'
 import { getRecentWorkoutLogs } from '../storage'
-import { getExerciseDisplayAtom, PART_COLORS } from '../utils/exerciseLibrary'
 import CalendarView from './CalendarView'
 
 function todayStr() {
@@ -27,6 +26,7 @@ function getSuggestedNext(routineTemplates, recentLogs) {
 export default function HomeTab({ uid, userDoc, routineTemplates, onGoToLog }) {
   const [recentLogs, setRecentLogs] = useState([])
   const [showExtraCta, setShowExtraCta] = useState(false)
+  const [monthSummary, setMonthSummary] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -80,51 +80,32 @@ export default function HomeTab({ uid, userDoc, routineTemplates, onGoToLog }) {
       </Card>
 
       <div style={{ margin: '0 -20px 4px' }}>
-        <CalendarView uid={uid} />
+        <CalendarView uid={uid} onMonthSummary={setMonthSummary} />
       </div>
 
-      {recentLogs.length > 0 && (
-        <>
-          <SectionTitle>최근 운동 기록</SectionTitle>
-          {recentLogs.slice(0, 3).map((log) => (
-            <Card key={log.id} style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{log.date}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                  {log.totalDurationSec > 0 && <span>{Math.round(log.totalDurationSec / 60)}분</span>}
-                  {log.caloriesKcal > 0 && <span>{log.caloriesKcal}kcal</span>}
-                  <PartDots exercises={log.exercises} />
-                </div>
+      {monthSummary && (
+        <Card style={{ marginBottom: 20 }}>
+          <div className="text-keep-all" style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
+            <div>
+              <div className="record-notation" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-primary-strong)' }}>
+                {monthSummary.workoutDays}일
               </div>
-              {log.exercises.slice(0, 3).map((ex) => (
-                <div key={ex.name} style={{ fontSize: 13, color: 'var(--color-label-normal)', display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                  <span style={{ flexShrink: 0 }}>{ex.name}</span>
-                  <span className="record-notation h-scroll" style={{ display: 'block', minWidth: 0 }}>
-                    {ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
-                  </span>
-                </div>
-              ))}
-            </Card>
-          ))}
-        </>
+              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
+                {monthSummary.month + 1}월 운동
+              </div>
+            </div>
+            <div style={{ width: 1, background: 'var(--color-line)' }} />
+            <div>
+              <div className="record-notation" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+                {monthSummary.restDays}일
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
+                {monthSummary.month + 1}월 휴식
+              </div>
+            </div>
+          </div>
+        </Card>
       )}
-    </div>
-  )
-}
-
-// 부위별 색상 점(가슴/등/팔/어깨/코어/하체/유산소)으로 어떤 부위를 했는지 한눈에 보여준다.
-export function PartDots({ exercises }) {
-  const atoms = [...new Set((exercises || []).map((ex) => getExerciseDisplayAtom(ex.name)).filter(Boolean))]
-  if (atoms.length === 0) return null
-  return (
-    <div style={{ display: 'flex', gap: 3 }}>
-      {atoms.map((atom) => (
-        <span
-          key={atom}
-          title={atom}
-          style={{ width: 7, height: 7, borderRadius: '50%', background: PART_COLORS[atom] || 'var(--color-label-neutral)' }}
-        />
-      ))}
     </div>
   )
 }

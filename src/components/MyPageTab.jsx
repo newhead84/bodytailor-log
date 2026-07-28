@@ -1,17 +1,49 @@
 import React, { useState } from 'react'
 import { Card, SectionTitle, Button, Chip, TierBadge } from './ui'
-import { updateUserProfile } from '../storage'
+import { updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '../storage'
 import { logout } from '../firebase'
 import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
+import { buildPartName, getExercisesForPart } from '../utils/exerciseLibrary'
+
+// 트레이너들이 자주 쓰는 분할 방식 프리셋(2/3/4분할). 부위는 BODY_PART_ATOMS 조합이며,
+// 선택 시 해당 부위의 전체 종목이 자동으로 채워진 새 "내 루틴"으로 추가된다(이후 자유롭게 수정 가능).
+const SPLIT_TEMPLATE_PRESETS = [
+  {
+    key: '2split',
+    label: '2분할',
+    description: '상체 / 하체로 나누는 기본 분할',
+    parts: [
+      ['가슴', '등', '어깨', '팔'],
+      ['하체', '코어'],
+    ],
+  },
+  {
+    key: '3split',
+    label: '3분할',
+    description: '가슴&어깨 / 등&팔 / 하체&코어',
+    parts: [
+      ['가슴', '어깨'],
+      ['등', '팔'],
+      ['하체', '코어'],
+    ],
+  },
+  {
+    key: '4split',
+    label: '4분할',
+    description: '가슴 / 등&팔 / 어깨&코어 / 하체',
+    parts: [['가슴'], ['등', '팔'], ['어깨', '코어'], ['하체']],
+  },
+]
 
 const LEVELS = ['입문', '초급', '중급', '고급']
 const GENDERS = ['남성', '여성']
 const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
 
 // [2026-07-28 개편] '내 루틴'(자주 하는 운동 즐겨찾기) 섹션을 제거하고,
-// MY탭의 "운동방식"을 최대 5개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
-// 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리한다.
-export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRoutines, onProfileUpdated }) {
+// MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
+// 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
+// "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
+export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRoutines, onRoutineUpdated, onProfileUpdated }) {
   const [nickname, setNickname] = useState(userDoc?.nickname || '')
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -20,6 +52,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   const [wakeLockEnabled, setWakeLockEnabled] = useState(!!userDoc?.restTimerWakeLockEnabled)
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
+  const [addingCustomGoal, setAddingCustomGoal] = useState(false)
+  const [customGoalInput, setCustomGoalInput] = useState('')
+  const [pickingSplitTemplate, setPickingSplitTemplate] = useState(false)
+  const [addingTemplateKey, setAddingTemplateKey] = useState(null)
+  const [templateError, setTemplateError] = useState('')
   const [profileForm, setProfileForm] = useState(() => ({
     level: userDoc?.onboarding?.level || '',
     gender: userDoc?.onboarding?.gender || '',
@@ -34,6 +71,14 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   const nextTier = getNextTier(xp)
   const tierProgress = getTierProgress(xp)
 
+  // 키/몸무게가 모두 있으면 BMI를 자동 계산해 표시(체중(kg) / 키(m)^2).
+  // 대한비만학회 기준(아시아-태평양 WHO 기준)을 사용: 18.5 미만 저체중, 23 이상 과체중, 25 이상 비만.
+  const heightCm = Number(userDoc?.onboarding?.heightCm)
+  const weightKg = Number(userDoc?.onboarding?.weightKg)
+  const bmi = heightCm > 0 && weightKg > 0 ? weightKg / (heightCm / 100) ** 2 : null
+  const bmiCategory =
+    bmi == null ? null : bmi < 18.5 ? '저체중' : bmi < 23 ? '정상' : bmi < 25 ? '과체중' : '비만'
+
   function updateProfileForm(key, value) {
     setProfileForm((f) => ({ ...f, [key]: value }))
   }
@@ -43,6 +88,15 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
       ...f,
       goals: f.goals.includes(goal) ? f.goals.filter((g) => g !== goal) : [...f.goals, goal],
     }))
+  }
+
+  function addCustomGoal() {
+    const trimmed = customGoalInput.trim().slice(0, 30)
+    if (trimmed && !profileForm.goals.includes(trimmed)) {
+      setProfileForm((f) => ({ ...f, goals: [...f.goals, trimmed] }))
+    }
+    setCustomGoalInput('')
+    setAddingCustomGoal(false)
   }
 
   function startEditProfile() {
@@ -101,6 +155,30 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
     }
     setWakeLockEnabled(next)
     await updateUserProfile(uid, { restTimerWakeLockEnabled: next })
+  }
+
+  // "분할운동 템플릿" — 트레이너들이 자주 쓰는 2/3/4분할 프리셋을 그대로
+  // 새 "내 루틴"으로 추가한다. 파트/종목은 이후 MY탭 "운동조합 변경"에서 자유롭게 수정 가능.
+  async function handleAddSplitTemplate(preset) {
+    if ((routineTemplates || []).length >= MAX_ROUTINE_TEMPLATES) {
+      setTemplateError(`내 루틴은 최대 ${MAX_ROUTINE_TEMPLATES}개까지만 만들 수 있어요.`)
+      return
+    }
+    setTemplateError('')
+    setAddingTemplateKey(preset.key)
+    try {
+      const parts = preset.parts.map((atoms) => {
+        const name = buildPartName(atoms)
+        return { name, atoms, exercises: getExercisesForPart(name) }
+      })
+      await saveRoutineTemplate(uid, { title: preset.label, parts })
+      await onRoutineUpdated?.()
+      setPickingSplitTemplate(false)
+    } catch (e) {
+      setTemplateError(e?.message || '템플릿 추가 중 문제가 생겼어요.')
+    } finally {
+      setAddingTemplateKey(null)
+    }
   }
 
   return (
@@ -176,13 +254,39 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
             </div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>운동 목표</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: addingCustomGoal ? 8 : 0 }}>
                 {GOALS.map((g) => (
                   <Chip key={g} active={profileForm.goals.includes(g)} onClick={() => toggleProfileGoal(g)}>
                     {g}
                   </Chip>
                 ))}
+                {profileForm.goals
+                  .filter((g) => !GOALS.includes(g))
+                  .map((g) => (
+                    <Chip key={g} active onClick={() => toggleProfileGoal(g)}>
+                      {g}
+                    </Chip>
+                  ))}
+                <Chip active={addingCustomGoal} onClick={() => setAddingCustomGoal((v) => !v)}>
+                  기타: 자유입력
+                </Chip>
               </div>
+              {addingCustomGoal && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    autoFocus
+                    value={customGoalInput}
+                    onChange={(e) => setCustomGoalInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addCustomGoal()}
+                    placeholder="목표를 직접 입력해 주세요"
+                    className="text-keep-all"
+                    style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
+                  />
+                  <Button variant="secondary" onClick={addCustomGoal}>
+                    추가
+                  </Button>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <Button variant="ghost" style={{ flex: 1 }} onClick={() => setEditingProfile(false)} disabled={saving}>
@@ -198,6 +302,12 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
             {userDoc?.role} · {userDoc?.onboarding?.level} · {userDoc?.onboarding?.gender} · {userDoc?.onboarding?.age}세
             <br />
             {userDoc?.onboarding?.weightKg}kg · {userDoc?.onboarding?.heightCm}cm
+            {bmi != null && (
+              <span className="record-notation">
+                {' '}
+                · BMI {bmi.toFixed(1)} ({bmiCategory})
+              </span>
+            )}
             {userDoc?.onboarding?.goals?.length > 0 && (
               <>
                 <br />
@@ -211,11 +321,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
       <SectionTitle
         action={
           <Button variant="secondary" onClick={onManageRoutines}>
-            운동방식 변경
+            운동조합 변경
           </Button>
         }
       >
-        내 루틴 ({(routineTemplates || []).length}/5)
+        내 루틴 ({(routineTemplates || []).length}/{MAX_ROUTINE_TEMPLATES})
       </SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         {(routineTemplates || []).length === 0 ? (
@@ -237,6 +347,68 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
             </div>
           ))
         )}
+
+        <div style={{ marginTop: (routineTemplates || []).length > 0 ? 14 : 0, paddingTop: (routineTemplates || []).length > 0 ? 14 : 0, borderTop: (routineTemplates || []).length > 0 ? '1px solid var(--color-line)' : 'none' }}>
+          {!pickingSplitTemplate ? (
+            <button
+              onClick={() => {
+                setPickingSplitTemplate(true)
+                setTemplateError('')
+              }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: 10,
+                border: '1px dashed var(--color-line)',
+                color: 'var(--color-label-neutral)',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              + 분할운동 템플릿에서 추가
+            </button>
+          ) : (
+            <div>
+              <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
+                트레이너들이 자주 쓰는 분할 방식이에요. 선택하면 내 루틴에 그대로 추가되고, 이후 자유롭게 수정할 수 있어요.
+              </p>
+              {templateError && (
+                <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-danger, #e5484d)', margin: '0 0 10px' }}>
+                  {templateError}
+                </p>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+                {SPLIT_TEMPLATE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.key}
+                    onClick={() => handleAddSplitTemplate(preset)}
+                    disabled={!!addingTemplateKey}
+                    style={{
+                      textAlign: 'left',
+                      padding: '12px 14px',
+                      borderRadius: 10,
+                      border: '1px solid var(--color-line)',
+                      opacity: addingTemplateKey && addingTemplateKey !== preset.key ? 0.5 : 1,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
+                      {preset.label} {addingTemplateKey === preset.key && '· 추가 중…'}
+                    </div>
+                    <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                      {preset.description}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setPickingSplitTemplate(false)}
+                style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}
+              >
+                취소
+              </button>
+            </div>
+          )}
+        </div>
       </Card>
 
       <SectionTitle>알림</SectionTitle>

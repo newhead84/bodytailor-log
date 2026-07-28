@@ -28,7 +28,7 @@ function pad(n) {
   return String(n).padStart(2, '0')
 }
 
-export default function CalendarView({ uid }) {
+export default function CalendarView({ uid, onMonthSummary }) {
   const [cursor, setCursor] = useState(() => {
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() } // month: 0-indexed
@@ -59,6 +59,20 @@ export default function CalendarView({ uid }) {
       cancelled = true
     }
   }, [uid, cursor])
+
+  // 이번 달 운동일/휴식일 수를 부모(홈탭)로 전달한다. 오늘이 속한 달이면 "오늘까지"만 세고,
+  // 지난 달을 보고 있으면 그 달 전체 일수를 기준으로 센다.
+  useEffect(() => {
+    if (loading || !onMonthSummary) return
+    const now = new Date()
+    const isCurrentMonth = now.getFullYear() === cursor.year && now.getMonth() === cursor.month
+    const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate()
+    const countedDays = isCurrentMonth ? now.getDate() : daysInMonth
+    const workoutDays = Object.keys(logsByDate).length
+    const restDays = Math.max(0, countedDays - workoutDays)
+    onMonthSummary({ year: cursor.year, month: cursor.month, workoutDays, restDays, countedDays })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, logsByDate, cursor])
 
   const grid = useMemo(() => {
     const firstDayOfWeek = new Date(cursor.year, cursor.month, 1).getDay()

@@ -1,14 +1,14 @@
 import React, { useState } from 'react'
 import { Button, Card } from './ui'
 import RoutineSetup from './RoutineSetup'
-import { saveRoutineTemplate, deleteRoutineTemplate } from '../storage'
+import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '../storage'
 
-const MAX_ROUTINES = 5
+const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 
-// [2026-07-28 신규] "내 루틴"을 최대 5개까지 만들고, 각각 이름을 붙여 관리하는 화면.
+// [2026-07-28 신규] "내 루틴"을 최대 8개까지 만들고, 각각 이름을 붙여 관리하는 화면.
 // isFirstSetup === true면 아직 루틴이 하나도 없는 상태(온보딩 직후)로,
-// 최소 1개는 만들어야 메인 화면으로 넘어갈 수 있어 취소를 허용하지 않는다.
-export default function RoutineManager({ uid, templates, onChanged, onClose, isFirstSetup }) {
+// 최소 1개는 만들어야 메인 화면으로 넘어갈 수 있지만, "나중에 입력"으로 건너뛸 수도 있다.
+export default function RoutineManager({ uid, templates, onChanged, onClose, onSkip, isFirstSetup }) {
   const [editingId, setEditingId] = useState(isFirstSetup ? 'new' : null) // null | 'new' | templateId
   const [error, setError] = useState('')
 
@@ -18,6 +18,7 @@ export default function RoutineManager({ uid, templates, onChanged, onClose, isF
       <RoutineSetup
         initialTemplate={target}
         canCancel={!(isFirstSetup && templates.length === 0)}
+        onSkip={isFirstSetup && templates.length === 0 ? onSkip : null}
         onCancel={() => setEditingId(null)}
         onSave={async (data) => {
           setError('')
@@ -52,7 +53,7 @@ export default function RoutineManager({ uid, templates, onChanged, onClose, isF
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         {isFirstSetup
           ? '먼저 루틴을 하나 만들어 주세요. 부위를 자유롭게 조합할 수 있어요.'
-          : '루틴은 최대 5개까지 만들 수 있고, 기록 탭에서 그때그때 골라 사용할 수 있어요.'}
+          : `루틴은 최대 ${MAX_ROUTINES}개까지 만들 수 있고, 기록 탭에서 그때그때 골라 사용할 수 있어요.`}
       </p>
 
       {error && (

@@ -34,6 +34,7 @@ const DEFAULT_USER_DOC = {
   restTimerNotificationPermission: false,
   restTimerWakeLockEnabled: false,
   socialNotificationOptIn: false,
+  routineSetupSkipped: false, // 최초 루틴 설정에서 "나중에 입력"을 눌렀는지 여부
   seasonXp: 0,
   lifetimeXp: 0,
   lifetimeBadges: [],
@@ -71,12 +72,12 @@ export async function updateUserProfile(uid, partial) {
 
 // ───────────── routineTemplates/{uid}/templates/{templateId} ─────────────
 // [2026-07-28] MY탭 자유조합 개편: 고정 5분할(splitType) + 단일 활성 템플릿 구조를 없애고,
-// 사용자가 부위(BODY_PART_ATOMS)를 자유 조합해 만드는 "내 루틴"을 최대 5개까지 저장하는 구조로 전환.
+// 사용자가 부위(BODY_PART_ATOMS)를 자유 조합해 만드는 "내 루틴"을 최대 8개까지 저장하는 구조로 전환.
 // template: { title, order, parts: [{ name, atoms: string[], exercises: string[] }] }
 // (기존 splitType/splitParts/isActive/cycleCount/lastCycleCompletedAt/weeklyFrequencyLog/
 //  favoriteExercises 필드는 더 이상 사용하지 않음 — 사용자 승인 하에 전면 교체)
 
-const MAX_ROUTINE_TEMPLATES = 5
+export const MAX_ROUTINE_TEMPLATES = 8
 
 export async function getRoutineTemplates(uid) {
   const col = collection(db, 'routineTemplates', uid, 'templates')
@@ -95,7 +96,7 @@ export async function saveRoutineTemplate(uid, template) {
   }
   const existing = await getRoutineTemplates(uid)
   if (existing.length >= MAX_ROUTINE_TEMPLATES) {
-    throw new Error('내 루틴은 최대 5개까지만 만들 수 있어요.')
+    throw new Error(`내 루틴은 최대 ${MAX_ROUTINE_TEMPLATES}개까지만 만들 수 있어요.`)
   }
   const ref = await addDoc(col, {
     title: template.title,

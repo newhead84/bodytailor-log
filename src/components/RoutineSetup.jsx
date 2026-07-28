@@ -4,10 +4,10 @@ import { BODY_PART_ATOMS, buildPartName, getExercisesForPart } from '../utils/ex
 
 // [2026-07-28 개편] 고정 5분할(무분할~5분할) 프리셋 선택 화면을 없애고,
 // 부위(BODY_PART_ATOMS)를 자유롭게 조합해 파트를 만드는 단일 루틴 편집기로 변경.
-// MY탭 "운동방식 변경"(RoutineManager)에서 새 루틴 생성/기존 루틴 수정 시 이 컴포넌트를 사용한다.
+// MY탭 "운동조합 변경"(RoutineManager)에서 새 루틴 생성/기존 루틴 수정 시 이 컴포넌트를 사용한다.
 //
 // initialTemplate: { id?, title, parts: [{name, atoms, exercises}] } — 없으면 신규 생성 모드
-export default function RoutineSetup({ initialTemplate, onSave, onCancel, canCancel = true }) {
+export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip, canCancel = true }) {
   const isEditing = !!initialTemplate
   const [title, setTitle] = useState(initialTemplate?.title || '')
   const [parts, setParts] = useState(initialTemplate?.parts?.map((p) => ({ ...p, exercises: [...(p.exercises || [])] })) || [])
@@ -74,11 +74,22 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, canCan
           ← 취소하고 돌아가기
         </button>
       )}
-      <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
-        {isEditing ? '내 루틴 수정' : '새 루틴 만들기'}
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
+        <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: 0 }}>
+          {isEditing ? '내 루틴 수정' : '새 루틴 만들기'}
+        </h1>
+        {onSkip && (
+          <button
+            onClick={onSkip}
+            style={{ flexShrink: 0, fontSize: 13, fontWeight: 600, color: 'var(--color-label-neutral)', padding: '6px 4px' }}
+          >
+            나중에 입력
+          </button>
+        )}
+      </div>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&팔, 하체&가슴)
+        {onSkip && ' 지금 정하기 어렵다면 "나중에 입력"을 눌러 건너뛸 수 있어요.'}
       </p>
 
       <div style={{ marginBottom: 22 }}>

@@ -43,7 +43,7 @@ function formatClock(totalSeconds) {
 
 export default function WorkoutInput({ uid, routineTemplates, weightKg, restNotificationEnabled, restWakeLockEnabled, onSaved, onRoutineUpdated }) {
   const templates = routineTemplates || []
-  // 운동방식: 내 루틴(최대 5개) 중 하나 또는 '자유 추가 운동'
+  // 운동조합: 내 루틴(최대 8개) 중 하나 또는 '자유 추가 운동'
   const [sessionType, setSessionType] = useState('routine') // 'routine' | 'extra'
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id || null)
   const [selectedPartName, setSelectedPartName] = useState(templates[0]?.parts?.[0]?.name || null)
@@ -201,6 +201,25 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
     setPauseStartedAt(null)
   }
 
+  // 총 운동시간 초기화: 실수로 오래 켜뒀거나 잘못 측정된 경우를 위해,
+  // 팝업으로 한 번 더 확인한 뒤 경과시간을 0으로 되돌린다(세션 단계/기록은 유지).
+  function handleResetElapsed() {
+    if (!window.confirm('총 운동시간을 0으로 초기화할까요?')) return
+    setSessionStartAt(Date.now())
+    setPausedAccumMs(0)
+    setPauseStartedAt(null)
+  }
+
+  // 총 운동시간을 10초 단위로 미세 조정. sessionStartAt을 앞뒤로 옮겨
+  // "지금 - sessionStartAt - pausedAccumMs" 값(경과시간)이 ±10초 변하게 한다.
+  function handleAdjustElapsed(deltaSec) {
+    setSessionStartAt((prev) => {
+      if (!prev) return prev
+      const next = prev - deltaSec * 1000
+      return Math.min(next, Date.now())
+    })
+  }
+
   function selectRoutine(templateId) {
     const t = templates.find((tt) => tt.id === templateId)
     setSelectedTemplateId(templateId)
@@ -216,13 +235,23 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
   async function openExercise(name) {
     autoResumeIfPaused()
     setExpandedExercise(expandedExercise === name ? null : name)
-    if (!records[name]) {
-      setRecords((r) => ({ ...r, [name]: [{ weight: '', reps: '' }] }))
-    }
-    if (!lastRecords[name]) {
-      const last = await getLastRecordForExercise(uid, name)
+
+    let last = lastRecords[name]
+    if (last === undefined) {
+      last = await getLastRecordForExercise(uid, name)
       setLastRecords((r) => ({ ...r, [name]: last }))
     }
+
+    // 아직 이 종목에 값을 입력한 적이 없으면, 직전 기록의 마지막 세트 값을
+    // 첫 세트의 기본값으로 미리 채워준다(그대로 저장해도 되고, 수정도 가능).
+    setRecords((r) => {
+      if (r[name]) return r
+      const lastSet = last?.sets?.[last.sets.length - 1]
+      return {
+        ...r,
+        [name]: [{ weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
+      }
+    })
   }
 
   function updateSet(name, idx, field, value) {
@@ -243,6 +272,15 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
 
   function removeSet(name, idx) {
     setRecords((r) => ({ ...r, [name]: r[name].filter((_, i) => i !== idx) }))
+  }
+
+  // 체크(V) 버튼으로 세트를 저장하기 전에, 중량/횟수 중 하나라도 비어있으면
+  // 그대로 저장할지 한 번 더 확인한다(실수로 빈 값을 저장하는 것을 방지).
+  function trySaveSet(name, idx) {
+    const set = records[name]?.[idx]
+    const isEmpty = !set || set.weight === '' || set.reps === ''
+    if (isEmpty && !window.confirm('중량 또는 횟수가 비어 있어요. 그대로 저장할까요?')) return
+    saveSetAndStartRest(name, idx)
   }
 
   // 세트 저장과 동시에: 휴게타이머 시작 + 다음 세트를 자동으로 생성(직전 값 프리필)
@@ -439,10 +477,61 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
           <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
             {isPaused ? '일시정지됨' : sessionPhase === 'warmup' ? '웜업 중' : '총 운동시간'}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="record-notation" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button
+              title="10초 빼기"
+              onClick={() => handleAdjustElapsed(-10)}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: 700,
+                color: 'var(--color-label-normal)',
+                border: '1px solid var(--color-line)',
+                background: 'var(--color-static-white)',
+                flexShrink: 0,
+              }}
+            >
+              −
+            </button>
+            <span className="record-notation" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)', flexShrink: 0 }}>
               {formatClock(elapsedSeconds)}
             </span>
+            <button
+              title="10초 더하기"
+              onClick={() => handleAdjustElapsed(10)}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: 700,
+                color: 'var(--color-label-normal)',
+                border: '1px solid var(--color-line)',
+                background: 'var(--color-static-white)',
+                flexShrink: 0,
+              }}
+            >
+              +
+            </button>
+            <button
+              title="운동시간 초기화"
+              onClick={handleResetElapsed}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                color: 'var(--color-label-neutral)',
+                border: '1px solid var(--color-line)',
+                background: 'var(--color-static-white)',
+                flexShrink: 0,
+              }}
+            >
+              초기화
+            </button>
             <button
               onClick={handlePauseToggle}
               style={{
@@ -454,6 +543,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                 background: isPaused ? 'var(--color-primary-normal)' : 'var(--color-static-white)',
                 color: isPaused ? '#fff' : 'var(--color-label-normal)',
                 border: isPaused ? 'none' : '1px solid var(--color-line)',
+                flexShrink: 0,
               }}
             >
               {isPaused ? '재개' : '일시정지'}
@@ -462,9 +552,9 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
         </div>
       )}
 
-      {/* 운동방식: 내 루틴(최대 5개) 중 선택 / 자유 추가 운동 */}
+      {/* 운동조합: 내 루틴(최대 8개) 중 선택 / 자유 추가 운동 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0 }}>운동방식 :</span>
+        <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0 }}>운동조합 :</span>
         {templates.map((t) => (
           <Chip
             key={t.id}
@@ -561,7 +651,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                     onComplete={() => completeExercise(name)}
                     onWeightChange={(idx, v) => updateSet(name, idx, 'weight', v)}
                     onRepsChange={(idx, v) => updateSet(name, idx, 'reps', v)}
-                    onSaveSet={(idx) => saveSetAndStartRest(name, idx)}
+                    onSaveSet={(idx) => trySaveSet(name, idx)}
                     onCopySet={(idx) => copyLastSet(name, idx)}
                     onRemoveSet={(idx) => removeSet(name, idx)}
                     onHideToday={() => hideExerciseToday(name)}
@@ -586,7 +676,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                   onComplete={() => completeExercise(name)}
                   onWeightChange={(idx, v) => updateSet(name, idx, 'weight', v)}
                   onRepsChange={(idx, v) => updateSet(name, idx, 'reps', v)}
-                  onSaveSet={(idx) => saveSetAndStartRest(name, idx)}
+                  onSaveSet={(idx) => trySaveSet(name, idx)}
                   onCopySet={(idx) => copyLastSet(name, idx)}
                   onRemoveSet={(idx) => removeSet(name, idx)}
                   isExtra
