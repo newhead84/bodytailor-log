@@ -3,7 +3,7 @@ import React from 'react'
 const TABS = [
   { key: 'home', label: '홈', icon: '🏠' },
   { key: 'log', label: '기록', icon: '📝' },
-  { key: 'ranking', label: '랭킹', icon: '🏆' },
+  { key: 'report', label: '리포트', icon: '📊' },
   { key: 'my', label: 'MY', icon: '👤' },
 ]
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Button, Chip, Card } from './ui'
 import { BODY_PART_ATOMS, buildPartName, getExercisesForPart } from '../utils/exerciseLibrary'
+import ExerciseGuideImage from './ExerciseGuideImage'
 
 // [2026-07-28 개편] 고정 5분할(무분할~5분할) 프리셋 선택 화면을 없애고,
 // 부위(BODY_PART_ATOMS)를 자유롭게 조합해 파트를 만드는 단일 루틴 편집기로 변경.
@@ -203,7 +204,12 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
   )
 }
 
+// [2026-07-28] 종목 이름(Chip)을 누르면 그대로 루틴에 추가/제거되는 기존 동작은 유지하고,
+// 이미지는 이름 옆의 별도 'i' 정보 아이콘을 눌렀을 때만 목록 아래에 펼쳐서 보여준다.
+// (이전에는 기록탭에서 "시작"을 눌렀을 때 보였는데, 루틴 추가/수정 화면으로 이동했다.)
 function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAtoms }) {
+  const [infoOpenName, setInfoOpenName] = useState(null)
+
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -219,11 +225,35 @@ function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAt
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {availableExercises.map((name) => (
-          <Chip key={name} active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
-            {name}
-          </Chip>
+          <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Chip active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
+              {name}
+            </Chip>
+            <button
+              onClick={() => setInfoOpenName((cur) => (cur === name ? null : name))}
+              aria-label={`${name} 동작 이미지 보기`}
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                fontSize: 12,
+                fontWeight: 700,
+                flexShrink: 0,
+                border: '1px solid var(--color-line)',
+                color: infoOpenName === name ? '#fff' : 'var(--color-label-neutral)',
+                background: infoOpenName === name ? 'var(--color-primary-normal)' : 'var(--color-static-white)',
+              }}
+            >
+              i
+            </button>
+          </div>
         ))}
       </div>
+      {infoOpenName && (
+        <div style={{ marginTop: 10 }}>
+          <ExerciseGuideImage name={infoOpenName} />
+        </div>
+      )}
     </div>
   )
 }

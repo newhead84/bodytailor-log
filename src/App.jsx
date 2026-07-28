@@ -1,14 +1,15 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-28] 온보딩 "운동 수준" 질문 제거, 종목별 동작 가이드 이미지 추가(free-exercise-db
- *            연동), XP 보상 버그수정, 캘린더 자동갱신, 뒤로가기 시 기록 보존, 기록탭 진입 애니메이션 교체,
- *            휴식타이머 초과알림 2회 제한+알림음 5종, 휴식시간 설정 영속화, 완료축하팝업,
- *            종목별 입력방식(횟수전용/유산소) 분화, 종목별 중량 증량단위 차등화,
- *            세트입력 버튼 겹침 수정, 당겨새로고침 비활성화.
+ * 최신 변경: [2026-07-28] 기록탭 진입 애니메이션(위→아래로 떨어지는 효과) 완전 제거,
+ *            휴게타이머 AudioContext 누적 버그수정(몇 번 누르면 소리 안 나던 문제)+
+ *            '디지털' 알림음 제거+restSoundId 전달 누락 수정, 운동 가이드 이미지를
+ *            기록탭(시작 버튼)에서 루틴추가/수정 화면('i' 아이콘)으로 이동+매핑 확충,
+ *            MY탭 등급 카드 탭 시 티어/XP 설명 전체화면 추가, 랭킹 탭을 리포트 탭으로 개편
+ *            (기존 랭킹+통계 통합, 부위별 추이·과부하 진행상황·최다 수행 운동 신규).
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { watchAuthState } from './firebase'
 import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile } from './storage'
 
@@ -18,7 +19,8 @@ import RoutineManager from './components/RoutineManager'
 import BottomNav from './components/BottomNav'
 import HomeTab from './components/HomeTab'
 import LogTab from './components/LogTab'
-import RankingTab from './components/RankingTab'
+import ReportTab from './components/ReportTab'
+import TierInfoScreen from './components/TierInfoScreen'
 import MyPageTab from './components/MyPageTab'
 import SplashScreen from './components/SplashScreen'
 
@@ -33,11 +35,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home')
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
   const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동조합 변경" 진입 여부
+  const [showTierInfo, setShowTierInfo] = useState(false) // MY탭 "등급" 카드 탭 시 티어/XP 설명 전체화면 진입 여부
   // [2026-07-28] 홈탭/캘린더가 항상 마운트된 상태로 유지되어(위 주석 참고), 기록을 저장해도
   // 자체적으로는 다시 불러오지 않던 버그 수정. 기록 저장 시마다 이 값을 올려서 하위 컴포넌트의
   // 데이터 로딩 useEffect가 다시 실행되도록 만든다(재진입 없이 즉시 반영).
   const [logsVersion, setLogsVersion] = useState(0)
-  const logTabWrapperRef = useRef(null)
 
   // [2026-07-28] 네비게이션 "뒤로가기"(브라우저/기기 백 제스처)로 화면이 그대로 꺼지며
   // 입력 중이던 기록이 사라진다는 피드백 수정. 이 앱은 라우터가 없어 history 엔트리가
@@ -53,19 +55,6 @@ export default function App() {
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
-
-  // [2026-07-28] 기록탭 진입 애니메이션: 탭들은 항상 마운트된 상태를 유지해야 하므로(휴식
-  // 타이머 상태 보존 때문에) LogTab을 remount(key 변경)하지 않고, 대신 감싸는 div에
-  // 클래스를 강제로 뗐다 붙여 CSS 키프레임 애니메이션(위→아래로 떨어지는 효과)만 매번
-  // 새로 재생시킨다.
-  useEffect(() => {
-    if (activeTab !== 'log' || !logTabWrapperRef.current) return
-    const el = logTabWrapperRef.current
-    el.classList.remove('tab-drop-in')
-    // eslint-disable-next-line no-unused-expressions
-    el.offsetHeight // 강제 리플로우로 애니메이션 재시작
-    el.classList.add('tab-drop-in')
-  }, [activeTab])
 
   useEffect(() => {
     const t = setTimeout(() => setMinSplashElapsed(true), MIN_SPLASH_MS)
@@ -161,7 +150,12 @@ export default function App() {
     )
   }
 
-  // 랭킹 탭의 "주간 목표 세션 수"는 다중 루틴 모델에서는 대표값이 필요해,
+  // MY탭 등급 카드를 탭하면 티어 체계/XP 설명을 별도 전체 화면으로 보여준다.
+  if (showTierInfo) {
+    return <TierInfoScreen xp={userDoc.seasonXp || 0} onClose={() => setShowTierInfo(false)} />
+  }
+
+  // 리포트 탭의 "주간 목표 세션 수"는 다중 루틴 모델에서는 대표값이 필요해,
   // 가장 먼저 만든 루틴의 파트 수를 근사치로 사용한다.
   const targetSessionsPerWeek = routineTemplates[0]?.parts?.length || 3
 
@@ -182,7 +176,7 @@ export default function App() {
           onGoToLog={() => setActiveTab('log')}
         />
       </div>
-      <div ref={logTabWrapperRef} style={{ display: activeTab === 'log' ? 'block' : 'none' }}>
+      <div style={{ display: activeTab === 'log' ? 'block' : 'none' }}>
         <LogTab
           uid={authUser.uid}
           routineTemplates={routineTemplates}
@@ -194,8 +188,8 @@ export default function App() {
           onRoutineUpdated={refreshRoutineTemplates}
         />
       </div>
-      <div style={{ display: activeTab === 'ranking' ? 'block' : 'none' }}>
-        <RankingTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={targetSessionsPerWeek} />
+      <div style={{ display: activeTab === 'report' ? 'block' : 'none' }}>
+        <ReportTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={targetSessionsPerWeek} />
       </div>
       <div style={{ display: activeTab === 'my' ? 'block' : 'none' }}>
         <MyPageTab
@@ -205,6 +199,7 @@ export default function App() {
           onManageRoutines={() => setManagingRoutines(true)}
           onRoutineUpdated={refreshRoutineTemplates}
           onProfileUpdated={refreshUserDoc}
+          onShowTierInfo={() => setShowTierInfo(true)}
         />
       </div>
       <BottomNav active={activeTab} onChange={setActiveTab} />

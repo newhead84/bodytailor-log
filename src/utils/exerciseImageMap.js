@@ -27,19 +27,22 @@ export const EXERCISE_IMAGE_MAP = {
 
   // 등
   '랫풀다운': 'Wide-Grip Lat Pulldown',
+  '리버스그립랫풀다운': 'Underhand Cable Pulldowns',
   '바벨로우': 'Bent Over Barbell Row',
   '원암덤벨로우': 'One-Arm Dumbbell Row',
   'T바로우': 'T-Bar Row with Handle',
   '시티드케이블로우': 'Seated Cable Rows',
+  '하이로우머신': 'Leverage High Row',
   '스트레이트암풀다운': 'Straight-Arm Pulldown',
   '풀업': 'Pullups',
   '친업': 'Chin-Up',
   '데드리프트': 'Barbell Deadlift',
   '백익스텐션': 'Hyperextensions (Back Extensions)',
   '바벨슈러그': 'Barbell Shrug',
-  // '리버스그립랫풀다운', '뉴트럴그립랫풀다운', '펜들레이로우', '체스트서포티드로우', '하이로우머신': 매칭 없음
+  // '뉴트럴그립랫풀다운', '펜들레이로우', '체스트서포티드로우': 매칭 없음
 
   // 어깨
+  '머신숄더프레스': 'Leverage Shoulder Press',
   '스미스숄더프레스': 'Smith Machine Overhead Shoulder Press',
   '덤벨숄더프레스': 'Dumbbell Shoulder Press',
   '바벨오버헤드프레스': 'Barbell Shoulder Press',
@@ -48,9 +51,9 @@ export const EXERCISE_IMAGE_MAP = {
   '케이블레터럴레이즈': 'Cable Seated Lateral Raise',
   '프론트레이즈': 'Front Dumbbell Raise',
   '리어델트펙덱': 'Reverse Machine Flyes',
+  '벤트오버덤벨레이즈': 'Bent Over Dumbbell Rear Delt Raise With Head On Bench',
   '페이스풀': 'Face Pull',
   '업라이트로우': 'Upright Barbell Row',
-  // '머신숄더프레스', '벤트오버덤벨레이즈': 매칭 없음
 
   // 이두
   '바벨컬': 'Barbell Curl',
@@ -73,7 +76,7 @@ export const EXERCISE_IMAGE_MAP = {
   '벤치딥스': 'Bench Dips',
   '클로즈그립벤치프레스': 'Close-Grip Barbell Bench Press',
   '트라이셉스프레스머신': 'Machine Triceps Extension',
-  // '딥스머신': 매칭 없음
+  '딥스머신': 'Dip Machine',
 
   // 하체
   '레그익스텐션': 'Leg Extensions',
@@ -85,11 +88,14 @@ export const EXERCISE_IMAGE_MAP = {
   '프론트스쿼트': 'Front Barbell Squat',
   '스미스머신스쿼트': 'Smith Machine Squat',
   '런지': 'Barbell Lunge',
+  '불가리안스플릿스쿼트': 'Split Squats',
   '힙쓰러스트': 'Barbell Hip Thrust',
   '스탠딩카프레이즈': 'Standing Calf Raises',
   '시티드카프레이즈': 'Seated Calf Raise',
+  '힙어브덕션머신': 'Thigh Abductor',
+  '힙어덕션머신': 'Thigh Adductor',
   '굿모닝': 'Good Morning',
-  // '브이스쿼트', '불가리안스플릿스쿼트', '힙어브덕션머신', '힙어덕션머신': 매칭 없음
+  // '브이스쿼트': 매칭 없음(데이터셋에 해당 머신 종목 없음)
 
   // 코어
   '행잉레그레이즈': 'Hanging Leg Raise',
@@ -100,11 +106,17 @@ export const EXERCISE_IMAGE_MAP = {
   '러시안트위스트': 'Russian Twist',
   '케이블크런치': 'Cable Crunch',
   '앱롤아웃': 'Ab Roller',
-  // '행잉니레이즈', '시티드니업머신', '케이블우드촙': 매칭 없음
+  '케이블우드촙': 'Standing Cable Wood Chop',
+  // '행잉니레이즈', '시티드니업머신': 매칭 없음
 
   // 유산소
   '트레드밀': 'Running, Treadmill',
+  '인클라인워킹': 'Walking, Treadmill',
   '실내사이클': 'Recumbent Bike',
+  '실외러닝': 'Trail Running/Walking',
   '로잉머신': 'Rowing, Stationary',
-  // '인클라인워킹', '실외러닝', '일립티컬', '스텝밀', '에어바이크', '재이콥스래더': 매칭 없음
+  '일립티컬': 'Elliptical Trainer',
+  '스텝밀': 'Stairmaster',
+  '에어바이크': 'Air Bike',
+  // '재이콥스래더': 매칭 없음
 }

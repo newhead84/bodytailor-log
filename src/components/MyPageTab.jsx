@@ -16,7 +16,7 @@ const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
-export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRoutines, onRoutineUpdated, onProfileUpdated }) {
+export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo }) {
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
@@ -175,7 +175,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   return (
     <div style={{ padding: '20px 20px 100px' }}>
       <SectionTitle>등급</SectionTitle>
-      <Card style={{ marginBottom: 20 }}>
+      <Card onClick={onShowTierInfo} style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <TierBadge label={tier.label} size="lg" />
           <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
@@ -190,6 +190,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
             다음 티어 {nextTier.label}까지 {(nextTier.min - xp).toLocaleString()} XP
           </p>
         )}
+        <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-primary-strong)', margin: '10px 0 0', fontWeight: 600 }}>
+          탭하면 티어 체계와 XP 안내를 볼 수 있어요 →
+        </p>
       </Card>
 
       <SectionTitle

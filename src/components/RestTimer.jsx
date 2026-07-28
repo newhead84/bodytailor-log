@@ -6,14 +6,29 @@ export const REST_SOUND_OPTIONS = [
   { id: 'beep', label: '기본 비프', wave: 'sine', freq: 880 },
   { id: 'chime', label: '차임벨', wave: 'sine', freq: 659, freq2: 988 },
   { id: 'bell', label: '벨', wave: 'triangle', freq: 660 },
-  { id: 'digital', label: '디지털', wave: 'square', freq: 1000 },
   { id: 'soft', label: '부드럽게', wave: 'sine', freq: 440 },
 ]
+
+// [2026-07-28] 버그수정: 이전에는 재생할 때마다 new AudioContext()를 만들고 한 번도
+// close()하지 않아, 브라우저의 동시 AudioContext 개수 제한(보통 수 개)을 금방 넘겨버렸다.
+// 그러면 이후 생성 시도가 (catch로 조용히 삼켜지며) 실패해서 "몇 번 누르다보면 소리가
+// 아예 안 나는" 문제가 생겼다. 모듈 스코프에 컨텍스트 하나만 만들어 재사용한다.
+let sharedAudioCtx = null
+function getAudioCtx() {
+  if (!sharedAudioCtx) {
+    sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  }
+  // 브라우저가 절전 등으로 컨텍스트를 suspended 상태로 만들어둔 경우 재생 전 깨워준다.
+  if (sharedAudioCtx.state === 'suspended') {
+    sharedAudioCtx.resume().catch(() => {})
+  }
+  return sharedAudioCtx
+}
 
 export function playSound(soundId, times = 2) {
   const profile = REST_SOUND_OPTIONS.find((s) => s.id === soundId) || REST_SOUND_OPTIONS[0]
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const ctx = getAudioCtx()
     for (let i = 0; i < times; i++) {
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
@@ -45,6 +60,8 @@ export function playSound(soundId, times = 2) {
     }
   } catch (e) {
     // 오디오 재생 불가 환경은 조용히 무시 (알림/진동으로 대체)
+    // 컨텍스트 자체가 문제였을 수 있으니, 다음 시도에서 새로 만들 수 있게 초기화한다.
+    sharedAudioCtx = null
   }
 }
 

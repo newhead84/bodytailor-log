@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card } from './ui'
 import RestTimer from './RestTimer'
-import ExerciseGuideImage from './ExerciseGuideImage'
 import {
   calcVolume,
   getExercisesForPart,
@@ -1139,7 +1138,6 @@ function ExerciseCard({
 
       {expanded && (
         <div style={{ padding: '0 16px 16px' }}>
-          <ExerciseGuideImage name={name} />
           {lastRecord && (
             <div
               className="record-notation text-keep-all h-scroll"
