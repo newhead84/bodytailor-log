@@ -2,6 +2,26 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-07-28] 홈/기록/MY탭 다건 수정 + 운동 종목 DB 개편 (사용자 확인 후 반영)
+- 홈탭: 캘린더에서 선택한 날짜의 기존 기록을 수정(중량/횟수/날짜 변경)·삭제 가능하도록 추가
+  | CalendarView.jsx(편집 폼, startEdit/saveEdit/handleDeleteLog), storage.js(deleteWorkoutLog 신규)
+- 홈탭: 이번 달 운동/휴식 일수 라벨에 이모지(💪/😴) 추가 | HomeTab.jsx
+- 홈탭: "최근 기록" 표시에 날짜와 함께 수행 부위 요약 추가 | HomeTab.jsx (summarizePartsOfLog)
+- 기록탭: 종목 카드 펼치기/접기 시 카드 크기가 커졌다 작아지는 애니메이션 제거
+  (Reorder.Item에 layout="position" 지정, 드래그 순서 변경 애니메이션은 유지) | WorkoutInput.jsx
+- 운동부위 "팔"을 "이두"/"삼두"로 완전 분리(색상·통계·루틴 구성 전부 개별 부위로 노출).
+  기존 파트명의 '&팔' 토큰은 하위호환용으로 계속 인식됨 | exerciseLibrary.js(BODY_PART_ATOMS, PART_COLORS, PART_ATOM_MAP)
+- 운동 종목 DB를 8개 부위 기준 약 35개 → 101개로 확충(머신/케이블/프리웨이트 포함),
+  기존 종목명도 정식 웨이트 트레이닝 명칭으로 전면 교체(과거 저장 기록과의 이름 매칭은 유지하지 않기로 확인함)
+  | exerciseLibrary.js (EXERCISE_LIBRARY)
+- MY탭: "운동조합 변경" 화면에서 들어갈 때 뒤로 나가는 기능이 없던 버그 수정. "나중에 입력"은
+  온보딩 최초 진입시에만 노출되고, MY탭에서 들어온 경우엔 항상 정상적인 "취소하고 돌아가기"가 뜨도록 분리
+  | App.jsx(isFirstSetup 판단 로직), RoutineManager.jsx
+- MY탭: "분할운동 템플릿에서 추가" 기능을 "운동조합 변경" 화면(RoutineManager)에도 동일하게 제공
+  (SPLIT_TEMPLATE_PRESETS를 exerciseLibrary.js로 이동해 MyPageTab.jsx와 공유) | RoutineManager.jsx, MyPageTab.jsx, exerciseLibrary.js
+- MY탭: 루틴 파트를 삭제만 하던 것을, 부위 조합을 그대로 "수정"할 수 있는 기능 추가
+  (파트 개수는 유지한 채 하체&코어 → 하체&어깨&코어&유산소 같은 재구성 가능) | RoutineSetup.jsx (AtomPicker, openEditPartPicker)
+
 [2026-07-28] 사용자 요청 12건 반영 | 여러 파일
 - 운동시간 초기화 버튼(확인 팝업 포함) 추가 | WorkoutInput.jsx (handleResetElapsed)
 - 운동시간 10초 단위 +/- 조정 버튼 추가 | WorkoutInput.jsx (handleAdjustElapsed)

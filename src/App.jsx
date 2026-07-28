@@ -1,8 +1,8 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-28] 운동시간 초기화/±10초 조정, 세트 저장 시 빈값 확인, 직전 기록 프리필,
- *            휴식타이머 탭이동 유지, 내 루틴 5→8개+운동조합 명칭, 분할운동 템플릿, 홈 캘린더 요약,
- *            BMI 자동계산, 운동목표 자유입력, 루틴 "나중에 입력".
+ * 최신 변경: [2026-07-28] 캘린더 기록 수정/삭제, 홈탭 이모지·부위표시, 종목 펼치기 애니메이션 제거,
+ *            팔→이두/삼두 분리, 운동 종목 DB 확충(정식 명칭으로 전면 교체), 운동조합변경 뒤로가기 버그 수정,
+ *            분할운동 템플릿 공용화, 루틴 파트 수정 기능.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -102,8 +102,12 @@ export default function App() {
   }
 
   // 루틴이 하나도 없거나(최초, "나중에 입력"을 아직 누르지 않은 경우), MY탭 "운동조합 변경"으로 들어온 경우
-  const isFirstSetup = routineTemplates.length === 0
-  if ((isFirstSetup && !userDoc.routineSetupSkipped) || managingRoutines) {
+  const noTemplatesYet = routineTemplates.length === 0
+  // [2026-07-28] isFirstSetup은 "진짜 온보딩 최초 진입"만 true여야 한다. MY탭에서 수동으로
+  // "운동조합 변경"에 들어온 경우(managingRoutines)는 루틴이 0개여도 isFirstSetup이 아니다.
+  // 이래야 RoutineManager/RoutineSetup에서 "나중에 입력"이 아닌 정상적인 "뒤로가기"가 뜬다.
+  const isFirstSetup = noTemplatesYet && !managingRoutines
+  if ((noTemplatesYet && !userDoc.routineSetupSkipped) || managingRoutines) {
     return (
       <RoutineManager
         uid={authUser.uid}

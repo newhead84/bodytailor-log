@@ -134,6 +134,11 @@ export async function updateWorkoutLog(uid, logId, partial) {
   await updateDoc(doc(db, 'workoutLogs', uid, 'logs', logId), partial)
 }
 
+// [2026-07-28] 홈탭 캘린더에서 기록 삭제 기능 추가를 위해 신규 작성.
+export async function deleteWorkoutLog(uid, logId) {
+  await deleteDoc(doc(db, 'workoutLogs', uid, 'logs', logId))
+}
+
 export async function getWorkoutLogsInRange(uid, fromDateStr, toDateStr) {
   const col = collection(db, 'workoutLogs', uid, 'logs')
   const q = query(

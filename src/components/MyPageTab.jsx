@@ -3,37 +3,10 @@ import { Card, SectionTitle, Button, Chip, TierBadge } from './ui'
 import { updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '../storage'
 import { logout } from '../firebase'
 import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
-import { buildPartName, getExercisesForPart } from '../utils/exerciseLibrary'
+import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset } from '../utils/exerciseLibrary'
 
-// 트레이너들이 자주 쓰는 분할 방식 프리셋(2/3/4분할). 부위는 BODY_PART_ATOMS 조합이며,
-// 선택 시 해당 부위의 전체 종목이 자동으로 채워진 새 "내 루틴"으로 추가된다(이후 자유롭게 수정 가능).
-const SPLIT_TEMPLATE_PRESETS = [
-  {
-    key: '2split',
-    label: '2분할',
-    description: '상체 / 하체로 나누는 기본 분할',
-    parts: [
-      ['가슴', '등', '어깨', '팔'],
-      ['하체', '코어'],
-    ],
-  },
-  {
-    key: '3split',
-    label: '3분할',
-    description: '가슴&어깨 / 등&팔 / 하체&코어',
-    parts: [
-      ['가슴', '어깨'],
-      ['등', '팔'],
-      ['하체', '코어'],
-    ],
-  },
-  {
-    key: '4split',
-    label: '4분할',
-    description: '가슴 / 등&팔 / 어깨&코어 / 하체',
-    parts: [['가슴'], ['등', '팔'], ['어깨', '코어'], ['하체']],
-  },
-]
+// [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
+// "운동조합 변경"(RoutineManager) 화면이 같은 프리셋 정의를 공유하도록 정리했다.
 
 const LEVELS = ['입문', '초급', '중급', '고급']
 const GENDERS = ['남성', '여성']
@@ -184,10 +157,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
     setTemplateError('')
     setAddingTemplateKey(preset.key)
     try {
-      const parts = preset.parts.map((atoms) => {
-        const name = buildPartName(atoms)
-        return { name, atoms, exercises: getExercisesForPart(name) }
-      })
+      const parts = buildTemplatePartsFromPreset(preset)
       await saveRoutineTemplate(uid, { title: preset.label, parts })
       await onRoutineUpdated?.()
       setPickingSplitTemplate(false)

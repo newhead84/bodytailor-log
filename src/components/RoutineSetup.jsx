@@ -11,7 +11,8 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
   const isEditing = !!initialTemplate
   const [title, setTitle] = useState(initialTemplate?.title || '')
   const [parts, setParts] = useState(initialTemplate?.parts?.map((p) => ({ ...p, exercises: [...(p.exercises || [])] })) || [])
-  const [pickingAtoms, setPickingAtoms] = useState(false)
+  // pickerMode: null(닫힘) | 'new'(새 파트 추가) | number(해당 인덱스 파트의 부위 수정)
+  const [pickerMode, setPickerMode] = useState(null)
   const [draftAtoms, setDraftAtoms] = useState([])
   const [saving, setSaving] = useState(false)
 
@@ -19,17 +20,48 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
     setDraftAtoms((prev) => (prev.includes(atom) ? prev.filter((a) => a !== atom) : [...prev, atom]))
   }
 
-  function confirmNewPart() {
+  function openNewPartPicker() {
+    setPickerMode('new')
+    setDraftAtoms([])
+  }
+
+  // [2026-07-28] 기존 파트 삭제만 가능하던 것을, 파트 개수는 그대로 두고 부위 조합만
+  // 바꿀 수 있게 "수정" 진입점을 추가했다(예: 하체&코어 → 하체&어깨&코어&유산소).
+  function openEditPartPicker(idx) {
+    setPickerMode(idx)
+    setDraftAtoms(parts[idx]?.atoms || [])
+  }
+
+  function closePicker() {
+    setPickerMode(null)
+    setDraftAtoms([])
+  }
+
+  function confirmPicker() {
     if (draftAtoms.length === 0) return
     const name = buildPartName(draftAtoms)
-    if (parts.some((p) => p.name === name)) {
-      setPickingAtoms(false)
-      setDraftAtoms([])
-      return
+    if (pickerMode === 'new') {
+      if (parts.some((p) => p.name === name)) {
+        closePicker()
+        return
+      }
+      setParts((prev) => [...prev, { name, atoms: draftAtoms, exercises: [] }])
+    } else if (typeof pickerMode === 'number') {
+      const idx = pickerMode
+      if (parts.some((p, i) => i !== idx && p.name === name)) {
+        closePicker()
+        return
+      }
+      const stillAvailable = getExercisesForPart(name)
+      setParts((prev) =>
+        prev.map((p, i) =>
+          i !== idx
+            ? p
+            : { name, atoms: draftAtoms, exercises: p.exercises.filter((ex) => stillAvailable.includes(ex)) }
+        )
+      )
     }
-    setParts((prev) => [...prev, { name, atoms: draftAtoms, exercises: [] }])
-    setPickingAtoms(false)
-    setDraftAtoms([])
+    closePicker()
   }
 
   function removePart(idx) {
@@ -88,7 +120,7 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
         )}
       </div>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-        원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&팔, 하체&가슴)
+        원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&이두&삼두, 하체&가슴)
         {onSkip && ' 지금 정하기 어렵다면 "나중에 입력"을 눌러 건너뛸 수 있어요.'}
       </p>
 
@@ -103,18 +135,29 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
       </div>
 
       {parts.map((part, idx) => (
-        <PartEditor
-          key={part.name}
-          part={part}
-          availableExercises={getExercisesForPart(part.name)}
-          onToggle={(name) => toggleExercise(idx, name)}
-          onRemovePart={() => removePart(idx)}
-        />
+        <React.Fragment key={part.name}>
+          <PartEditor
+            part={part}
+            availableExercises={getExercisesForPart(part.name)}
+            onToggle={(name) => toggleExercise(idx, name)}
+            onRemovePart={() => removePart(idx)}
+            onEditAtoms={() => openEditPartPicker(idx)}
+          />
+          {pickerMode === idx && (
+            <AtomPicker
+              draftAtoms={draftAtoms}
+              onToggleAtom={toggleDraftAtom}
+              onCancel={closePicker}
+              onConfirm={confirmPicker}
+              confirmLabel="부위 변경 저장"
+            />
+          )}
+        </React.Fragment>
       ))}
 
-      {!pickingAtoms ? (
+      {pickerMode !== 'new' ? (
         <button
-          onClick={() => setPickingAtoms(true)}
+          onClick={openNewPartPicker}
           style={{
             width: '100%',
             padding: '14px',
@@ -129,33 +172,14 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
           + 파트 추가 (부위 조합 선택)
         </button>
       ) : (
-        <Card style={{ marginBottom: 22 }}>
-          <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-            이 파트에 포함할 부위를 하나 이상 골라 주세요.
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-            {BODY_PART_ATOMS.map((atom) => (
-              <Chip key={atom} active={draftAtoms.includes(atom)} onClick={() => toggleDraftAtom(atom)}>
-                {atom}
-              </Chip>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button
-              variant="ghost"
-              style={{ flex: 1 }}
-              onClick={() => {
-                setPickingAtoms(false)
-                setDraftAtoms([])
-              }}
-            >
-              취소
-            </Button>
-            <Button style={{ flex: 1 }} disabled={draftAtoms.length === 0} onClick={confirmNewPart}>
-              파트 만들기 {draftAtoms.length > 0 && `(${buildPartName(draftAtoms)})`}
-            </Button>
-          </div>
-        </Card>
+        <AtomPicker
+          draftAtoms={draftAtoms}
+          onToggleAtom={toggleDraftAtom}
+          onCancel={closePicker}
+          onConfirm={confirmPicker}
+          confirmLabel="파트 만들기"
+          style={{ marginBottom: 22 }}
+        />
       )}
 
       <div
@@ -179,14 +203,19 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
   )
 }
 
-function PartEditor({ part, availableExercises, onToggle, onRemovePart }) {
+function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAtoms }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ fontWeight: 700, fontSize: 15 }}>{part.name}</div>
-        <button onClick={onRemovePart} style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-          파트 삭제
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onEditAtoms} style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
+            수정
+          </button>
+          <button onClick={onRemovePart} style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            파트 삭제
+          </button>
+        </div>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {availableExercises.map((name) => (
@@ -196,5 +225,32 @@ function PartEditor({ part, availableExercises, onToggle, onRemovePart }) {
         ))}
       </div>
     </div>
+  )
+}
+
+// 파트를 새로 만들 때(pickerMode==='new')와, 기존 파트의 부위 조합을 바꿀 때
+// (pickerMode===idx) 양쪽에서 공용으로 쓰는 부위 선택 카드.
+function AtomPicker({ draftAtoms, onToggleAtom, onCancel, onConfirm, confirmLabel, style }) {
+  return (
+    <Card style={{ marginBottom: 22, ...style }}>
+      <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
+        이 파트에 포함할 부위를 하나 이상 골라 주세요.
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+        {BODY_PART_ATOMS.map((atom) => (
+          <Chip key={atom} active={draftAtoms.includes(atom)} onClick={() => onToggleAtom(atom)}>
+            {atom}
+          </Chip>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Button variant="ghost" style={{ flex: 1 }} onClick={onCancel}>
+          취소
+        </Button>
+        <Button style={{ flex: 1 }} disabled={draftAtoms.length === 0} onClick={onConfirm}>
+          {confirmLabel} {draftAtoms.length > 0 && `(${buildPartName(draftAtoms)})`}
+        </Button>
+      </div>
+    </Card>
   )
 }

@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Card, EmptyState } from './ui'
-import { getWorkoutLogsInRange } from '../storage'
-import { getExerciseDisplayAtom, PART_COLORS } from '../utils/exerciseLibrary'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Card, Button, EmptyState } from './ui'
+import { getWorkoutLogsInRange, updateWorkoutLog, deleteWorkoutLog } from '../storage'
+import { getExerciseDisplayAtom, PART_COLORS, calcVolume } from '../utils/exerciseLibrary'
 
 // 그 날짜의 운동시간/칼로리 합계와, 부위별 세트수를 계산한다(달력 칸에 색상+텍스트로 표시하기 위함).
 function daySummary(logs) {
@@ -36,29 +36,38 @@ export default function CalendarView({ uid, onMonthSummary }) {
   const [logsByDate, setLogsByDate] = useState({})
   const [selectedDate, setSelectedDate] = useState(null)
   const [loading, setLoading] = useState(true)
+  // 기록 수정/삭제/날짜변경용 상태
+  const [editingLogId, setEditingLogId] = useState(null)
+  const [editDraft, setEditDraft] = useState(null) // { date, exercises: [{name, sets:[{weight,reps}]}] }
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  // 현재 커서(연/월) 범위의 기록을 다시 불러온다. 월 이동 시 useEffect에서, 수정/삭제/날짜변경 후에는
+  // 아래 핸들러들에서 직접 호출한다.
+  const loadMonth = useCallback(async () => {
+    const from = `${cursor.year}-${pad(cursor.month + 1)}-01`
+    const lastDay = new Date(cursor.year, cursor.month + 1, 0).getDate()
+    const to = `${cursor.year}-${pad(cursor.month + 1)}-${pad(lastDay)}`
+    const logs = await getWorkoutLogsInRange(uid, from, to)
+    const grouped = {}
+    logs.forEach((log) => {
+      grouped[log.date] = grouped[log.date] || []
+      grouped[log.date].push(log)
+    })
+    return grouped
+  }, [uid, cursor])
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
-      setLoading(true)
-      const from = `${cursor.year}-${pad(cursor.month + 1)}-01`
-      const lastDay = new Date(cursor.year, cursor.month + 1, 0).getDate()
-      const to = `${cursor.year}-${pad(cursor.month + 1)}-${pad(lastDay)}`
-      const logs = await getWorkoutLogsInRange(uid, from, to)
+    setLoading(true)
+    loadMonth().then((grouped) => {
       if (cancelled) return
-      const grouped = {}
-      logs.forEach((log) => {
-        grouped[log.date] = grouped[log.date] || []
-        grouped[log.date].push(log)
-      })
       setLogsByDate(grouped)
       setLoading(false)
-    }
-    load()
+    })
     return () => {
       cancelled = true
     }
-  }, [uid, cursor])
+  }, [loadMonth])
 
   // 이번 달 운동일/휴식일 수를 부모(홈탭)로 전달한다. 오늘이 속한 달이면 "오늘까지"만 세고,
   // 지난 달을 보고 있으면 그 달 전체 일수를 기준으로 센다.
@@ -88,6 +97,64 @@ export default function CalendarView({ uid, onMonthSummary }) {
   }
 
   const selectedLogs = selectedDate ? logsByDate[selectedDate] || [] : []
+
+  function startEdit(log) {
+    setEditingLogId(log.id)
+    setEditDraft({
+      date: log.date,
+      exercises: log.exercises.map((ex) => ({ name: ex.name, sets: ex.sets.map((s) => ({ ...s })) })),
+    })
+  }
+
+  function cancelEdit() {
+    setEditingLogId(null)
+    setEditDraft(null)
+  }
+
+  function updateDraftDate(value) {
+    setEditDraft((prev) => ({ ...prev, date: value }))
+  }
+
+  function updateDraftSet(exIdx, setIdx, field, value) {
+    setEditDraft((prev) => ({
+      ...prev,
+      exercises: prev.exercises.map((ex, i) =>
+        i !== exIdx
+          ? ex
+          : { ...ex, sets: ex.sets.map((s, j) => (j !== setIdx ? s : { ...s, [field]: value })) }
+      ),
+    }))
+  }
+
+  async function saveEdit(log) {
+    if (!editDraft?.date) return
+    setSavingEdit(true)
+    try {
+      const cleanedExercises = editDraft.exercises.map((ex) => ({
+        ...ex,
+        sets: ex.sets.map((s) => ({ weight: Number(s.weight) || 0, reps: parseInt(s.reps, 10) || 0 })),
+      }))
+      const totalVolume = cleanedExercises.reduce((sum, ex) => sum + calcVolume(ex.sets), 0)
+      await updateWorkoutLog(uid, log.id, {
+        date: editDraft.date,
+        exercises: cleanedExercises,
+        totalVolume,
+      })
+      const grouped = await loadMonth()
+      setLogsByDate(grouped)
+      cancelEdit()
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  async function handleDeleteLog(log) {
+    if (!window.confirm(`${log.date} 기록을 삭제할까요? 되돌릴 수 없어요.`)) return
+    await deleteWorkoutLog(uid, log.id)
+    const grouped = await loadMonth()
+    setLogsByDate(grouped)
+    if (editingLogId === log.id) cancelEdit()
+  }
 
   return (
     <div style={{ padding: '16px 20px 8px' }}>
@@ -209,30 +276,83 @@ export default function CalendarView({ uid, onMonthSummary }) {
         ) : selectedLogs.length === 0 ? (
           <EmptyState title="기록 없음" description={`${selectedDate}에는 운동 기록이 없어요.`} />
         ) : (
-          selectedLogs.map((log) => (
-            <Card key={log.id} style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div style={{ fontWeight: 700 }}>
-                  {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'}
+          selectedLogs.map((log) =>
+            editingLogId === log.id ? (
+              <Card key={log.id} style={{ marginBottom: 10 }}>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-label-neutral)' }}>날짜</div>
+                  <input
+                    type="date"
+                    value={editDraft?.date || ''}
+                    onChange={(e) => updateDraftDate(e.target.value)}
+                    style={{ padding: '8px 10px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 14 }}
+                  />
                 </div>
-                <div style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                  {log.totalDurationSec > 0 && <span>{Math.round(log.totalDurationSec / 60)}분</span>}
-                  {log.caloriesKcal > 0 && <span>{log.caloriesKcal}kcal</span>}
+                {editDraft?.exercises.map((ex, exIdx) => (
+                  <div key={ex.name} style={{ marginBottom: 10 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{ex.name}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {ex.sets.map((s, setIdx) => (
+                        <div key={setIdx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input
+                            type="number"
+                            value={s.weight}
+                            onChange={(e) => updateDraftSet(exIdx, setIdx, 'weight', e.target.value)}
+                            style={{ width: 64, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                          />
+                          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>kg ×</span>
+                          <input
+                            type="number"
+                            value={s.reps}
+                            onChange={(e) => updateDraftSet(exIdx, setIdx, 'reps', e.target.value)}
+                            style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                          />
+                          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <Button variant="ghost" style={{ flex: 1 }} onClick={cancelEdit} disabled={savingEdit}>
+                    취소
+                  </Button>
+                  <Button style={{ flex: 1 }} onClick={() => saveEdit(log)} disabled={savingEdit}>
+                    {savingEdit ? '저장 중…' : '저장'}
+                  </Button>
                 </div>
-              </div>
-              {log.exercises.map((ex) => (
-                <div key={ex.name} style={{ fontSize: 13, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 600, flexShrink: 0 }}>{ex.name}</span>
-                  <span className="record-notation h-scroll" style={{ color: 'var(--color-label-normal)', display: 'block', minWidth: 0 }}>
-                    {ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
-                  </span>
+              </Card>
+            ) : (
+              <Card key={log.id} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700 }}>
+                    {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                    {log.totalDurationSec > 0 && <span>{Math.round(log.totalDurationSec / 60)}분</span>}
+                    {log.caloriesKcal > 0 && <span>{log.caloriesKcal}kcal</span>}
+                    <button onClick={() => startEdit(log)} style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
+                      수정
+                    </button>
+                    <button onClick={() => handleDeleteLog(log)} style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                      삭제
+                    </button>
+                  </div>
                 </div>
-              ))}
-              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 6 }}>
-                총 볼륨 {log.totalVolume?.toLocaleString()}
-              </div>
-            </Card>
-          ))
+                {log.exercises.map((ex) => (
+                  <div key={ex.name} style={{ fontSize: 13, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                    <span style={{ fontWeight: 600, flexShrink: 0 }}>{ex.name}</span>
+                    <span className="record-notation h-scroll" style={{ color: 'var(--color-label-normal)', display: 'block', minWidth: 0 }}>
+                      {ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
+                    </span>
+                  </div>
+                ))}
+                <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 6 }}>
+                  총 볼륨 {log.totalVolume?.toLocaleString()}
+                </div>
+              </Card>
+            )
+          )
         )}
       </div>
     </div>

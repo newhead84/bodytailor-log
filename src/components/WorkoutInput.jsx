@@ -644,7 +644,6 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                 <SortableExerciseItem
                   key={name}
                   name={name}
-                  orderKey={visibleExercises.join('|')}
                   onDragEnd={() => persistPartExercises(partOrder)}
                 >
                   <ExerciseCard
@@ -826,12 +825,12 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
 // Reorder.Item의 드래그 리스너를 끄고(dragListener=false), 좌측 핸들(⠿)을 누를 때만
 // dragControls.start()로 드래그를 시작시켜 목록 가운데를 스크롤할 때 실수로 순서가
 // 바뀌지 않도록 한다.
-// [2026-07-28] layoutDependency를 순서(orderKey)로 지정: framer-motion의 layout 애니메이션은
-// 기본적으로 리렌더될 때마다(펼치기/접기 등으로 다른 아이템의 높이가 바뀌어 위치가 밀리는 경우 포함)
-// 위치 변화를 감지해 애니메이션을 적용해 부자연스러웠다. orderKey가 실제로 바뀔 때(=순서가 바뀔 때)만
-// 레이아웃을 재측정하도록 제한해, 접기/펼치기 시에는 애니메이션 없이 즉시 반영되고 순서 변경 시에만
-// 부드러운 이동 애니메이션이 적용된다.
-function SortableExerciseItem({ name, onDragEnd, orderKey, children }) {
+// [2026-07-28] 종목 카드를 펼치고 접을 때 카드 전체가 커졌다 작아지는 애니메이션이 남아있다는
+// 피드백을 받아, layout="position"으로 명시했다. framer-motion의 Reorder.Item은 기본적으로
+// 카드의 "위치"뿐 아니라 "크기" 변화도 함께 애니메이션하는데(layout=true와 동일 동작),
+// layout="position"으로 지정하면 드래그로 순서가 바뀔 때의 위치 이동만 부드럽게 애니메이션하고
+// 펼치기/접기로 카드 높이가 바뀔 때는 애니메이션 없이 즉시 반영된다.
+function SortableExerciseItem({ name, onDragEnd, children }) {
   const dragControls = useDragControls()
   return (
     <Reorder.Item
@@ -839,7 +838,7 @@ function SortableExerciseItem({ name, onDragEnd, orderKey, children }) {
       dragListener={false}
       dragControls={dragControls}
       onDragEnd={onDragEnd}
-      layoutDependency={orderKey}
+      layout="position"
       style={{ listStyle: 'none' }}
     >
       {React.cloneElement(children, { dragControls })}

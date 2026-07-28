@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Button, Card } from './ui'
 import RoutineSetup from './RoutineSetup'
 import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '../storage'
+import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset } from '../utils/exerciseLibrary'
 
 const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 
@@ -11,6 +12,28 @@ const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 export default function RoutineManager({ uid, templates, onChanged, onClose, onSkip, isFirstSetup }) {
   const [editingId, setEditingId] = useState(isFirstSetup ? 'new' : null) // null | 'new' | templateId
   const [error, setError] = useState('')
+  // [2026-07-28] MY탭에만 있던 "분할운동 템플릿에서 추가"를 이 화면에도 제공.
+  const [pickingSplitTemplate, setPickingSplitTemplate] = useState(false)
+  const [addingTemplateKey, setAddingTemplateKey] = useState(null)
+
+  async function handleAddSplitTemplate(preset) {
+    if (templates.length >= MAX_ROUTINES) {
+      setError(`내 루틴은 최대 ${MAX_ROUTINES}개까지만 만들 수 있어요.`)
+      return
+    }
+    setError('')
+    setAddingTemplateKey(preset.key)
+    try {
+      const parts = buildTemplatePartsFromPreset(preset)
+      await saveRoutineTemplate(uid, { title: preset.label, parts })
+      await onChanged()
+      setPickingSplitTemplate(false)
+    } catch (e) {
+      setError(e?.message || '템플릿 추가 중 문제가 생겼어요.')
+    } finally {
+      setAddingTemplateKey(null)
+    }
+  }
 
   if (editingId) {
     const target = editingId === 'new' ? null : templates.find((t) => t.id === editingId)
@@ -90,9 +113,63 @@ export default function RoutineManager({ uid, templates, onChanged, onClose, onS
       </div>
 
       {templates.length < MAX_ROUTINES && (
-        <Button full onClick={() => setEditingId('new')}>
-          + 새 루틴 추가
-        </Button>
+        <>
+          <Button full onClick={() => setEditingId('new')} style={{ marginBottom: 10 }}>
+            + 새 루틴 추가
+          </Button>
+
+          {!pickingSplitTemplate ? (
+            <button
+              onClick={() => {
+                setPickingSplitTemplate(true)
+                setError('')
+              }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: 10,
+                border: '1px dashed var(--color-line)',
+                color: 'var(--color-label-neutral)',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              + 분할운동 템플릿에서 추가
+            </button>
+          ) : (
+            <Card>
+              <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
+                트레이너들이 자주 쓰는 분할 방식이에요. 선택하면 내 루틴에 그대로 추가되고, 이후 자유롭게 수정할 수 있어요.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+                {SPLIT_TEMPLATE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.key}
+                    onClick={() => handleAddSplitTemplate(preset)}
+                    disabled={!!addingTemplateKey}
+                    style={{
+                      textAlign: 'left',
+                      padding: '12px 14px',
+                      borderRadius: 10,
+                      border: '1px solid var(--color-line)',
+                      opacity: addingTemplateKey && addingTemplateKey !== preset.key ? 0.5 : 1,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
+                      {preset.label} {addingTemplateKey === preset.key && '· 추가 중…'}
+                    </div>
+                    <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                      {preset.description}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setPickingSplitTemplate(false)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
+                취소
+              </button>
+            </Card>
+          )}
+        </>
       )}
     </div>
   )

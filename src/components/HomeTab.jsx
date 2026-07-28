@@ -2,6 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Card, SectionTitle, Button } from './ui'
 import { getRecentWorkoutLogs } from '../storage'
 import CalendarView from './CalendarView'
+import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
+
+// 로그 하나에서 실제로 수행한 부위들을 중복 없이 뽑아 "가슴·삼두"처럼 요약한다.
+function summarizePartsOfLog(log) {
+  if (!log?.exercises?.length) return ''
+  const atoms = [...new Set(log.exercises.map((ex) => getExerciseDisplayAtom(ex.name)).filter(Boolean))]
+  return atoms.join('·')
+}
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -54,7 +62,11 @@ export default function HomeTab({ uid, userDoc, routineTemplates, onGoToLog }) {
       <SectionTitle>오늘의 운동</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--color-label-normal)' }}>
-          {recentLogs[0] ? `최근 기록: ${recentLogs[0].date}` : '아직 기록이 없어요. 첫 세트를 시작해 볼까요?'}
+          {recentLogs[0]
+            ? `최근 기록: ${recentLogs[0].date}${
+                summarizePartsOfLog(recentLogs[0]) ? ` · ${summarizePartsOfLog(recentLogs[0])}` : ''
+              }`
+            : '아직 기록이 없어요. 첫 세트를 시작해 볼까요?'}
         </p>
         {suggested && !doneToday && (
           <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
@@ -91,7 +103,7 @@ export default function HomeTab({ uid, userDoc, routineTemplates, onGoToLog }) {
                 {monthSummary.workoutDays}일
               </div>
               <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
-                {monthSummary.month + 1}월 운동
+                💪 {monthSummary.month + 1}월 운동
               </div>
             </div>
             <div style={{ width: 1, background: 'var(--color-line)' }} />
@@ -100,7 +112,7 @@ export default function HomeTab({ uid, userDoc, routineTemplates, onGoToLog }) {
                 {monthSummary.restDays}일
               </div>
               <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
-                {monthSummary.month + 1}월 휴식
+                😴 {monthSummary.month + 1}월 휴식
               </div>
             </div>
           </div>
