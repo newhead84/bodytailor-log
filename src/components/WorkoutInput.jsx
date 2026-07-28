@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Reorder } from 'framer-motion'
+import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card } from './ui'
 import RestTimer from './RestTimer'
 import {
@@ -548,12 +548,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
               style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
             >
               {visibleExercises.map((name) => (
-                <Reorder.Item
-                  key={name}
-                  value={name}
-                  onDragEnd={() => persistPartExercises(partOrder)}
-                  style={{ listStyle: 'none' }}
-                >
+                <SortableExerciseItem key={name} name={name} onDragEnd={() => persistPartExercises(partOrder)}>
                   <ExerciseCard
                     name={name}
                     draggable
@@ -572,7 +567,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                     onHideToday={() => hideExerciseToday(name)}
                     onRemoveFromRoutine={() => removeExerciseFromRoutine(name)}
                   />
-                </Reorder.Item>
+                </SortableExerciseItem>
               ))}
             </Reorder.Group>
           ) : (
@@ -730,10 +725,29 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
   )
 }
 
+// Reorder.Item의 드래그 리스너를 끄고(dragListener=false), 좌측 핸들(⠿)을 누를 때만
+// dragControls.start()로 드래그를 시작시켜 목록 가운데를 스크롤할 때 실수로 순서가
+// 바뀌지 않도록 한다.
+function SortableExerciseItem({ name, onDragEnd, children }) {
+  const dragControls = useDragControls()
+  return (
+    <Reorder.Item
+      value={name}
+      dragListener={false}
+      dragControls={dragControls}
+      onDragEnd={onDragEnd}
+      style={{ listStyle: 'none' }}
+    >
+      {React.cloneElement(children, { dragControls })}
+    </Reorder.Item>
+  )
+}
+
 // 운동 종목 한 칸(부위 색상 라인 + 세트 입력 영역). 루틴/자유 추가 운동 공통으로 사용.
 function ExerciseCard({
   name,
   draggable,
+  dragControls,
   isDone,
   expanded,
   lastRecord,
@@ -758,6 +772,7 @@ function ExerciseCard({
         {draggable && (
           <div
             title={isDone ? '완료된 종목도 순서를 바꿀 수 있어요' : '눌러서 위아래로 드래그'}
+            onPointerDown={(e) => dragControls?.start(e)}
             style={{
               flexShrink: 0,
               width: 28,
@@ -818,7 +833,6 @@ function ExerciseCard({
               justifyContent: 'center',
               color: 'var(--color-label-neutral)',
               transform: expanded ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.15s ease',
             }}
           >
             <svg width="12" height="12" viewBox="0 0 12 12">

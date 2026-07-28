@@ -73,7 +73,7 @@ export default function HomeTab({ uid, userDoc, routineTemplates, onGoToLog }) {
               오늘도 득근! 수고하셨습니다!
             </Button>
             <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowExtraCta(true)}>
-              대단하시네요 더 하시게요?
+              한 세트 더?
             </Button>
           </div>
         )}

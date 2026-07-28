@@ -3,6 +3,17 @@
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
 CHANGELOG
+[2026-07-28] 홈/캘린더 UX 수정 2건 (사용자 확인 후 반영)
+  | 1) HomeTab.jsx: 완료 후 CTA 버튼 문구 "대단하시네요 더 하시게요?" → "한 세트 더?"로 변경
+  |    (기존 문구가 whiteSpace:nowrap 상태에서 좁은 화면 폭에 잘려 나가는 문제)
+  | 2) CalendarView.jsx: 월 그리드 구조는 유지하되 셀 높이를 키워(minHeight 96) 날짜를 누르지
+  |    않아도 그 날의 운동시간/칼로리/부위별 세트수를 색상+텍스트로 바로 보이게 개편.
+  |    dayPartAtoms()를 daySummary()로 교체(부위별 세트수 집계 포함)
+[2026-07-28] 기록 탭 UX 수정 2건
+  | 1) WorkoutInput.jsx: 종목 드래그 정렬을 좌측 핸들(⠿)에서만 시작하도록 변경
+  |    (SortableExerciseItem 추가, framer-motion dragControls/dragListener=false 사용).
+  |    기존엔 카드 전체가 드래그 대상이라 목록 가운데를 스크롤할 때 순서가 밀리는 문제가 있었음.
+  | 2) WorkoutInput.jsx: 종목 펼치기/접기 화살표의 회전 트랜지션(0.15s) 제거, 모션 없이 즉시 전환
 [2026-07-27] v8 설계안 기준 Phase1 MVP 신규 작성 착수
   | 전체 구조: 인증(LoginScreen) → 온보딩(Onboarding) → 루틴설정(RoutineSetup)
   | → 메인 4탭(HomeTab/LogTab/RankingTab/MyPageTab) + BottomNav

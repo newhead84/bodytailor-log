@@ -3,14 +3,25 @@ import { Card, EmptyState } from './ui'
 import { getWorkoutLogsInRange } from '../storage'
 import { getExerciseDisplayAtom, PART_COLORS } from '../utils/exerciseLibrary'
 
-// 그 날짜에 기록된 운동들이 어떤 부위(공식 7개)였는지 색상 점으로 요약한다.
-function dayPartAtoms(logs) {
-  const atoms = new Set()
-  logs.forEach((log) => (log.exercises || []).forEach((ex) => {
-    const atom = getExerciseDisplayAtom(ex.name)
-    if (atom) atoms.add(atom)
-  }))
-  return [...atoms]
+// 그 날짜의 운동시간/칼로리 합계와, 부위별 세트수를 계산한다(달력 칸에 색상+텍스트로 표시하기 위함).
+function daySummary(logs) {
+  let totalDurationSec = 0
+  let totalCalories = 0
+  const atomCounts = {}
+  logs.forEach((log) => {
+    totalDurationSec += log.totalDurationSec || 0
+    totalCalories += log.caloriesKcal || 0
+    ;(log.exercises || []).forEach((ex) => {
+      const atom = getExerciseDisplayAtom(ex.name)
+      if (!atom) return
+      atomCounts[atom] = (atomCounts[atom] || 0) + (ex.sets?.length || 0)
+    })
+  })
+  const atomList = Object.entries(atomCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([atom, count]) => ({ atom, count }))
+  return { totalDurationSec, totalCalories, atomList }
 }
 
 function pad(n) {
@@ -92,39 +103,84 @@ export default function CalendarView({ uid }) {
           const ds = dateStr(d)
           const dayLogs = logsByDate[ds] || []
           const hasLog = dayLogs.length > 0
-          const atoms = hasLog ? dayPartAtoms(dayLogs).slice(0, 4) : []
+          const summary = hasLog ? daySummary(dayLogs) : null
           const isSelected = selectedDate === ds
           return (
             <button
               key={i}
               onClick={() => setSelectedDate(ds)}
               style={{
-                aspectRatio: '1',
+                minHeight: 96,
                 borderRadius: 10,
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 2,
+                alignItems: 'stretch',
+                padding: '6px 3px',
+                gap: 3,
                 background: isSelected ? 'var(--color-primary-normal)' : 'transparent',
                 color: isSelected ? '#fff' : 'var(--color-label-strong)',
               }}
             >
-              <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500 }}>{d}</span>
+              <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500, textAlign: 'center' }}>{d}</span>
               {hasLog && (
-                <span style={{ display: 'flex', gap: 2 }}>
-                  {atoms.map((atom) => (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
+                  {summary.totalDurationSec > 0 && (
                     <span
-                      key={atom}
                       style={{
-                        width: 5,
-                        height: 5,
-                        borderRadius: '50%',
-                        background: isSelected ? '#fff' : PART_COLORS[atom] || 'var(--color-primary-normal)',
+                        fontSize: 9,
+                        fontWeight: 700,
+                        borderRadius: 4,
+                        padding: '1px 3px',
+                        textAlign: 'center',
+                        background: isSelected ? 'rgba(255,255,255,0.25)' : '#e3f9ef',
+                        color: isSelected ? '#fff' : 'var(--color-success)',
                       }}
-                    />
+                    >
+                      {Math.round(summary.totalDurationSec / 60)}분
+                    </span>
+                  )}
+                  {summary.totalCalories > 0 && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        borderRadius: 4,
+                        padding: '1px 3px',
+                        textAlign: 'center',
+                        background: isSelected ? 'rgba(255,255,255,0.25)' : '#fff4e6',
+                        color: isSelected ? '#fff' : 'var(--color-warning)',
+                      }}
+                    >
+                      {summary.totalCalories}Cal
+                    </span>
+                  )}
+                  {summary.atomList.map(({ atom, count }) => (
+                    <div key={atom} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <span
+                        style={{
+                          width: 3,
+                          height: 10,
+                          borderRadius: 2,
+                          flexShrink: 0,
+                          background: isSelected ? '#fff' : PART_COLORS[atom] || 'var(--color-primary-normal)',
+                        }}
+                      />
+                      <span
+                        className="text-keep-all"
+                        style={{
+                          fontSize: 9,
+                          lineHeight: '11px',
+                          color: isSelected ? '#fff' : 'var(--color-label-normal)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {atom} {count}
+                      </span>
+                    </div>
                   ))}
-                </span>
+                </div>
               )}
             </button>
           )
