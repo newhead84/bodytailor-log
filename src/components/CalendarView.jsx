@@ -1,6 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Card, EmptyState } from './ui'
 import { getWorkoutLogsInRange } from '../storage'
+import { getExerciseDisplayAtom, PART_COLORS } from '../utils/exerciseLibrary'
+
+// 그 날짜에 기록된 운동들이 어떤 부위(공식 7개)였는지 색상 점으로 요약한다.
+function dayPartAtoms(logs) {
+  const atoms = new Set()
+  logs.forEach((log) => (log.exercises || []).forEach((ex) => {
+    const atom = getExerciseDisplayAtom(ex.name)
+    if (atom) atoms.add(atom)
+  }))
+  return [...atoms]
+}
 
 function pad(n) {
   return String(n).padStart(2, '0')
@@ -79,7 +90,9 @@ export default function CalendarView({ uid }) {
         {grid.map((d, i) => {
           if (!d) return <div key={i} />
           const ds = dateStr(d)
-          const hasLog = !!logsByDate[ds]
+          const dayLogs = logsByDate[ds] || []
+          const hasLog = dayLogs.length > 0
+          const atoms = hasLog ? dayPartAtoms(dayLogs).slice(0, 4) : []
           const isSelected = selectedDate === ds
           return (
             <button
@@ -99,14 +112,19 @@ export default function CalendarView({ uid }) {
             >
               <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500 }}>{d}</span>
               {hasLog && (
-                <span
-                  style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: '50%',
-                    background: isSelected ? '#fff' : 'var(--color-primary-normal)',
-                  }}
-                />
+                <span style={{ display: 'flex', gap: 2 }}>
+                  {atoms.map((atom) => (
+                    <span
+                      key={atom}
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: '50%',
+                        background: isSelected ? '#fff' : PART_COLORS[atom] || 'var(--color-primary-normal)',
+                      }}
+                    />
+                  ))}
+                </span>
               )}
             </button>
           )
@@ -123,8 +141,14 @@ export default function CalendarView({ uid }) {
         ) : (
           selectedLogs.map((log) => (
             <Card key={log.id} style={{ marginBottom: 10 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>
-                {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ fontWeight: 700 }}>
+                  {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'}
+                </div>
+                <div style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                  {log.totalDurationSec > 0 && <span>{Math.round(log.totalDurationSec / 60)}분</span>}
+                  {log.caloriesKcal > 0 && <span>{log.caloriesKcal}kcal</span>}
+                </div>
               </div>
               {log.exercises.map((ex) => (
                 <div key={ex.name} style={{ fontSize: 13, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'baseline' }}>

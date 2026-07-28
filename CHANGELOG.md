@@ -135,3 +135,39 @@ CHANGELOG
   |    완전 삭제·종목 추가(부위 카테고리 선택 후 고르기)를 모두 flat list(myRoutineOrder) 기준으로
   |    재구현. 세트완료/오늘만 숨김 등 기존 동작은 그대로 유지
   | 4) CalendarView.jsx: 세션 타입 표기 '사이클 운동' → '내 루틴 운동'으로 통일
+
+[2026-07-28] 홈/MY/기록 탭 개편 3건 (사용자 요청 반영, 확정 스펙 변경 포함 — 사전 확인 후 진행)
+  | 1) MY탭 '운동방식' 전면 교체: 고정 5분할(무분할~5분할) 프리셋을 없애고, 공식 7개 부위
+  |    (가슴/등/팔/어깨/코어/하체/유산소, exerciseLibrary.js BODY_PART_ATOMS)를 자유 조합해
+  |    "내 루틴"을 최대 5개까지 만들고 각각 이름을 붙이는 구조로 전환.
+  |    - storage.js: routineTemplates를 '단일 활성 템플릿(isActive)'에서 '최대 5개 목록' 구조로
+  |      변경(getActiveRoutineTemplate → getRoutineTemplates, saveRoutineTemplate 5개 제한 검증
+  |      추가, deleteRoutineTemplate 신규). splitType/splitParts/isActive/cycleCount/
+  |      lastCycleCompletedAt/weeklyFrequencyLog/favoriteExercises 필드 제거(미사용/구조 대체).
+  |    - RoutineSetup.jsx: 프리셋 선택 화면 제거 → 부위 다중선택으로 파트를 만들고 파트별
+  |      종목을 고르는 단일 루틴 편집기로 재작성.
+  |    - RoutineManager.jsx(신규): 내 루틴 목록(최대 5개) 조회/추가/수정/삭제 화면.
+  |    - App.jsx: 단일 routineTemplate 상태 → routineTemplates 배열로 변경, 루틴이 0개면
+  |      RoutineManager를 필수 진입 화면으로 표시.
+  |    - MyPageTab.jsx: 기존 "내 루틴"(favoriteExercises 즐겨찾기) 섹션 제거, "운동방식 변경"
+  |      버튼이 RoutineManager를 열도록 변경.
+  | 2) 기록 탭 개편: 운동방식 선택 칩이 내 루틴(최대 5개) + 자유 추가 운동으로 바뀌고, 루틴 선택 시
+  |    그 루틴의 파트(분할) 칩이 나타나 파트를 고르면 해당 파트 종목만 표시(WorkoutInput.jsx).
+  |    - 종목 순서 변경을 framer-motion(Reorder.Group/Reorder.Item, axis="y")으로 교체해
+  |    상하 드래그 애니메이션 추가(package.json에 framer-motion 의존성 추가). 기존 포인터 기반
+  |    수동 드래그 로직은 제거.
+  |    - 세트 값 입력(updateSet) 또는 종목 펼치기(openExercise) 시 세션이 일시정지 상태면
+  |    자동으로 재개(autoResumeIfPaused) 하도록 추가.
+  |    - handleFinishWorkout: 세션 실측 시간(totalDurationSec)과 온보딩 체중(weightKg)을 이용해
+  |    소비 칼로리(caloriesKcal)를 자동 추정(utils/calories.js 신규, estimateCalories) 후 저장.
+  |    partName/routineTemplateId를 함께 저장해 홈탭 '다음 순서' 추정에 사용.
+  | 3) 홈탭 개편(HomeTab.jsx): 오늘 이미 기록을 완료했으면 버튼이
+  |    "오늘도 득근! 수고하셨습니다!" + "대단하시네요 더 하시게요?"(추가 기록 진입) 버튼으로 전환.
+  |    최근 로그 기준으로 다음에 수행할 "루틴 · 파트"를 안내 문구로 표시. 최근 기록 카드에
+  |    운동시간(분)·소비칼로리(kcal)·부위별 색상 점(PartDots) 노출.
+  |    CalendarView.jsx: 날짜 셀에 단일 점 대신 그날 수행한 부위별 색상 점(최대 4개) 표시,
+  |    날짜 상세 카드에 운동시간·소비칼로리 추가.
+  |    exerciseLibrary.js: PART_COLORS를 공식 7개 부위 기준으로 재정리(이두/삼두 → '팔' 색상
+  |    통합), getExerciseDisplayAtom() 신규 추가.
+  | ※ 미구현/한계: 칼로리는 심박수 등 실측 없이 MET 근사식(utils/calories.js 주석 참고)이라
+  |    참고용 추정치. '다음 순서' 추천도 서버 사이클 완료 판정 없이 최근 로그 기반 근사임.

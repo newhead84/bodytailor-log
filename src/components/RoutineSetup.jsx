@@ -1,36 +1,39 @@
 import React, { useState } from 'react'
 import { Button, Chip, Card } from './ui'
-import { DEFAULT_SPLIT_PARTS, getExercisesForPart } from '../utils/exerciseLibrary'
+import { BODY_PART_ATOMS, buildPartName, getExercisesForPart } from '../utils/exerciseLibrary'
 
-const SPLIT_INFO = {
-  '무분할': '전신 위주로 매회 비슷한 구성을 반복해요. 초급자·운동 복귀자에게 추천해요.',
-  '2분할': '상체/하체로 나눠 회복 부담 없이 자주 반복할 수 있어요.',
-  '3분할': '등&이두 / 가슴&삼두 / 하체&어깨로 나눠 순환해요. 가장 기본적인 구성이에요.',
-  '4분할': '등 / 가슴 / 어깨&팔 / 하체로 세분화해요. 부위별 회복 시간이 더 필요할 때 좋아요.',
-  '5분할': '등 / 가슴 / 어깨 / 팔 / 하체로 완전히 세분화해요. 주 5회 이상 운동 가능한 분들께 추천해요.',
-}
-
-// 앱 최초 진입(온보딩 직후)에는 initialTemplate 없이 새 루틴을 만들고,
-// MY 탭 "분할 방식 변경"으로 들어온 경우에는 initialTemplate으로 기존 구성을
-// 그대로 불러와 자유롭게 추가/수정한 뒤 저장(또는 취소)할 수 있다.
-export default function RoutineSetup({ initialTemplate, onComplete, onCancel }) {
+// [2026-07-28 개편] 고정 5분할(무분할~5분할) 프리셋 선택 화면을 없애고,
+// 부위(BODY_PART_ATOMS)를 자유롭게 조합해 파트를 만드는 단일 루틴 편집기로 변경.
+// MY탭 "운동방식 변경"(RoutineManager)에서 새 루틴 생성/기존 루틴 수정 시 이 컴포넌트를 사용한다.
+//
+// initialTemplate: { id?, title, parts: [{name, atoms, exercises}] } — 없으면 신규 생성 모드
+export default function RoutineSetup({ initialTemplate, onSave, onCancel, canCancel = true }) {
   const isEditing = !!initialTemplate
-  const [splitType, setSplitType] = useState(initialTemplate?.splitType || null)
-  const [parts, setParts] = useState(
-    initialTemplate?.splitParts
-      ? initialTemplate.splitParts.map((p) => ({ name: p.name, exercises: [...(p.exercises || [])] }))
-      : null
-  ) // [{name, exercises: []}]
+  const [title, setTitle] = useState(initialTemplate?.title || '')
+  const [parts, setParts] = useState(initialTemplate?.parts?.map((p) => ({ ...p, exercises: [...(p.exercises || [])] })) || [])
+  const [pickingAtoms, setPickingAtoms] = useState(false)
+  const [draftAtoms, setDraftAtoms] = useState([])
   const [saving, setSaving] = useState(false)
 
-  function selectSplit(type) {
-    setSplitType(type)
-    // 기존 루틴과 동일한 분할 방식을 다시 선택하면 기존 종목 구성을 그대로 유지한다.
-    if (initialTemplate?.splitType === type) {
-      setParts(initialTemplate.splitParts.map((p) => ({ name: p.name, exercises: [...(p.exercises || [])] })))
-    } else {
-      setParts(DEFAULT_SPLIT_PARTS[type].map((name) => ({ name, exercises: [] })))
+  function toggleDraftAtom(atom) {
+    setDraftAtoms((prev) => (prev.includes(atom) ? prev.filter((a) => a !== atom) : [...prev, atom]))
+  }
+
+  function confirmNewPart() {
+    if (draftAtoms.length === 0) return
+    const name = buildPartName(draftAtoms)
+    if (parts.some((p) => p.name === name)) {
+      setPickingAtoms(false)
+      setDraftAtoms([])
+      return
     }
+    setParts((prev) => [...prev, { name, atoms: draftAtoms, exercises: [] }])
+    setPickingAtoms(false)
+    setDraftAtoms([])
+  }
+
+  function removePart(idx) {
+    setParts((prev) => prev.filter((_, i) => i !== idx))
   }
 
   function toggleExercise(partIdx, exName) {
@@ -48,64 +51,45 @@ export default function RoutineSetup({ initialTemplate, onComplete, onCancel }) 
     )
   }
 
-  const totalExercises = parts?.reduce((sum, p) => sum + p.exercises.length, 0) ?? 0
-  const canSave = totalExercises > 0
+  const totalExercises = parts.reduce((sum, p) => sum + p.exercises.length, 0)
+  const canSave = title.trim().length > 0 && parts.length > 0 && totalExercises > 0
 
   async function handleSave() {
     setSaving(true)
-    await onComplete({
-      ...(initialTemplate?.id ? { id: initialTemplate.id } : {}),
-      splitType,
-      splitParts: parts,
-    })
-    setSaving(false)
-  }
-
-  if (!splitType) {
-    return (
-      <div style={{ padding: '28px 20px', height: '100%', overflowY: 'auto' }}>
-        {isEditing && (
-          <button onClick={onCancel} style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginBottom: 12 }}>
-            ← 취소하고 돌아가기
-          </button>
-        )}
-        <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
-          {isEditing ? '분할 방식을 변경할 수 있어요' : '운동 분할 방식을 선택해 주세요'}
-        </h1>
-        <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-          {isEditing ? '같은 분할을 다시 선택하면 기존 종목 구성이 그대로 유지돼요.' : '나중에 MY 탭에서 언제든 다시 바꿀 수 있어요.'}
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {Object.keys(DEFAULT_SPLIT_PARTS).map((type) => (
-            <Card key={type} onClick={() => selectSplit(type)}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>{type}</div>
-                {initialTemplate?.splitType === type && (
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}>현재 사용 중</span>
-                )}
-              </div>
-              <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
-                {SPLIT_INFO[type]}
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    )
+    try {
+      await onSave({
+        ...(initialTemplate?.id ? { id: initialTemplate.id } : {}),
+        title: title.trim(),
+        parts,
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <div style={{ padding: '24px 20px 100px', height: '100%', overflowY: 'auto' }}>
-      <button
-        onClick={() => setSplitType(null)}
-        style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginBottom: 8 }}
-      >
-        ← 분할 방식 다시 선택
-      </button>
-      <h1 style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>{splitType} 종목 구성</h1>
+    <div style={{ padding: '24px 20px 120px', height: '100%', overflowY: 'auto' }}>
+      {canCancel && (
+        <button onClick={onCancel} style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginBottom: 12 }}>
+          ← 취소하고 돌아가기
+        </button>
+      )}
+      <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
+        {isEditing ? '내 루틴 수정' : '새 루틴 만들기'}
+      </h1>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-        파트마다 수행할 종목을 부위별 목록에서 선택해 주세요.
+        원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&팔, 하체&가슴)
       </p>
+
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>루틴 이름</div>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value.slice(0, 20))}
+          placeholder="예: 월수금 루틴"
+          style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
+        />
+      </div>
 
       {parts.map((part, idx) => (
         <PartEditor
@@ -113,8 +97,55 @@ export default function RoutineSetup({ initialTemplate, onComplete, onCancel }) 
           part={part}
           availableExercises={getExercisesForPart(part.name)}
           onToggle={(name) => toggleExercise(idx, name)}
+          onRemovePart={() => removePart(idx)}
         />
       ))}
+
+      {!pickingAtoms ? (
+        <button
+          onClick={() => setPickingAtoms(true)}
+          style={{
+            width: '100%',
+            padding: '14px',
+            borderRadius: 12,
+            border: '1px dashed var(--color-line)',
+            color: 'var(--color-label-neutral)',
+            fontSize: 14,
+            fontWeight: 600,
+            marginBottom: 22,
+          }}
+        >
+          + 파트 추가 (부위 조합 선택)
+        </button>
+      ) : (
+        <Card style={{ marginBottom: 22 }}>
+          <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
+            이 파트에 포함할 부위를 하나 이상 골라 주세요.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            {BODY_PART_ATOMS.map((atom) => (
+              <Chip key={atom} active={draftAtoms.includes(atom)} onClick={() => toggleDraftAtom(atom)}>
+                {atom}
+              </Chip>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              variant="ghost"
+              style={{ flex: 1 }}
+              onClick={() => {
+                setPickingAtoms(false)
+                setDraftAtoms([])
+              }}
+            >
+              취소
+            </Button>
+            <Button style={{ flex: 1 }} disabled={draftAtoms.length === 0} onClick={confirmNewPart}>
+              파트 만들기 {draftAtoms.length > 0 && `(${buildPartName(draftAtoms)})`}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <div
         style={{
@@ -129,23 +160,23 @@ export default function RoutineSetup({ initialTemplate, onComplete, onCancel }) 
           gap: 8,
         }}
       >
-        {isEditing && (
-          <Button variant="ghost" onClick={onCancel} disabled={saving}>
-            취소
-          </Button>
-        )}
-        <Button full={!isEditing} style={isEditing ? { flex: 1 } : undefined} disabled={!canSave || saving} onClick={handleSave}>
-          {saving ? '저장 중…' : isEditing ? `변경사항 저장 (${totalExercises}개 종목)` : `루틴 저장하고 시작하기 (${totalExercises}개 종목)`}
+        <Button full disabled={!canSave || saving} onClick={handleSave}>
+          {saving ? '저장 중…' : isEditing ? `변경사항 저장 (${totalExercises}개 종목)` : `루틴 저장하기 (${totalExercises}개 종목)`}
         </Button>
       </div>
     </div>
   )
 }
 
-function PartEditor({ part, availableExercises, onToggle }) {
+function PartEditor({ part, availableExercises, onToggle, onRemovePart }) {
   return (
     <div style={{ marginBottom: 22 }}>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{part.name}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>{part.name}</div>
+        <button onClick={onRemovePart} style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+          파트 삭제
+        </button>
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {availableExercises.map((name) => (
           <Chip key={name} active={part.exercises.includes(name)} onClick={() => onToggle(name)}>

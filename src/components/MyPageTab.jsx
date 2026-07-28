@@ -1,17 +1,17 @@
 import React, { useState } from 'react'
 import { Card, SectionTitle, Button, Chip, TierBadge } from './ui'
-import { updateUserProfile, updateRoutineTemplate } from '../storage'
+import { updateUserProfile } from '../storage'
 import { logout } from '../firebase'
 import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
-import { EXERCISE_LIBRARY, getExercisesForPart } from '../utils/exerciseLibrary'
-
-const MY_ROUTINE_CATEGORIES = Object.keys(EXERCISE_LIBRARY)
 
 const LEVELS = ['입문', '초급', '중급', '고급']
 const GENDERS = ['남성', '여성']
 const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
 
-export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigureRoutine, onProfileUpdated, onRoutineUpdated }) {
+// [2026-07-28 개편] '내 루틴'(자주 하는 운동 즐겨찾기) 섹션을 제거하고,
+// MY탭의 "운동방식"을 최대 5개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
+// 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리한다.
+export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRoutines, onProfileUpdated }) {
   const [nickname, setNickname] = useState(userDoc?.nickname || '')
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -20,8 +20,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
   const [wakeLockEnabled, setWakeLockEnabled] = useState(!!userDoc?.restTimerWakeLockEnabled)
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
-  const [addingMyRoutineExercise, setAddingMyRoutineExercise] = useState(false)
-  const [myRoutineCategory, setMyRoutineCategory] = useState(MY_ROUTINE_CATEGORIES[0])
   const [profileForm, setProfileForm] = useState(() => ({
     level: userDoc?.onboarding?.level || '',
     gender: userDoc?.onboarding?.gender || '',
@@ -103,27 +101,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
     }
     setWakeLockEnabled(next)
     await updateUserProfile(uid, { restTimerWakeLockEnabled: next })
-  }
-
-  const favoriteExercises = routineTemplate?.favoriteExercises || []
-
-  // '내 루틴'은 분할(운동방식)과 별개로, 자주 하는 운동을 자유롭게 담아두는 목록이다.
-  async function addToMyRoutine(name) {
-    if (!routineTemplate?.id || favoriteExercises.includes(name)) {
-      setAddingMyRoutineExercise(false)
-      return
-    }
-    await updateRoutineTemplate(uid, routineTemplate.id, { favoriteExercises: [...favoriteExercises, name] })
-    setAddingMyRoutineExercise(false)
-    await onRoutineUpdated?.()
-  }
-
-  async function removeFromMyRoutine(name) {
-    if (!routineTemplate?.id) return
-    await updateRoutineTemplate(uid, routineTemplate.id, {
-      favoriteExercises: favoriteExercises.filter((n) => n !== name),
-    })
-    await onRoutineUpdated?.()
   }
 
   return (
@@ -233,98 +210,32 @@ export default function MyPageTab({ uid, userDoc, routineTemplate, onReconfigure
 
       <SectionTitle
         action={
-          <Button variant="secondary" onClick={onReconfigureRoutine}>
+          <Button variant="secondary" onClick={onManageRoutines}>
             운동방식 변경
           </Button>
         }
       >
-        운동방식
+        내 루틴 ({(routineTemplates || []).length}/5)
       </SectionTitle>
       <Card style={{ marginBottom: 20 }}>
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>{routineTemplate?.splitType || '설정된 방식 없음'}</div>
-        <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
-          {routineTemplate?.splitParts?.map((p) => p.name).join(' · ')}
-        </div>
-      </Card>
-
-      <SectionTitle
-        action={
-          !addingMyRoutineExercise && (
-            <Button variant="secondary" onClick={() => setAddingMyRoutineExercise(true)}>
-              + 종목 추가
-            </Button>
-          )
-        }
-      >
-        내 루틴
-      </SectionTitle>
-      <Card style={{ marginBottom: 20 }}>
-        <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-          자주 하는 운동을 자유롭게 담아두는 목록이에요. 분할(운동방식)과 무관하게 언제든 추가·삭제할 수 있어요.
-        </p>
-        {favoriteExercises.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: addingMyRoutineExercise ? 14 : 0 }}>
-            {favoriteExercises.map((name) => (
-              <span
-                key={name}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 6px 6px 12px',
-                  borderRadius: 999,
-                  background: 'var(--color-bg-elevated)',
-                  fontSize: 13,
-                }}
-              >
-                {name}
-                <button
-                  title="내 루틴에서 삭제"
-                  onClick={() => removeFromMyRoutine(name)}
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    background: 'var(--color-static-white)',
-                    color: 'var(--color-label-neutral)',
-                    fontSize: 12,
-                    lineHeight: '20px',
-                  }}
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {favoriteExercises.length === 0 && !addingMyRoutineExercise && (
-          <div style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>아직 담긴 종목이 없어요.</div>
-        )}
-        {addingMyRoutineExercise && (
-          <div>
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10, paddingBottom: 2 }}>
-              {MY_ROUTINE_CATEGORIES.map((cat) => (
-                <Chip key={cat} active={myRoutineCategory === cat} onClick={() => setMyRoutineCategory(cat)}>
-                  {cat}
-                </Chip>
-              ))}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-              {getExercisesForPart(myRoutineCategory)
-                .filter((n) => !favoriteExercises.includes(n))
-                .map((n) => (
-                  <Chip key={n} onClick={() => addToMyRoutine(n)}>
-                    {n}
-                  </Chip>
-                ))}
-            </div>
-            <button
-              onClick={() => setAddingMyRoutineExercise(false)}
-              style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}
+        {(routineTemplates || []).length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>아직 만든 루틴이 없어요.</div>
+        ) : (
+          routineTemplates.map((t, i) => (
+            <div
+              key={t.id}
+              style={{
+                paddingTop: i === 0 ? 0 : 10,
+                marginTop: i === 0 ? 0 : 10,
+                borderTop: i === 0 ? 'none' : '1px solid var(--color-line)',
+              }}
             >
-              닫기
-            </button>
-          </div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>{t.title}</div>
+              <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
+                {t.parts?.map((p) => p.name).join(' · ')}
+              </div>
+            </div>
+          ))
         )}
       </Card>
 

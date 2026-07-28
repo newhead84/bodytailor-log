@@ -10,6 +10,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   collection,
   addDoc,
   query,
@@ -69,47 +70,55 @@ export async function updateUserProfile(uid, partial) {
 }
 
 // ───────────── routineTemplates/{uid}/templates/{templateId} ─────────────
+// [2026-07-28] MY탭 자유조합 개편: 고정 5분할(splitType) + 단일 활성 템플릿 구조를 없애고,
+// 사용자가 부위(BODY_PART_ATOMS)를 자유 조합해 만드는 "내 루틴"을 최대 5개까지 저장하는 구조로 전환.
+// template: { title, order, parts: [{ name, atoms: string[], exercises: string[] }] }
+// (기존 splitType/splitParts/isActive/cycleCount/lastCycleCompletedAt/weeklyFrequencyLog/
+//  favoriteExercises 필드는 더 이상 사용하지 않음 — 사용자 승인 하에 전면 교체)
+
+const MAX_ROUTINE_TEMPLATES = 5
+
+export async function getRoutineTemplates(uid) {
+  const col = collection(db, 'routineTemplates', uid, 'templates')
+  const q = query(col, orderBy('order', 'asc'))
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
 
 export async function saveRoutineTemplate(uid, template) {
-  // template: { splitType, splitParts, cycleCount, lastCycleCompletedAt, weeklyFrequencyLog, isActive,
-  //             favoriteExercises: 분할과 별개로 자유롭게 관리하는 '내 루틴'(자주 하는 운동) 목록 }
+  // id가 있으면 수정(merge), 없으면 신규 생성. 신규 생성 시 5개 제한은 호출부(UI)에서 먼저 확인한다.
   const col = collection(db, 'routineTemplates', uid, 'templates')
   if (template.id) {
-    const ref = doc(col, template.id)
-    await setDoc(ref, { ...template, updatedAt: serverTimestamp() }, { merge: true })
-    return template.id
+    const { id, ...rest } = template
+    await setDoc(doc(col, id), { ...rest, updatedAt: serverTimestamp() }, { merge: true })
+    return id
   }
-  const seededFavorites = template.favoriteExercises ?? (template.splitParts || []).flatMap((p) => p.exercises || [])
+  const existing = await getRoutineTemplates(uid)
+  if (existing.length >= MAX_ROUTINE_TEMPLATES) {
+    throw new Error('내 루틴은 최대 5개까지만 만들 수 있어요.')
+  }
   const ref = await addDoc(col, {
-    ...template,
-    favoriteExercises: seededFavorites,
-    cycleCount: template.cycleCount ?? 0,
-    lastCycleCompletedAt: template.lastCycleCompletedAt ?? null,
-    weeklyFrequencyLog: template.weeklyFrequencyLog ?? [],
-    isActive: true,
+    title: template.title,
+    parts: template.parts,
+    order: existing.length,
     createdAt: serverTimestamp(),
   })
   return ref.id
-}
-
-export async function getActiveRoutineTemplate(uid) {
-  const col = collection(db, 'routineTemplates', uid, 'templates')
-  const q = query(col, where('isActive', '==', true), limit(1))
-  const snap = await getDocs(q)
-  if (snap.empty) return null
-  const d = snap.docs[0]
-  return { id: d.id, ...d.data() }
 }
 
 export async function updateRoutineTemplate(uid, templateId, partial) {
   await updateDoc(doc(db, 'routineTemplates', uid, 'templates', templateId), partial)
 }
 
+export async function deleteRoutineTemplate(uid, templateId) {
+  await deleteDoc(doc(db, 'routineTemplates', uid, 'templates', templateId))
+}
+
 // ───────────────── workoutLogs/{uid}/logs/{logId} ─────────────────
 
 export async function addWorkoutLog(uid, logData) {
   // logData: { date, exercises: [{name, part, sets:[{weight,reps}]}], totalVolume,
-  //            linkedProgramId, routineTemplateId, cycleIndex, sessionType, scoreWeight }
+  //            totalDurationSec, caloriesKcal, routineTemplateId, partName, sessionType, scoreWeight }
   const col = collection(db, 'workoutLogs', uid, 'logs')
   const ref = await addDoc(col, {
     sessionType: 'cycle',

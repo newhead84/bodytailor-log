@@ -1,16 +1,17 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-27] 운동 흐름/루틴 편집 UX 개선 다건(일시정지·웜업·기록입력·루틴변경)
+ * 최신 변경: [2026-07-28] 홈/MY/기록 탭 개편 — 내 루틴 자유조합(최대 5개), 홈 칼로리/부위 요약,
+ *            기록 탭 드래그앤드랍(framer-motion), 운동시간 자동측정 기반 칼로리 추정.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { watchAuthState } from './firebase'
-import { ensureUserDoc, getUserDoc, saveOnboarding, getActiveRoutineTemplate, saveRoutineTemplate } from './storage'
+import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates } from './storage'
 
 import LoginScreen from './components/LoginScreen'
 import Onboarding from './components/Onboarding'
-import RoutineSetup from './components/RoutineSetup'
+import RoutineManager from './components/RoutineManager'
 import BottomNav from './components/BottomNav'
 import HomeTab from './components/HomeTab'
 import LogTab from './components/LogTab'
@@ -25,10 +26,10 @@ const MIN_SPLASH_MS = 700
 export default function App() {
   const [authUser, setAuthUser] = useState(undefined) // undefined: 로딩중, null: 비로그인
   const [userDoc, setUserDoc] = useState(null)
-  const [routineTemplate, setRoutineTemplate] = useState(undefined) // undefined: 로딩중, null: 없음
+  const [routineTemplates, setRoutineTemplates] = useState(undefined) // undefined: 로딩중, []: 없음
   const [activeTab, setActiveTab] = useState('home')
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
-  const [reconfiguringRoutine, setReconfiguringRoutine] = useState(false) // MY탭 "분할 방식 변경" 진입 여부
+  const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동방식 변경" 진입 여부
 
   useEffect(() => {
     const t = setTimeout(() => setMinSplashElapsed(true), MIN_SPLASH_MS)
@@ -41,11 +42,11 @@ export default function App() {
       if (user) {
         const doc = await ensureUserDoc(user.uid, { nickname: user.displayName || '' })
         setUserDoc(doc)
-        const template = await getActiveRoutineTemplate(user.uid)
-        setRoutineTemplate(template)
+        const templates = await getRoutineTemplates(user.uid)
+        setRoutineTemplates(templates)
       } else {
         setUserDoc(null)
-        setRoutineTemplate(undefined)
+        setRoutineTemplates(undefined)
       }
     })
     return unsub
@@ -57,21 +58,15 @@ export default function App() {
     setUserDoc(doc)
   }, [authUser])
 
-  const refreshRoutineTemplate = useCallback(async () => {
+  const refreshRoutineTemplates = useCallback(async () => {
     if (!authUser) return
-    const template = await getActiveRoutineTemplate(authUser.uid)
-    setRoutineTemplate(template)
+    const templates = await getRoutineTemplates(authUser.uid)
+    setRoutineTemplates(templates)
   }, [authUser])
 
   async function handleOnboardingComplete(onboardingData) {
     await saveOnboarding(authUser.uid, onboardingData)
     await refreshUserDoc()
-  }
-
-  async function handleRoutineComplete(templateData) {
-    await saveRoutineTemplate(authUser.uid, templateData)
-    await refreshRoutineTemplate()
-    setReconfiguringRoutine(false)
   }
 
   // 로딩 (최초 접속 시 로고 인트로 화면, 최소 노출시간 보장)
@@ -93,52 +88,60 @@ export default function App() {
     return <Onboarding onComplete={handleOnboardingComplete} />
   }
 
-  // 루틴 미설정
-  if (routineTemplate === undefined) {
+  // 루틴 로딩 중
+  if (routineTemplates === undefined) {
     return <CenteredMessage>불러오는 중…</CenteredMessage>
   }
-  if (!routineTemplate) {
-    return <RoutineSetup onComplete={handleRoutineComplete} />
-  }
 
-  // MY탭 "분할 방식 변경": 기존 루틴을 그대로 채워서 보여주고, 취소 시 원래 화면으로 복귀
-  if (reconfiguringRoutine) {
+  // 루틴이 하나도 없거나(최초), MY탭 "운동방식 변경"으로 들어온 경우
+  if (routineTemplates.length === 0 || managingRoutines) {
     return (
-      <RoutineSetup
-        initialTemplate={routineTemplate}
-        onComplete={handleRoutineComplete}
-        onCancel={() => setReconfiguringRoutine(false)}
+      <RoutineManager
+        uid={authUser.uid}
+        templates={routineTemplates}
+        isFirstSetup={routineTemplates.length === 0}
+        onChanged={refreshRoutineTemplates}
+        onClose={() => setManagingRoutines(false)}
       />
     )
   }
+
+  // 랭킹 탭의 "주간 목표 세션 수"는 다중 루틴 모델에서는 대표값이 필요해,
+  // 가장 먼저 만든 루틴의 파트 수를 근사치로 사용한다.
+  const targetSessionsPerWeek = routineTemplates[0]?.parts?.length || 3
 
   // 메인 4탭
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
       {activeTab === 'home' && (
-        <HomeTab uid={authUser.uid} userDoc={userDoc} onGoToLog={() => setActiveTab('log')} />
+        <HomeTab
+          uid={authUser.uid}
+          userDoc={userDoc}
+          routineTemplates={routineTemplates}
+          onGoToLog={() => setActiveTab('log')}
+        />
       )}
       {activeTab === 'log' && (
         <LogTab
           uid={authUser.uid}
-          routineTemplate={routineTemplate}
+          routineTemplates={routineTemplates}
+          weightKg={userDoc.onboarding?.weightKg}
           restNotificationEnabled={!!userDoc.restTimerNotificationPermission}
           restWakeLockEnabled={!!userDoc.restTimerWakeLockEnabled}
           onLogSaved={refreshUserDoc}
-          onRoutineUpdated={refreshRoutineTemplate}
+          onRoutineUpdated={refreshRoutineTemplates}
         />
       )}
       {activeTab === 'ranking' && (
-        <RankingTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={routineTemplate.splitParts.length} />
+        <RankingTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={targetSessionsPerWeek} />
       )}
       {activeTab === 'my' && (
         <MyPageTab
           uid={authUser.uid}
           userDoc={userDoc}
-          routineTemplate={routineTemplate}
-          onReconfigureRoutine={() => setReconfiguringRoutine(true)}
+          routineTemplates={routineTemplates}
+          onManageRoutines={() => setManagingRoutines(true)}
           onProfileUpdated={refreshUserDoc}
-          onRoutineUpdated={refreshRoutineTemplate}
         />
       )}
       <BottomNav active={activeTab} onChange={setActiveTab} />

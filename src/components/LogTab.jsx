@@ -18,7 +18,7 @@ const SUB_TABS = [
   { key: 'stats', label: '통계' },
 ]
 
-export default function LogTab({ uid, routineTemplate, restNotificationEnabled, restWakeLockEnabled, onLogSaved, onRoutineUpdated }) {
+export default function LogTab({ uid, routineTemplates, weightKg, restNotificationEnabled, restWakeLockEnabled, onLogSaved, onRoutineUpdated }) {
   const [sub, setSub] = useState('input')
 
   return (
@@ -55,7 +55,8 @@ export default function LogTab({ uid, routineTemplate, restNotificationEnabled, 
       {sub === 'input' && (
         <WorkoutInput
           uid={uid}
-          routineTemplate={routineTemplate}
+          routineTemplates={routineTemplates}
+          weightKg={weightKg}
           restNotificationEnabled={restNotificationEnabled}
           restWakeLockEnabled={restWakeLockEnabled}
           onSaved={onLogSaved}
@@ -64,7 +65,7 @@ export default function LogTab({ uid, routineTemplate, restNotificationEnabled, 
       )}
       {sub === 'stats' && (
         <Suspense fallback={<CenteredLoading />}>
-          <StatsView uid={uid} targetSessionsPerWeek={routineTemplate?.splitParts?.length || 3} />
+          <StatsView uid={uid} targetSessionsPerWeek={routineTemplates?.[0]?.parts?.length || 3} />
         </Suspense>
       )}
     </div>
