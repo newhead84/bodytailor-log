@@ -203,11 +203,14 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
 
   // 총 운동시간 초기화: 실수로 오래 켜뒀거나 잘못 측정된 경우를 위해,
   // 팝업으로 한 번 더 확인한 뒤 경과시간을 0으로 되돌린다(세션 단계/기록은 유지).
+  // [2026-07-28] 초기화 직후 타이머가 곧바로 다시 흐르지 않도록, 버튼을 "재개" 상태(일시정지)로
+  // 전환해두고 사용자가 직접 재개를 눌러야 다시 흐르게 한다.
   function handleResetElapsed() {
     if (!window.confirm('총 운동시간을 0으로 초기화할까요?')) return
-    setSessionStartAt(Date.now())
+    const now = Date.now()
+    setSessionStartAt(now)
     setPausedAccumMs(0)
-    setPauseStartedAt(null)
+    setPauseStartedAt(now)
   }
 
   // 총 운동시간을 10초 단위로 미세 조정. sessionStartAt을 앞뒤로 옮겨
@@ -638,7 +641,12 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
               style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
             >
               {visibleExercises.map((name) => (
-                <SortableExerciseItem key={name} name={name} onDragEnd={() => persistPartExercises(partOrder)}>
+                <SortableExerciseItem
+                  key={name}
+                  name={name}
+                  orderKey={visibleExercises.join('|')}
+                  onDragEnd={() => persistPartExercises(partOrder)}
+                >
                   <ExerciseCard
                     name={name}
                     draggable
@@ -818,7 +826,12 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
 // Reorder.Item의 드래그 리스너를 끄고(dragListener=false), 좌측 핸들(⠿)을 누를 때만
 // dragControls.start()로 드래그를 시작시켜 목록 가운데를 스크롤할 때 실수로 순서가
 // 바뀌지 않도록 한다.
-function SortableExerciseItem({ name, onDragEnd, children }) {
+// [2026-07-28] layoutDependency를 순서(orderKey)로 지정: framer-motion의 layout 애니메이션은
+// 기본적으로 리렌더될 때마다(펼치기/접기 등으로 다른 아이템의 높이가 바뀌어 위치가 밀리는 경우 포함)
+// 위치 변화를 감지해 애니메이션을 적용해 부자연스러웠다. orderKey가 실제로 바뀔 때(=순서가 바뀔 때)만
+// 레이아웃을 재측정하도록 제한해, 접기/펼치기 시에는 애니메이션 없이 즉시 반영되고 순서 변경 시에만
+// 부드러운 이동 애니메이션이 적용된다.
+function SortableExerciseItem({ name, onDragEnd, orderKey, children }) {
   const dragControls = useDragControls()
   return (
     <Reorder.Item
@@ -826,6 +839,7 @@ function SortableExerciseItem({ name, onDragEnd, children }) {
       dragListener={false}
       dragControls={dragControls}
       onDragEnd={onDragEnd}
+      layoutDependency={orderKey}
       style={{ listStyle: 'none' }}
     >
       {React.cloneElement(children, { dragControls })}

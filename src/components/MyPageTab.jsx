@@ -44,7 +44,6 @@ const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
 export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRoutines, onRoutineUpdated, onProfileUpdated }) {
-  const [nickname, setNickname] = useState(userDoc?.nickname || '')
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
@@ -58,6 +57,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   const [addingTemplateKey, setAddingTemplateKey] = useState(null)
   const [templateError, setTemplateError] = useState('')
   const [profileForm, setProfileForm] = useState(() => ({
+    nickname: userDoc?.nickname || '',
     level: userDoc?.onboarding?.level || '',
     gender: userDoc?.onboarding?.gender || '',
     age: userDoc?.onboarding?.age ?? '',
@@ -72,12 +72,32 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   const tierProgress = getTierProgress(xp)
 
   // 키/몸무게가 모두 있으면 BMI를 자동 계산해 표시(체중(kg) / 키(m)^2).
-  // 대한비만학회 기준(아시아-태평양 WHO 기준)을 사용: 18.5 미만 저체중, 23 이상 과체중, 25 이상 비만.
+  // [2026-07-28] 판정 구간을 10단계로 세분화(사용자 제공 기준표 반영).
   const heightCm = Number(userDoc?.onboarding?.heightCm)
   const weightKg = Number(userDoc?.onboarding?.weightKg)
   const bmi = heightCm > 0 && weightKg > 0 ? weightKg / (heightCm / 100) ** 2 : null
   const bmiCategory =
-    bmi == null ? null : bmi < 18.5 ? '저체중' : bmi < 23 ? '정상' : bmi < 25 ? '과체중' : '비만'
+    bmi == null
+      ? null
+      : bmi < 16.0
+      ? '심한 저체중'
+      : bmi < 17.0
+      ? '중등도 저체중'
+      : bmi < 18.5
+      ? '경도 저체중'
+      : bmi < 21.0
+      ? '정상(낮은 편)'
+      : bmi < 23.0
+      ? '정상(높은 편)'
+      : bmi < 25.0
+      ? '과체중'
+      : bmi < 27.5
+      ? '비만 1단계(초기)'
+      : bmi < 30.0
+      ? '비만 1단계(고위험)'
+      : bmi < 35.0
+      ? '비만 2단계'
+      : '고도비만'
 
   function updateProfileForm(key, value) {
     setProfileForm((f) => ({ ...f, [key]: value }))
@@ -101,6 +121,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
 
   function startEditProfile() {
     setProfileForm({
+      nickname: userDoc?.nickname || '',
       level: userDoc?.onboarding?.level || '',
       gender: userDoc?.onboarding?.gender || '',
       age: userDoc?.onboarding?.age ?? '',
@@ -111,26 +132,22 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
     setEditingProfile(true)
   }
 
+  // [2026-07-28] 닉네임 단독 저장 버튼 제거: 닉네임도 프로필 수정 폼의 일부로 통합해 한 번에 저장한다.
   async function saveProfileEdit() {
     setSaving(true)
+    const { nickname, ...onboardingForm } = profileForm
     await updateUserProfile(uid, {
+      nickname,
       onboarding: {
-        ...profileForm,
-        age: Number(profileForm.age),
-        weightKg: Number(profileForm.weightKg),
-        heightCm: Number(profileForm.heightCm),
+        ...onboardingForm,
+        age: Number(onboardingForm.age),
+        weightKg: Number(onboardingForm.weightKg),
+        heightCm: Number(onboardingForm.heightCm),
       },
     })
     await onProfileUpdated?.()
     setSaving(false)
     setEditingProfile(false)
-  }
-
-  async function saveNickname() {
-    setSaving(true)
-    await updateUserProfile(uid, { nickname })
-    await onProfileUpdated?.()
-    setSaving(false)
   }
 
   async function requestNotifPermission() {
@@ -213,20 +230,17 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
         프로필
       </SectionTitle>
       <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <input
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="닉네임"
-            style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
-          />
-          <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={saveNickname} disabled={saving}>
-            저장
-          </Button>
-        </div>
-
         {editingProfile ? (
           <div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>닉네임</div>
+              <input
+                value={profileForm.nickname}
+                onChange={(e) => updateProfileForm('nickname', e.target.value)}
+                placeholder="닉네임"
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }}
+              />
+            </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>운동 수준</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -299,6 +313,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
           </div>
         ) : (
           <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)', lineHeight: '20px' }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+              {userDoc?.nickname || '닉네임 미설정'}
+            </span>
+            <br />
             {userDoc?.role} · {userDoc?.onboarding?.level} · {userDoc?.onboarding?.gender} · {userDoc?.onboarding?.age}세
             <br />
             {userDoc?.onboarding?.weightKg}kg · {userDoc?.onboarding?.heightCm}cm
