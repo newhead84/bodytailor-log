@@ -160,7 +160,7 @@ export default function App() {
 
   // MY탭 등급 카드를 탭하면 티어 체계/XP 설명을 별도 전체 화면으로 보여준다.
   if (showTierInfo) {
-    return <TierInfoScreen xp={userDoc.seasonXp || 0} onClose={closeTierInfo} />
+    return <TierInfoScreen uid={authUser.uid} xp={userDoc.seasonXp || 0} onClose={closeTierInfo} />
   }
 
   // 리포트 탭의 "주간 목표 세션 수"는 다중 루틴 모델에서는 대표값이 필요해,
@@ -197,7 +197,7 @@ export default function App() {
         />
       </div>
       <div style={{ display: activeTab === 'report' ? 'block' : 'none' }}>
-        <ReportTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={targetSessionsPerWeek} />
+        <ReportTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={targetSessionsPerWeek} onShowTierInfo={() => setShowTierInfo(true)} />
       </div>
       <div style={{ display: activeTab === 'my' ? 'block' : 'none' }}>
         <MyPageTab

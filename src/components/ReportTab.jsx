@@ -21,6 +21,7 @@ import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange } from '.
 import { getTierByXp } from '../utils/tier'
 import { computeAttendanceScore, computeVolumeScore, computeOverloadScore, computeFinalScore } from '../utils/scoring'
 import { getExerciseAtom, BODY_PART_ATOMS } from '../utils/exerciseLibrary'
+import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
 // 눈에 잘 띄지 않던 '통계' 서브탭을 하나의 '리포트' 탭으로 통합했다. 여기에 추가로
@@ -34,12 +35,6 @@ function isoWeekLabel(dateStr) {
   const onejan = new Date(d.getFullYear(), 0, 1)
   const week = Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7)
   return `${d.getMonth() + 1}월 ${week}주`
-}
-
-function currentSeasonPeriod() {
-  const now = new Date()
-  const quarter = Math.floor(now.getMonth() / 3) + 1
-  return `season-${now.getFullYear()}-${quarter}`
 }
 
 function startOfWeek(d) {
@@ -79,12 +74,15 @@ function byExercise(logs) {
   return map
 }
 
-export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3 }) {
+export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, onShowTierInfo }) {
   // 랭킹 관련 상태
   const [entries, setEntries] = useState([])
   const [rankingLoading, setRankingLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const period = currentSeasonPeriod()
+  // [2026-07-29 신규] "내 점수 갱신" 버튼의 용도가 불명확하다는 피드백으로, 버튼 자체는
+  // 유지하되 옆의 안내(?) 아이콘을 누르면 짧은 설명을 펼쳐 보여준다.
+  const [showRefreshInfo, setShowRefreshInfo] = useState(false)
+  const period = getSeasonPeriod()
 
   // 내 통계 관련 상태
   const [logs, setLogs] = useState([])
@@ -157,13 +155,30 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3 }) {
   }
 
   // ── 주간 총 볼륨 ──
-  const weeklyVolume = useMemo(() => {
-    const byWeek = {}
-    logs.forEach((log) => {
-      const label = isoWeekLabel(log.date)
-      byWeek[label] = (byWeek[label] || 0) + (log.totalVolume || 0)
-    })
-    return Object.entries(byWeek).map(([week, volume]) => ({ week, volume }))
+  // [2026-07-29 개편] 기존에는 로그가 있는 모든 주를 "n월 n주"(연중 몇 번째 주) 라벨로 나열해서,
+  // "7월 31주"처럼 일자로 착각하기 쉬운 표기가 나왔다. 사용자가 실제로 궁금해하는 건 "요즘 늘고
+  // 있는지"이므로, 지난주 대비 이번 주 딱 두 막대만 비교하는 형태로 단순화했다(다른 곳에서도
+  // 이미 쓰는 startOfWeek 기준과 동일하게 계산).
+  const weeklyVolumeCompare = useMemo(() => {
+    const today = new Date()
+    const weekStart = startOfWeek(today)
+    const prevWeekStart = new Date(weekStart)
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
+    const fmt = (d) => d.toISOString().slice(0, 10)
+    const thisWeekVolume = logs
+      .filter((l) => l.date >= fmt(weekStart))
+      .reduce((s, l) => s + (l.totalVolume || 0), 0)
+    const lastWeekVolume = logs
+      .filter((l) => l.date >= fmt(prevWeekStart) && l.date < fmt(weekStart))
+      .reduce((s, l) => s + (l.totalVolume || 0), 0)
+    const diffPct = lastWeekVolume > 0 ? Math.round(((thisWeekVolume - lastWeekVolume) / lastWeekVolume) * 100) : null
+    return {
+      chartData: [
+        { label: '지난주', volume: lastWeekVolume },
+        { label: '이번주', volume: thisWeekVolume },
+      ],
+      diffPct,
+    }
   }, [logs])
 
   const weeklyAttendance = useMemo(() => {
@@ -297,54 +312,86 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3 }) {
       })
   }, [logs, selectedExercise])
 
+  // [2026-07-29 개편] 사용자가 혼자뿐인 초기 단계에서는 전체 랭킹 목록이 큰 의미가 없다는
+  // 피드백으로, 목록 전체 대신 "내 순위" 카드 하나만 보여준다. 카드를 누르면 MY탭의
+  // TierInfoScreen과 통합된 화면에서 세부 점수 항목 + 랭킹 산정 기준을 확인할 수 있다.
+  const myRankIndex = entries.findIndex((e) => e.uid === uid)
+  const myEntry = myRankIndex >= 0 ? entries[myRankIndex] : null
+  const myRank = myRankIndex >= 0 ? myRankIndex + 1 : null
+
   return (
     <div style={{ padding: '20px 20px 100px' }}>
       {/* 랭킹 */}
       <SectionTitle
         action={
-          <Button variant="secondary" onClick={handleRefreshMyScore} disabled={refreshing}>
-            {refreshing ? '갱신 중…' : '내 점수 갱신'}
-          </Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              onClick={() => setShowRefreshInfo((v) => !v)}
+              aria-label="내 점수 갱신 설명 보기"
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                border: '1px solid var(--color-line)',
+                color: 'var(--color-label-neutral)',
+                fontSize: 12,
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              ?
+            </button>
+            <Button variant="secondary" onClick={handleRefreshMyScore} disabled={refreshing}>
+              {refreshing ? '갱신 중…' : '내 점수 갱신'}
+            </Button>
+          </div>
         }
       >
-        전체 랭킹 · {period}
+        전체 랭킹 · {formatSeasonLabel(period)}
       </SectionTitle>
+
+      {showRefreshInfo && (
+        <p className="text-keep-all" style={{ margin: '-6px 0 12px', fontSize: 12, color: 'var(--color-label-neutral)', background: 'var(--color-bg-elevated)', borderRadius: 10, padding: '10px 12px' }}>
+          점수는 자동으로 갱신되지 않아요. 이번 주 출석·볼륨·과부하 기록을 반영해 즉시 계산하려면 눌러주세요.
+        </p>
+      )}
 
       {rankingLoading ? (
         <p style={{ textAlign: 'center', color: 'var(--color-label-neutral)', fontSize: 13, marginBottom: 20 }}>불러오는 중…</p>
-      ) : entries.length === 0 ? (
+      ) : !myEntry ? (
         <div style={{ marginBottom: 20 }}>
           <EmptyState title="아직 랭킹 데이터가 없어요" description="'내 점수 갱신'을 눌러 이번 주 기록으로 점수를 등록해 보세요." />
         </div>
       ) : (
         <div style={{ marginBottom: 20 }}>
-          {entries.map((e, i) => {
-            const tier = getTierByXp(e.finalScore * 40) // 점수를 임시로 XP 스케일에 대응 (v1 근사)
-            const isMe = e.uid === uid
+          {(() => {
+            const tier = getTierByXp(myEntry.finalScore * 40) // 점수를 임시로 XP 스케일에 대응 (v1 근사)
             return (
               <Card
-                key={e.uid}
+                onClick={onShowTierInfo}
                 style={{
-                  marginBottom: 8,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  border: isMe ? '2px solid var(--color-primary-normal)' : undefined,
+                  border: '2px solid var(--color-primary-normal)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ width: 24, textAlign: 'center', fontWeight: 800, color: 'var(--color-label-neutral)' }}>{i + 1}</span>
+                  <span style={{ width: 24, textAlign: 'center', fontWeight: 800, color: 'var(--color-label-neutral)' }}>{myRank}</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{e.nickname}{isMe ? ' (나)' : ''}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{myEntry.nickname} (나)</div>
                     <TierBadge label={tier.label} tierKey={tier.key} size="sm" />
                   </div>
                 </div>
-                <span className="record-notation" style={{ fontWeight: 800, fontSize: 16 }}>
-                  {e.finalScore}
-                </span>
+                <div style={{ textAlign: 'right' }}>
+                  <span className="record-notation" style={{ fontWeight: 800, fontSize: 16, display: 'block' }}>
+                    {myEntry.finalScore}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--color-label-neutral)' }}>세부 보기 ›</span>
+                </div>
               </Card>
             )
-          })}
+          })()}
         </div>
       )}
 
@@ -367,23 +414,37 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3 }) {
 
           {/* 주간 총 볼륨 */}
           <SectionTitle>주간 총 볼륨</SectionTitle>
-          <Card style={{ marginBottom: 20, height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyVolume}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
-                <XAxis dataKey="week" fontSize={11} stroke="var(--color-label-neutral)" />
-                <YAxis fontSize={11} stroke="var(--color-label-neutral)" />
-                <Tooltip />
-                <Bar dataKey="volume" fill="var(--color-primary-normal)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <Card style={{ marginBottom: 20 }}>
+            {weeklyVolumeCompare.diffPct != null && (
+              <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-normal)' }}>
+                지난주 대비{' '}
+                <b style={{ color: weeklyVolumeCompare.diffPct >= 0 ? 'var(--color-primary-normal)' : 'var(--color-label-neutral)' }}>
+                  {weeklyVolumeCompare.diffPct >= 0 ? `▲ ${weeklyVolumeCompare.diffPct}%` : `▼ ${Math.abs(weeklyVolumeCompare.diffPct)}%`}
+                </b>{' '}
+                {weeklyVolumeCompare.diffPct >= 0 ? '늘었어요' : '줄었어요'}
+              </p>
+            )}
+            <div style={{ height: 160 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyVolumeCompare.chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
+                  <XAxis dataKey="label" fontSize={12} stroke="var(--color-label-neutral)" />
+                  <YAxis fontSize={11} stroke="var(--color-label-neutral)" />
+                  <Tooltip />
+                  <Bar dataKey="volume" fill="var(--color-primary-normal)" radius={[6, 6, 0, 0]} barSize={56} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </Card>
 
           {/* 부위별 운동 추이 (2026-07-29: 스택 막대 → 레이더 차트로 교체) */}
+          {/* [2026-07-29 재수정] 라벨(부위명 + 볼륨/세트수 2줄)이 차트 도형을 뚫고 지나간다는
+              피드백으로, 카드 높이를 늘리고 outerRadius를 줄이며 사방에 margin을 둬서
+              라벨과 차트 사이에 여백을 확보했다. */}
           <SectionTitle>부위별 운동 추이</SectionTitle>
-          <Card style={{ marginBottom: 8, height: 290 }}>
+          <Card style={{ marginBottom: 8, height: 340 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={bodyPartRadar} outerRadius="65%">
+              <RadarChart data={bodyPartRadar} outerRadius="52%" margin={{ top: 16, right: 28, bottom: 8, left: 28 }}>
                 <PolarGrid stroke="var(--color-line)" />
                 <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={bodyPartThisWeekDetail} />} />
                 {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.

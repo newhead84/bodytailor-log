@@ -1,4 +1,7 @@
 import React from 'react'
+import legendIconImg from '../assets/tier-icons/legend.png'
+import diamondIconImg from '../assets/tier-icons/diamond.png'
+import platinumIconImg from '../assets/tier-icons/platinum.png'
 
 export function Button({ children, onClick, variant = 'primary', disabled, style, type = 'button', full }) {
   const base = {
@@ -128,6 +131,42 @@ function TierChevronIcon({ tierKey, size = 14 }) {
   )
 }
 
+// [2026-07-29 신규] 플래티넘/다이아몬드/레전드 3개 티어는 기존 쉐브론 라인 아이콘 대신
+// 사용자가 제공한 일러스트 아이콘(이두근+하트=레전드 / 보석+리본=다이아몬드 / PLATINUM 리본=플래티넘)으로
+// 교체한다.
+const TIER_IMAGE_ICONS = {
+  platinum: platinumIconImg,
+  diamond: diamondIconImg,
+  legend: legendIconImg,
+}
+
+// 아래 단계 쉐브론들과 나란히 놓였을 때 위화감이 들지 않도록 다듬었다:
+// - 쉐브론은 얇은 선 아이콘이라 작게(size≈12~15px) 둬도 읽히지만, 일러스트는 그만큼 축소하면
+//   형태가 뭉개져 오히려 더 작아 보이므로, 배지 폰트 크기 대비 약 1.6배로 살짝 키운다.
+// - 기존 플래티넘/다이아몬드/레전드 쉐브론에 걸려 있던 drop-shadow 글로우(TIER_GLOW)와
+//   동일한 톤·색을 이미지에도 그대로 적용해 "이 배지만 튀어 보이는" 느낌을 없앤다.
+function TierImageIcon({ tierKey, size = 14 }) {
+  const src = TIER_IMAGE_ICONS[tierKey]
+  const dim = Math.round(size * 1.6)
+  const isLegend = tierKey === 'legend'
+  const glowColor = isLegend ? 'rgba(255, 77, 157, 0.55)' : `var(--tier-${tierKey})`
+  // 쉐브론의 drop-shadow 글로우보다 이미지 면적이 넓어 그대로 쓰면 과해 보여서 절반 정도로 조정
+  const glowSize = (TIER_GLOW[tierKey] || 8) * 0.6
+  return (
+    <img
+      src={src}
+      alt=""
+      width={dim}
+      height={dim}
+      style={{
+        flexShrink: 0,
+        display: 'block',
+        filter: `drop-shadow(0 0 ${glowSize}px ${glowColor})`,
+      }}
+    />
+  )
+}
+
 // tierKey를 넘기면 아이언(칙칙한 골드, 기존 유지)→레전드(그라디언트+글로우)로 갈수록
 // 화려해지는 색상/쉐브린 아이콘이 함께 표시된다. tierKey 없이 label만 넘기면 기존과
 // 동일한 단색 배지로 표시된다(하위 호환).
@@ -162,7 +201,8 @@ export function TierBadge({ label, tierKey, size = 'md' }) {
         background: 'var(--color-primary-bg)',
       }}
     >
-      {tierKey && <TierChevronIcon tierKey={tierKey} size={sizes[size]} />}
+      {tierKey && TIER_IMAGE_ICONS[tierKey] && <TierImageIcon tierKey={tierKey} size={sizes[size]} />}
+      {tierKey && !TIER_IMAGE_ICONS[tierKey] && <TierChevronIcon tierKey={tierKey} size={sizes[size]} />}
       <span style={textStyle}>{label}</span>
     </span>
   )

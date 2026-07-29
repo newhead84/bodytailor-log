@@ -376,7 +376,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
                       opacity: addingTemplateKey && addingTemplateKey !== preset.key ? 0.5 : 1,
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, color: 'var(--color-label-strong)' }}>
                       {preset.label} {addingTemplateKey === preset.key && '· 추가 중…'}
                     </div>
                     <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>

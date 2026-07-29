@@ -118,22 +118,25 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, o
 
       {monthSummary && (
         <Card style={{ marginBottom: 20 }}>
+          {/* [2026-07-29 수정] ①숫자와 라벨 상하 순서를 반전(라벨이 위, 숫자가 아래)
+              ②운동일수 색상을 칙칙한 --color-primary-strong(#B8860B, 아이언 티어용으로 의도적으로
+              남겨둔 톤) 대신, 디자인가이드 v2.1의 비비드 골드 --color-primary-normal(#FFC94D)로 교체 */}
           <div className="text-keep-all" style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
             <div>
-              <div className="record-notation" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-primary-strong)' }}>
-                {monthSummary.workoutDays}일
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                 <Dumbbell size={13} strokeWidth={1.75} /> {monthSummary.month + 1}월 운동
+              </div>
+              <div className="record-notation" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-primary-normal)' }}>
+                {monthSummary.workoutDays}일
               </div>
             </div>
             <div style={{ width: 1, background: 'var(--color-line)' }} />
             <div>
+              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <Moon size={13} strokeWidth={1.75} /> {monthSummary.month + 1}월 휴식
+              </div>
               <div className="record-notation" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-label-strong)' }}>
                 {monthSummary.restDays}일
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                <Moon size={13} strokeWidth={1.75} /> {monthSummary.month + 1}월 휴식
               </div>
             </div>
           </div>

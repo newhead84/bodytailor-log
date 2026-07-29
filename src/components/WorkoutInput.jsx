@@ -403,8 +403,15 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
 
   // 드래그앤드랍(framer-motion)으로 순서가 바뀔 때마다 화면은 즉시 갱신하고,
   // 드래그가 끝나는 시점(각 아이템의 onDragEnd)에만 Firestore에 저장한다.
-  function handleReorder(nextOrder) {
-    setPartOrder(nextOrder)
+  // [2026-07-29 수정] Reorder.Group에는 "오늘 숨김 처리되지 않은" 종목(visibleExercises)만 넘기므로,
+  // onReorder가 돌려주는 nextOrder도 그 부분집합 순서다. 이전에는 이 값을 partOrder에 그대로
+  // 덮어써서, 오늘 임시로 숨긴 종목이 드래그 도중 배열에서 통째로 사라지며 목록 길이가 바뀌고
+  // Reorder.Item들이 리마운트되어 "튕겨 날아가는" 것처럼 보이는 원인이 됐다. 숨긴 종목은 원래
+  // 상대 위치를 유지한 채, 보이는 종목들의 순서만 갈아끼운다.
+  function handleReorder(nextVisibleOrder) {
+    let i = 0
+    const merged = partOrder.map((n) => (hiddenToday.includes(n) ? n : nextVisibleOrder[i++]))
+    setPartOrder(merged)
   }
 
   // 자유 추가 운동: 루틴에 저장하지 않고 오늘 세션에만 종목을 추가/삭제
@@ -721,6 +728,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                 <SortableExerciseItem
                   key={name}
                   name={name}
+                  orderKey={visibleExercises.join('|')}
                   onDragEnd={() => persistPartExercises(partOrder)}
                 >
                   <ExerciseCard
@@ -983,33 +991,25 @@ function WorkoutCompleteModal({ xpEarned, onClose }) {
 
 // dragControls.start()로 드래그를 시작시켜 목록 가운데를 스크롤할 때 실수로 순서가
 // 바뀌지 않도록 한다.
-// [2026-07-28] 종목 카드를 펼치고 접을 때 카드 전체가 커졌다 작아지는 애니메이션이 남아있다는
-// 피드백을 받아, layout="position"으로 명시했다. framer-motion의 Reorder.Item은 기본적으로
-// 카드의 "위치"뿐 아니라 "크기" 변화도 함께 애니메이션하는데(layout=true와 동일 동작),
-// layout="position"으로 지정하면 드래그로 순서가 바뀔 때의 위치 이동만 부드럽게 애니메이션하고
-// 펼치기/접기로 카드 높이가 바뀔 때는 애니메이션 없이 즉시 반영된다.
-function SortableExerciseItem({ name, onDragEnd, children }) {
+// [2026-07-29 재수정] 기존에는 isDragging state로 layout prop 자체를 false ↔ 'position'으로
+// 매 렌더마다 토글했다. 그런데 이 state 갱신은 React 렌더 주기를 한 박자 늦게 타기 때문에,
+// 드래그를 "시작"하는 순간에는 아직 layout=false인 프레임이 섞여 framer-motion이 위치를
+// 새로 측정하며 카드가 순간 점프했다가 튕기듯 자리잡았고, 반대로 손을 떼는 순간에는
+// layout이 false로 먼저 꺼지며 자리에 안착하는 스프링 애니메이션이 잘려나가 "튕겨 날아가는"
+// 것처럼 보였다(파트 순서 변경 카드는 이런 토글 없이 항상 layout이 켜져 있어 문제가 없었음).
+// → RoutineSetup.jsx의 PartOrderRow와 동일하게 layout="position"을 항상 켜둔다. 대신
+// 펼치기/접기(카드 높이 변화)로 인한 불필요한 재배치 애니메이션은 layoutDependency를
+// "종목 순서" 값에만 묶어서, 순서가 실제로 바뀔 때만 위치 애니메이션이 재계산되도록 막는다.
+function SortableExerciseItem({ name, orderKey, onDragEnd, children }) {
   const dragControls = useDragControls()
-  // [2026-07-29] layout="position"을 항상 켜두면, 실제 드래그가 아닌 경우(탭 이동 후 복귀,
-  // 세트 완료/종목 숨김으로 다른 카드가 재배치될 때 등)에도 framer-motion이 "이전 위치 → 새 위치"로
-  // 스프링 애니메이션을 걸어 카드가 떨어지듯 움직이는 문제가 있었다. 실제로 드래그 중일 때만
-  // layout 애니메이션을 켜고, 그 외에는 완전히 꺼서(false) 즉시 반영되도록 분리했다.
-  const [isDragging, setIsDragging] = useState(false)
   return (
     <Reorder.Item
       value={name}
       dragListener={false}
       dragControls={dragControls}
-      onDragStart={() => setIsDragging(true)}
-      onDragEnd={(e, info) => {
-        setIsDragging(false)
-        onDragEnd?.(e, info)
-      }}
-      layout={isDragging ? 'position' : false}
-      // [2026-07-29] 드래그로 순서가 바뀔 때 기본 스프링 트랜지션이 목표 위치를 지나쳤다가
-      // 되돌아오며 "튕기는" 느낌을 줘서, 오버슈트가 없는 부드러운 tween으로 교체했다.
-      transition={{ type: 'tween', duration: 0.18, ease: 'easeOut' }}
-      initial={false}
+      onDragEnd={onDragEnd}
+      layout="position"
+      layoutDependency={orderKey}
       style={{ listStyle: 'none' }}
     >
       {React.cloneElement(children, { dragControls })}
