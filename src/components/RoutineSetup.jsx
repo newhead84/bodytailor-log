@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card } from './ui'
 import { BODY_PART_ATOMS, buildPartName, getExercisesForPart } from '../utils/exerciseLibrary'
 import ExerciseGuideImage from './ExerciseGuideImage'
@@ -69,6 +70,13 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
     setParts((prev) => prev.filter((_, i) => i !== idx))
   }
 
+  // [2026-07-29 신규] 파트가 추가만 되고 순서를 바꿀 방법이 없다는 피드백을 반영.
+  // "파트 순서" 카드에서 드래그로 순서를 바꾸면, 이름(name) 기준으로 parts 배열 자체의
+  // 순서도 함께 바뀐다 — 사이클 진행 순서·아래 파트 편집 카드 순서에 그대로 반영된다.
+  function handleReorderParts(orderedNames) {
+    setParts((prev) => orderedNames.map((name) => prev.find((p) => p.name === name)).filter(Boolean))
+  }
+
   function toggleExercise(partIdx, exName) {
     setParts((prev) =>
       prev.map((p, i) =>
@@ -134,6 +142,10 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
           style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
         />
       </div>
+
+      {parts.length > 1 && (
+        <PartOrderCard parts={parts} onReorder={handleReorderParts} />
+      )}
 
       {parts.map((part, idx) => (
         <React.Fragment key={part.name}>
@@ -208,7 +220,20 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
 // 이미지는 이름 옆의 별도 'i' 정보 아이콘을 눌렀을 때만 목록 아래에 펼쳐서 보여준다.
 // (이전에는 기록탭에서 "시작"을 눌렀을 때 보였는데, 루틴 추가/수정 화면으로 이동했다.)
 function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAtoms }) {
-  const [infoOpenName, setInfoOpenName] = useState(null)
+  // [2026-07-29] 종목이 많을 때 'i'를 눌러도 파트 맨 아래 공유 영역에서 이미지가 뜨다 보니
+  // 어떤 종목 이미지인지 헷갈리고, 화면에 안 보여서 "눌러도 반응이 없다"는 피드백을 받았다.
+  // 종목을 세로 리스트로 바꾸고, 'i'를 누르면 바로 그 종목 아래에 펼쳐지도록 변경했다.
+  // 여러 종목을 동시에 펼쳐볼 수 있도록 Set으로 관리한다.
+  const [openNames, setOpenNames] = useState(() => new Set())
+
+  function toggleImage(name) {
+    setOpenNames((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
 
   return (
     <div style={{ marginBottom: 22 }}>
@@ -223,38 +248,111 @@ function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAt
           </button>
         </div>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {availableExercises.map((name) => (
-          <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Chip active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
-              {name}
-            </Chip>
-            <button
-              onClick={() => setInfoOpenName((cur) => (cur === name ? null : name))}
-              aria-label={`${name} 동작 이미지 보기`}
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                fontSize: 12,
-                fontWeight: 700,
-                flexShrink: 0,
-                border: '1px solid var(--color-line)',
-                color: infoOpenName === name ? '#131316' : 'var(--color-label-neutral)',
-                background: infoOpenName === name ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
-              }}
-            >
-              i
-            </button>
-          </div>
-        ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {availableExercises.map((name) => {
+          const isOpen = openNames.has(name)
+          return (
+            <div key={name}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Chip active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
+                  {name}
+                </Chip>
+                <button
+                  onClick={() => toggleImage(name)}
+                  aria-label={`${name} 동작 이미지 ${isOpen ? '닫기' : '보기'}`}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    flexShrink: 0,
+                    border: '1px solid var(--color-line)',
+                    color: isOpen ? 'var(--color-on-gold)' : 'var(--color-label-neutral)',
+                    background: isOpen ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
+                  }}
+                >
+                  i
+                </button>
+              </div>
+              {isOpen && (
+                <div style={{ marginTop: 6 }}>
+                  <ExerciseGuideImage name={name} />
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
-      {infoOpenName && (
-        <div style={{ marginTop: 10 }}>
-          <ExerciseGuideImage name={infoOpenName} />
-        </div>
-      )}
     </div>
+  )
+}
+
+// [2026-07-29 신규] 파트 순서(=사이클 진행 순서)를 드래그로 바꿀 수 있는 카드.
+// 루틴 이름 입력 바로 아래에 위치하며, 여기서 바꾼 순서가 그대로 아래 파트 편집 카드들의
+// 순서에도 반영된다.
+function PartOrderCard({ parts, onReorder }) {
+  const names = parts.map((p) => p.name)
+  return (
+    <Card style={{ marginBottom: 22 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>파트 순서</div>
+      <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+        드래그해서 파트를 수행할 순서를 바꿀 수 있어요. 이 순서대로 사이클이 진행돼요.
+      </p>
+      <Reorder.Group
+        as="div"
+        axis="y"
+        values={names}
+        onReorder={onReorder}
+        style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+      >
+        {names.map((name) => (
+          <PartOrderRow key={name} name={name} />
+        ))}
+      </Reorder.Group>
+    </Card>
+  )
+}
+
+function PartOrderRow({ name }) {
+  const dragControls = useDragControls()
+  return (
+    <Reorder.Item value={name} dragListener={false} dragControls={dragControls} style={{ listStyle: 'none' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 12px',
+          borderRadius: 10,
+          border: '1px solid var(--color-line)',
+          background: 'var(--color-bg-elevated)',
+        }}
+      >
+        <div
+          onPointerDown={(e) => dragControls.start(e)}
+          title="눌러서 위아래로 드래그"
+          style={{
+            flexShrink: 0,
+            width: 22,
+            height: 22,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--color-label-neutral)',
+            touchAction: 'none',
+            cursor: 'grab',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </div>
+        <span className="text-keep-all" style={{ fontSize: 14, fontWeight: 600 }}>
+          {name}
+        </span>
+      </div>
+    </Reorder.Item>
   )
 }
 

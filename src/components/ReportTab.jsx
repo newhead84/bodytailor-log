@@ -1,10 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Legend,
+} from 'recharts'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange } from '../storage'
 import { getTierByXp } from '../utils/tier'
 import { computeAttendanceScore, computeVolumeScore, computeOverloadScore, computeFinalScore } from '../utils/scoring'
-import { getExerciseAtom, PART_COLORS, BODY_PART_ATOMS } from '../utils/exerciseLibrary'
+import { getExerciseAtom, BODY_PART_ATOMS } from '../utils/exerciseLibrary'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
 // 눈에 잘 띄지 않던 '통계' 서브탭을 하나의 '리포트' 탭으로 통합했다. 여기에 추가로
@@ -172,6 +188,19 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3 }) {
     return [...BODY_PART_ATOMS, '기타'].filter((atom) => set.has(atom))
   }, [bodyPartWeekly])
 
+  // [2026-07-29] 스택 막대 대신 레이더 차트로 교체 — 부위를 축으로 두고
+  // "이번 주 vs 지난 주"를 겹쳐 그려서 어느 부위가 늘고 줄었는지 한눈에 비교되도록 함.
+  const bodyPartRadar = useMemo(() => {
+    if (bodyPartWeekly.length === 0) return []
+    const thisWeek = bodyPartWeekly[bodyPartWeekly.length - 1] || {}
+    const lastWeek = bodyPartWeekly[bodyPartWeekly.length - 2] || {}
+    return presentBodyParts.map((atom) => ({
+      part: atom,
+      이번주: Math.round(thisWeek[atom] || 0),
+      지난주: Math.round(lastWeek[atom] || 0),
+    }))
+  }, [bodyPartWeekly, presentBodyParts])
+
   // ── 점진적 과부하 진행상황 (신규) ──
   const overloadProgress = useMemo(() => {
     const today = new Date()
@@ -312,29 +341,33 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3 }) {
             </ResponsiveContainer>
           </Card>
 
-          {/* 부위별 운동 추이 (신규) */}
+          {/* 부위별 운동 추이 (2026-07-29: 스택 막대 → 레이더 차트로 교체) */}
           <SectionTitle>부위별 운동 추이</SectionTitle>
-          <Card style={{ marginBottom: 8, height: 220 }}>
+          <Card style={{ marginBottom: 8, height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={bodyPartWeekly}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
-                <XAxis dataKey="week" fontSize={11} stroke="var(--color-label-neutral)" />
-                <YAxis fontSize={11} stroke="var(--color-label-neutral)" />
+              <RadarChart data={bodyPartRadar} outerRadius="72%">
+                <PolarGrid stroke="var(--color-line)" />
+                <PolarAngleAxis dataKey="part" tick={{ fontSize: 11, fill: 'var(--color-label-normal)' }} />
+                <PolarRadiusAxis tick={{ fontSize: 9, fill: 'var(--color-label-neutral)' }} axisLine={false} />
+                <Radar
+                  name="지난주"
+                  dataKey="지난주"
+                  stroke="var(--color-label-neutral)"
+                  fill="var(--color-label-neutral)"
+                  fillOpacity={0.25}
+                />
+                <Radar
+                  name="이번주"
+                  dataKey="이번주"
+                  stroke="var(--color-primary-normal)"
+                  fill="var(--color-primary-normal)"
+                  fillOpacity={0.45}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Tooltip />
-                {presentBodyParts.map((atom) => (
-                  <Bar key={atom} dataKey={atom} stackId="part" fill={PART_COLORS[atom] || 'var(--color-label-neutral)'} />
-                ))}
-              </BarChart>
+              </RadarChart>
             </ResponsiveContainer>
           </Card>
-          <div className="text-keep-all" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20, fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            {presentBodyParts.map((atom) => (
-              <span key={atom} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 4, background: PART_COLORS[atom] || 'var(--color-label-neutral)', display: 'inline-block' }} />
-                {atom}
-              </span>
-            ))}
-          </div>
 
           {/* 점진적 과부하 진행상황 (신규) */}
           <SectionTitle>점진적 과부하 진행상황</SectionTitle>

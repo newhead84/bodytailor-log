@@ -217,7 +217,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                 padding: '6px 3px',
                 gap: 3,
                 background: isSelected ? 'var(--color-primary-normal)' : 'transparent',
-                color: isSelected ? '#131316' : 'var(--color-label-strong)',
+                color: isSelected ? 'var(--color-on-gold)' : 'var(--color-label-strong)',
               }}
             >
               <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500, textAlign: 'center' }}>{d}</span>
@@ -232,7 +232,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                         padding: '1px 3px',
                         textAlign: 'center',
                         background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(74,222,128,0.14)',
-                        color: isSelected ? '#131316' : 'var(--color-success)',
+                        color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
                       }}
                     >
                       {Math.round(summary.totalDurationSec / 60)}분
@@ -247,7 +247,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                         padding: '1px 3px',
                         textAlign: 'center',
                         background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(255,184,77,0.14)',
-                        color: isSelected ? '#131316' : 'var(--color-warning)',
+                        color: isSelected ? 'var(--color-on-gold)' : 'var(--color-warning)',
                       }}
                     >
                       {summary.totalCalories}Cal
@@ -261,7 +261,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                           height: 10,
                           borderRadius: 2,
                           flexShrink: 0,
-                          background: isSelected ? '#131316' : PART_COLORS[atom] || 'var(--color-primary-normal)',
+                          background: isSelected ? 'var(--color-on-gold)' : PART_COLORS[atom] || 'var(--color-primary-normal)',
                         }}
                       />
                       <span
@@ -269,7 +269,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                         style={{
                           fontSize: 9,
                           lineHeight: '11px',
-                          color: isSelected ? '#131316' : 'var(--color-label-normal)',
+                          color: isSelected ? 'var(--color-on-gold)' : 'var(--color-label-normal)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',

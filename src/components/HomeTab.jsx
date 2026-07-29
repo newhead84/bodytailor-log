@@ -4,6 +4,7 @@ import { Card, SectionTitle, Button } from './ui'
 import { getRecentWorkoutLogs } from '../storage'
 import CalendarView from './CalendarView'
 import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
+import { pickRandomQuote } from '../utils/quotes'
 
 // 로그 하나에서 실제로 수행한 부위들을 중복 없이 뽑아 "가슴·삼두"처럼 요약한다.
 function summarizePartsOfLog(log) {
@@ -36,6 +37,9 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, o
   const [recentLogs, setRecentLogs] = useState([])
   const [showExtraCta, setShowExtraCta] = useState(false)
   const [monthSummary, setMonthSummary] = useState(null)
+  // [2026-07-29 신규] 앱 진입(마운트) 시마다 응원/습관/자기계발 문구 중 하나를 랜덤으로 뽑는다.
+  // (직전 노출 문구와는 연달아 겹치지 않도록 utils/quotes.js에서 처리)
+  const [quote] = useState(() => pickRandomQuote())
 
   useEffect(() => {
     let cancelled = false
@@ -58,7 +62,7 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, o
   return (
     <div style={{ padding: '20px 20px 100px' }}>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 4px' }}>
-        {userDoc?.nickname || '회원'}님, 오늘도 몸에 투자할 시간이에요.
+        {userDoc?.nickname || '회원'}님, {quote}
       </p>
 
       <SectionTitle>오늘의 운동</SectionTitle>
@@ -72,7 +76,7 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, o
         </p>
         {suggested && !doneToday && (
           <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-            루틴 순서상 다음은 <b style={{ color: 'var(--color-primary-strong)' }}>{suggested.template.title} · {suggested.part.name}</b>{' '}
+            오늘은 <b style={{ color: 'var(--color-primary-strong)' }}>{suggested.template.title} · {suggested.part.name}</b>{' '}
             차례예요.
           </p>
         )}

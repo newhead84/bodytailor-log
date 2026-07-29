@@ -199,7 +199,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
         bottom: 'calc(var(--bottom-nav-height) + var(--safe-bottom) + 78px)',
         zIndex: 30,
         background: overtime ? 'var(--color-danger, #E5484D)' : 'var(--color-bg-elevated)',
-        color: overtime ? '#131316' : 'var(--color-label-strong)',
+        color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)',
         borderRadius: 16,
         padding: '12px 16px',
         display: 'flex',
@@ -215,7 +215,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
           {mm}:{ss}
         </span>
       </div>
-      <button onClick={handleDismiss} style={{ color: overtime ? '#131316' : 'var(--color-label-strong)', fontSize: 13, opacity: 0.9, padding: '4px 8px' }}>
+      <button onClick={handleDismiss} style={{ color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)', fontSize: 13, opacity: 0.9, padding: '4px 8px' }}>
         {overtime ? '닫기' : '건너뛰기'}
       </button>
     </div>

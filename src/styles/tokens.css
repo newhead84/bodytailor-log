@@ -9,11 +9,13 @@
   --color-static-white: #ffffff;
   --color-static-black: #000000;
 
-  /* Primary (구 블루 → 골드로 교체) */
-  --color-primary-normal: #c9a227;
-  --color-primary-strong: #8a6e1b;
-  --color-primary-heavy: #6b5414;
+  /* Primary (v2.1: 비비드 옐로우골드로 교체 — 2026-07-29 업데이트) */
+  --color-primary-normal: #ffc94d;
+  --color-primary-strong: #b8860b;
+  --color-primary-heavy: #8a6608;
   --color-primary-bg: #1c1c20;
+  /* 골드 색면(버튼 등) 위에 올라가는 텍스트 전용 색 — 흰색 대신 짙은 브라운으로 대비 확보 */
+  --color-on-gold: #3d2e00;
 
   /* Label (구 쿨그레이 → 매트블랙 위 텍스트 톤으로 교체) */
   --color-label-strong: #f4f0e6;
@@ -28,10 +30,10 @@
   --color-line: #2a2a2e;
   --color-line-strong: #3a3a40;
 
-  /* Gold accent 3단계 (가이드 3.2) */
-  --color-gold-100: #f3d98a;
-  --color-gold-500: #c9a227;
-  --color-gold-700: #8a6e1b;
+  /* Gold accent 3단계 (가이드 3.2, v2.1 비비드 옐로우골드) */
+  --color-gold-100: #ffe1a0;
+  --color-gold-500: #ffc94d;
+  --color-gold-700: #b8860b;
 
   /* Semantic accents (가이드 미지정, 실사용을 위해 보수적으로 추가 — 매트블랙 대비 유지) */
   --color-success: #4ade80;

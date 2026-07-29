@@ -621,7 +621,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                 fontWeight: 700,
                 whiteSpace: 'nowrap',
                 background: isPaused ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
-                color: isPaused ? '#131316' : 'var(--color-label-normal)',
+                color: isPaused ? 'var(--color-on-gold)' : 'var(--color-label-normal)',
                 border: isPaused ? 'none' : '1px solid var(--color-line)',
                 flexShrink: 0,
               }}
@@ -990,13 +990,22 @@ function WorkoutCompleteModal({ xpEarned, onClose }) {
 // 펼치기/접기로 카드 높이가 바뀔 때는 애니메이션 없이 즉시 반영된다.
 function SortableExerciseItem({ name, onDragEnd, children }) {
   const dragControls = useDragControls()
+  // [2026-07-29] layout="position"을 항상 켜두면, 실제 드래그가 아닌 경우(탭 이동 후 복귀,
+  // 세트 완료/종목 숨김으로 다른 카드가 재배치될 때 등)에도 framer-motion이 "이전 위치 → 새 위치"로
+  // 스프링 애니메이션을 걸어 카드가 떨어지듯 움직이는 문제가 있었다. 실제로 드래그 중일 때만
+  // layout 애니메이션을 켜고, 그 외에는 완전히 꺼서(false) 즉시 반영되도록 분리했다.
+  const [isDragging, setIsDragging] = useState(false)
   return (
     <Reorder.Item
       value={name}
       dragListener={false}
       dragControls={dragControls}
-      onDragEnd={onDragEnd}
-      layout="position"
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={(e, info) => {
+        setIsDragging(false)
+        onDragEnd?.(e, info)
+      }}
+      layout={isDragging ? 'position' : false}
       initial={false}
       style={{ listStyle: 'none' }}
     >
@@ -1064,7 +1073,7 @@ function ExerciseCard({
               height: 22,
               borderRadius: '50%',
               background: 'var(--color-primary-normal)',
-              color: '#131316',
+              color: 'var(--color-on-gold)',
               fontSize: 13,
               display: 'flex',
               alignItems: 'center',
@@ -1115,7 +1124,7 @@ function ExerciseCard({
               fontWeight: 700,
               whiteSpace: 'nowrap',
               background: expanded ? 'var(--color-bg-elevated)' : 'var(--color-primary-normal)',
-              color: expanded ? 'var(--color-label-neutral)' : '#131316',
+              color: expanded ? 'var(--color-label-neutral)' : 'var(--color-on-gold)',
             }}
           >
             {expanded ? '접기' : '시작'}
@@ -1180,7 +1189,7 @@ function ExerciseCard({
 
 function SetRow({ set, showLabel, inputType, weightStep, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'flex-end', gap: 4, marginBottom: 8 }}>
+    <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 4, marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, flexShrink: 1, minWidth: 0 }}>
         {inputType === 'cardio' ? (
           <>
@@ -1252,7 +1261,7 @@ function LabeledStepper({ label, value, onChange, step, width }) {
 function IconButton({ children, onClick, title, muted, disabled, tone }) {
   const toneStyle =
     tone === 'save' || tone === 'done'
-      ? { background: '#22c55e', border: 'none', stroke: '#fff' }
+      ? { background: 'var(--color-primary-normal)', border: 'none', stroke: 'var(--color-on-gold)' }
       : { background: muted ? 'var(--color-bg-elevated)' : 'var(--color-primary-bg)', border: '1px solid var(--color-line)', stroke: muted ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }
   return (
     <button
@@ -1261,8 +1270,8 @@ function IconButton({ children, onClick, title, muted, disabled, tone }) {
       disabled={disabled}
       style={{
         flexShrink: 0,
-        width: 28,
-        height: 28,
+        width: 32,
+        height: 34,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

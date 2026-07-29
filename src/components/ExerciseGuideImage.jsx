@@ -121,7 +121,7 @@ export default function ExerciseGuideImage({ name }) {
                 fontSize: 12,
                 fontWeight: 700,
                 background: idx === activeIdx ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
-                color: idx === activeIdx ? '#131316' : 'var(--color-label-neutral)',
+                color: idx === activeIdx ? 'var(--color-on-gold)' : 'var(--color-label-neutral)',
                 border: idx === activeIdx ? 'none' : '1px solid var(--color-line)',
               }}
             >

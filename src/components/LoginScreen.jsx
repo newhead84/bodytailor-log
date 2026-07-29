@@ -45,7 +45,7 @@ export default function LoginScreen() {
             margin: '0 auto 18px',
           }}
         >
-          <Dumbbell size={30} strokeWidth={1.9} color="#131316" />
+          <Dumbbell size={30} strokeWidth={1.9} color="var(--color-on-gold)" />
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 8px' }}>BodyTailor Log</h1>
         <p className="text-keep-all" style={{ color: 'var(--color-label-normal)', fontSize: 15, lineHeight: '22px', margin: 0 }}>
