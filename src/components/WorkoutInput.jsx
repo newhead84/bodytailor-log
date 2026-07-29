@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card } from './ui'
@@ -89,6 +89,38 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
   const [freeExercises, setFreeExercises] = useState([]) // string[]
   const [freeCategory, setFreeCategory] = useState(EXTRA_CATEGORIES[0])
   const [addingFreeExercise, setAddingFreeExercise] = useState(false)
+
+  // [2026-07-29 재수정] App.jsx가 이 컴포넌트를 언마운트하지 않고 display:none↔block으로만
+  // 탭을 전환한다(휴식 타이머 상태 보존 목적). 그런데 Reorder.Item의 layout="position"이
+  // 항상 켜져 있다 보니, display:none이었다가 다시 block이 되는 순간 framer-motion이
+  // "감춰졌던 위치(0)"에서 "실제 위치"로 이동한 것으로 오인해 종목 리스트 전체가 위→아래로
+  // 떨어지듯 애니메이션됐다. IntersectionObserver로 "방금 다시 보이게 된 시점"을 감지해
+  // 그 프레임에서만 layout을 잠깐 꺼서(재측정만 하고 애니메이션은 생략) 해결한다.
+  // 드래그 중 순서 변경 애니메이션(SortableExerciseItem 참고)은 그대로 유지된다.
+  const rootRef = useRef(null)
+  const [layoutEnabled, setLayoutEnabled] = useState(true)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    let rafId1
+    let rafId2
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return
+        setLayoutEnabled(false)
+        rafId1 = requestAnimationFrame(() => {
+          rafId2 = requestAnimationFrame(() => setLayoutEnabled(true))
+        })
+      },
+      { threshold: 0 }
+    )
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      if (rafId1) cancelAnimationFrame(rafId1)
+      if (rafId2) cancelAnimationFrame(rafId2)
+    }
+  }, [])
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || null
   const selectedPart = selectedTemplate?.parts?.find((p) => p.name === selectedPartName) || null
@@ -547,7 +579,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
   }
 
   return (
-    <div style={{ padding: '16px 20px 140px' }}>
+    <div ref={rootRef} style={{ padding: '16px 20px 140px' }}>
       {/* 총 운동시간 (웜업 시작 시점부터 누적, 일시정지 구간 제외) */}
       {sessionPhase !== 'idle' && (
         <div
@@ -730,6 +762,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                   name={name}
                   orderKey={visibleExercises.join('|')}
                   onDragEnd={() => persistPartExercises(partOrder)}
+                  layoutEnabled={layoutEnabled}
                 >
                   <ExerciseCard
                     name={name}
@@ -997,10 +1030,13 @@ function WorkoutCompleteModal({ xpEarned, onClose }) {
 // 새로 측정하며 카드가 순간 점프했다가 튕기듯 자리잡았고, 반대로 손을 떼는 순간에는
 // layout이 false로 먼저 꺼지며 자리에 안착하는 스프링 애니메이션이 잘려나가 "튕겨 날아가는"
 // 것처럼 보였다(파트 순서 변경 카드는 이런 토글 없이 항상 layout이 켜져 있어 문제가 없었음).
-// → RoutineSetup.jsx의 PartOrderRow와 동일하게 layout="position"을 항상 켜둔다. 대신
-// 펼치기/접기(카드 높이 변화)로 인한 불필요한 재배치 애니메이션은 layoutDependency를
-// "종목 순서" 값에만 묶어서, 순서가 실제로 바뀔 때만 위치 애니메이션이 재계산되도록 막는다.
-function SortableExerciseItem({ name, orderKey, onDragEnd, children }) {
+// → RoutineSetup.jsx의 PartOrderRow와 동일하게 layout="position"을 기본적으로 켜둔다(드래그
+// 튕김 방지). 대신 펼치기/접기(카드 높이 변화)로 인한 불필요한 재배치 애니메이션은
+// layoutDependency를 "종목 순서" 값에만 묶어서, 순서가 실제로 바뀔 때만 위치 애니메이션이
+// 재계산되도록 막는다.
+// [2026-07-29 추가 수정] 위 컴포넌트 상단 rootRef/layoutEnabled 설명 참고 — 탭이 다시 보이게 된
+// 직후 한 프레임만 layoutEnabled=false로 내려와 layout 자체를 잠깐 끈다(드롭 애니메이션 방지).
+function SortableExerciseItem({ name, orderKey, onDragEnd, layoutEnabled = true, children }) {
   const dragControls = useDragControls()
   return (
     <Reorder.Item
@@ -1008,7 +1044,7 @@ function SortableExerciseItem({ name, orderKey, onDragEnd, children }) {
       dragListener={false}
       dragControls={dragControls}
       onDragEnd={onDragEnd}
-      layout="position"
+      layout={layoutEnabled ? 'position' : false}
       layoutDependency={orderKey}
       style={{ listStyle: 'none' }}
     >

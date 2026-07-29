@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   LineChart,
   Line,
@@ -74,7 +74,7 @@ function byExercise(logs) {
   return map
 }
 
-export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, onShowTierInfo }) {
+export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo }) {
   // 랭킹 관련 상태
   const [entries, setEntries] = useState([])
   const [rankingLoading, setRankingLoading] = useState(true)
@@ -153,6 +153,20 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, onS
     await loadRanking()
     setRefreshing(false)
   }
+
+  // [2026-07-29 변경] 점수는 이제 운동완료와 함께 자동으로 갱신된다(App.jsx가 운동 저장 직후
+  // logsVersion을 올려주는 것을 그대로 활용). 아래 "내 점수 갱신" 버튼은 더 이상 유일한 갱신
+  // 수단이 아니라, 운동완료 후 세트를 수정하는 등 추가 변경이 생겼을 때 즉시 재계산하고 싶을
+  // 때 쓰는 보조 버튼으로 역할이 바뀌었다. (최초 마운트 시에는 중복 호출하지 않도록 skip)
+  const didMountRef = useRef(false)
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      return
+    }
+    handleRefreshMyScore()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logsVersion])
 
   // ── 주간 총 볼륨 ──
   // [2026-07-29 개편] 기존에는 로그가 있는 모든 주를 "n월 n주"(연중 몇 번째 주) 라벨로 나열해서,
@@ -327,7 +341,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, onS
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button
               onClick={() => setShowRefreshInfo((v) => !v)}
-              aria-label="내 점수 갱신 설명 보기"
+              aria-label="점수 다시 계산 설명 보기"
               style={{
                 width: 22,
                 height: 22,
@@ -342,7 +356,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, onS
               ?
             </button>
             <Button variant="secondary" onClick={handleRefreshMyScore} disabled={refreshing}>
-              {refreshing ? '갱신 중…' : '내 점수 갱신'}
+              {refreshing ? '갱신 중…' : '점수 다시 계산'}
             </Button>
           </div>
         }
@@ -352,7 +366,8 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, onS
 
       {showRefreshInfo && (
         <p className="text-keep-all" style={{ margin: '-6px 0 12px', fontSize: 12, color: 'var(--color-label-neutral)', background: 'var(--color-bg-elevated)', borderRadius: 10, padding: '10px 12px' }}>
-          점수는 자동으로 갱신되지 않아요. 이번 주 출석·볼륨·과부하 기록을 반영해 즉시 계산하려면 눌러주세요.
+          점수는 운동을 완료하면 자동으로 갱신돼요. 이 버튼은 운동완료 후 세트를 수정하는 등 변경사항이
+          생겨 즉시 다시 계산하고 싶을 때만 눌러주세요.
         </p>
       )}
 
@@ -440,11 +455,14 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, onS
           {/* 부위별 운동 추이 (2026-07-29: 스택 막대 → 레이더 차트로 교체) */}
           {/* [2026-07-29 재수정] 라벨(부위명 + 볼륨/세트수 2줄)이 차트 도형을 뚫고 지나간다는
               피드백으로, 카드 높이를 늘리고 outerRadius를 줄이며 사방에 margin을 둬서
-              라벨과 차트 사이에 여백을 확보했다. */}
+              라벨과 차트 사이에 여백을 확보했다.
+              [2026-07-29 추가 수정] 그래도 겹침이 남는다는 피드백으로 outerRadius를 52%→38%로
+              더 줄이고 margin/카드 높이를 한 번 더 키웠다. 2번째 줄(볼륨·세트수)은 클릭/호버
+              없이 항상 보여야 한다는 요구사항이라 텍스트를 툴팁으로 옮기지 않고 그대로 유지. */}
           <SectionTitle>부위별 운동 추이</SectionTitle>
-          <Card style={{ marginBottom: 8, height: 340 }}>
+          <Card style={{ marginBottom: 8, height: 380 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={bodyPartRadar} outerRadius="52%" margin={{ top: 16, right: 28, bottom: 8, left: 28 }}>
+              <RadarChart data={bodyPartRadar} outerRadius="38%" margin={{ top: 32, right: 40, bottom: 32, left: 40 }}>
                 <PolarGrid stroke="var(--color-line)" />
                 <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={bodyPartThisWeekDetail} />} />
                 {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.

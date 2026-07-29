@@ -1,14 +1,13 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-29] 디자인 가이드 v2(매트블랙골드) 전면 적용 — tokens.css 배경/텍스트/보더
- *            색상 교체, 이모지 아이콘(BottomNav/HomeTab/LoginScreen/WorkoutInput)을 lucide 라인
- *            아이콘으로 교체, 부위별 색상 6색 팔레트 재조정, 앱 아이콘/스플래시 로고를
- *            골드 덤벨+상승화살표 마크로 교체, 골드 배경 위 텍스트 대비 수정(다크테마 전환에 따른
- *            화이트 서피스/화이트 텍스트 잔여 사용 전수 교정).
+ * 최신 변경: [2026-07-29] 사용자 피드백 5건 반영 — 하단 탭 재클릭 시 최상단 이동, 홈탭 날짜별
+ *            기록 수정에서 세트 추가/삭제·운동 추가 지원, 기록탭 진입 시 종목 리스트가 떨어지는
+ *            애니메이션 재발 수정, 리포트탭 점수 자동 갱신(+버튼 역할을 보조 재계산용으로 변경),
+ *            리포트탭 레이더 차트 라벨 겹침 추가 수정.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { watchAuthState } from './firebase'
 import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile } from './storage'
 
@@ -33,6 +32,21 @@ export default function App() {
   const [userDoc, setUserDoc] = useState(null)
   const [routineTemplates, setRoutineTemplates] = useState(undefined) // undefined: 로딩중, []: 없음
   const [activeTab, setActiveTab] = useState('home')
+  // [2026-07-29 신규] 메인 4탭이 display:block/none 전환만 될 뿐, 스크롤은
+  // 아래 mainScrollRef 컨테이너 하나가 전담한다(탭별 개별 스크롤 컨테이너 없음).
+  // 이미 보고 있는 탭을 한 번 더 누르면 이 스크롤 위치를 맨 위로 되돌린다.
+  const mainScrollRef = useRef(null)
+  const handleTabPress = useCallback(
+    (tab) => {
+      setActiveTab((prev) => {
+        if (prev === tab) {
+          mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+        return tab
+      })
+    },
+    []
+  )
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
   const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동조합 변경" 진입 여부
   const [showTierInfo, setShowTierInfo] = useState(false) // MY탭 "등급" 카드 탭 시 티어/XP 설명 전체화면 진입 여부
@@ -174,7 +188,7 @@ export default function App() {
   //  타이머 상태가 통째로 사라지는 문제가 있었다. 항상 마운트해두면 세션/타이머
   //  상태가 컴포넌트 안에 그대로 남아있어 탭을 이동해도 계속 진행된다.)
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
+    <div ref={mainScrollRef} style={{ height: '100%', overflowY: 'auto' }}>
       <div style={{ display: activeTab === 'home' ? 'block' : 'none' }}>
         <HomeTab
           uid={authUser.uid}
@@ -197,7 +211,13 @@ export default function App() {
         />
       </div>
       <div style={{ display: activeTab === 'report' ? 'block' : 'none' }}>
-        <ReportTab uid={authUser.uid} userDoc={userDoc} targetSessionsPerWeek={targetSessionsPerWeek} onShowTierInfo={() => setShowTierInfo(true)} />
+        <ReportTab
+          uid={authUser.uid}
+          userDoc={userDoc}
+          targetSessionsPerWeek={targetSessionsPerWeek}
+          logsVersion={logsVersion}
+          onShowTierInfo={() => setShowTierInfo(true)}
+        />
       </div>
       <div style={{ display: activeTab === 'my' ? 'block' : 'none' }}>
         <MyPageTab
@@ -210,7 +230,7 @@ export default function App() {
           onShowTierInfo={() => setShowTierInfo(true)}
         />
       </div>
-      <BottomNav active={activeTab} onChange={setActiveTab} />
+      <BottomNav active={activeTab} onChange={handleTabPress} />
     </div>
   )
 }

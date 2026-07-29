@@ -1,7 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Card, Button, EmptyState } from './ui'
+import { Card, Button, Chip, EmptyState } from './ui'
 import { getWorkoutLogsInRange, updateWorkoutLog, deleteWorkoutLog } from '../storage'
-import { getExerciseDisplayAtom, PART_COLORS, calcVolume } from '../utils/exerciseLibrary'
+import { Plus, X } from 'lucide-react'
+import {
+  getExerciseDisplayAtom,
+  PART_COLORS,
+  calcVolume,
+  BODY_PART_ATOMS,
+  getExercisesForPart,
+  getExerciseInputType,
+} from '../utils/exerciseLibrary'
 
 // 그 날짜의 운동시간/칼로리 합계와, 부위별 세트수를 계산한다(달력 칸에 색상+텍스트로 표시하기 위함).
 function daySummary(logs) {
@@ -26,6 +34,14 @@ function daySummary(logs) {
 
 function pad(n) {
   return String(n).padStart(2, '0')
+}
+
+// 종목의 입력 방식(inputType)에 맞는 빈 세트 하나를 만든다(4.3/9.10 스펙: 유산소는 경사/속도/시간,
+// 자체중량 종목은 횟수만, 그 외는 무게x횟수).
+function makeEmptySet(inputType) {
+  if (inputType === 'cardio') return { incline: 0, speedKmh: 0, durationMin: 0 }
+  if (inputType === 'reps') return { reps: 0 }
+  return { weight: 0, reps: 0 }
 }
 
 // [2026-07-28] 종목별 입력방식(9.10 요청: 푸쉬업/행잉은 횟수만, 트레드밀 등 유산소는
@@ -53,8 +69,12 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
   const [loading, setLoading] = useState(true)
   // 기록 수정/삭제/날짜변경용 상태
   const [editingLogId, setEditingLogId] = useState(null)
-  const [editDraft, setEditDraft] = useState(null) // { date, exercises: [{name, sets:[{weight,reps}]}] }
+  const [editDraft, setEditDraft] = useState(null) // { date, exercises: [{name, inputType, sets:[...]}] }
   const [savingEdit, setSavingEdit] = useState(false)
+  // [2026-07-29 신규] 날짜별 기록 수정 화면에서 "운동 추가" 시 부위 카테고리를 먼저 고르고
+  // 그 부위 라이브러리 종목 중에서 선택하는 방식(WorkoutInput.jsx 자유 추가 운동과 동일 패턴).
+  const [addingExercise, setAddingExercise] = useState(false)
+  const [addCategory, setAddCategory] = useState(BODY_PART_ATOMS[0])
 
   // 현재 커서(연/월) 범위의 기록을 다시 불러온다. 월 이동 시 useEffect에서, 수정/삭제/날짜변경 후에는
   // 아래 핸들러들에서 직접 호출한다.
@@ -120,13 +140,19 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
     setEditingLogId(log.id)
     setEditDraft({
       date: log.date,
-      exercises: log.exercises.map((ex) => ({ name: ex.name, sets: ex.sets.map((s) => ({ ...s })) })),
+      exercises: log.exercises.map((ex) => ({
+        name: ex.name,
+        inputType: ex.inputType || getExerciseInputType(ex.name),
+        sets: ex.sets.map((s) => ({ ...s })),
+      })),
     })
+    setAddingExercise(false)
   }
 
   function cancelEdit() {
     setEditingLogId(null)
     setEditDraft(null)
+    setAddingExercise(false)
   }
 
   function updateDraftDate(value) {
@@ -144,15 +170,67 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
     }))
   }
 
+  // 세트 추가: 직전 세트 값을 복사해서 이어서 입력하기 편하게 한다(운동기록 입력 화면과 동일한
+  // "편하게 기록" 원칙). 직전 세트가 없으면 빈 값으로 시작.
+  function addDraftSet(exIdx) {
+    setEditDraft((prev) => ({
+      ...prev,
+      exercises: prev.exercises.map((ex, i) => {
+        if (i !== exIdx) return ex
+        const lastSet = ex.sets[ex.sets.length - 1]
+        const nextSet = lastSet ? { ...lastSet } : makeEmptySet(ex.inputType)
+        return { ...ex, sets: [...ex.sets, nextSet] }
+      }),
+    }))
+  }
+
+  // 세트 삭제: 해당 종목의 마지막 세트까지 지우면(세트 0개) 그 종목 자체를 기록에서 제거한다.
+  function deleteDraftSet(exIdx, setIdx) {
+    setEditDraft((prev) => ({
+      ...prev,
+      exercises: prev.exercises
+        .map((ex, i) => (i !== exIdx ? ex : { ...ex, sets: ex.sets.filter((_, j) => j !== setIdx) }))
+        .filter((ex) => ex.sets.length > 0),
+    }))
+  }
+
+  // 운동(종목) 추가: 라이브러리에서 고른 종목을 세트 1개짜리로 새로 추가한다(자유 텍스트 입력은
+  // 4.2절 정책상 지원하지 않고 라이브러리 선택으로 통일).
+  function addDraftExercise(name) {
+    setEditDraft((prev) => {
+      if (prev.exercises.some((ex) => ex.name === name)) return prev
+      const inputType = getExerciseInputType(name)
+      return { ...prev, exercises: [...prev.exercises, { name, inputType, sets: [makeEmptySet(inputType)] }] }
+    })
+    setAddingExercise(false)
+  }
+
   async function saveEdit(log) {
     if (!editDraft?.date) return
     setSavingEdit(true)
     try {
       const cleanedExercises = editDraft.exercises.map((ex) => ({
-        ...ex,
-        sets: ex.sets.map((s) => ({ weight: Number(s.weight) || 0, reps: parseInt(s.reps, 10) || 0 })),
+        name: ex.name,
+        inputType: ex.inputType,
+        sets: ex.sets.map((s) => {
+          if (ex.inputType === 'cardio') {
+            return {
+              incline: Number(s.incline) || 0,
+              speedKmh: Number(s.speedKmh) || 0,
+              durationMin: Number(s.durationMin) || 0,
+            }
+          }
+          if (ex.inputType === 'reps') {
+            return { reps: parseInt(s.reps, 10) || 0 }
+          }
+          return { weight: Number(s.weight) || 0, reps: parseInt(s.reps, 10) || 0 }
+        }),
       }))
-      const totalVolume = cleanedExercises.reduce((sum, ex) => sum + calcVolume(ex.sets), 0)
+      // 유산소/횟수전용 종목은 무게 개념이 없어 볼륨 계산에서 제외한다(운동기록 입력 화면과 동일 규칙).
+      const totalVolume = cleanedExercises.reduce(
+        (sum, ex) => sum + (ex.inputType === 'sets' || !ex.inputType ? calcVolume(ex.sets) : 0),
+        0
+      )
       await updateWorkoutLog(uid, log.id, {
         date: editDraft.date,
         exercises: cleanedExercises,
@@ -307,35 +385,160 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                   />
                 </div>
                 {editDraft?.exercises.map((ex, exIdx) => (
-                  <div key={ex.name} style={{ marginBottom: 10 }}>
+                  <div key={ex.name} style={{ marginBottom: 14 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{ex.name}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {ex.sets.map((s, setIdx) => (
                         <div key={setIdx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <input
-                            type="number"
-                            value={s.weight}
-                            onChange={(e) => updateDraftSet(exIdx, setIdx, 'weight', e.target.value)}
-                            style={{ width: 64, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
-                          />
-                          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>kg ×</span>
-                          <input
-                            type="number"
-                            value={s.reps}
-                            onChange={(e) => updateDraftSet(exIdx, setIdx, 'reps', e.target.value)}
-                            style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
-                          />
-                          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
+                          {ex.inputType === 'cardio' ? (
+                            <>
+                              <input
+                                type="number"
+                                value={s.incline}
+                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'incline', e.target.value)}
+                                style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                              />
+                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>% ·</span>
+                              <input
+                                type="number"
+                                value={s.speedKmh}
+                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'speedKmh', e.target.value)}
+                                style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                              />
+                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>km/h ·</span>
+                              <input
+                                type="number"
+                                value={s.durationMin}
+                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'durationMin', e.target.value)}
+                                style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                              />
+                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>분</span>
+                            </>
+                          ) : ex.inputType === 'reps' ? (
+                            <>
+                              <input
+                                type="number"
+                                value={s.reps}
+                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'reps', e.target.value)}
+                                style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                              />
+                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                type="number"
+                                value={s.weight}
+                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'weight', e.target.value)}
+                                style={{ width: 64, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                              />
+                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>kg ×</span>
+                              <input
+                                type="number"
+                                value={s.reps}
+                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'reps', e.target.value)}
+                                style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                              />
+                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
+                            </>
+                          )}
+                          <button
+                            onClick={() => deleteDraftSet(exIdx, setIdx)}
+                            aria-label="세트 삭제"
+                            style={{
+                              marginLeft: 'auto',
+                              width: 24,
+                              height: 24,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--color-label-neutral)',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <X size={14} strokeWidth={2} />
+                          </button>
                         </div>
                       ))}
                     </div>
+                    <button
+                      onClick={() => addDraftSet(exIdx)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        marginTop: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: 'var(--color-primary-strong)',
+                      }}
+                    >
+                      <Plus size={13} strokeWidth={2} /> 세트 추가
+                    </button>
                   </div>
                 ))}
+
+                {!addingExercise ? (
+                  <button
+                    onClick={() => setAddingExercise(true)}
+                    style={{
+                      width: '100%',
+                      marginBottom: 10,
+                      padding: '10px',
+                      borderRadius: 10,
+                      border: '1px dashed var(--color-line)',
+                      color: 'var(--color-label-neutral)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    + 운동 추가
+                  </button>
+                ) : (
+                  <div
+                    style={{
+                      marginBottom: 10,
+                      padding: 12,
+                      borderRadius: 10,
+                      background: 'var(--color-bg-elevated)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                      {BODY_PART_ATOMS.map((atom) => (
+                        <Chip key={atom} active={addCategory === atom} onClick={() => setAddCategory(atom)}>
+                          {atom}
+                        </Chip>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                      {getExercisesForPart(addCategory)
+                        .filter((n) => !editDraft?.exercises.some((ex) => ex.name === n))
+                        .map((n) => (
+                          <Chip key={n} onClick={() => addDraftExercise(n)}>
+                            {n}
+                          </Chip>
+                        ))}
+                    </div>
+                    <button onClick={() => setAddingExercise(false)} style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                      취소
+                    </button>
+                  </div>
+                )}
+                {editDraft?.exercises.length === 0 && (
+                  <p className="text-keep-all" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                    운동을 모두 지웠어요. 이대로 저장할 수 없으니, 이 날짜 기록 자체를 지우려면 취소 후 "삭제"를
+                    눌러주세요.
+                  </p>
+                )}
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   <Button variant="ghost" style={{ flex: 1 }} onClick={cancelEdit} disabled={savingEdit}>
                     취소
                   </Button>
-                  <Button style={{ flex: 1 }} onClick={() => saveEdit(log)} disabled={savingEdit}>
+                  <Button
+                    style={{ flex: 1 }}
+                    onClick={() => saveEdit(log)}
+                    disabled={savingEdit || editDraft?.exercises.length === 0}
+                  >
                     {savingEdit ? '저장 중…' : '저장'}
                   </Button>
                 </div>
