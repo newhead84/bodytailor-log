@@ -33,7 +33,10 @@ function getSuggestedNext(routineTemplates, recentLogs) {
   return { template, part: template.parts[nextIdx] }
 }
 
-export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, onGoToLog }) {
+export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, workoutPhase, onGoToLog, onCancelWorkout }) {
+  // [2026-07-30 신규] 기록탭에서 웜업/본운동이 시작되면("오늘 운동 기록하러 가기" 또는
+  // "한 세트 더?"를 통해 진입한 경우 모두 포함) 홈탭 카드가 "운동중" 상태로 바뀐다.
+  const isWorkoutInProgress = workoutPhase === 'warmup' || workoutPhase === 'main'
   const [recentLogs, setRecentLogs] = useState([])
   const [showExtraCta, setShowExtraCta] = useState(false)
   const [monthSummary, setMonthSummary] = useState(null)
@@ -96,7 +99,16 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, o
           </p>
         )}
 
-        {!doneToday || showExtraCta ? (
+        {isWorkoutInProgress ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button full style={{ flex: 1 }} onClick={onGoToLog}>
+              운동중 · 이어서 하기
+            </Button>
+            <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={onCancelWorkout}>
+              취소
+            </Button>
+          </div>
+        ) : !doneToday || showExtraCta ? (
           <Button full onClick={onGoToLog}>
             오늘 운동 기록하러 가기
           </Button>

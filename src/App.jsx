@@ -1,9 +1,8 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-29] 사용자 피드백 5건 반영 — 하단 탭 재클릭 시 최상단 이동, 홈탭 날짜별
- *            기록 수정에서 세트 추가/삭제·운동 추가 지원, 기록탭 진입 시 종목 리스트가 떨어지는
- *            애니메이션 재발 수정, 리포트탭 점수 자동 갱신(+버튼 역할을 보조 재계산용으로 변경),
- *            리포트탭 레이더 차트 라벨 겹침 추가 수정.
+ * 최신 변경: [2026-07-30] 사용자 피드백 4건 반영 — 홈탭 "운동중" 상태 표시 + 운동 취소 버튼,
+ *            기록탭 파트 칩 라벨 축약(좌우 스크롤 제거), 리포트탭 레이더 차트 크기 확대,
+ *            MY탭 계정 전용 커스텀 종목 추가 기능 + 중복/희귀/이미지없는 종목 정리.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -61,6 +60,13 @@ export default function App() {
   // 자체적으로는 다시 불러오지 않던 버그 수정. 기록 저장 시마다 이 값을 올려서 하위 컴포넌트의
   // 데이터 로딩 useEffect가 다시 실행되도록 만든다(재진입 없이 즉시 반영).
   const [logsVersion, setLogsVersion] = useState(0)
+  // [2026-07-30 신규] 홈탭 "운동중" 상태 표시 + 취소 버튼용: 기록탭(WorkoutInput)의 세션
+  // 진행 단계('idle'|'warmup'|'main')를 구독하고, ref로 취소 동작을 호출할 수 있게 한다.
+  const [workoutPhase, setWorkoutPhase] = useState('idle')
+  const logTabRef = useRef(null)
+  const handleCancelWorkout = useCallback(() => {
+    logTabRef.current?.cancelSession?.()
+  }, [])
 
   // [2026-07-28] 네비게이션 "뒤로가기"(브라우저/기기 백 제스처)로 화면이 그대로 꺼지며
   // 입력 중이던 기록이 사라진다는 피드백 수정. 이 앱은 라우터가 없어 history 엔트리가
@@ -171,6 +177,7 @@ export default function App() {
       <RoutineManager
         uid={authUser.uid}
         templates={routineTemplates}
+        customExercises={userDoc.customExercises || {}}
         isFirstSetup={isFirstSetup}
         onChanged={refreshRoutineTemplates}
         onSkip={isFirstSetup ? handleSkipRoutineSetup : null}
@@ -217,11 +224,14 @@ export default function App() {
           userDoc={userDoc}
           routineTemplates={routineTemplates}
           logsVersion={logsVersion}
+          workoutPhase={workoutPhase}
           onGoToLog={() => setActiveTab('log')}
+          onCancelWorkout={handleCancelWorkout}
         />
       </div>
       <div ref={logScrollRef} style={tabWrapperStyle('log')}>
         <LogTab
+          ref={logTabRef}
           uid={authUser.uid}
           routineTemplates={routineTemplates}
           weightKg={userDoc.onboarding?.weightKg}
@@ -230,6 +240,8 @@ export default function App() {
           restSoundId={userDoc.restTimerSoundId || 'beep'}
           onLogSaved={handleLogSaved}
           onRoutineUpdated={refreshRoutineTemplates}
+          onSessionPhaseChange={setWorkoutPhase}
+          customExercises={userDoc.customExercises || {}}
         />
       </div>
       <div ref={reportScrollRef} style={tabWrapperStyle('report')}>

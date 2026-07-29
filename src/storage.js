@@ -20,6 +20,8 @@ import {
   getDocs,
   serverTimestamp,
   increment,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore'
 
 // ───────────────────────── users/{uid} ─────────────────────────
@@ -37,6 +39,9 @@ const DEFAULT_USER_DOC = {
   restTimerSoundId: 'beep',
   socialNotificationOptIn: false,
   routineSetupSkipped: false, // 최초 루틴 설정에서 "나중에 입력"을 눌렀는지 여부
+  // [2026-07-30 신규] MY탭에서 사용자가 부위별로 직접 추가하는 "나만 보이는" 커스텀 종목.
+  // { [BODY_PART_ATOMS 중 하나]: string[] } 형태. 다른 사용자에게는 노출되지 않는다.
+  customExercises: {},
   seasonXp: 0,
   lifetimeXp: 0,
   lifetimeBadges: [],
@@ -70,6 +75,26 @@ export async function saveOnboarding(uid, onboardingData) {
 
 export async function updateUserProfile(uid, partial) {
   await updateDoc(doc(db, 'users', uid), partial)
+}
+
+// ───────────── users/{uid}.customExercises — 계정 전용 커스텀 종목 ─────────────
+// [2026-07-30 신규] MY탭에서 부위(atom)별로 사용자가 직접 추가하는 운동명. 전체 사용자
+// 공통 라이브러리(exerciseLibrary.js)에는 영향을 주지 않고, 이 계정에서만 선택 가능하다.
+// Firestore 중첩 필드 경로(`customExercises.${atom}`)에 arrayUnion/arrayRemove로 반영하며,
+// 문서에 customExercises 필드가 없던 기존 계정이어도 자동으로 생성된다.
+export async function addCustomExercise(uid, atom, name) {
+  const trimmed = (name || '').trim()
+  if (!atom || !trimmed) return
+  await updateDoc(doc(db, 'users', uid), {
+    [`customExercises.${atom}`]: arrayUnion(trimmed),
+  })
+}
+
+export async function removeCustomExercise(uid, atom, name) {
+  if (!atom || !name) return
+  await updateDoc(doc(db, 'users', uid), {
+    [`customExercises.${atom}`]: arrayRemove(name),
+  })
 }
 
 // ───────────── routineTemplates/{uid}/templates/{templateId} ─────────────

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, BackButton } from './ui'
-import { BODY_PART_ATOMS, buildPartName, getExercisesForPart } from '../utils/exerciseLibrary'
+import { BODY_PART_ATOMS, buildPartName, getExercisesForPart, getCustomExercisesForPart } from '../utils/exerciseLibrary'
 import ExerciseGuideImage from './ExerciseGuideImage'
 
 // [2026-07-28 개편] 고정 5분할(무분할~5분할) 프리셋 선택 화면을 없애고,
@@ -9,7 +9,7 @@ import ExerciseGuideImage from './ExerciseGuideImage'
 // MY탭 "운동조합 변경"(RoutineManager)에서 새 루틴 생성/기존 루틴 수정 시 이 컴포넌트를 사용한다.
 //
 // initialTemplate: { id?, title, parts: [{name, atoms, exercises}] } — 없으면 신규 생성 모드
-export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip, canCancel = true }) {
+export default function RoutineSetup({ initialTemplate, customExercises, onSave, onCancel, onSkip, canCancel = true }) {
   const isEditing = !!initialTemplate
   const [title, setTitle] = useState(initialTemplate?.title || '')
   const [parts, setParts] = useState(initialTemplate?.parts?.map((p) => ({ ...p, exercises: [...(p.exercises || [])] })) || [])
@@ -54,7 +54,7 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
         closePicker()
         return
       }
-      const stillAvailable = getExercisesForPart(name)
+      const stillAvailable = [...getExercisesForPart(name), ...getCustomExercisesForPart(customExercises, name)]
       setParts((prev) =>
         prev.map((p, i) =>
           i !== idx
@@ -147,7 +147,7 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
         <React.Fragment key={part.name}>
           <PartEditor
             part={part}
-            availableExercises={getExercisesForPart(part.name)}
+            availableExercises={[...getExercisesForPart(part.name), ...getCustomExercisesForPart(customExercises, part.name)]}
             onToggle={(name) => toggleExercise(idx, name)}
             onRemovePart={() => removePart(idx)}
             onEditAtoms={() => openEditPartPicker(idx)}

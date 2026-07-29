@@ -10,7 +10,7 @@ const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 // [2026-07-28 신규] "내 루틴"을 최대 8개까지 만들고, 각각 이름을 붙여 관리하는 화면.
 // isFirstSetup === true면 아직 루틴이 하나도 없는 상태(온보딩 직후)로,
 // 최소 1개는 만들어야 메인 화면으로 넘어갈 수 있지만, "나중에 입력"으로 건너뛸 수도 있다.
-export default function RoutineManager({ uid, templates, onChanged, onClose, onSkip, isFirstSetup }) {
+export default function RoutineManager({ uid, templates, customExercises, onChanged, onClose, onSkip, isFirstSetup }) {
   const [editingId, setEditingId] = useState(isFirstSetup ? 'new' : null) // null | 'new' | templateId
   const [error, setError] = useState('')
   // [2026-07-28] MY탭에만 있던 "분할운동 템플릿에서 추가"를 이 화면에도 제공.
@@ -48,6 +48,7 @@ export default function RoutineManager({ uid, templates, onChanged, onClose, onS
     return (
       <RoutineSetup
         initialTemplate={target}
+        customExercises={customExercises}
         canCancel={!(isFirstSetup && templates.length === 0)}
         onSkip={isFirstSetup && templates.length === 0 ? onSkip : null}
         onCancel={closeEditing}

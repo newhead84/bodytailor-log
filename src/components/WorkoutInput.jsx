@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card } from './ui'
@@ -6,6 +6,7 @@ import RestTimer from './RestTimer'
 import {
   calcVolume,
   getExercisesForPart,
+  getCustomExercisesForPart,
   getExerciseColor,
   getExerciseAtom,
   getExerciseDisplayAtom,
@@ -40,6 +41,16 @@ function restSecondsKey(uid) {
   return `bodytailor-rest-seconds-${uid}`
 }
 
+// [2026-07-30 신규] "등&이두&삼두"처럼 '&'로 이어붙인 파트명이 길어지면 칩이 좌우로
+// 넘쳐 스크롤이 생기던 문제 수정: 화면 표시용으로만 앞 2개 부위명 + ".."로 축약한다.
+// (선택값 자체는 원래 파트명 그대로 유지되며, 실제 종목 매칭에는 영향 없음)
+function truncatePartLabel(name) {
+  if (!name) return name
+  const atoms = name.split('&')
+  if (atoms.length <= 2) return name
+  return `${atoms.slice(0, 2).join('&')}..`
+}
+
 function formatClock(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds))
   const h = Math.floor(s / 3600)
@@ -50,7 +61,13 @@ function formatClock(totalSeconds) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
-export default function WorkoutInput({ uid, routineTemplates, weightKg, restNotificationEnabled, restWakeLockEnabled, restSoundId, onSaved, onRoutineUpdated }) {
+// [2026-07-30 신규] 홈탭에서 "운동중" 상태를 보여주고 실수로 시작한 세션을 취소할 수 있도록,
+// 상위(App.jsx)에서 현재 진행 단계(sessionPhase)를 구독(onSessionPhaseChange)하고
+// ref.cancelSession()으로 세션을 취소할 수 있게 forwardRef + useImperativeHandle을 추가했다.
+const WorkoutInput = forwardRef(function WorkoutInput(
+  { uid, routineTemplates, weightKg, restNotificationEnabled, restWakeLockEnabled, restSoundId, onSaved, onRoutineUpdated, onSessionPhaseChange, customExercises },
+  ref
+) {
   const templates = routineTemplates || []
   // 운동조합: 내 루틴(최대 8개) 중 하나 또는 '자유 추가 운동'
   const [sessionType, setSessionType] = useState('routine') // 'routine' | 'extra'
@@ -226,6 +243,42 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
     freeExercises,
     freeCategory,
   ])
+
+  // [2026-07-30] 세션 진행 단계가 바뀔 때마다 상위(App.jsx → HomeTab)에 알려
+  // 홈탭 카드가 "운동중" 상태를 표시할 수 있게 한다.
+  useEffect(() => {
+    onSessionPhaseChange?.(sessionPhase)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionPhase])
+
+  // [2026-07-30 신규] 운동 시작을 잘못 눌렀을 때를 위한 취소. 웜업/본운동 진행 중에만
+  // 노출되며, 세션 상태(단계·타이머·오늘 입력한 기록)를 모두 초기화하고 임시저장(draft)도 지운다.
+  function handleCancelSession() {
+    if (!window.confirm('운동을 취소할까요? 지금까지 입력한 기록은 사라져요.')) return
+    setSessionPhase('idle')
+    setSessionStartAt(null)
+    setWarmupActualSec(null)
+    setPauseStartedAt(null)
+    setPausedAccumMs(0)
+    setRestActive(false)
+    setRecords({})
+    setCompletedExercises({})
+    setHiddenToday([])
+    setFreeExercises([])
+    setAddingExercise(false)
+    setAddingFreeExercise(false)
+    setExpandedExercise(null)
+    if (uid) {
+      try {
+        localStorage.removeItem(draftKey(uid))
+      } catch (e) {
+        // 무시
+      }
+    }
+  }
+
+  // 홈탭의 "취소" 버튼에서도 동일한 취소 동작을 호출할 수 있게 노출.
+  useImperativeHandle(ref, () => ({ cancelSession: handleCancelSession }))
 
   // 운동 시작 버튼은 하나뿐: 누르면 곧바로 웜업이 시작되고(선택할 시간 없음),
   // 준비되면 "본운동 시작" 버튼으로 넘어간다.
@@ -696,7 +749,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 }}>
           {selectedTemplate.parts.map((p) => (
             <Chip key={p.name} active={selectedPartName === p.name} onClick={() => selectPart(p.name)}>
-              {p.name}
+              {truncatePartLabel(p.name)}
             </Chip>
           ))}
         </div>
@@ -837,7 +890,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                   "{selectedPart?.name}" 파트 종목 중에서 골라 추가해 주세요.
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                  {getExercisesForPart(selectedPart?.name)
+                  {[...getExercisesForPart(selectedPart?.name), ...getCustomExercisesForPart(customExercises, selectedPart?.name)]
                     .filter((n) => !partOrder.includes(n))
                     .map((n) => (
                       <Chip key={n} onClick={() => addExerciseToRoutine(n)}>
@@ -872,7 +925,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                 위에서 부위를 고르면({freeCategory} 선택 중) 그 부위 종목 중에서 골라 오늘 세션에 추가할 수 있어요.
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                {getExercisesForPart(freeCategory)
+                {[...getExercisesForPart(freeCategory), ...getCustomExercisesForPart(customExercises, freeCategory)]
                   .filter((n) => !freeExercises.includes(n))
                   .map((n) => (
                     <Chip key={n} onClick={() => addFreeExercise(n)}>
@@ -925,12 +978,20 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
           </Button>
         )}
         {sessionPhase === 'warmup' && (
-          <Button style={{ flex: 1 }} onClick={handleStartMain}>
-            본운동 시작
-          </Button>
+          <>
+            <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={handleCancelSession}>
+              취소
+            </Button>
+            <Button style={{ flex: 1 }} onClick={handleStartMain}>
+              본운동 시작
+            </Button>
+          </>
         )}
         {sessionPhase === 'main' && (
           <>
+            <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={handleCancelSession}>
+              취소
+            </Button>
             <div style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0, whiteSpace: 'nowrap' }}>
               오늘 볼륨
               <div className="record-notation" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>
@@ -945,7 +1006,9 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
       </div>
     </div>
   )
-}
+})
+
+export default WorkoutInput
 
 // [2026-07-28] 운동완료 축하 팝업. 격려 문구 + 획득 XP + 체크마크 애니메이션.
 // 배경을 눌러도 닫히지 않게(다음 행동 유도) 버튼으로만 닫는다.

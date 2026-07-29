@@ -2,6 +2,34 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-07-30] 사용자 피드백 4건 반영
+- (1) 홈탭: 기록탭에서 웜업/본운동이 시작되면(기록하러 가기·기록탭 직접 진입·"한 세트 더?"
+  모두 포함) 홈탭 카드가 "운동중 · 이어서 하기"로 바뀌고, 실수로 시작했을 때를 위한 별도
+  취소 버튼을 추가. 취소 시 세션 단계/타이머/오늘 입력한 기록/임시저장(draft)을 모두
+  초기화하고 idle로 되돌림(확인창 포함). 기록탭 하단 고정바(웜업/본운동 단계)에도 동일한
+  취소 버튼을 추가 | WorkoutInput.jsx(forwardRef+useImperativeHandle로 cancelSession 노출,
+  onSessionPhaseChange로 단계 보고), LogTab.jsx(ref/prop 통과), App.jsx(workoutPhase 상태 +
+  logTabRef), HomeTab.jsx(운동중 카드 UI)
+- (2) 기록탭: "등&이두&삼두"처럼 '&'로 이어붙인 분할 파트 칩 라벨이 길어 좌우 스크롤이
+  생기던 문제 수정. 화면 표시만 앞 2개 부위명 + ".."로 축약(선택값·실제 종목 매칭에는
+  영향 없음) | WorkoutInput.jsx(truncatePartLabel 신규)
+- (3) 리포트탭: "부위별 운동 추이" 레이더 차트가 라벨 겹침 방지를 위해 margin을 여러 번
+  키우고 outerRadius를 38%까지 줄여둔 결과, 차트와 카드 사이 여백만 과도해지고 차트 도형
+  자체가 작아 보이던 문제 수정. margin을 라벨이 카드 밖으로 잘리지 않을 최소한(20/28px)으로
+  줄이고 outerRadius를 38%→50%로 다시 키워 카드 크기는 그대로 두고 차트만 확대 | ReportTab.jsx
+- (4) MY탭: ① 부위별로 "나만 보이는" 커스텀 종목을 추가/삭제하는 섹션 신규 추가. 계정 전용
+  데이터(users/{uid}.customExercises, 부위별 배열)로 저장되며 다른 사용자에게는 노출되지
+  않음. 기록탭의 "+ 종목 추가"(내 루틴 파트·자유 추가 운동)와 루틴 편집 화면의 종목
+  선택 목록에 공통 라이브러리 종목과 함께 노출됨. ② 중복/희귀 종목 정리: 힙어덕션머신
+  삭제(힙어브덕션머신만 유지), 재이콥스래더 삭제(한국 내 비일반적 머신), 동작 가이드
+  이미지가 없던 나머지 6종(헥스프레스/뉴트럴그립랫풀다운/펜들레이로우/체스트서포티드로우/
+  브이스쿼트/행잉니레이즈/시티드니업머신) 삭제 | storage.js(customExercises 기본필드 +
+  addCustomExercise/removeCustomExercise), exerciseLibrary.js(getAtomsForPartName 추출 +
+  getCustomExercisesForPart 신규, REPS_ONLY_EXERCISES 갱신, 종목 목록 정리),
+  exerciseImageMap.js(대응 매핑/주석 정리), MyPageTab.jsx(UI 섹션 신규),
+  WorkoutInput.jsx(두 종목 피커에 커스텀 종목 병합), App.jsx→RoutineManager.jsx→
+  RoutineSetup.jsx(customExercises prop 전달 체인, 종목 피커 병합)
+
 [2026-07-29] 사용자 피드백 5건 반영
 - (1) 하단 4탭: 이미 보고 있는 탭을 한 번 더 누르면 그 탭 자신의 스크롤 위치를 맨 위로
   되돌림 | App.jsx (탭별 scroll ref + handleTabPress. BottomNav.jsx는 수정 없음)

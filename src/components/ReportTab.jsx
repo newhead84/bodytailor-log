@@ -457,12 +457,17 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
               피드백으로, 카드 높이를 늘리고 outerRadius를 줄이며 사방에 margin을 둬서
               라벨과 차트 사이에 여백을 확보했다.
               [2026-07-29 추가 수정] 그래도 겹침이 남는다는 피드백으로 outerRadius를 52%→38%로
-              더 줄이고 margin/카드 높이를 한 번 더 키웠다. 2번째 줄(볼륨·세트수)은 클릭/호버
-              없이 항상 보여야 한다는 요구사항이라 텍스트를 툴팁으로 옮기지 않고 그대로 유지. */}
+              더 줄이고 margin/카드 높이를 한 번 더 키웠다.
+              [2026-07-30 재수정] 위 수정 이후 "라벨과 차트 사이"가 아니라 "차트와 박스(카드)
+              사이" 여백만 과도하게 늘어 차트 도형 자체가 작아 보인다는 피드백. margin은
+              라벨 텍스트가 카드 밖으로 잘리지 않을 최소한(20/28px)으로 줄이고, outerRadius를
+              38%→50%로 다시 키워 카드 크기는 그대로 두고 차트 도형만 키웠다. 2번째 줄
+              (볼륨·세트수)은 클릭/호버 없이 항상 보여야 한다는 요구사항이라 텍스트를 툴팁으로
+              옮기지 않고 그대로 유지. */}
           <SectionTitle>부위별 운동 추이</SectionTitle>
           <Card style={{ marginBottom: 8, height: 380 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={bodyPartRadar} outerRadius="38%" margin={{ top: 32, right: 40, bottom: 32, left: 40 }}>
+              <RadarChart data={bodyPartRadar} outerRadius="50%" margin={{ top: 20, right: 28, bottom: 20, left: 28 }}>
                 <PolarGrid stroke="var(--color-line)" />
                 <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={bodyPartThisWeekDetail} />} />
                 {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.

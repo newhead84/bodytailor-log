@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { Card, SectionTitle, Button, Chip, TierBadge } from './ui'
-import { updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '../storage'
+import { updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
 import { logout } from '../firebase'
 import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
-import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset } from '../utils/exerciseLibrary'
+import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS } from '../utils/exerciseLibrary'
 import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
 
 // [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
@@ -30,6 +30,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   const [pickingSplitTemplate, setPickingSplitTemplate] = useState(false)
   const [addingTemplateKey, setAddingTemplateKey] = useState(null)
   const [templateError, setTemplateError] = useState('')
+  // [2026-07-30 신규] MY탭 "내 커스텀 종목" — 부위별로 나만 보이는 운동명을 추가/삭제.
+  const [customExercisePart, setCustomExercisePart] = useState(BODY_PART_ATOMS[0])
+  const [customExerciseInput, setCustomExerciseInput] = useState('')
+  const [savingCustomExercise, setSavingCustomExercise] = useState(false)
+  const customExercises = userDoc?.customExercises || {}
   const [profileForm, setProfileForm] = useState(() => ({
     nickname: userDoc?.nickname || '',
     gender: userDoc?.onboarding?.gender || '',
@@ -170,6 +175,32 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
     } finally {
       setAddingTemplateKey(null)
     }
+  }
+
+  // 나만 보이는 커스텀 종목 추가. 같은 부위에 이미 있는 이름(또는 공통 라이브러리와 겹치는
+  // 이름)은 중복 추가하지 않는다.
+  async function handleAddCustomExercise() {
+    const trimmed = customExerciseInput.trim().slice(0, 20)
+    if (!trimmed) return
+    const existing = customExercises[customExercisePart] || []
+    if (existing.includes(trimmed)) {
+      setCustomExerciseInput('')
+      return
+    }
+    setSavingCustomExercise(true)
+    try {
+      await addCustomExercise(uid, customExercisePart, trimmed)
+      await onProfileUpdated?.()
+      setCustomExerciseInput('')
+    } finally {
+      setSavingCustomExercise(false)
+    }
+  }
+
+  async function handleRemoveCustomExercise(name) {
+    if (!window.confirm(`"${name}"을(를) 삭제할까요? 이미 루틴/기록에 추가된 항목은 그대로 남아요.`)) return
+    await removeCustomExercise(uid, customExercisePart, name)
+    await onProfileUpdated?.()
   }
 
   return (
@@ -393,6 +424,69 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
               </button>
             </div>
           )}
+        </div>
+      </Card>
+
+      <SectionTitle>내 커스텀 종목</SectionTitle>
+      <Card style={{ marginBottom: 20 }}>
+        <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+          부위를 고르고 운동명을 추가하면, 이후 기록탭·루틴 편집에서 나만 볼 수 있는 종목으로 선택할 수 있어요.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {BODY_PART_ATOMS.map((atom) => (
+            <Chip key={atom} active={customExercisePart === atom} onClick={() => setCustomExercisePart(atom)}>
+              {atom}
+            </Chip>
+          ))}
+        </div>
+
+        {(customExercises[customExercisePart] || []).length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            {(customExercises[customExercisePart] || []).map((name) => (
+              <div
+                key={name}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  border: '1px solid var(--color-line)',
+                  background: 'var(--color-bg-card)',
+                  fontSize: 13,
+                }}
+              >
+                <span>{name}</span>
+                <button
+                  onClick={() => handleRemoveCustomExercise(name)}
+                  style={{ fontSize: 12, color: 'var(--color-label-neutral)', lineHeight: 1 }}
+                  aria-label={`${name} 삭제`}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={customExerciseInput}
+            onChange={(e) => setCustomExerciseInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAddCustomExercise()
+            }}
+            placeholder={`${customExercisePart} 운동명 입력`}
+            style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
+          />
+          <Button
+            variant="secondary"
+            style={{ flexShrink: 0 }}
+            onClick={handleAddCustomExercise}
+            disabled={!customExerciseInput.trim() || savingCustomExercise}
+          >
+            추가
+          </Button>
         </div>
       </Card>
 

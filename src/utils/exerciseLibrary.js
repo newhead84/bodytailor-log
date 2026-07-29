@@ -1,4 +1,8 @@
 // exerciseLibrary.js
+// [2026-07-30] 사용자 피드백 반영: 중복 종목(힙어덕션머신 - 힙어브덕션머신과 동일 취급) 및
+//   한국 내 헬스장에서 흔하지 않은 머신(재이콥스래더) 삭제, 동작 가이드 이미지가 없는 나머지
+//   종목(헥스프레스/뉴트럴그립랫풀다운/펜들레이로우/체스트서포티드로우/브이스쿼트/행잉니레이즈/
+//   시티드니업머신)도 함께 삭제해 라이브러리를 단순화했다. (관련 매핑은 exerciseImageMap.js도 동일 반영)
 // [2026-07-28] 운동 종목 DB 확충 + 부위 세분화(이두/삼두 분리) + 정식 웨이트 트레이닝 명칭으로 정리.
 //   - 기존에는 사용자가 실제로 쓰던 소수 종목만 있었고, 이두/삼두는 화면 노출 시 '팔'로 합쳐서 보여줬음.
 //   - 이번 개편으로 각 부위별 머신/케이블/프리웨이트(덤벨·바벨·스미스머신) 종목을 폭넓게 추가하고,
@@ -26,18 +30,14 @@ export const EXERCISE_LIBRARY = {
     '체스트딥스',
     '푸시업',
     '스벤드프레스',
-    '헥스프레스',
   ],
   '등': [
     '랫풀다운',
     '리버스그립랫풀다운',
-    '뉴트럴그립랫풀다운',
     '바벨로우',
-    '펜들레이로우',
     '원암덤벨로우',
     'T바로우',
     '시티드케이블로우',
-    '체스트서포티드로우',
     '하이로우머신',
     '스트레이트암풀다운',
     '풀업',
@@ -89,7 +89,6 @@ export const EXERCISE_LIBRARY = {
     '레그컬(시티드)',
     '루마니안데드리프트',
     '레그프레스',
-    '브이스쿼트',
     '백스쿼트',
     '프론트스쿼트',
     '스미스머신스쿼트',
@@ -99,19 +98,16 @@ export const EXERCISE_LIBRARY = {
     '스탠딩카프레이즈',
     '시티드카프레이즈',
     '힙어브덕션머신',
-    '힙어덕션머신',
     '굿모닝',
   ],
   '코어': [
     '행잉레그레이즈',
-    '행잉니레이즈',
     '플랭크',
     '사이드플랭크',
     '크런치',
     '디클라인싯업',
     '러시안트위스트',
     '케이블크런치',
-    '시티드니업머신',
     '앱롤아웃',
     '케이블우드촙',
   ],
@@ -124,7 +120,6 @@ export const EXERCISE_LIBRARY = {
     '일립티컬',
     '스텝밀',
     '에어바이크',
-    '재이콥스래더',
   ],
 }
 
@@ -185,15 +180,28 @@ const PART_ATOM_MAP = {
   '전신': ['가슴', '등', '어깨', '이두', '삼두', '하체'],
 }
 
+// 파트명(예: '등&이두&삼두', '가슴&하체' 등 '&'로 이어붙인 자유 조합명)을 받아
+// 해당하는 원자 부위(atom) 배열로 풀어준다. 매핑에 없는 토큰은 무시한다.
+export function getAtomsForPartName(partName) {
+  if (!partName) return []
+  const atoms = partName.split('&').flatMap((token) => PART_ATOM_MAP[token.trim()] || [])
+  return [...new Set(atoms)]
+}
+
 // 파트명(예: '등&이두&삼두', '가슴&하체' 등 '&'로 이어붙인 자유 조합명)을 받아 해당 파트에서
 // 골라야 할 운동명 목록을 반환한다. 매핑에 없는 이름은 안전하게 빈 배열을 반환한다.
 export function getExercisesForPart(partName) {
-  if (!partName) return []
-  const atoms = partName
-    .split('&')
-    .flatMap((token) => PART_ATOM_MAP[token.trim()] || [])
-  const uniqueAtoms = [...new Set(atoms)]
+  const uniqueAtoms = getAtomsForPartName(partName)
   const names = uniqueAtoms.flatMap((atom) => EXERCISE_LIBRARY[atom] || [])
+  return [...new Set(names)]
+}
+
+// [2026-07-30 신규] users/{uid}.customExercises(부위별 계정 전용 커스텀 종목)를
+// 공통 라이브러리 종목과 합쳐서 반환한다. partName은 '등&이두'처럼 복합 파트명도 지원.
+export function getCustomExercisesForPart(customExercises, partName) {
+  if (!customExercises || !partName) return []
+  const uniqueAtoms = getAtomsForPartName(partName)
+  const names = uniqueAtoms.flatMap((atom) => customExercises[atom] || [])
   return [...new Set(names)]
 }
 
@@ -209,7 +217,7 @@ export const ALL_EXERCISE_NAMES = Object.values(EXERCISE_LIBRARY).flat()
 //   - 'cardio' : 세트 개념 없이 경사(incline)/속도(speedKmh)/시간(durationMin) 입력('유산소' 부위 전체)
 //   - 'sets'   : 기본값(중량 kg × 횟수)
 // 이 목록에 없는 신규/사용자 추가 종목은 기본 'sets'로 동작한다.
-export const REPS_ONLY_EXERCISES = ['푸시업', '행잉레그레이즈', '행잉니레이즈']
+export const REPS_ONLY_EXERCISES = ['푸시업', '행잉레그레이즈']
 
 export function getExerciseInputType(name) {
   if (!name) return 'sets'

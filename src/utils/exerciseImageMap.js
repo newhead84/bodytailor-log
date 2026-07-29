@@ -2,9 +2,11 @@
 // [2026-07-28] 운동 종목별 동작 가이드 이미지 연동을 위한 매핑 테이블 신규 추가.
 //   - 데이터 출처: free-exercise-db (https://github.com/yuhonas/free-exercise-db), Unlicense(퍼블릭 도메인).
 //   - 이 앱의 한글 종목명(exerciseLibrary.js) → 위 데이터셋의 영문 종목명으로 1:1 매핑한다.
-//   - 데이터셋에 대응하는 종목이 없거나 애매한 경우(예: 헥스프레스, 재이콥스래더 등)는
-//     매핑을 만들지 않는다. exerciseImageApi.js가 매핑이 없으면 null을 반환하고,
-//     화면에서는 '이미지 준비중'으로 표시한다.
+//   - 데이터셋에 대응하는 종목이 없거나 애매한 경우는 매핑을 만들지 않는다.
+//     exerciseImageApi.js가 매핑이 없으면 null을 반환하고, 화면에서는 '이미지 준비중'으로 표시한다.
+// [2026-07-30] 매핑이 없던 종목들(헥스프레스/뉴트럴그립랫풀다운/펜들레이로우/체스트서포티드로우/
+//   브이스쿼트/행잉니레이즈/시티드니업머신/재이콥스래더)과 중복 종목(힙어덕션머신)을
+//   exerciseLibrary.js에서 함께 삭제해, 아래 목록은 이제 라이브러리 전체 종목과 1:1로 대응한다.
 export const EXERCISE_IMAGE_MAP = {
   // 가슴
   '플랫바벨프레스': 'Barbell Bench Press - Medium Grip',
@@ -23,7 +25,6 @@ export const EXERCISE_IMAGE_MAP = {
   '체스트딥스': 'Dips - Chest Version',
   '푸시업': 'Pushups',
   '스벤드프레스': 'Svend Press',
-  // '헥스프레스': 매칭 없음
 
   // 등
   '랫풀다운': 'Wide-Grip Lat Pulldown',
@@ -39,7 +40,6 @@ export const EXERCISE_IMAGE_MAP = {
   '데드리프트': 'Barbell Deadlift',
   '백익스텐션': 'Hyperextensions (Back Extensions)',
   '바벨슈러그': 'Barbell Shrug',
-  // '뉴트럴그립랫풀다운', '펜들레이로우', '체스트서포티드로우': 매칭 없음
 
   // 어깨
   '머신숄더프레스': 'Leverage Shoulder Press',
@@ -93,9 +93,7 @@ export const EXERCISE_IMAGE_MAP = {
   '스탠딩카프레이즈': 'Standing Calf Raises',
   '시티드카프레이즈': 'Seated Calf Raise',
   '힙어브덕션머신': 'Thigh Abductor',
-  '힙어덕션머신': 'Thigh Adductor',
   '굿모닝': 'Good Morning',
-  // '브이스쿼트': 매칭 없음(데이터셋에 해당 머신 종목 없음)
 
   // 코어
   '행잉레그레이즈': 'Hanging Leg Raise',
@@ -107,7 +105,6 @@ export const EXERCISE_IMAGE_MAP = {
   '케이블크런치': 'Cable Crunch',
   '앱롤아웃': 'Ab Roller',
   '케이블우드촙': 'Standing Cable Wood Chop',
-  // '행잉니레이즈', '시티드니업머신': 매칭 없음
 
   // 유산소
   '트레드밀': 'Running, Treadmill',
@@ -118,5 +115,4 @@ export const EXERCISE_IMAGE_MAP = {
   '일립티컬': 'Elliptical Trainer',
   '스텝밀': 'Stairmaster',
   '에어바이크': 'Air Bike',
-  // '재이콥스래더': 매칭 없음
 }
