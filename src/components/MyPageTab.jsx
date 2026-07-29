@@ -177,7 +177,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
       <SectionTitle>등급</SectionTitle>
       <Card onClick={onShowTierInfo} style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <TierBadge label={tier.label} size="lg" />
+          <TierBadge label={tier.label} tierKey={tier.key} size="lg" />
           <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
             {xp.toLocaleString()} XP
           </span>

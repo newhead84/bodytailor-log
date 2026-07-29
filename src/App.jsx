@@ -22,6 +22,7 @@ import ReportTab from './components/ReportTab'
 import TierInfoScreen from './components/TierInfoScreen'
 import MyPageTab from './components/MyPageTab'
 import SplashScreen from './components/SplashScreen'
+import { useBackableScreen } from './hooks/useBackableScreen'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
@@ -94,6 +95,14 @@ export default function App() {
     setRoutineTemplates(templates)
   }, [authUser])
 
+  // [2026-07-29] 하단 4탭 내에서 "화면이 바뀌는" 세부화면(운동조합 변경, 등급 정보) 진입 시
+  // 기기 뒤로가기를 누르면 해당 화면만 닫히도록 연결한다. (내부의 파트 추가/수정 화면은
+  // RoutineSetup.jsx에서 별도로 같은 훅을 사용해 중첩 처리한다.)
+  const closeManagingRoutines = useCallback(() => setManagingRoutines(false), [])
+  const closeTierInfo = useCallback(() => setShowTierInfo(false), [])
+  useBackableScreen(managingRoutines, closeManagingRoutines)
+  useBackableScreen(showTierInfo, closeTierInfo)
+
   async function handleOnboardingComplete(onboardingData) {
     await saveOnboarding(authUser.uid, onboardingData)
     await refreshUserDoc()
@@ -144,14 +153,14 @@ export default function App() {
         isFirstSetup={isFirstSetup}
         onChanged={refreshRoutineTemplates}
         onSkip={isFirstSetup ? handleSkipRoutineSetup : null}
-        onClose={() => setManagingRoutines(false)}
+        onClose={closeManagingRoutines}
       />
     )
   }
 
   // MY탭 등급 카드를 탭하면 티어 체계/XP 설명을 별도 전체 화면으로 보여준다.
   if (showTierInfo) {
-    return <TierInfoScreen xp={userDoc.seasonXp || 0} onClose={() => setShowTierInfo(false)} />
+    return <TierInfoScreen xp={userDoc.seasonXp || 0} onClose={closeTierInfo} />
   }
 
   // 리포트 탭의 "주간 목표 세션 수"는 다중 루틴 모델에서는 대표값이 필요해,

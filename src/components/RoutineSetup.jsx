@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card } from './ui'
+import { Button, Chip, Card, BackButton } from './ui'
 import { BODY_PART_ATOMS, buildPartName, getExercisesForPart } from '../utils/exerciseLibrary'
 import ExerciseGuideImage from './ExerciseGuideImage'
 
@@ -110,11 +110,7 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
 
   return (
     <div style={{ padding: '24px 20px 120px', height: '100%', overflowY: 'auto' }}>
-      {canCancel && (
-        <button onClick={onCancel} style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginBottom: 12 }}>
-          ← 취소하고 돌아가기
-        </button>
-      )}
+      {canCancel && <BackButton onClick={onCancel}>취소하고 돌아가기</BackButton>}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
         <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: 0 }}>
           {isEditing ? '내 루틴 수정' : '새 루틴 만들기'}
@@ -248,12 +244,16 @@ function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAt
           </button>
         </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* [2026-07-29] 종목을 세로 1줄씩(column) 배치하다 보니 i버튼 유무와 상관없이
+          항목 하나당 1행을 차지해 목록이 너무 길어진다는 피드백을 받았다. 기존처럼
+          여러 종목이 한 줄에 나란히 배치되도록 flex-wrap으로 되돌리고, i버튼을 눌러
+          이미지를 열었을 때만 그 줄 바로 아래에 전체 너비로 펼쳐지도록 했다. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, rowGap: 10 }}>
         {availableExercises.map((name) => {
           const isOpen = openNames.has(name)
           return (
-            <div key={name}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <React.Fragment key={name}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Chip active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
                   {name}
                 </Chip>
@@ -276,11 +276,11 @@ function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAt
                 </button>
               </div>
               {isOpen && (
-                <div style={{ marginTop: 6 }}>
+                <div style={{ width: '100%', margin: '-2px 0 2px' }}>
                   <ExerciseGuideImage name={name} />
                 </div>
               )}
-            </div>
+            </React.Fragment>
           )
         })}
       </div>
@@ -334,8 +334,9 @@ function PartOrderRow({ name }) {
           title="눌러서 위아래로 드래그"
           style={{
             flexShrink: 0,
-            width: 22,
-            height: 22,
+            width: 40,
+            height: 40,
+            margin: '-9px -9px -9px 0',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

@@ -1,6 +1,10 @@
 import React from 'react'
-import { Card, SectionTitle, TierBadge } from './ui'
+import { Card, SectionTitle, TierBadge, BackButton } from './ui'
 import { TIERS, getTierByXp } from '../utils/tier'
+
+// [2026-07-29] MY탭 "등급" 카드에서 진입했을 때, 티어 목록을 레전드가 맨 위로 오도록
+// 표시 순서만 뒤집는다(경계값 계산 등 로직은 TIERS 원래 순서를 그대로 사용).
+const TIERS_DESC = [...TIERS].reverse()
 
 // [2026-07-28] MY탭 "등급" 카드를 탭하면 진입하는 전체 화면.
 // 티어 체계(아이언~레전드) 경계값과, 시즌 XP를 어떻게 얻는지(storage.js의
@@ -10,22 +14,21 @@ export default function TierInfoScreen({ xp, onClose }) {
 
   return (
     <div style={{ padding: '24px 20px 40px', height: '100%', overflowY: 'auto' }}>
-      <button onClick={onClose} style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginBottom: 12 }}>
-        ← 돌아가기
-      </button>
+      <BackButton onClick={onClose} />
       <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
         티어 & XP 안내
       </h1>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-        지금 내 등급은 <TierBadge label={currentTier.label} size="sm" />, {xp.toLocaleString()} XP예요.
+        지금 내 등급은 <TierBadge label={currentTier.label} tierKey={currentTier.key} size="sm" />, {xp.toLocaleString()} XP예요.
       </p>
 
       <SectionTitle>티어 체계</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {TIERS.map((t, i) => {
+          {TIERS_DESC.map((t) => {
             const isCurrent = t.key === currentTier.key
-            const nextMin = TIERS[i + 1]?.min
+            const originalIdx = TIERS.findIndex((x) => x.key === t.key)
+            const nextMin = TIERS[originalIdx + 1]?.min
             return (
               <div
                 key={t.key}
@@ -38,7 +41,7 @@ export default function TierInfoScreen({ xp, onClose }) {
                   background: isCurrent ? 'var(--color-primary-bg)' : 'transparent',
                 }}
               >
-                <TierBadge label={t.label} size="sm" />
+                <TierBadge label={t.label} tierKey={t.key} size="sm" />
                 <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
                   {nextMin != null ? `${t.min.toLocaleString()} ~ ${(nextMin - 1).toLocaleString()} XP` : `${t.min.toLocaleString()}+ XP`}
                 </span>

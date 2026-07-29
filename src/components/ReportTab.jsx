@@ -49,6 +49,22 @@ function startOfWeek(d) {
   return date
 }
 
+// [2026-07-29 신규] 레이더 차트 부위 축 라벨 아래에 이번 주 볼륨·세트 수를 함께 표기하는
+// 커스텀 tick. recharts가 x/y/payload/textAnchor 등을 자동으로 주입해준다.
+function BodyPartAxisTick({ x, y, payload, textAnchor, detail }) {
+  const stat = detail?.[payload?.value]
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor={textAnchor} fontSize={11} fill="var(--color-label-normal)" fontWeight={600}>
+        {payload?.value}
+      </text>
+      <text textAnchor={textAnchor} dy={14} fontSize={9} fill="var(--color-label-neutral)">
+        {stat ? `볼륨 ${Math.round(stat.volume)} · ${stat.sets}세트` : '기록 없음'}
+      </text>
+    </g>
+  )
+}
+
 function byExercise(logs) {
   const map = {}
   logs.forEach((log) => {
@@ -201,6 +217,28 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3 }) {
     }))
   }, [bodyPartWeekly, presentBodyParts])
 
+  // [2026-07-29 신규] 레이더 차트 축 눈금(반지름 숫자)이 90도로 꺾여서 나와 의미를 알기 어렵다는
+  // 피드백으로 그 숫자는 없애고, 대신 각 부위 라벨 아래에 이번 주 볼륨·세트 수를 직접 표기하기
+  // 위한 집계. (하단의 커스텀 PolarAngleAxis tick에서 사용)
+  const bodyPartThisWeekDetail = useMemo(() => {
+    const today = new Date()
+    const weekStart = startOfWeek(today)
+    const fmt = (d) => d.toISOString().slice(0, 10)
+    const detail = {}
+    logs
+      .filter((l) => l.date >= fmt(weekStart))
+      .forEach((log) => {
+        log.exercises?.forEach((ex) => {
+          const atom = getExerciseAtom(ex.name) || '기타'
+          const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
+          if (!detail[atom]) detail[atom] = { volume: 0, sets: 0 }
+          detail[atom].volume += volume
+          detail[atom].sets += ex.sets.length
+        })
+      })
+    return detail
+  }, [logs])
+
   // ── 점진적 과부하 진행상황 (신규) ──
   const overloadProgress = useMemo(() => {
     const today = new Date()
@@ -298,7 +336,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3 }) {
                   <span style={{ width: 24, textAlign: 'center', fontWeight: 800, color: 'var(--color-label-neutral)' }}>{i + 1}</span>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{e.nickname}{isMe ? ' (나)' : ''}</div>
-                    <TierBadge label={tier.label} size="sm" />
+                    <TierBadge label={tier.label} tierKey={tier.key} size="sm" />
                   </div>
                 </div>
                 <span className="record-notation" style={{ fontWeight: 800, fontSize: 16 }}>
@@ -343,12 +381,14 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3 }) {
 
           {/* 부위별 운동 추이 (2026-07-29: 스택 막대 → 레이더 차트로 교체) */}
           <SectionTitle>부위별 운동 추이</SectionTitle>
-          <Card style={{ marginBottom: 8, height: 260 }}>
+          <Card style={{ marginBottom: 8, height: 290 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={bodyPartRadar} outerRadius="72%">
+              <RadarChart data={bodyPartRadar} outerRadius="65%">
                 <PolarGrid stroke="var(--color-line)" />
-                <PolarAngleAxis dataKey="part" tick={{ fontSize: 11, fill: 'var(--color-label-normal)' }} />
-                <PolarRadiusAxis tick={{ fontSize: 9, fill: 'var(--color-label-neutral)' }} axisLine={false} />
+                <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={bodyPartThisWeekDetail} />} />
+                {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.
+                    대신 위 커스텀 축 라벨에서 부위별 이번 주 볼륨·세트 수를 직접 보여준다. */}
+                <PolarRadiusAxis tick={false} axisLine={false} />
                 <Radar
                   name="지난주"
                   dataKey="지난주"

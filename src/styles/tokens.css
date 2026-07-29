@@ -41,12 +41,15 @@
   --color-warning: #ffb84d;
 
   /* Tier colors */
-  --tier-iron: #8b95a1;
-  --tier-bronze: #b5651d;
-  --tier-silver: #9aa5b1;
-  --tier-gold: #f5b400;
-  --tier-platinum: #34c0c9;
-  --tier-diamond: #4f7cff;
+  /* [2026-07-29] 등급이 올라갈수록 화려하고 빛나게 보이도록, 이전까지 정의만 되어 있고
+     실제로는 TierBadge에 연결되지 않았던 티어별 색상을 연결했다(8-9번 요청).
+     아이언은 사용자가 "칙칙한 골드가 좋다"고 한 기존 색(--color-primary-strong)을 그대로 유지. */
+  --tier-iron: #b8860b;
+  --tier-bronze: #c97a3d;
+  --tier-silver: #d7dbe0;
+  --tier-gold: #ffc94d;
+  --tier-platinum: #5eead4;
+  --tier-diamond: #7aa2ff;
   --tier-legend: linear-gradient(135deg, #ff9f43, #ff4d9d 50%, #7b5cff);
 
   /* Typography scale */

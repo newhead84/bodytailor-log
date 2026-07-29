@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
-import { Button, Card } from './ui'
+import React, { useCallback, useState } from 'react'
+import { Button, Card, BackButton } from './ui'
 import RoutineSetup from './RoutineSetup'
 import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '../storage'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset } from '../utils/exerciseLibrary'
+import { useBackableScreen } from '../hooks/useBackableScreen'
 
 const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 
@@ -15,6 +16,13 @@ export default function RoutineManager({ uid, templates, onChanged, onClose, onS
   // [2026-07-28] MY탭에만 있던 "분할운동 템플릿에서 추가"를 이 화면에도 제공.
   const [pickingSplitTemplate, setPickingSplitTemplate] = useState(false)
   const [addingTemplateKey, setAddingTemplateKey] = useState(null)
+
+  // [2026-07-29] "+ 새 루틴 추가"/"수정"으로 들어가는 RoutineSetup 화면도 상단에
+  // "← 취소하고 돌아가기"가 있는 화면 전환이므로, 기기 뒤로가기로도 닫히도록 연결한다.
+  // 단, 최초 설정(isFirstSetup)에서 루틴이 하나도 없어 취소 자체가 불가능한 경우는 제외.
+  const canCancelEditing = !(isFirstSetup && templates.length === 0)
+  const closeEditing = useCallback(() => setEditingId(null), [])
+  useBackableScreen(!!editingId && canCancelEditing, closeEditing)
 
   async function handleAddSplitTemplate(preset) {
     if (templates.length >= MAX_ROUTINES) {
@@ -42,7 +50,7 @@ export default function RoutineManager({ uid, templates, onChanged, onClose, onS
         initialTemplate={target}
         canCancel={!(isFirstSetup && templates.length === 0)}
         onSkip={isFirstSetup && templates.length === 0 ? onSkip : null}
-        onCancel={() => setEditingId(null)}
+        onCancel={closeEditing}
         onSave={async (data) => {
           setError('')
           try {
@@ -65,11 +73,7 @@ export default function RoutineManager({ uid, templates, onChanged, onClose, onS
 
   return (
     <div style={{ padding: '24px 20px 40px', height: '100%', overflowY: 'auto' }}>
-      {!isFirstSetup && (
-        <button onClick={onClose} style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginBottom: 12 }}>
-          ← 돌아가기
-        </button>
-      )}
+      {!isFirstSetup && <BackButton onClick={onClose} />}
       <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
         내 루틴 ({templates.length}/{MAX_ROUTINES})
       </h1>

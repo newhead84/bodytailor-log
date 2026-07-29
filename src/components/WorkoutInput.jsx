@@ -1006,6 +1006,9 @@ function SortableExerciseItem({ name, onDragEnd, children }) {
         onDragEnd?.(e, info)
       }}
       layout={isDragging ? 'position' : false}
+      // [2026-07-29] 드래그로 순서가 바뀔 때 기본 스프링 트랜지션이 목표 위치를 지나쳤다가
+      // 되돌아오며 "튕기는" 느낌을 줘서, 오버슈트가 없는 부드러운 tween으로 교체했다.
+      transition={{ type: 'tween', duration: 0.18, ease: 'easeOut' }}
       initial={false}
       style={{ listStyle: 'none' }}
     >
@@ -1167,7 +1170,6 @@ function ExerciseCard({
             <SetRow
               key={idx}
               set={set}
-              showLabel={idx === 0}
               inputType={inputType}
               weightStep={weightStep}
               onWeightChange={(v) => onWeightChange(idx, v)}
@@ -1187,47 +1189,28 @@ function ExerciseCard({
   )
 }
 
-function SetRow({ set, showLabel, inputType, weightStep, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
+// [2026-07-29] 운동당 첫 세트에서만 스테퍼 위에 별도 "중량"/"회" 라벨(LabeledStepper)을
+// 얹어 단위를 구분해줬는데, 그 라벨 줄 때문에 첫 세트 행의 높이가 다른 세트들과 달라져
+// 옆의 저장/복사 버튼과 세로 정렬이 어긋난다는 피드백을 받았다. 라벨 줄 없이도 각 인풋의
+// placeholder(중량은 "kg", 횟수는 "회" 등)로 이미 단위를 구분할 수 있어, 모든 세트가
+// 동일하게 Stepper(placeholder만 사용)를 쓰도록 통일했다.
+function SetRow({ set, inputType, weightStep, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, flexShrink: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 }}>
         {inputType === 'cardio' ? (
           <>
-            {showLabel ? (
-              <LabeledStepper label="경사%" value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} width={38} />
-            ) : (
-              <Stepper value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} placeholder="경사%" width={38} />
-            )}
-            {showLabel ? (
-              <LabeledStepper label="km/h" value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} width={40} />
-            ) : (
-              <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} placeholder="km/h" width={40} />
-            )}
-            {showLabel ? (
-              <LabeledStepper label="분" value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} width={36} />
-            ) : (
-              <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" width={36} />
-            )}
+            <Stepper value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} placeholder="경사%" width={38} />
+            <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} placeholder="km/h" width={40} />
+            <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" width={36} />
           </>
         ) : inputType === 'reps' ? (
-          showLabel ? (
-            <LabeledStepper label="회" value={set.reps} onChange={onRepsChange} step={1} width={44} />
-          ) : (
-            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={44} />
-          )
+          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={44} />
         ) : (
           <>
-            {showLabel ? (
-              <LabeledStepper label="kg" value={set.weight} onChange={onWeightChange} step={weightStep} width={44} />
-            ) : (
-              <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder="kg" width={44} />
-            )}
-            <span style={{ color: 'var(--color-label-neutral)', paddingBottom: 8, flexShrink: 0 }}>×</span>
-            {showLabel ? (
-              <LabeledStepper label="회" value={set.reps} onChange={onRepsChange} step={1} width={32} />
-            ) : (
-              <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={32} />
-            )}
+            <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder="kg" width={44} />
+            <span style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }}>×</span>
+            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={32} />
           </>
         )}
       </div>
@@ -1244,16 +1227,6 @@ function SetRow({ set, showLabel, inputType, weightStep, onWeightChange, onRepsC
           </IconButton>
         )}
       </div>
-    </div>
-  )
-}
-
-// 중량(kg)과 횟수(회)를 헷갈리지 않도록, 운동당 첫 세트에서만 스테퍼 위에 단위 라벨을 표시
-function LabeledStepper({ label, value, onChange, step, width }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
-      <span style={{ fontSize: 10, color: 'var(--color-label-neutral)', paddingLeft: 2 }}>{label}</span>
-      <Stepper value={value} onChange={onChange} step={step} placeholder={label} width={width} />
     </div>
   )
 }

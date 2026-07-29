@@ -61,8 +61,23 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, o
 
   return (
     <div style={{ padding: '20px 20px 100px' }}>
-      <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 4px' }}>
-        {userDoc?.nickname || '회원'}님, {quote}
+      {/* [2026-07-29] 인사말을 "안녕하세요! OOO님!" / 랜덤 문구 2줄로 분리.
+          문구 줄은 색상 대비를 높이고, 문구 뱅크(quotes.js) 길이가 제각각이라도
+          항상 1줄을 넘지 않도록 nowrap + ellipsis로 안전하게 자른다. */}
+      <p className="text-keep-all" style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-label-strong)', margin: '0 0 2px' }}>
+        안녕하세요! {userDoc?.nickname || '회원'}님!
+      </p>
+      <p
+        style={{
+          fontSize: 13,
+          color: 'var(--color-label-normal)',
+          margin: '0 0 4px',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {quote}
       </p>
 
       <SectionTitle>오늘의 운동</SectionTitle>
