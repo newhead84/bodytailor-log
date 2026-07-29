@@ -1,8 +1,9 @@
 import React from 'react'
 
 // 최초 접속 시(인증 상태 확인 중) 보여주는 로고 인트로 화면.
-// 아이콘(public/icon-512.png)과 동일한 마크를 인라인 SVG로 그려 어떤 해상도에서도 선명하게 표시.
-// [2026-07-29] 디자인 가이드 v2(매트블랙골드) 적용: 배경 매트블랙 + 골드 그라디언트 덤벨/상승화살표 마크
+// public/icon-512.png를 직접 참조하여 표시 — 아이콘 파일이 갱신되면 이 화면도 자동으로 함께 반영됨
+// (이전에는 동일 마크를 인라인 SVG로 손으로 복제했으나, 아이콘 파일만 계속 다듬어지면서 스플래시 화면이
+//  구버전 로고로 뒤처지는 문제가 있어 [2026-07-29] 이미지 직접 참조 방식으로 변경)
 export default function SplashScreen() {
   return (
     <div
@@ -18,24 +19,13 @@ export default function SplashScreen() {
         zIndex: 9999,
       }}
     >
-      <svg width="88" height="88" viewBox="0 0 512 512" style={{ animation: 'bt-splash-pulse 1.6s ease-in-out infinite' }}>
-        <defs>
-          <linearGradient id="bt-gold-plate" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#F3D98A" />
-            <stop offset="100%" stopColor="#8A6E1B" />
-          </linearGradient>
-        </defs>
-        <g stroke="#F3D98A" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <path d="M196 168 L256 128 L316 168" />
-        </g>
-        <g>
-          <rect x="150" y="248" width="212" height="20" rx="10" fill="#C9A227" />
-          <rect x="112" y="216" width="46" height="84" rx="14" fill="url(#bt-gold-plate)" />
-          <rect x="354" y="216" width="46" height="84" rx="14" fill="url(#bt-gold-plate)" />
-          <rect x="92" y="234" width="20" height="48" rx="8" fill="#8A6E1B" />
-          <rect x="400" y="234" width="20" height="48" rx="8" fill="#8A6E1B" />
-        </g>
-      </svg>
+      <img
+        src="/icon-512.png"
+        width="88"
+        height="88"
+        alt="BodyTailor Log"
+        style={{ animation: 'bt-splash-pulse 1.6s ease-in-out infinite' }}
+      />
       <div style={{ textAlign: 'center' }}>
         <div style={{ color: '#F4F0E6', fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>BodyTailor Log</div>
         <div style={{ color: 'rgba(244,240,230,0.65)', fontSize: 13, marginTop: 4 }}>불러오는 중…</div>
