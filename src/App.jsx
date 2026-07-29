@@ -32,21 +32,28 @@ export default function App() {
   const [userDoc, setUserDoc] = useState(null)
   const [routineTemplates, setRoutineTemplates] = useState(undefined) // undefined: 로딩중, []: 없음
   const [activeTab, setActiveTab] = useState('home')
-  // [2026-07-29 신규] 메인 4탭이 display:block/none 전환만 될 뿐, 스크롤은
-  // 아래 mainScrollRef 컨테이너 하나가 전담한다(탭별 개별 스크롤 컨테이너 없음).
-  // 이미 보고 있는 탭을 한 번 더 누르면 이 스크롤 위치를 맨 위로 되돌린다.
-  const mainScrollRef = useRef(null)
-  const handleTabPress = useCallback(
-    (tab) => {
-      setActiveTab((prev) => {
-        if (prev === tab) {
-          mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-        }
-        return tab
-      })
-    },
-    []
-  )
+  // [2026-07-29 재수정] 기록탭 진입 시 종목 리스트가 "떨어지는" 애니메이션 버그의 근본 원인은
+  // 4탭을 display:none↔block으로 전환하던 방식이었다(display:none은 레이아웃에서 완전히
+  // 제거되므로, 다시 block이 되는 순간 framer-motion이 진짜 위치 이동이 일어난 것으로 착각함).
+  // → display 대신 visibility로 전환한다. visibility:hidden은 레이아웃 상 자리를 그대로
+  // 유지하므로(위치가 실제로 전혀 바뀌지 않음) framer-motion이 애니메이션을 트리거할 일 자체가
+  // 없어진다. 4탭을 position:absolute(inset:0)로 겹쳐두고 탭마다 자체 overflowY:auto 스크롤
+  // 컨테이너를 둬서, 탭별 스크롤 위치도 서로 독립적으로 유지된다.
+  const homeScrollRef = useRef(null)
+  const logScrollRef = useRef(null)
+  const reportScrollRef = useRef(null)
+  const myScrollRef = useRef(null)
+  const tabScrollRefs = { home: homeScrollRef, log: logScrollRef, report: reportScrollRef, my: myScrollRef }
+  // 이미 보고 있는 탭을 한 번 더 누르면 그 탭 자신의 스크롤 위치를 맨 위로 되돌린다.
+  const handleTabPress = useCallback((tab) => {
+    setActiveTab((prev) => {
+      if (prev === tab) {
+        tabScrollRefs[tab]?.current?.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+      return tab
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
   const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동조합 변경" 진입 여부
   const [showTierInfo, setShowTierInfo] = useState(false) // MY탭 "등급" 카드 탭 시 티어/XP 설명 전체화면 진입 여부
@@ -182,14 +189,29 @@ export default function App() {
   const targetSessionsPerWeek = routineTemplates[0]?.parts?.length || 3
 
   // 메인 4탭
-  // 4개 탭을 항상 마운트한 상태로 두고 display로만 보이기/숨기기를 전환한다.
+  // 4개 탭을 항상 마운트한 상태로 두고 visibility로만 보이기/숨기기를 전환한다.
   // (이전에는 activeTab에 따라 조건부로 마운트/언마운트했는데, 그 결과 기록 탭에서
   //  휴식 타이머가 돌아가는 중에 홈/랭킹/MY로 이동하면 LogTab 전체가 unmount되며
   //  타이머 상태가 통째로 사라지는 문제가 있었다. 항상 마운트해두면 세션/타이머
   //  상태가 컴포넌트 안에 그대로 남아있어 탭을 이동해도 계속 진행된다.)
+  // [2026-07-29 재수정] display:none↔block 대신 position:absolute(inset:0)+visibility로
+  // 전환한다. display:none은 레이아웃에서 완전히 제거되는 반면, visibility:hidden은 레이아웃
+  // 상 자리를 그대로 유지해 실제 위치가 전혀 바뀌지 않으므로, 기록탭 종목 리스트가 탭 재진입
+  // 시 위치 이동으로 오인돼 "떨어지는" 것처럼 애니메이션되던 문제가 근본적으로 사라진다.
+  function tabWrapperStyle(tab) {
+    const isActive = activeTab === tab
+    return {
+      position: 'absolute',
+      inset: 0,
+      overflowY: 'auto',
+      visibility: isActive ? 'visible' : 'hidden',
+      pointerEvents: isActive ? 'auto' : 'none',
+    }
+  }
+
   return (
-    <div ref={mainScrollRef} style={{ height: '100%', overflowY: 'auto' }}>
-      <div style={{ display: activeTab === 'home' ? 'block' : 'none' }}>
+    <div style={{ height: '100%', position: 'relative' }}>
+      <div ref={homeScrollRef} style={tabWrapperStyle('home')}>
         <HomeTab
           uid={authUser.uid}
           userDoc={userDoc}
@@ -198,7 +220,7 @@ export default function App() {
           onGoToLog={() => setActiveTab('log')}
         />
       </div>
-      <div style={{ display: activeTab === 'log' ? 'block' : 'none' }}>
+      <div ref={logScrollRef} style={tabWrapperStyle('log')}>
         <LogTab
           uid={authUser.uid}
           routineTemplates={routineTemplates}
@@ -210,7 +232,7 @@ export default function App() {
           onRoutineUpdated={refreshRoutineTemplates}
         />
       </div>
-      <div style={{ display: activeTab === 'report' ? 'block' : 'none' }}>
+      <div ref={reportScrollRef} style={tabWrapperStyle('report')}>
         <ReportTab
           uid={authUser.uid}
           userDoc={userDoc}
@@ -219,7 +241,7 @@ export default function App() {
           onShowTierInfo={() => setShowTierInfo(true)}
         />
       </div>
-      <div style={{ display: activeTab === 'my' ? 'block' : 'none' }}>
+      <div ref={myScrollRef} style={tabWrapperStyle('my')}>
         <MyPageTab
           uid={authUser.uid}
           userDoc={userDoc}

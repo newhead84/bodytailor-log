@@ -3,18 +3,21 @@
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
 [2026-07-29] 사용자 피드백 5건 반영
-- (1) 하단 4탭: 이미 보고 있는 탭을 한 번 더 누르면 스크롤을 맨 위로 되돌림 | App.jsx
-  (mainScrollRef + handleTabPress. BottomNav.jsx는 수정 없음)
+- (1) 하단 4탭: 이미 보고 있는 탭을 한 번 더 누르면 그 탭 자신의 스크롤 위치를 맨 위로
+  되돌림 | App.jsx (탭별 scroll ref + handleTabPress. BottomNav.jsx는 수정 없음)
 - (2) 홈탭 캘린더 "날짜별 기록 수정"에서 세트별 무게/횟수만 고칠 수 있고 세트 추가·삭제,
   운동(종목) 추가가 아예 없던 문제 수정: 세트 추가(직전 세트 값 복사)/세트 삭제 버튼 추가,
   세트를 마지막 하나까지 지우면 그 종목을 기록에서 자동 제거. "운동 추가"는 자유 텍스트가
   아니라 부위 카테고리 → 라이브러리 종목 선택 방식(4.2절 정책과 동일)으로 구현. 유산소
   (경사/속도/시간)·횟수전용(reps) 종목의 입력 방식도 함께 지원 | CalendarView.jsx
-- (3) 기록탭 진입 시 종목 리스트가 위→아래로 "떨어지는" 애니메이션 재발 수정: 원인은
-  Reorder.Item의 layout="position"이 항상 켜져 있어, App.jsx가 탭을 display:none↔block으로만
-  전환(언마운트하지 않음)할 때 framer-motion이 위치 변화로 오인해 발생. IntersectionObserver로
-  "탭이 방금 다시 보이게 된 시점"을 감지해 그 프레임에서만 layout을 잠깐 꺼서 해결. 드래그 중
-  순서 변경 애니메이션은 그대로 유지 | WorkoutInput.jsx
+- (3) 기록탭 진입 시 종목 리스트가 위→아래로 "떨어지는" 애니메이션 재발 수정: 근본 원인은
+  App.jsx가 4탭을 display:none↔block으로 전환하던 방식 자체였다(display:none은 레이아웃에서
+  완전히 제거되므로, 다시 block이 되는 순간 framer-motion의 layout="position"이 진짜 위치
+  이동으로 착각해 애니메이션을 트리거). display 대신 visibility로 전환하도록 변경: 4탭을
+  position:absolute(inset:0)로 겹쳐두고 visibility만 토글하면 레이아웃 상 위치가 실제로 전혀
+  바뀌지 않아 framer-motion이 애니메이션을 일으킬 일 자체가 없어진다. 탭마다 자체
+  overflowY:auto 스크롤 컨테이너를 둬서 탭별 스크롤 위치도 서로 독립적으로 유지됨
+  (WorkoutInput.jsx는 수정 없이 원상태 유지) | App.jsx
 - (4) 리포트탭 "내 점수 갱신" 버튼을 눌러야만 점수가 갱신되던 것을, 운동완료(logsVersion 증가)
   시 자동으로 갱신되도록 변경. 버튼은 "점수 다시 계산"으로 이름을 바꾸고, 운동완료 후 세트
   수정 등 추가 변경이 생겼을 때 쓰는 보조 버튼으로 역할 변경 | App.jsx(logsVersion을 ReportTab에
