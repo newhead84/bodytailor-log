@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Dumbbell } from 'lucide-react'
 import { loginWithGoogle } from '../firebase'
 import { Button } from './ui'
 
@@ -42,10 +43,9 @@ export default function LoginScreen() {
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 18px',
-            fontSize: 28,
           }}
         >
-          🏋️
+          <Dumbbell size={30} strokeWidth={1.9} color="#131316" />
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 8px' }}>BodyTailor Log</h1>
         <p className="text-keep-all" style={{ color: 'var(--color-label-normal)', fontSize: 15, lineHeight: '22px', margin: 0 }}>

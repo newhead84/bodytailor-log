@@ -1,34 +1,42 @@
 /* tokens.css
-   출처: BodyTailor_Log_디자인_가이드.md (Wanted Design System 근사치 기반)
-   화이트 배경 + 블루 포인트 + 쿨그레이 텍스트 톤앤매너 */
+   [2026-07-29] 출처: BodyTailor_Log_디자인_가이드_v2_매트블랙골드.md
+   매트블랙 배경 + 골드 포인트 톤앤매너 (v1: 화이트+블루+쿨그레이 대체)
+   변수명은 기존과 동일하게 유지하고 값만 v2 팔레트로 교체 — 컴포넌트 코드 수정 없이
+   전체 화면에 캐스케이드로 반영되도록 함. */
 
 :root {
   /* Static */
   --color-static-white: #ffffff;
   --color-static-black: #000000;
 
-  /* Primary (Blue) */
-  --color-primary-normal: #3182f6;
-  --color-primary-strong: #1b64da;
-  --color-primary-heavy: #0d3f8c;
-  --color-primary-bg: #eff6ff;
+  /* Primary (구 블루 → 골드로 교체) */
+  --color-primary-normal: #c9a227;
+  --color-primary-strong: #8a6e1b;
+  --color-primary-heavy: #6b5414;
+  --color-primary-bg: #1c1c20;
 
-  /* Label (Cool gray) */
-  --color-label-strong: #191f28;
-  --color-label-normal: #4e5968;
-  --color-label-neutral: #8b95a1;
-  --color-label-disable: #b0b8c1;
+  /* Label (구 쿨그레이 → 매트블랙 위 텍스트 톤으로 교체) */
+  --color-label-strong: #f4f0e6;
+  --color-label-normal: #c9c6be;
+  --color-label-neutral: #8a8780;
+  --color-label-disable: #5c5a54;
 
-  /* Surface / Line */
-  --color-bg: #ffffff;
-  --color-bg-elevated: #f9fafb;
-  --color-line: #e5e8eb;
-  --color-line-strong: #d1d6db;
+  /* Surface / Line (구 화이트 → 매트블랙 2단계로 교체) */
+  --color-bg: #0a0a0b;
+  --color-bg-elevated: #1c1c20;
+  --color-bg-card: #131316;
+  --color-line: #2a2a2e;
+  --color-line-strong: #3a3a40;
 
-  /* Semantic accents (가이드 미지정, 실사용을 위해 보수적으로 추가) */
-  --color-success: #00c471;
-  --color-danger: #f04452;
-  --color-warning: #ff9500;
+  /* Gold accent 3단계 (가이드 3.2) */
+  --color-gold-100: #f3d98a;
+  --color-gold-500: #c9a227;
+  --color-gold-700: #8a6e1b;
+
+  /* Semantic accents (가이드 미지정, 실사용을 위해 보수적으로 추가 — 매트블랙 대비 유지) */
+  --color-success: #4ade80;
+  --color-danger: #ff6e5c;
+  --color-warning: #ffb84d;
 
   /* Tier colors */
   --tier-iron: #8b95a1;

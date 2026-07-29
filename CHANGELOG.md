@@ -2,6 +2,26 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-07-29] 디자인 가이드 v2(매트블랙골드) 전면 적용 — 배경/아이콘/파트 컬러/앱 아이콘 교체
+- (1) tokens.css: 화이트+블루+쿨그레이(v1) → 매트블랙+골드(v2) 팔레트로 값 교체. 변수명은
+  유지하고 값만 교체해 컴포넌트 코드 변경 없이 전체 화면에 캐스케이드 적용
+  | tokens.css
+- (2) v1에서 카드/버튼 등 표면색으로 var(--color-static-white) 또는 하드코딩 '#fff'를 직접
+  사용하던 곳(다크테마로 바뀌어도 흰색 그대로 남는 위치)을 var(--color-bg-card)/
+  var(--color-bg-elevated)로 전수 교정. 골드 배경 위 흰 텍스트로 대비가 깨지는 곳(버튼, 캘린더
+  선택일, 완료 체크 버튼 등)도 어두운 텍스트(#131316)로 함께 수정
+  | ui.jsx, BottomNav.jsx, ExerciseGuideImage.jsx, WorkoutInput.jsx, RoutineSetup.jsx,
+    CalendarView.jsx, Onboarding.jsx, RestTimer.jsx
+- (3) 부위별 색상(가슴/등/어깨/이두/삼두/하체/코어/유산소)을 가이드 3.4절 6색 고정 팔레트 기준으로
+  재조정(이두/삼두는 '팔' 색상 ±10% 파생, 유산소는 '등' 색상 -15% 파생)
+  | exerciseLibrary.js
+- (4) 이모지 아이콘(🏠📝📊👤💪😴🏋️🎉) 전면 제거, lucide-react 라인 아이콘으로 교체
+  | BottomNav.jsx, HomeTab.jsx, LoginScreen.jsx, WorkoutInput.jsx, package.json(lucide-react 추가)
+- (5) 앱 아이콘(icon-192/512, maskable 2종, apple-touch-icon, favicon)과 스플래시 로고를
+  기존 블루 덤벨+화살표 마크에서 골드 그라디언트 덤벨+상승화살표(매트블랙 배경)로 교체
+  | public/icon-*.png, public/apple-touch-icon.png, public/favicon-32.png,
+    public/manifest.json(theme_color/background_color), index.html(theme-color), SplashScreen.jsx
+
 [2026-07-28] 유지보수 5건: 기록탭 진입 애니메이션 제거, 운동 이미지 위치 변경(루틴 화면 'i' 아이콘)+매핑 확충,
 휴게타이머 버그수정 2건, MY탭 등급 카드 → 티어/XP 설명 화면, 랭킹 탭 → 리포트 탭 개편
 - (1) 기록탭 진입 시 "위→아래로 떨어지는" 애니메이션이 여전히 남아있다는 피드백 반영: App.jsx의

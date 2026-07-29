@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Sparkles } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card } from './ui'
 import RestTimer from './RestTimer'
@@ -568,7 +569,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                 fontWeight: 700,
                 color: 'var(--color-label-normal)',
                 border: '1px solid var(--color-line)',
-                background: 'var(--color-static-white)',
+                background: 'var(--color-bg-elevated)',
                 flexShrink: 0,
               }}
             >
@@ -588,7 +589,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                 fontWeight: 700,
                 color: 'var(--color-label-normal)',
                 border: '1px solid var(--color-line)',
-                background: 'var(--color-static-white)',
+                background: 'var(--color-bg-elevated)',
                 flexShrink: 0,
               }}
             >
@@ -605,7 +606,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                 whiteSpace: 'nowrap',
                 color: 'var(--color-label-neutral)',
                 border: '1px solid var(--color-line)',
-                background: 'var(--color-static-white)',
+                background: 'var(--color-bg-elevated)',
                 flexShrink: 0,
               }}
             >
@@ -619,8 +620,8 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
                 fontSize: 13,
                 fontWeight: 700,
                 whiteSpace: 'nowrap',
-                background: isPaused ? 'var(--color-primary-normal)' : 'var(--color-static-white)',
-                color: isPaused ? '#fff' : 'var(--color-label-normal)',
+                background: isPaused ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
+                color: isPaused ? '#131316' : 'var(--color-label-normal)',
                 border: isPaused ? 'none' : '1px solid var(--color-line)',
                 flexShrink: 0,
               }}
@@ -870,7 +871,7 @@ export default function WorkoutInput({ uid, routineTemplates, weightKg, restNoti
           bottom: 'calc(var(--bottom-nav-height) + var(--safe-bottom))',
           zIndex: 25,
           padding: '14px 20px',
-          background: 'var(--color-static-white)',
+          background: 'var(--color-bg-elevated)',
           boxShadow: 'var(--shadow-nav)',
           display: 'flex',
           alignItems: 'center',
@@ -924,7 +925,7 @@ function WorkoutCompleteModal({ xpEarned, onClose }) {
       <div
         className="bt-celebrate-pop"
         style={{
-          background: 'var(--color-static-white)',
+          background: 'var(--color-bg-elevated)',
           borderRadius: 20,
           padding: '32px 24px',
           textAlign: 'center',
@@ -949,8 +950,8 @@ function WorkoutCompleteModal({ xpEarned, onClose }) {
             <path d="M5 12l5 5L19 7" />
           </svg>
         </div>
-        <p className="text-keep-all" style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)' }}>
-          오늘도 득근 완료! 🎉
+        <p className="text-keep-all" style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          오늘도 득근 완료! <Sparkles size={18} strokeWidth={1.8} color="var(--color-gold-500)" />
         </p>
         <p className="text-keep-all" style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--color-label-neutral)' }}>
           수고하셨어요. 꾸준함이 곧 실력이 됩니다.
@@ -1063,7 +1064,7 @@ function ExerciseCard({
               height: 22,
               borderRadius: '50%',
               background: 'var(--color-primary-normal)',
-              color: '#fff',
+              color: '#131316',
               fontSize: 13,
               display: 'flex',
               alignItems: 'center',
@@ -1114,7 +1115,7 @@ function ExerciseCard({
               fontWeight: 700,
               whiteSpace: 'nowrap',
               background: expanded ? 'var(--color-bg-elevated)' : 'var(--color-primary-normal)',
-              color: expanded ? 'var(--color-label-neutral)' : '#fff',
+              color: expanded ? 'var(--color-label-neutral)' : '#131316',
             }}
           >
             {expanded ? '접기' : '시작'}
@@ -1252,7 +1253,7 @@ function IconButton({ children, onClick, title, muted, disabled, tone }) {
   const toneStyle =
     tone === 'save' || tone === 'done'
       ? { background: '#22c55e', border: 'none', stroke: '#fff' }
-      : { background: muted ? 'var(--color-static-white)' : 'var(--color-primary-bg)', border: '1px solid var(--color-line)', stroke: muted ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }
+      : { background: muted ? 'var(--color-bg-elevated)' : 'var(--color-primary-bg)', border: '1px solid var(--color-line)', stroke: muted ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }
   return (
     <button
       onClick={onClick}

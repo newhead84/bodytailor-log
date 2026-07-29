@@ -1,10 +1,11 @@
 import React from 'react'
+import { Home, NotebookPen, BarChart3, User } from 'lucide-react'
 
 const TABS = [
-  { key: 'home', label: '홈', icon: '🏠' },
-  { key: 'log', label: '기록', icon: '📝' },
-  { key: 'report', label: '리포트', icon: '📊' },
-  { key: 'my', label: 'MY', icon: '👤' },
+  { key: 'home', label: '홈', Icon: Home },
+  { key: 'log', label: '기록', Icon: NotebookPen },
+  { key: 'report', label: '리포트', Icon: BarChart3 },
+  { key: 'my', label: 'MY', Icon: User },
 ]
 
 export default function BottomNav({ active, onChange }) {
@@ -16,7 +17,7 @@ export default function BottomNav({ active, onChange }) {
         right: 0,
         bottom: 0,
         display: 'flex',
-        background: 'var(--color-static-white)',
+        background: 'var(--color-bg-card)',
         borderTop: '1px solid var(--color-line)',
         paddingBottom: 'var(--safe-bottom)',
         zIndex: 20,
@@ -24,6 +25,7 @@ export default function BottomNav({ active, onChange }) {
     >
       {TABS.map((tab) => {
         const isActive = active === tab.key
+        const Icon = tab.Icon
         return (
           <button
             key={tab.key}
@@ -39,7 +41,7 @@ export default function BottomNav({ active, onChange }) {
               color: isActive ? 'var(--color-primary-normal)' : 'var(--color-label-neutral)',
             }}
           >
-            <span style={{ fontSize: 20, lineHeight: 1 }}>{tab.icon}</span>
+            <Icon size={20} strokeWidth={1.75} />
             <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500 }}>{tab.label}</span>
           </button>
         )

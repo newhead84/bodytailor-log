@@ -179,7 +179,7 @@ function OptionRow({ label, selected, onClick, flex }) {
         padding: '16px 18px',
         borderRadius: 12,
         border: selected ? '2px solid var(--color-primary-normal)' : '1px solid var(--color-line)',
-        background: selected ? 'var(--color-primary-bg)' : '#fff',
+        background: selected ? 'var(--color-primary-bg)' : 'var(--color-bg-card)',
         color: selected ? 'var(--color-primary-strong)' : 'var(--color-label-strong)',
         fontSize: 15,
         fontWeight: 600,

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Dumbbell, Moon } from 'lucide-react'
 import { Card, SectionTitle, Button } from './ui'
 import { getRecentWorkoutLogs } from '../storage'
 import CalendarView from './CalendarView'
@@ -103,8 +104,8 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, o
               <div className="record-notation" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-primary-strong)' }}>
                 {monthSummary.workoutDays}일
               </div>
-              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
-                💪 {monthSummary.month + 1}월 운동
+              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <Dumbbell size={13} strokeWidth={1.75} /> {monthSummary.month + 1}월 운동
               </div>
             </div>
             <div style={{ width: 1, background: 'var(--color-line)' }} />
@@ -112,8 +113,8 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, o
               <div className="record-notation" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-label-strong)' }}>
                 {monthSummary.restDays}일
               </div>
-              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
-                😴 {monthSummary.month + 1}월 휴식
+              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <Moon size={13} strokeWidth={1.75} /> {monthSummary.month + 1}월 휴식
               </div>
             </div>
           </div>

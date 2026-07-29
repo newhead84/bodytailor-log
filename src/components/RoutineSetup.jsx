@@ -190,7 +190,7 @@ export default function RoutineSetup({ initialTemplate, onSave, onCancel, onSkip
           right: 0,
           bottom: 0,
           padding: '14px 20px calc(14px + var(--safe-bottom))',
-          background: 'var(--color-static-white)',
+          background: 'var(--color-bg-card)',
           boxShadow: 'var(--shadow-nav)',
           display: 'flex',
           gap: 8,
@@ -240,8 +240,8 @@ function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAt
                 fontWeight: 700,
                 flexShrink: 0,
                 border: '1px solid var(--color-line)',
-                color: infoOpenName === name ? '#fff' : 'var(--color-label-neutral)',
-                background: infoOpenName === name ? 'var(--color-primary-normal)' : 'var(--color-static-white)',
+                color: infoOpenName === name ? '#131316' : 'var(--color-label-neutral)',
+                background: infoOpenName === name ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
               }}
             >
               i

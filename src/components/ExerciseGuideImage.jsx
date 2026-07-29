@@ -66,7 +66,7 @@ export default function ExerciseGuideImage({ name }) {
           position: 'relative',
           borderRadius: 'var(--radius-sm)',
           overflow: 'hidden',
-          background: 'var(--color-static-white)',
+          background: 'var(--color-bg-elevated)',
           aspectRatio: '4 / 3',
         }}
       >
@@ -120,8 +120,8 @@ export default function ExerciseGuideImage({ name }) {
                 borderRadius: 8,
                 fontSize: 12,
                 fontWeight: 700,
-                background: idx === activeIdx ? 'var(--color-primary-normal)' : 'var(--color-static-white)',
-                color: idx === activeIdx ? '#fff' : 'var(--color-label-neutral)',
+                background: idx === activeIdx ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
+                color: idx === activeIdx ? '#131316' : 'var(--color-label-neutral)',
                 border: idx === activeIdx ? 'none' : '1px solid var(--color-line)',
               }}
             >

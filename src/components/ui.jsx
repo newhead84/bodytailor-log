@@ -15,10 +15,10 @@ export function Button({ children, onClick, variant = 'primary', disabled, style
     opacity: disabled ? 0.45 : 1,
   }
   const variants = {
-    primary: { background: 'var(--color-primary-normal)', color: '#fff' },
-    secondary: { background: 'var(--color-primary-bg)', color: 'var(--color-primary-strong)' },
+    primary: { background: 'var(--color-primary-normal)', color: '#131316' },
+    secondary: { background: 'var(--color-primary-bg)', color: 'var(--color-gold-100)' },
     ghost: { background: 'transparent', color: 'var(--color-label-normal)', border: '1px solid var(--color-line)' },
-    danger: { background: 'var(--color-danger)', color: '#fff' },
+    danger: { background: 'var(--color-danger)', color: '#131316' },
   }
   return (
     <button
@@ -39,7 +39,7 @@ export function Card({ children, style, onClick, ...rest }) {
     <div
       onClick={onClick}
       style={{
-        background: 'var(--color-static-white)',
+        background: 'var(--color-bg-card)',
         border: '1px solid var(--color-line)',
         borderRadius: 'var(--radius-md)',
         boxShadow: 'var(--shadow-card)',
@@ -114,7 +114,7 @@ export function Chip({ children, active, onClick }) {
         fontSize: 14,
         fontWeight: 600,
         border: active ? '1px solid var(--color-primary-normal)' : '1px solid var(--color-line)',
-        background: active ? 'var(--color-primary-bg)' : 'var(--color-static-white)',
+        background: active ? 'var(--color-primary-bg)' : 'var(--color-bg-card)',
         color: active ? 'var(--color-primary-strong)' : 'var(--color-label-normal)',
         whiteSpace: 'nowrap',
       }}
