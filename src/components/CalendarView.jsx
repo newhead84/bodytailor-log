@@ -399,6 +399,15 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
 
   const selectedLogs = selectedDate ? logsByDate[selectedDate] || [] : []
 
+  // [2026-07-30 버그수정] 기록 추가/수정 폼이 열린 상태에서 캘린더의 다른 날짜를 다시 선택하면,
+  // selectedDate는 바뀌는데 editDraft.date(날짜 인풋 값)는 이전 선택 시점 값에 그대로 머물러
+  // 화면 상단 날짜와 폼 안 날짜 인풋이 서로 어긋나던 문제 수정. 폼이 열려 있을 때만 동기화한다.
+  useEffect(() => {
+    if (!selectedDate) return
+    setEditDraft((prev) => (prev ? { ...prev, date: selectedDate } : prev))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate])
+
   function startEdit(log) {
     setIsCreatingLog(false)
     setEditingLogId(log.id)
@@ -620,14 +629,15 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                         borderRadius: 4,
                         padding: '1px 3px',
                         textAlign: 'center',
+                        whiteSpace: 'nowrap',
                         background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(74,222,128,0.14)',
                         color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
                       }}
                     >
-                      웜업 {Math.round(summary.totalWarmupSec / 60)}
-                      <span style={{ fontSize: 8, fontWeight: 600 }}>분</span> · 본{' '}
+                      웜{Math.round(summary.totalWarmupSec / 60)}
+                      <span style={{ fontSize: 7, fontWeight: 600 }}>분</span> 본{' '}
                       {Math.round(summary.totalMainSec / 60)}
-                      <span style={{ fontSize: 8, fontWeight: 600 }}>분</span>
+                      <span style={{ fontSize: 7, fontWeight: 600 }}>분</span>
                     </span>
                   ) : (
                     summary.totalDurationSec > 0 && (
@@ -643,7 +653,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                         }}
                       >
                         {Math.round(summary.totalDurationSec / 60)}
-                        <span style={{ fontSize: 8, fontWeight: 600 }}>분</span>
+                        <span style={{ fontSize: 7, fontWeight: 600 }}>분</span>
                       </span>
                     )
                   )}
@@ -686,7 +696,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                         }}
                       >
                         {atom} {count}
-                        <span style={{ fontSize: 8 }}>{unit}</span>
+                        <span style={{ fontSize: 7 }}>{unit}</span>
                       </span>
                     </div>
                   ))}

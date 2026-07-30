@@ -134,19 +134,19 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, w
               남겨둔 톤) 대신, 디자인가이드 v2.1의 비비드 골드 --color-primary-normal(#FFC94D)로 교체 */}
           <div className="text-keep-all" style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
             <div>
-              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+              <div style={{ fontSize: 12, lineHeight: '14px', color: 'var(--color-label-neutral)', marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                 <Dumbbell size={13} strokeWidth={1.75} /> {monthSummary.month + 1}월 운동
               </div>
-              <div className="record-notation" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-primary-normal)' }}>
+              <div className="record-notation" style={{ fontSize: 20, lineHeight: '20px', fontWeight: 800, color: 'var(--color-primary-normal)' }}>
                 {monthSummary.workoutDays}일
               </div>
             </div>
             <div style={{ width: 1, background: 'var(--color-line)' }} />
             <div>
-              <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+              <div style={{ fontSize: 12, lineHeight: '14px', color: 'var(--color-label-neutral)', marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                 <Moon size={13} strokeWidth={1.75} /> {monthSummary.month + 1}월 휴식
               </div>
-              <div className="record-notation" style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+              <div className="record-notation" style={{ fontSize: 20, lineHeight: '20px', fontWeight: 800, color: 'var(--color-label-strong)' }}>
                 {monthSummary.restDays}일
               </div>
             </div>

@@ -542,14 +542,18 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                   </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {overloadProgress.details.map((d) => (
-                    <div key={d.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span className="text-keep-all">{d.name}</span>
-                      <span style={{ fontWeight: 700, color: d.improved ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>
-                        {d.isNew ? '첫 기록' : d.improved ? '▲ 향상' : '유지'}
-                      </span>
-                    </div>
-                  ))}
+                  {/* [2026-07-30 변경] 지난주 기록이 없어 비교 대상이 없는 "첫 기록" 종목은
+                      리스트에서 숨긴다(점수 계산 로직은 기존과 동일하게 유지). */}
+                  {overloadProgress.details
+                    .filter((d) => !d.isNew)
+                    .map((d) => (
+                      <div key={d.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span className="text-keep-all">{d.name}</span>
+                        <span style={{ fontWeight: 700, color: d.improved ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>
+                          {d.improved ? '▲ 향상' : '유지'}
+                        </span>
+                      </div>
+                    ))}
                 </div>
               </>
             )}

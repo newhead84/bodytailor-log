@@ -884,7 +884,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
               alt=""
               width={168}
               height={168}
-              style={{ opacity: 0.07, filter: 'grayscale(100%)' }}
+              style={{ opacity: 0.16, filter: 'grayscale(100%)' }}
             />
           </div>
         </>
