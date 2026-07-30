@@ -39,6 +39,9 @@
   --color-success: #4ade80;
   --color-danger: #ff6e5c;
   --color-warning: #ffb84d;
+  /* [2026-07-30 신규] 캘린더 토요일 표기 전용 파랑. --color-ex-shoulder(스카이블루)는 운동
+     파트 색상 전용이라 재사용하지 않고, 매트블랙 배경 대비를 확인한 별도 톤을 추가한다. */
+  --color-info: #5b9dff;
 
   /* Tier colors */
   /* [2026-07-29] 등급이 올라갈수록 화려하고 빛나게 보이도록, 이전까지 정의만 되어 있고
@@ -85,6 +88,12 @@ body,
   height: 100%;
   /* [2026-07-28] 안드로이드/크롬의 "당겨서 새로고침" 제스처 비활성화 */
   overscroll-behavior-y: contain;
+  /* [2026-07-30 신규] 모바일 크롬은 짧은 텍스트 블록을 주변 문맥(컨테이너 폭·깊이)에 따라
+     자동으로 확대해서 보여주는 "font boosting"을 적용하는데, 이 때문에 캘린더 셀 안의
+     웜/본 배지 텍스트와 부위별 세트수 텍스트가 코드상으로는 같은 10px인데도 실제 화면에서는
+     서로 다른 크기로 보이는 원인이 됐다(②). 전역으로 비활성화해 명시한 px 값 그대로 렌더링한다. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -198,4 +207,29 @@ input {
 
 .bt-celebrate-check {
   animation: bt-celebrate-check 0.4s 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* [2026-07-30 신규] 캘린더 월 전환 슬라이드 애니메이션. 다음 달(next)은 오른쪽에서,
+   이전 달(prev)은 왼쪽에서 들어온다. CalendarView.jsx에서 그리드 컨테이너에 인라인
+   animation 속성으로 연결한다. */
+@keyframes bt-cal-slide-next {
+  from {
+    transform: translateX(18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes bt-cal-slide-prev {
+  from {
+    transform: translateX(-18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }

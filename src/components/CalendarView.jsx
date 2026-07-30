@@ -10,6 +10,11 @@ import {
   getExercisesForPart,
   getExerciseInputType,
 } from '../utils/exerciseLibrary'
+import { getHolidaysForMonth } from '../utils/holidays'
+
+// [2026-07-30 재수정] 프레임 고정(위 CELL_HEIGHT/+N 요약) 방식이 기록 일부를 가려 오히려
+// 불편하다는 피드백에 따라 되돌림. 셀 높이는 내용에 맞춰 자동으로 늘어나고, 그 날의 부위별
+// 요약은 전부 보여준다(대신 폰트를 더 작게 줄여 셀이 과도하게 길어지지 않도록 함).
 
 // 그 날짜의 운동시간/칼로리 합계와, 부위별 세트수(유산소는 누적 시간)를 계산한다
 // (달력 칸에 색상+텍스트로 표시하기 위함).
@@ -62,6 +67,55 @@ function daySummary(logs) {
 
 function pad(n) {
   return String(n).padStart(2, '0')
+}
+
+// hex 컬러(#RRGGBB)를 낮은 투명도 rgba로 변환 — 부위별 뱃지 배경색에 사용.
+function hexToRgba(hex, alpha) {
+  const h = String(hex).replace('#', '')
+  const r = parseInt(h.substring(0, 2), 16)
+  const g = parseInt(h.substring(2, 4), 16)
+  const b = parseInt(h.substring(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+// [2026-07-30 신규] 캘린더 셀의 "부위 N set" 뱃지는 셀 너비가 고정이라 세트 수가
+// 두 자리(10set 이상)가 되면 ellipsis로 잘렸었다. 잘라내는 대신, 부위명 글자수 +
+// 세트 수 자릿수를 기준으로 폰트 크기를 한 단계씩 축소해 한 줄 안에 항상 다 보이게 한다.
+function getAtomBadgeFontSize(atom, count) {
+  const len = String(atom).length + String(count).length
+  if (len <= 3) return 9
+  if (len === 4) return 8
+  if (len === 5) return 7.2
+  return 6.5
+}
+
+// [2026-07-30 신규] 초 단위 시간을 h/m 포맷으로 표시(칼로리 뱃지와 동일하게 숫자+작은 단위
+// 조합). 1시간 미만이면 분만, 1시간 이상이면 "1h 30m" 형태로 표시.
+function HMLabel({ seconds, unitSize = 7 }) {
+  const totalMin = Math.round(seconds / 60)
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  if (h > 0) {
+    return (
+      <>
+        {h}
+        <span style={{ fontSize: unitSize, fontWeight: 600 }}>h</span>
+        {m > 0 && (
+          <>
+            {' '}
+            {m}
+            <span style={{ fontSize: unitSize, fontWeight: 600 }}>m</span>
+          </>
+        )}
+      </>
+    )
+  }
+  return (
+    <>
+      {m}
+      <span style={{ fontSize: unitSize, fontWeight: 600 }}>m</span>
+    </>
+  )
 }
 
 // 종목의 입력 방식(inputType)에 맞는 빈 세트 하나를 만든다(4.3/9.10 스펙: 유산소는 경사/속도/시간,
@@ -122,7 +176,20 @@ function EditLogForm({
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{ex.name}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {ex.sets.map((s, setIdx) => (
-              <div key={setIdx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              // [2026-07-30 신규] 운동명이 길거나(카디오처럼 입력창이 많은 경우) 세트 행 전체
+              // 너비가 화면보다 커지면 오른쪽(특히 삭제 버튼)이 잘리던 문제 → 잘라내는 대신
+              // 행 자체를 가로 스크롤 가능하게 해서 끝까지 확인/조작할 수 있도록 변경.
+              <div
+                key={setIdx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  paddingBottom: 2,
+                }}
+              >
                 {ex.inputType === 'cardio' ? (
                   <>
                     <input
@@ -310,6 +377,24 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   const [logsByDate, setLogsByDate] = useState({})
   const [selectedDate, setSelectedDate] = useState(null)
   const [loading, setLoading] = useState(true)
+  // [2026-07-30 신규] 대한민국 공휴일 정보(⑤). 공공데이터포털 특일정보 API 연동, 월 이동 시마다
+  // 조회(내부적으로 localStorage 30일 캐싱). 서비스키 미설정/호출 실패 시 빈 객체로 조용히 무시.
+  const [holidays, setHolidays] = useState({})
+  // [2026-07-30 신규] 캘린더 좌우 스와이프로 월 이동(④). 탭/버튼 클릭과 헷갈리지 않도록
+  // 가로 이동이 세로 이동보다 뚜렷할 때만(그리고 임계값 이상일 때만) 월 전환으로 처리한다.
+  const touchStartRef = useRef(null)
+  // [2026-07-30 신규] 월 전환 슬라이드 애니메이션 방향(④). 'next'면 오른쪽에서 들어오고,
+  // 'prev'면 왼쪽에서 들어온다. cursor가 바뀔 때마다 그리드 div가 key로 리마운트되며
+  // 이 값에 맞는 CSS 애니메이션(tokens.css)이 실행된다.
+  const [slideDir, setSlideDir] = useState('next')
+  function goToNextMonth() {
+    setSlideDir('next')
+    setCursor((c) => (c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 }))
+  }
+  function goToPrevMonth() {
+    setSlideDir('prev')
+    setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }))
+  }
   // 기록 수정/삭제/날짜변경용 상태
   const [editingLogId, setEditingLogId] = useState(null)
   const [editDraft, setEditDraft] = useState(null) // { date, exercises: [{name, inputType, sets:[...]}] }
@@ -364,6 +449,17 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadMonth, logsVersion])
 
+  // [2026-07-30 신규] 월 이동 시마다 그 달의 공휴일 정보를 조회한다(⑤).
+  useEffect(() => {
+    let cancelled = false
+    getHolidaysForMonth(cursor.year, cursor.month + 1).then((map) => {
+      if (!cancelled) setHolidays(map)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [cursor])
+
   // 이번 달 운동일/휴식일 수를 부모(홈탭)로 전달한다. 오늘이 속한 달이면 "오늘까지"만 세고,
   // 지난 달을 보고 있으면 그 달 전체 일수를 기준으로 센다.
   useEffect(() => {
@@ -407,6 +503,39 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     setEditDraft((prev) => (prev ? { ...prev, date: selectedDate } : prev))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate])
+
+  // [2026-07-30 신규] 날짜 선택 시 하단 상세 정보가 바로 보이도록 자동 스크롤(③). 선택한
+  // 날짜가 속한 주(週)의 모든 셀은 같은 그리드 행에 있으므로, 그 중 하나(선택된 날짜 셀)를
+  // block:'start'로 스크롤하면 그 행 전체가 화면 상단에 오게 된다. data-caldate 속성으로
+  // 셀을 찾는다(다른 컴포넌트와 겹치지 않는 전용 속성명 사용).
+  useEffect(() => {
+    if (!selectedDate) return
+    const el = document.querySelector(`[data-caldate="${selectedDate}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [selectedDate])
+
+  // [2026-07-30 신규] 좌우 스와이프로 월 이동(④). 세로 스크롤 제스처와 헷갈리지 않도록
+  // 가로 이동량이 세로 이동량보다 뚜렷하고, 임계값(40px) 이상일 때만 월을 전환한다.
+  function handleTouchStart(e) {
+    const t = e.touches[0]
+    touchStartRef.current = { x: t.clientX, y: t.clientY }
+  }
+  function handleTouchEnd(e) {
+    const start = touchStartRef.current
+    touchStartRef.current = null
+    if (!start) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - start.x
+    const dy = t.clientY - start.y
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    if (dx < 0) {
+      goToNextMonth()
+    } else {
+      goToPrevMonth()
+    }
+  }
 
   function startEdit(log) {
     setIsCreatingLog(false)
@@ -571,26 +700,45 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   return (
     <div style={{ padding: '16px 20px 8px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <button onClick={() => setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }))} style={{ fontSize: 18, padding: 6 }}>
+        <button onClick={goToPrevMonth} style={{ fontSize: 18, padding: 6 }}>
           ‹
         </button>
         <span style={{ fontWeight: 700, fontSize: 16 }}>
           {cursor.year}년 {cursor.month + 1}월
         </span>
-        <button onClick={() => setCursor((c) => (c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 }))} style={{ fontSize: 18, padding: 6 }}>
+        <button onClick={goToNextMonth} style={{ fontSize: 18, padding: 6 }}>
           ›
         </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
-        {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
-          <div key={d} style={{ textAlign: 'center', fontSize: 12, color: 'var(--color-label-neutral)', padding: '4px 0' }}>
+        {['일', '월', '화', '수', '목', '금', '토'].map((d, idx) => (
+          <div
+            key={d}
+            style={{
+              textAlign: 'center',
+              fontSize: 12,
+              // [2026-07-30 신규] 일요일 빨강 / 토요일 파랑, 요일 헤더도 날짜 숫자와 동일 톤으로 통일(⑥)
+              color: idx === 0 ? 'var(--color-danger)' : idx === 6 ? 'var(--color-info)' : 'var(--color-label-neutral)',
+              padding: '4px 0',
+            }}
+          >
             {d}
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+      <div
+        key={`${cursor.year}-${cursor.month}`}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          gap: 4,
+          animation: `bt-cal-slide-${slideDir} 0.28s cubic-bezier(0.22, 0.61, 0.36, 1)`,
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {grid.map((d, i) => {
           if (!d) return <div key={i} />
           const ds = dateStr(d)
@@ -599,107 +747,168 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
           const summary = hasLog ? daySummary(dayLogs) : null
           const isSelected = selectedDate === ds
           const isToday = ds === todayDateStr
+          const holidayName = holidays[ds]
+
+          // [2026-07-30 재수정] 요약 행을 하나의 배열로 모으되, 잘라내지 않고 전부 보여준다.
+          const summaryRows = []
+          if (summary) {
+            if (summary.totalDurationSec > 0) summaryRows.push({ kind: 'duration' })
+            if (summary.totalCalories > 0) summaryRows.push({ kind: 'calorie' })
+            summary.atomList.forEach((a) => summaryRows.push({ kind: 'atom', ...a }))
+          }
+          const visibleRows = summaryRows
+          // [2026-07-30 신규] 요일 기준 색상(⑥): 그리드는 항상 일요일(0)~토요일(6) 순으로
+          // 배치되므로, 그리드 인덱스를 7로 나눈 나머지가 곧 요일이다.
+          const dow = i % 7
+          const dateColor = isSelected
+            ? 'var(--color-on-gold)'
+            : holidayName || dow === 0
+            ? 'var(--color-danger)'
+            : dow === 6
+            ? 'var(--color-info)'
+            : undefined
+
           return (
             <button
               key={i}
+              data-caldate={ds}
               onClick={() => setSelectedDate(ds)}
               style={{
-                minHeight: 96,
+                minHeight: 44,
+                boxSizing: 'border-box',
                 borderRadius: 10,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'stretch',
                 padding: '6px 3px',
                 gap: 3,
+                overflow: 'hidden',
                 background: isSelected ? 'var(--color-primary-normal)' : 'transparent',
                 color: isSelected ? 'var(--color-on-gold)' : 'var(--color-label-strong)',
                 // [2026-07-30 신규] "오늘"은 선택/기록 여부와 무관하게 항상 골드 테두리로 표시한다.
                 boxShadow: isToday ? `inset 0 0 0 1.5px ${isSelected ? 'var(--color-on-gold)' : 'var(--color-gold-500, var(--color-primary-normal))'}` : 'none',
               }}
             >
-              <span style={{ fontSize: 13, fontWeight: isSelected || isToday ? 700 : 500, textAlign: 'center' }}>{d}</span>
-              {hasLog && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
-                  {summary.hasWarmupData && summary.totalDurationSec > 0 ? (
-                    <span
-                      className="text-keep-all"
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        borderRadius: 4,
-                        padding: '1px 3px',
-                        textAlign: 'center',
-                        whiteSpace: 'nowrap',
-                        background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(74,222,128,0.14)',
-                        color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
-                      }}
-                    >
-                      웜{Math.round(summary.totalWarmupSec / 60)}
-                      <span style={{ fontSize: 7, fontWeight: 600 }}>분</span> 본{' '}
-                      {Math.round(summary.totalMainSec / 60)}
-                      <span style={{ fontSize: 7, fontWeight: 600 }}>분</span>
-                    </span>
-                  ) : (
-                    summary.totalDurationSec > 0 && (
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3, flexShrink: 0 }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: isSelected || isToday ? 700 : 500,
+                    textAlign: 'center',
+                    // [2026-07-30 재수정] 공휴일뿐 아니라 일요일(빨강)·토요일(파랑)도 항상 표시(⑥).
+                    color: dateColor,
+                  }}
+                >
+                  {d}
+                </span>
+                {holidayName && (
+                  <span
+                    className="text-keep-all"
+                    style={{
+                      fontSize: 7,
+                      fontWeight: 600,
+                      color: isSelected ? 'var(--color-on-gold)' : 'var(--color-danger)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: 30,
+                    }}
+                  >
+                    {holidayName}
+                  </span>
+                )}
+              </div>
+              {visibleRows.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2, minHeight: 0 }}>
+                  {visibleRows.map((row, rowIdx) => {
+                    if (row.kind === 'duration') {
+                      return (
+                        <span
+                          key={rowIdx}
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 600,
+                            lineHeight: '11px',
+                            borderRadius: 4,
+                            padding: '1px 3px',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                            background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(74,222,128,0.14)',
+                            color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
+                          }}
+                        >
+                          <HMLabel seconds={summary.totalDurationSec} unitSize={6} />
+                        </span>
+                      )
+                    }
+                    if (row.kind === 'calorie') {
+                      return (
+                        <span
+                          key={rowIdx}
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 600,
+                            lineHeight: '11px',
+                            borderRadius: 4,
+                            padding: '1px 3px',
+                            textAlign: 'center',
+                            background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(255,184,77,0.14)',
+                            color: isSelected ? 'var(--color-on-gold)' : 'var(--color-warning)',
+                          }}
+                        >
+                          {summary.totalCalories}
+                          <span style={{ fontSize: 7, fontWeight: 600 }}>Cal</span>
+                        </span>
+                      )
+                    }
+                    // atom — 유산소는 이름 텍스트 없이 h/m 값만, 나머지 부위는 "이름 N set" 뱃지
+                    const partColor = PART_COLORS[row.atom] || 'var(--color-primary-normal)'
+                    if (row.atom === '유산소') {
+                      return (
+                        <span
+                          key={row.atom}
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 600,
+                            lineHeight: '11px',
+                            borderRadius: 4,
+                            padding: '1px 3px',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                            display: 'block',
+                            background: isSelected ? 'rgba(19,19,22,0.18)' : hexToRgba(partColor, 0.18),
+                            color: isSelected ? 'var(--color-on-gold)' : partColor,
+                          }}
+                        >
+                          <HMLabel seconds={row.count * 60} unitSize={6} />
+                        </span>
+                      )
+                    }
+                    // [2026-07-30 재수정] 세트 수가 두 자리 이상이 되어도 잘리지 않도록,
+                    // ellipsis 대신 텍스트 길이에 맞춰 폰트 크기를 축소하는 방식으로 변경.
+                    const atomFontSize = getAtomBadgeFontSize(row.atom, row.count)
+                    return (
                       <span
+                        key={row.atom}
+                        className="text-keep-all"
                         style={{
-                          fontSize: 10,
-                          fontWeight: 700,
+                          fontSize: atomFontSize,
+                          fontWeight: 600,
+                          lineHeight: `${Math.ceil(atomFontSize * 1.25)}px`,
                           borderRadius: 4,
                           padding: '1px 3px',
                           textAlign: 'center',
-                          background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(74,222,128,0.14)',
-                          color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
+                          whiteSpace: 'nowrap',
+                          display: 'block',
+                          background: isSelected ? 'rgba(19,19,22,0.18)' : hexToRgba(partColor, 0.14),
+                          color: isSelected ? 'var(--color-on-gold)' : partColor,
                         }}
                       >
-                        {Math.round(summary.totalDurationSec / 60)}
-                        <span style={{ fontSize: 7, fontWeight: 600 }}>분</span>
+                        {row.atom} {row.count}
+                        <span style={{ fontSize: Math.max(atomFontSize - 3, 5.5) }}>set</span>
                       </span>
                     )
-                  )}
-                  {summary.totalCalories > 0 && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        borderRadius: 4,
-                        padding: '1px 3px',
-                        textAlign: 'center',
-                        background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(255,184,77,0.14)',
-                        color: isSelected ? 'var(--color-on-gold)' : 'var(--color-warning)',
-                      }}
-                    >
-                      {summary.totalCalories}
-                      <span style={{ fontSize: 8, fontWeight: 600 }}>Cal</span>
-                    </span>
-                  )}
-                  {summary.atomList.map(({ atom, count, unit }) => (
-                    <div key={atom} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <span
-                        style={{
-                          width: 3,
-                          height: 10,
-                          borderRadius: 2,
-                          flexShrink: 0,
-                          background: isSelected ? 'var(--color-on-gold)' : PART_COLORS[atom] || 'var(--color-primary-normal)',
-                        }}
-                      />
-                      <span
-                        className="text-keep-all"
-                        style={{
-                          fontSize: 10,
-                          lineHeight: '12px',
-                          color: isSelected ? 'var(--color-on-gold)' : 'var(--color-label-normal)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {atom} {count}
-                        <span style={{ fontSize: 7 }}>{unit}</span>
-                      </span>
-                    </div>
-                  ))}
+                  })}
                 </div>
               )}
             </button>
@@ -747,8 +956,6 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                       {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'}
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                      {log.totalDurationSec > 0 && <span>{Math.round(log.totalDurationSec / 60)}분</span>}
-                    {log.caloriesKcal > 0 && <span>{log.caloriesKcal}kcal</span>}
                     <button onClick={() => startEdit(log)} style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
                       수정
                     </button>
@@ -766,7 +973,35 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                   </div>
                 ))}
                 <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 6 }}>
-                  총 볼륨 {log.totalVolume?.toLocaleString()}
+                  {(() => {
+                    const parts = []
+                    if (log.warmupActualSec != null && log.totalDurationSec > 0) {
+                      parts.push(
+                        <span key="warmup">
+                          웜업 <HMLabel seconds={log.warmupActualSec} unitSize={10} />
+                        </span>
+                      )
+                      parts.push(
+                        <span key="main">
+                          본운동 <HMLabel seconds={Math.max(0, log.totalDurationSec - log.warmupActualSec)} unitSize={10} />
+                        </span>
+                      )
+                    } else if (log.totalDurationSec > 0) {
+                      parts.push(
+                        <span key="duration">
+                          <HMLabel seconds={log.totalDurationSec} unitSize={10} />
+                        </span>
+                      )
+                    }
+                    if (log.caloriesKcal > 0) parts.push(<span key="kcal">{log.caloriesKcal}kcal</span>)
+                    parts.push(<span key="volume">총 볼륨 {log.totalVolume?.toLocaleString()}</span>)
+                    return parts.map((p, i) => (
+                      <React.Fragment key={i}>
+                        {i > 0 && ', '}
+                        {p}
+                      </React.Fragment>
+                    ))
+                  })()}
                 </div>
               </Card>
               )

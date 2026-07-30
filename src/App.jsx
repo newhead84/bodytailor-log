@@ -1,9 +1,8 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-30] UI/UX 개선·버그수정 17건 — 확인 팝업 커스텀 모달 전환, 탭 전환
- *            페이드, 캘린더 전체부위/수행순서 표시+과거기록 추가(점수 미반영), 0값 세트
- *            삭제확인, 종목추가 패널 고착 버그 수정, 리포트탭 통계 미반영 버그 수정,
- *            차트 툴팁 다크테마+탭전환 시 잔상 제거.
+ * 최신 변경: [2026-07-30] 캘린더 부위 뱃지 텍스트 잘림 해결(10set 이상도 ellipsis 없이
+ *            폰트 크기 자동 축소로 한 줄 표시) + 날짜선택 시 세트 입력 행 가로 스크롤 추가
+ *            (운동명/입력필드가 길어 삭제버튼이 잘리던 문제 해결).
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -75,6 +74,43 @@ export default function App() {
   // history 엔트리를 하나 쌓아두고, popstate가 오면(=뒤로가기를 누르면) 즉시 그 엔트리를
   // 되쌓아서 앱이 실제로 언로드되지 않게 막는다. (기록 draft 자체는 이미 localStorage에
   // 매 변경마다 저장되므로, 앱이 안 꺼지기만 하면 더 이상 사라지지 않는다.)
+  // [2026-07-30 신규] "운동 진행중" 커스텀 알림(⑥). 세션 단계(workoutPhase)가 바뀔 때마다
+  // 앱 아이콘 + 진행 문구로 알림을 갱신한다(tag를 고정해 새 알림이 쌓이지 않고 교체됨).
+  // 세션이 idle로 돌아오면(종료/취소) 알림을 닫는다.
+  // [주의] 안드로이드 Chrome이 탭을 백그라운드에서 계속 실행 중(Wake Lock 등 사용)일 때
+  // 보여주는 "Chrome 아이콘 + 사이트명" 시스템 배너는 이 커스텀 알림과는 별개로, OS/브라우저가
+  // 직접 그리는 것이라 웹 코드로는 문구·아이콘을 바꾸거나 숨길 수 없다. 홈 화면에 "앱으로 설치"
+  // 해서 standalone으로 실행하면 그 배너 자체가 브라우저(Chrome) 대신 이 앱 고유 아이콘/이름으로
+  // 표시된다 — 이번에 추가한 설치 배너(⑧)가 이 문제의 실질적인 해결책이다.
+  const sessionNotificationRef = useRef(null)
+  useEffect(() => {
+    if (!userDoc?.restTimerNotificationPermission) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+
+    if (workoutPhase === 'idle') {
+      sessionNotificationRef.current?.close()
+      sessionNotificationRef.current = null
+      return
+    }
+
+    const body = workoutPhase === 'warmup' ? '웜업 진행중이에요' : '운동 진행중이에요'
+    try {
+      sessionNotificationRef.current?.close()
+      sessionNotificationRef.current = new Notification('BodyTailor Log', {
+        tag: 'bodytailor-session',
+        icon: '/icon-192.png',
+        body,
+        silent: true,
+      })
+    } catch {
+      // 알림 생성 실패(권한 등)는 무시 — 세션/타이머 자체 동작에는 영향 없음
+    }
+  }, [workoutPhase, userDoc?.restTimerNotificationPermission])
+
+  useEffect(() => {
+    return () => sessionNotificationRef.current?.close()
+  }, [])
+
   useEffect(() => {
     window.history.pushState({ bodytailorGuard: true }, '')
     function handlePopState() {

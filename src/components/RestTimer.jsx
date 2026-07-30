@@ -115,8 +115,13 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
     playSound(soundId, isFirst ? 2 : 1)
     vibrateStrong()
     if (notificationEnabled && 'Notification' in window && Notification.permission === 'granted') {
+      // [2026-07-30 신규] icon을 명시하지 않으면 브라우저가 파비콘을 임의로 골라 쓰던 것을
+      // 앱 아이콘(icon-192.png)으로 고정해, RISE 등 다른 알림들과 마찬가지로 자체 앱
+      // 아이콘으로 표시되게 한다(⑥).
       new Notification(isFirst ? '휴식 끝!' : '휴식 시간이 초과됐어요', {
         body: isFirst ? '다음 세트를 시작할 시간이에요.' : '다음 세트를 바로 시작해 주세요.',
+        icon: '/icon-192.png',
+        tag: 'bodytailor-rest',
       })
     }
   }

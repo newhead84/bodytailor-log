@@ -496,11 +496,19 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
               그 덕분에 outerRadius를 62%까지 키우면서 margin은 라벨 두 줄이 카드 밖으로 잘리지
               않을 최소한(상하 34px, 좌우 32px)으로만 잡을 수 있게 됐다.
               [2026-07-30 추가 수정] 카드 상하 여백이 과하다는 피드백으로 Card 자체의 상하 패딩을
-              줄였다(차트 내부 margin은 라벨 잘림 방지를 위해 그대로 유지). */}
+              줄였다(차트 내부 margin은 라벨 잘림 방지를 위해 그대로 유지).
+              [2026-07-30 재수정] 그래도 여백이 커 보인다는 피드백 추가 반영: Card 높이 자체를
+              줄였다. outerRadius(%)와 margin은 그대로 두되 컨테이너 높이만 줄이면, 반지름도
+              비례해서 함께 작아져(퍼센트 기준이므로) 라벨과의 여유 공간은 오히려 늘어난다 —
+              즉 잘릴 위험 없이 전체 카드 크기만 컴팩트해진다. 여기에 margin도 그 비율만큼
+              살짝 더 줄여 실제 화면상 여백을 추가로 축소했다. */}
           <SectionTitle>부위별 운동 추이</SectionTitle>
-          <Card style={{ marginBottom: 8, height: 380, padding: '6px 16px' }}>
+          {/* [2026-07-30 재수정] 범례(지난주/이번주)가 차트 하단에 배치되면서 남쪽 위치 부위
+              라벨(예: "삼두")과 겹치는 문제가 있었다. 범례를 차트 위쪽으로 옮기고, 상하 margin을
+              좁혀 위쪽 여백은 줄이고 아래쪽은 겹침 없이 라벨이 들어갈 공간만 남긴다. */}
+          <Card style={{ marginBottom: 8, height: 300, padding: '2px 14px' }}>
             <ResponsiveContainer key={isActive ? 'radar-on' : 'radar-off'} width="100%" height="100%">
-              <RadarChart data={bodyPartRadar} outerRadius="62%" margin={{ top: 34, right: 32, bottom: 34, left: 32 }}>
+              <RadarChart data={bodyPartRadar} outerRadius="62%" margin={{ top: 4, right: 26, bottom: 20, left: 26 }}>
                 <PolarGrid stroke="var(--color-line)" />
                 <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={bodyPartThisWeekDetail} />} />
                 {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.
@@ -520,7 +528,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                   fill="var(--color-primary-normal)"
                   fillOpacity={0.45}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Legend verticalAlign="top" align="center" wrapperStyle={{ fontSize: 12, top: 0 }} />
                 <Tooltip {...CHART_TOOLTIP_STYLE} />
               </RadarChart>
             </ResponsiveContainer>
