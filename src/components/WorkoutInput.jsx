@@ -884,7 +884,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
               alt=""
               width={168}
               height={168}
-              style={{ opacity: 0.16, filter: 'grayscale(100%)' }}
+              /* [2026-07-30] 아이콘 PNG 자체에 매트블랙 배경이 불투명하게 그려져 있어, 라이트
+                 테마(흰 배경)에서 검은 사각형이 그대로 도드라지던 문제 수정. mixBlendMode:
+                 'screen'을 적용하면 검은 픽셀은 뒤 배경색에 그대로 녹아들어 투명한 것처럼
+                 보이고(screen(0, bg) = bg), 밝은 덤벨/화살표 부분만 남아 새 이미지 에셋
+                 없이도 다크/라이트 테마 모두에서 자연스럽게 보인다. */
+              style={{ opacity: 0.16, filter: 'grayscale(100%)', mixBlendMode: 'screen' }}
             />
           </div>
         </>

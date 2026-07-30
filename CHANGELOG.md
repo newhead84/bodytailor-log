@@ -2,6 +2,19 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-07-30] 라이트 테마 버그 3건 수정 (취소/수정 등 버튼 텍스트 안 보임, 노티바 색상, 워터마크 배경)
+- secondary 버튼(취소/수정/운동방식 변경/추가/권한 요청/사용 등) 텍스트가 라이트 테마에서
+  배경과 같은 색이라 안 보이던 문제 수정: tokens.css 라이트 테마의 --color-gold-100 값이
+  --color-primary-bg와 동일(#eff6ff)했던 것을 진한 블루(#1b64da)로 교체. 이 변수는
+  ui.jsx Button secondary variant 텍스트 색으로만 쓰여 다른 곳엔 영향 없음 | tokens.css
+- 노티바(브라우저 주소창 틴트) 색상이 테마 전환과 무관하게 골드(#FFC94D) 고정이던 문제 수정:
+  data-theme 반영 useEffect에서 <meta name="theme-color"> 값을 라이트=블루(#3182F6)/
+  다크=골드로 동적 갱신하도록 추가. 단, manifest.json의 theme_color는 정적이라 설치된
+  PWA 스플래시 색상까지는 미반영(별도 논의 필요) | App.jsx
+- 기록탭 웜업 전 로고 워터마크(/icon-512.png)가 매트블랙 배경이 불투명하게 그려진 이미지라
+  라이트 테마에서 검은 사각형으로 보이던 문제 수정: 새 이미지 에셋 없이 mixBlendMode:
+  'screen' 적용해 검은 배경이 뒤 배경색에 녹아들도록 처리 | WorkoutInput.jsx
+
 [2026-07-30] MY탭 화면 테마 선택 기능(다크/라이트) 신규 추가
 - MY탭에 "화면 테마" 카드 추가: 기본 매트블랙골드 유지 + 예전 화이트+블루+쿨그레이
   테마로 선택적 전환 가능. 계정(Firestore users/{uid}.themePreference) 기준 저장,

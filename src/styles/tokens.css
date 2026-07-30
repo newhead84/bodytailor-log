@@ -107,7 +107,11 @@ html[data-theme='light'] {
 
   /* 가이드 3.2 "브랜드 골드 3단계"에 해당하던 포인트 컬러를 라이트에서는 블루 계열로 대체.
      (ui.jsx의 secondary 버튼, CalendarView 오늘 표시 링, WorkoutInput 완료 아이콘 등에서 사용) */
-  --color-gold-100: #eff6ff;
+  /* [2026-07-30] 기존 값(#eff6ff)이 --color-primary-bg와 동일해 secondary 버튼(취소/수정/
+     추가/권한요청/사용 등) 텍스트가 배경에 묻혀 안 보이던 문제 수정. 이 변수는 ui.jsx의
+     Button secondary variant 텍스트 색으로만 쓰이므로 이 값 교체만으로 앱 전체의 해당
+     버튼이 한 번에 해결된다. */
+  --color-gold-100: #1b64da;
   --color-gold-500: #3182f6;
   --color-gold-700: #1b64da;
 

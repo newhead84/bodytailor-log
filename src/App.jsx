@@ -149,6 +149,14 @@ export default function App() {
   useEffect(() => {
     const theme = userDoc?.onboardingCompleted ? userDoc.themePreference || 'dark' : 'dark'
     document.documentElement.setAttribute('data-theme', theme)
+    // [2026-07-30] 노티바(브라우저 주소창 틴트/상태표시줄) 색상이 테마와 무관하게 골드로
+    // 고정돼 있던 문제 수정: index.html의 theme-color 메타 태그를 라이트=블루/다크=골드로
+    // 동적 갱신한다. 단, manifest.json의 theme_color는 정적 파일이라 "홈 화면에 추가"로
+    // 설치된 PWA의 스플래시 색상까지는 바뀌지 않는다(별도 논의 필요).
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', theme === 'light' ? '#3182F6' : '#FFC94D')
+    }
   }, [userDoc?.onboardingCompleted, userDoc?.themePreference])
 
   const refreshUserDoc = useCallback(async () => {
