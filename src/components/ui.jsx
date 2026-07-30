@@ -234,7 +234,7 @@ export function BackButton({ onClick, children = '돌아가기' }) {
   )
 }
 
-export function Chip({ children, active, onClick }) {
+export function Chip({ children, active, onClick, style }) {
   return (
     <button
       onClick={onClick}
@@ -247,6 +247,7 @@ export function Chip({ children, active, onClick }) {
         background: active ? 'var(--color-primary-bg)' : 'var(--color-bg-card)',
         color: active ? 'var(--color-primary-strong)' : 'var(--color-label-normal)',
         whiteSpace: 'nowrap',
+        ...style,
       }}
     >
       {children}

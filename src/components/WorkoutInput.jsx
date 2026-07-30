@@ -65,7 +65,19 @@ function formatClock(totalSeconds) {
 // 상위(App.jsx)에서 현재 진행 단계(sessionPhase)를 구독(onSessionPhaseChange)하고
 // ref.cancelSession()으로 세션을 취소할 수 있게 forwardRef + useImperativeHandle을 추가했다.
 const WorkoutInput = forwardRef(function WorkoutInput(
-  { uid, routineTemplates, weightKg, restNotificationEnabled, restWakeLockEnabled, restSoundId, onSaved, onRoutineUpdated, onSessionPhaseChange, customExercises },
+  {
+    uid,
+    routineTemplates,
+    weightKg,
+    restNotificationEnabled,
+    restWakeLockEnabled,
+    restSoundId,
+    onSaved,
+    onRoutineUpdated,
+    onSessionPhaseChange,
+    customExercises,
+    onGoToRoutineSetup,
+  },
   ref
 ) {
   const templates = routineTemplates || []
@@ -89,6 +101,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const [hiddenToday, setHiddenToday] = useState([]) // string[]
   // 운동 단위 완료 표시. "세트완료" 버튼으로 켜지고, 이름 옆 체크를 다시 눌러 되돌릴 수 있음
   const [completedExercises, setCompletedExercises] = useState({}) // { [exerciseName]: true }
+  // [2026-07-30 신규] "세트완료"를 누른 순서를 기록해 두었다가, 운동 완료 시 그 순서 그대로
+  // "내 루틴"(선택된 파트)의 종목 순서에 반영한다(④, 자유 추가 운동은 대상 아님).
+  // 화면 리렌더와 무관하게 순서만 누적하면 되므로 상태가 아닌 ref로 관리한다.
+  const completionOrderRef = useRef([])
 
   // 전체 세션 진행 단계: idle(시작 전) → warmup(웜업 중) → main(본운동)
   const [sessionPhase, setSessionPhase] = useState('idle')
@@ -268,6 +284,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setAddingExercise(false)
     setAddingFreeExercise(false)
     setExpandedExercise(null)
+    completionOrderRef.current = []
     if (uid) {
       try {
         localStorage.removeItem(draftKey(uid))
@@ -527,10 +544,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function completeExercise(name) {
     setCompletedExercises((c) => ({ ...c, [name]: true }))
     setExpandedExercise((cur) => (cur === name ? null : cur))
+    if (!completionOrderRef.current.includes(name)) {
+      completionOrderRef.current = [...completionOrderRef.current, name]
+    }
   }
 
   function toggleUncompleteExercise(name) {
     setCompletedExercises((c) => ({ ...c, [name]: false }))
+    // 완료를 취소하면 순서 기록에서도 빼서, 다시 완료했을 때의 새 위치가 반영되게 한다.
+    completionOrderRef.current = completionOrderRef.current.filter((n) => n !== name)
   }
 
   const totalVolume = useMemo(() => {
@@ -606,6 +628,23 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       scoreWeight: sessionType === 'extra' ? 0.7 : 1.0,
     })
 
+    // [2026-07-30 신규] 루틴 세션이고 완료 체크한 종목이 있으면, 그 순서를 '내 루틴'
+    // 해당 파트의 종목 순서에 반영한다(④). 완료 체크를 안 한 나머지 종목은 기존 상대 순서를 유지한 채
+    // 뒤로 붙인다. 자유 추가 운동(sessionType==='extra')은 루틴 자체가 없으므로 대상이 아니다.
+    if (sessionType === 'routine' && selectedTemplate && selectedPart) {
+      const completedOrder = completionOrderRef.current.filter((n) => partOrder.includes(n))
+      if (completedOrder.length > 0) {
+        const remaining = partOrder.filter((n) => !completedOrder.includes(n))
+        const nextOrder = [...completedOrder, ...remaining]
+        const changed = nextOrder.some((n, i) => n !== partOrder[i])
+        if (changed) {
+          setPartOrder(nextOrder)
+          await persistPartExercises(nextOrder)
+        }
+      }
+    }
+    completionOrderRef.current = []
+
     localStorage.removeItem(draftKey(uid))
     setRecords({})
     setCompletedExercises({})
@@ -625,8 +664,28 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   if (templates.length === 0) {
     return (
-      <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-label-neutral)' }}>
-        먼저 MY 탭에서 루틴을 설정해 주세요.
+      <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+        <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: 'var(--color-label-strong)' }}>
+          아직 &ldquo;내 루틴&rdquo;이 없어요
+        </p>
+        <p
+          className="text-keep-all"
+          style={{
+            fontSize: 13,
+            lineHeight: '20px',
+            color: 'var(--color-label-neutral)',
+            marginBottom: 20,
+            whiteSpace: 'pre-line',
+          }}
+        >
+          내 루틴은 자주 하는 운동 종목을 부위별로 묶어 미리 저장해 두는 나만의 운동 조합이에요.
+          {'\n'}
+          한 번 만들어 두면 기록탭에서 매번 종목을 처음부터 고르지 않고 저장된 순서 그대로 빠르게 기록할 수 있고,
+          운동을 완료할 때마다 실제로 수행한 순서가 자동으로 반영돼 다음에도 그 순서로 이어져요.
+          {'\n'}
+          아래 버튼을 눌러 MY 탭에서 첫 루틴을 만들어 보세요(2분할/3분할/4분할/5분할 기본 구성 중에서 골라 바로 시작할 수 있어요).
+        </p>
+        <Button onClick={() => onGoToRoutineSetup?.()}>MY 탭에서 내 루틴 만들기</Button>
       </div>
     )
   }

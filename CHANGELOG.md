@@ -393,3 +393,32 @@ CHANGELOG
   | 4) WorkoutInput.jsx: 운동시간 "초기화" 시 자동으로 다시 흐르지 않고 일시정지(재개 대기)
   |    상태로 전환되도록 수정. 이전에는 초기화 직후 곧바로 진행 상태가 되어 재개 버튼을
   |    눌러야 하는 취지와 맞지 않았음.
+
+[2026-07-30] 홈/기록/MY/리포트탭 UX 개선 9건 (사용자 피드백)
+  | 1) CalendarView.jsx: 캘린더 셀에 "오늘" 표시를 선택/기록 여부와 무관하게 항상 유지(테두리).
+  | 2) CalendarView.jsx: daySummary()에서 웜업/본운동 시간을 분리 표시(기존에 저장만 되고 화면에
+  |    안 쓰이던 WorkoutInput.jsx의 warmupActualSec 필드를 활용 — 데이터 구조 변경 없음, 값이
+  |    없는 과거 기록은 기존처럼 합산 표시). 유산소는 세트수 대신 누적 시간(분)으로, 근력 부위는
+  |    "OO세트" 단위를 붙여 표기.
+  | 3) CalendarView.jsx, ui.jsx: 운동 추가 시 부위 선택에 따라 종목 칩에 PART_COLORS 색상 적용,
+  |    스크롤 컨테이너(maxHeight 180px)로 감싸고 부위 전환 시 스크롤 위치를 맨 위로 초기화.
+  |    Chip 컴포넌트에 선택적 style prop을 추가(기존 호출부는 영향 없음).
+  | 4) WorkoutInput.jsx: "세트완료" 체크 순서를 completionOrderRef에 기록해 두었다가, 운동 완료 시
+  |    그 순서대로 선택된 템플릿 파트의 종목 순서를 재정렬해 Firestore에 반영(자유 추가 운동은
+  |    루틴이 없으므로 대상 아님. 완료 체크 없이 저장한 세션은 기존 순서 그대로 유지).
+  | 5) WorkoutInput.jsx, LogTab.jsx, App.jsx: 내 루틴 템플릿이 0개일 때 안내 문구(내 루틴이 뭔지,
+  |    왜 쓰는지) + "MY 탭에서 내 루틴 만들기" 버튼 추가. 버튼은 onGoToRoutineSetup prop을 통해
+  |    App.jsx의 setManagingRoutines(true)를 호출해 루틴 설정 화면으로 바로 이동시킨다.
+  | 6) exerciseLibrary.js: SPLIT_TEMPLATE_PRESETS 전면 개편 — 2/3/4분할 모두 각 파트 끝에
+  |    코어·유산소를 기본 포함하도록 재구성하고, 3분할은 등&이두 / 가슴&삼두 / 하체&어깨 조합으로
+  |    교체. 5분할 프리셋 신규 추가(기존에는 2/3/4분할만 존재).
+  | 7) storage.js: MAX_ROUTINE_TEMPLATES 8 → 5로 축소. saveRoutineTemplate의 신규 생성 분기에서만
+  |    검사하므로 기존에 5개 넘게 저장해 둔 사용자가 있어도 강제 삭제되지 않음.
+  | 8) ReportTab.jsx: 레이더 차트 축 라벨(BodyPartAxisTick)을 tick 위치에 그대로 찍던 방식에서,
+  |    중심(cx,cy) 반대 방향으로 고정 픽셀(LABEL_OFFSET=16)만큼 밀어내는 방식으로 변경. 차트 도형
+  |    크기(outerRadius)와 라벨 위치가 서로 독립적이게 되어 outerRadius를 50%→62%로 키우면서도
+  |    margin은 최소한(상하34/좌우32px)으로 줄일 수 있게 됨. (2026-07-29 이후 여러 차례 반복되던
+  |    "차트 크기 vs 라벨 겹침" 딜레마의 근본 원인 수정.)
+  | 9) "기타" 카테고리 관련: 코드 수정 없음. getExerciseAtom()이 현재 EXERCISE_LIBRARY에서 찾지
+  |    못하는 종목명(과거 라이브러리 개편 이전에 저장된 기록 등)을 '기타'로 묶어 표시하는 것이
+  |    원인이며, 사용자 확인 후 별도 수정은 보류.

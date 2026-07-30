@@ -45,11 +45,27 @@ function startOfWeek(d) {
 }
 
 // [2026-07-29 신규] 레이더 차트 부위 축 라벨 아래에 이번 주 볼륨·세트 수를 함께 표기하는
-// 커스텀 tick. recharts가 x/y/payload/textAnchor 등을 자동으로 주입해준다.
-function BodyPartAxisTick({ x, y, payload, textAnchor, detail }) {
+// 커스텀 tick. recharts가 x/y/cx/cy/payload/textAnchor 등을 자동으로 주입해준다.
+// [2026-07-30 재수정] 그동안 라벨을 tick 위치(x,y = outerRadius 반경 지점)에 그대로 찍다 보니
+// "차트를 키우면 라벨과 겹치고, 줄이면 차트 도형이 작아 보이는" 문제가 반복됐다(outerRadius/margin을
+// 여러 차례 조정해도 근본적으로 둘이 같은 값에 묶여 있어 해결이 안 됐음). 이번에는 tick 위치에서
+// 중심(cx,cy) 반대 방향으로 고정 픽셀(LABEL_OFFSET)만큼 라벨을 밀어내는 방식으로 바꿔서,
+// 차트 도형 크기(outerRadius)와 라벨 위치를 서로 독립적으로 조정할 수 있게 했다.
+const LABEL_OFFSET = 16
+
+function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
   const stat = detail?.[payload?.value]
+  let lx = x
+  let ly = y
+  if (typeof cx === 'number' && typeof cy === 'number') {
+    const dx = x - cx
+    const dy = y - cy
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1
+    lx = x + (dx / dist) * LABEL_OFFSET
+    ly = y + (dy / dist) * LABEL_OFFSET
+  }
   return (
-    <g transform={`translate(${x},${y})`}>
+    <g transform={`translate(${lx},${ly})`}>
       <text textAnchor={textAnchor} fontSize={11} fill="var(--color-label-normal)" fontWeight={600}>
         {payload?.value}
       </text>
@@ -453,21 +469,17 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           </Card>
 
           {/* 부위별 운동 추이 (2026-07-29: 스택 막대 → 레이더 차트로 교체) */}
-          {/* [2026-07-29 재수정] 라벨(부위명 + 볼륨/세트수 2줄)이 차트 도형을 뚫고 지나간다는
-              피드백으로, 카드 높이를 늘리고 outerRadius를 줄이며 사방에 margin을 둬서
-              라벨과 차트 사이에 여백을 확보했다.
-              [2026-07-29 추가 수정] 그래도 겹침이 남는다는 피드백으로 outerRadius를 52%→38%로
-              더 줄이고 margin/카드 높이를 한 번 더 키웠다.
-              [2026-07-30 재수정] 위 수정 이후 "라벨과 차트 사이"가 아니라 "차트와 박스(카드)
-              사이" 여백만 과도하게 늘어 차트 도형 자체가 작아 보인다는 피드백. margin은
-              라벨 텍스트가 카드 밖으로 잘리지 않을 최소한(20/28px)으로 줄이고, outerRadius를
-              38%→50%로 다시 키워 카드 크기는 그대로 두고 차트 도형만 키웠다. 2번째 줄
-              (볼륨·세트수)은 클릭/호버 없이 항상 보여야 한다는 요구사항이라 텍스트를 툴팁으로
-              옮기지 않고 그대로 유지. */}
+          {/* [2026-07-29~30 히스토리] 라벨(부위명 + 볼륨/세트수 2줄)이 tick 위치(outerRadius 반경)에
+              그대로 찍혀 있어서 outerRadius를 키우면 라벨과 겹치고, 줄이면 차트 도형이 작아 보이는
+              문제가 반복됐다(margin/outerRadius를 여러 차례 맞바꿔봐도 근본 원인이 아니었음).
+              [2026-07-30 재수정] BodyPartAxisTick에서 라벨을 중심 반대 방향으로 고정 오프셋만큼
+              밀어내도록(LABEL_OFFSET) 바꿔서, 이제 차트 도형 크기와 라벨 위치가 서로 독립적이다.
+              그 덕분에 outerRadius를 62%까지 키우면서 margin은 라벨 두 줄이 카드 밖으로 잘리지
+              않을 최소한(상하 34px, 좌우 32px)으로만 잡을 수 있게 됐다. */}
           <SectionTitle>부위별 운동 추이</SectionTitle>
           <Card style={{ marginBottom: 8, height: 380 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={bodyPartRadar} outerRadius="50%" margin={{ top: 20, right: 28, bottom: 20, left: 28 }}>
+              <RadarChart data={bodyPartRadar} outerRadius="62%" margin={{ top: 34, right: 32, bottom: 34, left: 32 }}>
                 <PolarGrid stroke="var(--color-line)" />
                 <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={bodyPartThisWeekDetail} />} />
                 {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.

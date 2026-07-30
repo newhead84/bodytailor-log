@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Card, Button, Chip, EmptyState } from './ui'
 import { getWorkoutLogsInRange, updateWorkoutLog, deleteWorkoutLog } from '../storage'
 import { Plus, X } from 'lucide-react'
@@ -11,25 +11,47 @@ import {
   getExerciseInputType,
 } from '../utils/exerciseLibrary'
 
-// 그 날짜의 운동시간/칼로리 합계와, 부위별 세트수를 계산한다(달력 칸에 색상+텍스트로 표시하기 위함).
+// 그 날짜의 운동시간/칼로리 합계와, 부위별 세트수(유산소는 누적 시간)를 계산한다
+// (달력 칸에 색상+텍스트로 표시하기 위함).
+// [2026-07-30 수정] ① 웜업/본운동 시간을 분리 집계(warmupActualSec은 WorkoutInput.jsx에서
+//   본운동 시작 시점에 이미 계산·저장되던 값인데, 그동안 화면에는 안 쓰이고 있었다 — 이번에
+//   달력 표시에만 반영, 저장 구조 변경은 없음). warmupActualSec이 없는 과거 기록은 분리 불가하므로
+//   hasWarmupData로 구분해 그 경우 기존처럼 합산 시간만 보여준다.
+// ② 유산소는 세트 개수 대신 실제 수행 시간(분)을 누적해서 보여준다(세트수로는 무의미했음).
 function daySummary(logs) {
   let totalDurationSec = 0
+  let totalWarmupSec = 0
+  let hasWarmupData = false
   let totalCalories = 0
-  const atomCounts = {}
+  const atomCounts = {} // 근력 부위: 세트 수, 유산소: 누적 분(min)
   logs.forEach((log) => {
     totalDurationSec += log.totalDurationSec || 0
     totalCalories += log.caloriesKcal || 0
+    if (log.warmupActualSec != null) {
+      hasWarmupData = true
+      totalWarmupSec += log.warmupActualSec || 0
+    }
     ;(log.exercises || []).forEach((ex) => {
       const atom = getExerciseDisplayAtom(ex.name)
       if (!atom) return
-      atomCounts[atom] = (atomCounts[atom] || 0) + (ex.sets?.length || 0)
+      if (atom === '유산소') {
+        const minutes = (ex.sets || []).reduce((sum, s) => sum + (s.durationMin || 0), 0)
+        atomCounts[atom] = (atomCounts[atom] || 0) + minutes
+      } else {
+        atomCounts[atom] = (atomCounts[atom] || 0) + (ex.sets?.length || 0)
+      }
     })
   })
+  const totalMainSec = hasWarmupData ? Math.max(0, totalDurationSec - totalWarmupSec) : null
   const atomList = Object.entries(atomCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
-    .map(([atom, count]) => ({ atom, count }))
-  return { totalDurationSec, totalCalories, atomList }
+    .map(([atom, count]) => ({
+      atom,
+      count,
+      label: atom === '유산소' ? `${atom} ${Math.round(count)}분` : `${atom} ${count}세트`,
+    }))
+  return { totalDurationSec, totalWarmupSec, totalMainSec, hasWarmupData, totalCalories, atomList }
 }
 
 function pad(n) {
@@ -75,6 +97,16 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
   // 그 부위 라이브러리 종목 중에서 선택하는 방식(WorkoutInput.jsx 자유 추가 운동과 동일 패턴).
   const [addingExercise, setAddingExercise] = useState(false)
   const [addCategory, setAddCategory] = useState(BODY_PART_ATOMS[0])
+  // [2026-07-30 신규] 부위를 바꿀 때마다 종목 리스트 스크롤 컨테이너를 맨 위로 되돌려,
+  // 새로 고른 부위의 종목명이 바로 보이도록 한다(③).
+  const exerciseListRef = useRef(null)
+  function selectAddCategory(atom) {
+    setAddCategory(atom)
+    if (exerciseListRef.current) {
+      exerciseListRef.current.scrollTop = 0
+      exerciseListRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }
 
   // 현재 커서(연/월) 범위의 기록을 다시 불러온다. 월 이동 시 useEffect에서, 수정/삭제/날짜변경 후에는
   // 아래 핸들러들에서 직접 호출한다.
@@ -133,6 +165,12 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
   function dateStr(d) {
     return `${cursor.year}-${pad(cursor.month + 1)}-${pad(d)}`
   }
+
+  // [2026-07-30 신규] 오늘 날짜 표시(①)를 위한 기준값. 자정을 넘기면 다음 렌더에서 자연히 갱신된다.
+  const todayDateStr = useMemo(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  }, [])
 
   const selectedLogs = selectedDate ? logsByDate[selectedDate] || [] : []
 
@@ -282,6 +320,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
           const hasLog = dayLogs.length > 0
           const summary = hasLog ? daySummary(dayLogs) : null
           const isSelected = selectedDate === ds
+          const isToday = ds === todayDateStr
           return (
             <button
               key={i}
@@ -296,13 +335,16 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                 gap: 3,
                 background: isSelected ? 'var(--color-primary-normal)' : 'transparent',
                 color: isSelected ? 'var(--color-on-gold)' : 'var(--color-label-strong)',
+                // [2026-07-30 신규] "오늘"은 선택/기록 여부와 무관하게 항상 골드 테두리로 표시한다.
+                boxShadow: isToday ? `inset 0 0 0 1.5px ${isSelected ? 'var(--color-on-gold)' : 'var(--color-gold-500, var(--color-primary-normal))'}` : 'none',
               }}
             >
-              <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500, textAlign: 'center' }}>{d}</span>
+              <span style={{ fontSize: 13, fontWeight: isSelected || isToday ? 700 : 500, textAlign: 'center' }}>{d}</span>
               {hasLog && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
-                  {summary.totalDurationSec > 0 && (
+                  {summary.hasWarmupData && summary.totalDurationSec > 0 ? (
                     <span
+                      className="text-keep-all"
                       style={{
                         fontSize: 9,
                         fontWeight: 700,
@@ -313,8 +355,24 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                         color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
                       }}
                     >
-                      {Math.round(summary.totalDurationSec / 60)}분
+                      웜업 {Math.round(summary.totalWarmupSec / 60)}분 · 본 {Math.round(summary.totalMainSec / 60)}분
                     </span>
+                  ) : (
+                    summary.totalDurationSec > 0 && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          borderRadius: 4,
+                          padding: '1px 3px',
+                          textAlign: 'center',
+                          background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(74,222,128,0.14)',
+                          color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
+                        }}
+                      >
+                        {Math.round(summary.totalDurationSec / 60)}분
+                      </span>
+                    )
                   )}
                   {summary.totalCalories > 0 && (
                     <span
@@ -331,7 +389,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                       {summary.totalCalories}Cal
                     </span>
                   )}
-                  {summary.atomList.map(({ atom, count }) => (
+                  {summary.atomList.map(({ atom, label }) => (
                     <div key={atom} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                       <span
                         style={{
@@ -353,7 +411,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {atom} {count}
+                        {label}
                       </span>
                     </div>
                   ))}
@@ -505,16 +563,44 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                   >
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                       {BODY_PART_ATOMS.map((atom) => (
-                        <Chip key={atom} active={addCategory === atom} onClick={() => setAddCategory(atom)}>
+                        <Chip
+                          key={atom}
+                          active={addCategory === atom}
+                          onClick={() => selectAddCategory(atom)}
+                          style={
+                            addCategory === atom
+                              ? { borderColor: PART_COLORS[atom], background: `${PART_COLORS[atom]}22`, color: PART_COLORS[atom] }
+                              : undefined
+                          }
+                        >
                           {atom}
                         </Chip>
                       ))}
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                    {/* [2026-07-30 신규] 부위별로 색상을 구분하고(디자인 가이드 v2 팔레트), 종목이 많아
+                        스크롤이 생기는 부위를 선택했을 때도 목록이 항상 위에서부터 보이도록 스크롤 컨테이너로
+                        감싸고 부위 전환 시 스크롤 위치를 맨 위로 되돌린다. */}
+                    <div
+                      ref={exerciseListRef}
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignContent: 'flex-start',
+                        gap: 6,
+                        marginBottom: 8,
+                        maxHeight: 180,
+                        overflowY: 'auto',
+                        scrollBehavior: 'smooth',
+                      }}
+                    >
                       {getExercisesForPart(addCategory)
                         .filter((n) => !editDraft?.exercises.some((ex) => ex.name === n))
                         .map((n) => (
-                          <Chip key={n} onClick={() => addDraftExercise(n)}>
+                          <Chip
+                            key={n}
+                            onClick={() => addDraftExercise(n)}
+                            style={{ borderColor: PART_COLORS[addCategory], color: PART_COLORS[addCategory] }}
+                          >
                             {n}
                           </Chip>
                         ))}

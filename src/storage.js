@@ -104,7 +104,10 @@ export async function removeCustomExercise(uid, atom, name) {
 // (기존 splitType/splitParts/isActive/cycleCount/lastCycleCompletedAt/weeklyFrequencyLog/
 //  favoriteExercises 필드는 더 이상 사용하지 않음 — 사용자 승인 하에 전면 교체)
 
-export const MAX_ROUTINE_TEMPLATES = 8
+// [2026-07-30] 8개는 많다는 피드백으로 5개로 축소. 이미 5개를 초과해 저장해 둔 기존 사용자가
+// 있어도 강제 삭제는 하지 않고(saveRoutineTemplate의 신규 생성 분기에서만 제한을 검사하므로
+// 기존 문서는 그대로 유지됨), 새로 추가하려는 시점부터만 5개 제한이 적용된다.
+export const MAX_ROUTINE_TEMPLATES = 5
 
 export async function getRoutineTemplates(uid) {
   const col = collection(db, 'routineTemplates', uid, 'templates')

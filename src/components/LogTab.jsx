@@ -7,7 +7,19 @@ import WorkoutInput from './WorkoutInput'
 // [2026-07-30] 홈탭의 "운동중" 상태 표시 + 취소 버튼을 위해 WorkoutInput의 ref(cancelSession)와
 // onSessionPhaseChange를 그대로 통과시킨다.
 const LogTab = forwardRef(function LogTab(
-  { uid, routineTemplates, weightKg, restNotificationEnabled, restWakeLockEnabled, restSoundId, onLogSaved, onRoutineUpdated, onSessionPhaseChange, customExercises },
+  {
+    uid,
+    routineTemplates,
+    weightKg,
+    restNotificationEnabled,
+    restWakeLockEnabled,
+    restSoundId,
+    onLogSaved,
+    onRoutineUpdated,
+    onSessionPhaseChange,
+    customExercises,
+    onGoToRoutineSetup,
+  },
   ref
 ) {
   return (
@@ -23,6 +35,7 @@ const LogTab = forwardRef(function LogTab(
       onRoutineUpdated={onRoutineUpdated}
       onSessionPhaseChange={onSessionPhaseChange}
       customExercises={customExercises}
+      onGoToRoutineSetup={onGoToRoutineSetup}
     />
   )
 })

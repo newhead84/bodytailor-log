@@ -1,8 +1,9 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-30] 사용자 피드백 4건 반영 — 홈탭 "운동중" 상태 표시 + 운동 취소 버튼,
- *            기록탭 파트 칩 라벨 축약(좌우 스크롤 제거), 리포트탭 레이더 차트 크기 확대,
- *            MY탭 계정 전용 커스텀 종목 추가 기능 + 중복/희귀/이미지없는 종목 정리.
+ * 최신 변경: [2026-07-30] 홈/기록/MY/리포트탭 UX 개선 9건 — 캘린더 오늘 표시, 웜업/본운동
+ *            시간 분리 표시 + 유산소 시간·부위 세트 단위 표기, 부위 선택 색상구분+스크롤,
+ *            운동완료 시 내 루틴 순서 자동 반영, 내 루틴 0개 안내+바로가기, 분할 프리셋 전면
+ *            개편(코어·유산소 기본 포함, 5분할 추가), 내 루틴 5개 제한, 레이더 차트 라벨 겹침 해결.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -242,6 +243,7 @@ export default function App() {
           onRoutineUpdated={refreshRoutineTemplates}
           onSessionPhaseChange={setWorkoutPhase}
           customExercises={userDoc.customExercises || {}}
+          onGoToRoutineSetup={() => setManagingRoutines(true)}
         />
       </div>
       <div ref={reportScrollRef} style={tabWrapperStyle('report')}>
