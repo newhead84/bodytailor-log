@@ -1,9 +1,9 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-30] 홈/기록/MY/리포트탭 UX 개선 9건 — 캘린더 오늘 표시, 웜업/본운동
- *            시간 분리 표시 + 유산소 시간·부위 세트 단위 표기, 부위 선택 색상구분+스크롤,
- *            운동완료 시 내 루틴 순서 자동 반영, 내 루틴 0개 안내+바로가기, 분할 프리셋 전면
- *            개편(코어·유산소 기본 포함, 5분할 추가), 내 루틴 5개 제한, 레이더 차트 라벨 겹침 해결.
+ * 최신 변경: [2026-07-30] UI/UX 개선·버그수정 17건 — 확인 팝업 커스텀 모달 전환, 탭 전환
+ *            페이드, 캘린더 전체부위/수행순서 표시+과거기록 추가(점수 미반영), 0값 세트
+ *            삭제확인, 종목추가 패널 고착 버그 수정, 리포트탭 통계 미반영 버그 수정,
+ *            차트 툴팁 다크테마+탭전환 시 잔상 제거.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -206,13 +206,18 @@ export default function App() {
   // 전환한다. display:none은 레이아웃에서 완전히 제거되는 반면, visibility:hidden은 레이아웃
   // 상 자리를 그대로 유지해 실제 위치가 전혀 바뀌지 않으므로, 기록탭 종목 리스트가 탭 재진입
   // 시 위치 이동으로 오인돼 "떨어지는" 것처럼 애니메이션되던 문제가 근본적으로 사라진다.
+  // [2026-07-30 신규] 하단 탭 전환 시 살짝 페이드되도록 opacity 트랜지션을 추가한다.
+  // visibility는 opacity/visibility 트랜지션 조합의 표준 동작에 따라, 나타날 때는 즉시
+  // visible로 바뀌고 사라질 때는 트랜지션이 끝난 뒤에 hidden으로 바뀌어 자연스럽게 페이드된다.
   function tabWrapperStyle(tab) {
     const isActive = activeTab === tab
     return {
       position: 'absolute',
       inset: 0,
       overflowY: 'auto',
+      opacity: isActive ? 1 : 0,
       visibility: isActive ? 'visible' : 'hidden',
+      transition: 'opacity 0.18s ease, visibility 0.18s ease',
       pointerEvents: isActive ? 'auto' : 'none',
     }
   }
@@ -228,6 +233,7 @@ export default function App() {
           workoutPhase={workoutPhase}
           onGoToLog={() => setActiveTab('log')}
           onCancelWorkout={handleCancelWorkout}
+          onLogsChanged={handleLogSaved}
         />
       </div>
       <div ref={logScrollRef} style={tabWrapperStyle('log')}>
@@ -253,6 +259,7 @@ export default function App() {
           targetSessionsPerWeek={targetSessionsPerWeek}
           logsVersion={logsVersion}
           onShowTierInfo={() => setShowTierInfo(true)}
+          isActive={activeTab === 'report'}
         />
       </div>
       <div ref={myScrollRef} style={tabWrapperStyle('my')}>

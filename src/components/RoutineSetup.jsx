@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card, BackButton } from './ui'
+import { Button, Chip, Card, BackButton, useConfirm } from './ui'
 import { BODY_PART_ATOMS, buildPartName, getExercisesForPart, getCustomExercisesForPart } from '../utils/exerciseLibrary'
 import ExerciseGuideImage from './ExerciseGuideImage'
 
@@ -10,6 +10,7 @@ import ExerciseGuideImage from './ExerciseGuideImage'
 //
 // initialTemplate: { id?, title, parts: [{name, atoms, exercises}] } — 없으면 신규 생성 모드
 export default function RoutineSetup({ initialTemplate, customExercises, onSave, onCancel, onSkip, canCancel = true }) {
+  const confirm = useConfirm()
   const isEditing = !!initialTemplate
   const [title, setTitle] = useState(initialTemplate?.title || '')
   const [parts, setParts] = useState(initialTemplate?.parts?.map((p) => ({ ...p, exercises: [...(p.exercises || [])] })) || [])
@@ -66,7 +67,9 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
     closePicker()
   }
 
-  function removePart(idx) {
+  async function removePart(idx) {
+    const target = parts[idx]
+    if (!(await confirm(`"${target?.name || '이 파트'}" 파트를 삭제할까요? 파트에 담긴 종목도 함께 사라져요.`))) return
     setParts((prev) => prev.filter((_, i) => i !== idx))
   }
 

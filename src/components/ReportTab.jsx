@@ -30,6 +30,19 @@ import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 
 const STATS_RANGE_DAYS = 84 // 최근 12주
 
+// [2026-07-30 신규] recharts 기본 Tooltip은 흰 배경이라 매트블랙 테마에서 카드처럼 튀어 보이고
+// 글자 대비도 맞지 않았다(⑯). 다크 테마에 맞춘 스타일로 통일해서 모든 차트에 적용한다.
+const CHART_TOOLTIP_STYLE = {
+  contentStyle: {
+    background: 'var(--color-bg-elevated)',
+    border: '1px solid var(--color-line)',
+    borderRadius: 8,
+    fontSize: 12,
+  },
+  labelStyle: { color: 'var(--color-label-strong)', fontWeight: 700, marginBottom: 4 },
+  itemStyle: { color: 'var(--color-label-normal)' },
+}
+
 function isoWeekLabel(dateStr) {
   const d = new Date(dateStr)
   const onejan = new Date(d.getFullYear(), 0, 1)
@@ -90,7 +103,7 @@ function byExercise(logs) {
   return map
 }
 
-export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo }) {
+export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true }) {
   // 랭킹 관련 상태
   const [entries, setEntries] = useState([])
   const [rankingLoading, setRankingLoading] = useState(true)
@@ -135,7 +148,10 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     return () => {
       cancelled = true
     }
-  }, [uid])
+    // [2026-07-30 수정] logsVersion 의존성 추가: 기존에는 uid가 바뀔 때만 재조회해서,
+    // 캘린더에서 추가/수정/삭제한 기록이나 기록탭에서 저장한 기록이 재진입 없이는 부위별
+    // 추이·점진적 과부하 등 통계에 반영되지 않는 버그가 있었다(⑰).
+  }, [uid, logsVersion])
 
   async function handleRefreshMyScore() {
     setRefreshing(true)
@@ -147,9 +163,12 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28)
 
     const fmt = (d) => d.toISOString().slice(0, 10)
-    const thisWeekLogs = await getWorkoutLogsInRange(uid, fmt(weekStart), fmt(today))
-    const baselineLogs = await getWorkoutLogsInRange(uid, fmt(fourWeeksAgo), fmt(prevWeekStart))
-    const lastWeekLogs = await getWorkoutLogsInRange(uid, fmt(prevWeekStart), fmt(weekStart))
+    // [2026-07-30 신규] 캘린더에서 추가한 과거 기록(isBackfilled)은 볼륨/캘린더/통계에는
+    // 반영되지만, 랭킹 점수(출석/볼륨/과부하) 계산에서는 제외한다.
+    const excludeBackfilled = (arr) => arr.filter((l) => !l.isBackfilled)
+    const thisWeekLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(weekStart), fmt(today)))
+    const baselineLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(fourWeeksAgo), fmt(prevWeekStart)))
+    const lastWeekLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(prevWeekStart), fmt(weekStart)))
 
     const thisWeekVolume = thisWeekLogs.reduce((s, l) => s + (l.totalVolume || 0), 0)
     const baselineAvgVolume = baselineLogs.length > 0 ? baselineLogs.reduce((s, l) => s + (l.totalVolume || 0), 0) / 4 : 0
@@ -456,12 +475,12 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
               </p>
             )}
             <div style={{ height: 160 }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer key={isActive ? 'volume-on' : 'volume-off'} width="100%" height="100%">
                 <BarChart data={weeklyVolumeCompare.chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
                   <XAxis dataKey="label" fontSize={12} stroke="var(--color-label-neutral)" />
                   <YAxis fontSize={11} stroke="var(--color-label-neutral)" />
-                  <Tooltip />
+                  <Tooltip {...CHART_TOOLTIP_STYLE} />
                   <Bar dataKey="volume" fill="var(--color-primary-normal)" radius={[6, 6, 0, 0]} barSize={56} />
                 </BarChart>
               </ResponsiveContainer>
@@ -475,10 +494,12 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
               [2026-07-30 재수정] BodyPartAxisTick에서 라벨을 중심 반대 방향으로 고정 오프셋만큼
               밀어내도록(LABEL_OFFSET) 바꿔서, 이제 차트 도형 크기와 라벨 위치가 서로 독립적이다.
               그 덕분에 outerRadius를 62%까지 키우면서 margin은 라벨 두 줄이 카드 밖으로 잘리지
-              않을 최소한(상하 34px, 좌우 32px)으로만 잡을 수 있게 됐다. */}
+              않을 최소한(상하 34px, 좌우 32px)으로만 잡을 수 있게 됐다.
+              [2026-07-30 추가 수정] 카드 상하 여백이 과하다는 피드백으로 Card 자체의 상하 패딩을
+              줄였다(차트 내부 margin은 라벨 잘림 방지를 위해 그대로 유지). */}
           <SectionTitle>부위별 운동 추이</SectionTitle>
-          <Card style={{ marginBottom: 8, height: 380 }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <Card style={{ marginBottom: 8, height: 380, padding: '6px 16px' }}>
+            <ResponsiveContainer key={isActive ? 'radar-on' : 'radar-off'} width="100%" height="100%">
               <RadarChart data={bodyPartRadar} outerRadius="62%" margin={{ top: 34, right: 32, bottom: 34, left: 32 }}>
                 <PolarGrid stroke="var(--color-line)" />
                 <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={bodyPartThisWeekDetail} />} />
@@ -500,7 +521,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                   fillOpacity={0.45}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Tooltip />
+                <Tooltip {...CHART_TOOLTIP_STYLE} />
               </RadarChart>
             </ResponsiveContainer>
           </Card>
@@ -567,12 +588,12 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           </div>
           {selectedExercise ? (
             <Card style={{ height: 200 }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer key={isActive ? 'trend-on' : 'trend-off'} width="100%" height="100%">
                 <LineChart data={exerciseTrend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
                   <XAxis dataKey="date" fontSize={11} stroke="var(--color-label-neutral)" />
                   <YAxis fontSize={11} stroke="var(--color-label-neutral)" />
-                  <Tooltip />
+                  <Tooltip {...CHART_TOOLTIP_STYLE} />
                   <Line type="monotone" dataKey="topWeight" stroke="var(--color-primary-normal)" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>

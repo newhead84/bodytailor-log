@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card } from './ui'
+import { Button, Chip, Card, useConfirm } from './ui'
 import RestTimer from './RestTimer'
 import {
   calcVolume,
@@ -81,7 +81,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   ref
 ) {
   const templates = routineTemplates || []
-  // 운동조합: 내 루틴(최대 8개) 중 하나 또는 '자유 추가 운동'
+  const confirm = useConfirm()
+  // 운동방식: 내 루틴(최대 8개) 중 하나 또는 '자유 추가 운동'
   const [sessionType, setSessionType] = useState('routine') // 'routine' | 'extra'
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id || null)
   const [selectedPartName, setSelectedPartName] = useState(templates[0]?.parts?.[0]?.name || null)
@@ -269,8 +270,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   // [2026-07-30 신규] 운동 시작을 잘못 눌렀을 때를 위한 취소. 웜업/본운동 진행 중에만
   // 노출되며, 세션 상태(단계·타이머·오늘 입력한 기록)를 모두 초기화하고 임시저장(draft)도 지운다.
-  function handleCancelSession() {
-    if (!window.confirm('운동을 취소할까요? 지금까지 입력한 기록은 사라져요.')) return
+  async function handleCancelSession() {
+    if (!(await confirm('운동을 취소할까요? 지금까지 입력한 기록은 사라져요.'))) return
     setSessionPhase('idle')
     setSessionStartAt(null)
     setWarmupActualSec(null)
@@ -302,6 +303,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function handleStartWorkout() {
     setSessionPhase('warmup')
     setSessionStartAt(Date.now())
+    // [2026-07-30 신규] 이전 세션에서 남아있을 수 있는 종목추가 패널 열림 상태를 방어적으로 초기화(⑫).
+    setAddingExercise(false)
+    setAddingFreeExercise(false)
   }
 
   function handleStartMain() {
@@ -333,8 +337,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 팝업으로 한 번 더 확인한 뒤 경과시간을 0으로 되돌린다(세션 단계/기록은 유지).
   // [2026-07-28] 초기화 직후 타이머가 곧바로 다시 흐르지 않도록, 버튼을 "재개" 상태(일시정지)로
   // 전환해두고 사용자가 직접 재개를 눌러야 다시 흐르게 한다.
-  function handleResetElapsed() {
-    if (!window.confirm('총 운동시간을 0으로 초기화할까요?')) return
+  async function handleResetElapsed() {
+    if (!(await confirm('총 운동시간을 0으로 초기화할까요?'))) return
     const now = Date.now()
     setSessionStartAt(now)
     setPausedAccumMs(0)
@@ -356,11 +360,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setSelectedTemplateId(templateId)
     setSelectedPartName(t?.parts?.[0]?.name || null)
     setExpandedExercise(null)
+    setAddingExercise(false)
   }
 
   function selectPart(partName) {
     setSelectedPartName(partName)
     setExpandedExercise(null)
+    setAddingExercise(false)
   }
 
   async function openExercise(name) {
@@ -426,16 +432,30 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRecords((r) => ({ ...r, [name]: r[name].filter((_, i) => i !== idx) }))
   }
 
-  // 체크(V) 버튼으로 세트를 저장하기 전에, 필수 값이 비어있으면 그대로 저장할지
-  // 한 번 더 확인한다(실수로 빈 값을 저장하는 것을 방지). 종목 입력방식에 따라
-  // 어떤 값이 "필수"인지가 다르다(중량+횟수 / 횟수만 / 시간).
-  function trySaveSet(name, idx) {
+  // 체크(V) 버튼으로 세트를 저장하기 전에 값을 확인한다. 값이 비어있으면(아예 입력을 안 한 경우)
+  // 그대로 저장할지만 확인하던 기존 로직에 더해, [2026-07-30 신규] 무게/횟수(또는 유산소 시간)가
+  // 0이면 "0으로 완료"는 의미가 없으므로 저장 대신 그 세트를 삭제할지 확인한다(⑬) — 중량이나
+  // 수치가 0으로 완료된 세트가 그대로 DB에 남는 문제를 막는다.
+  async function trySaveSet(name, idx) {
     const set = records[name]?.[idx]
     const inputType = getExerciseInputType(name)
     const isEmpty =
       !set ||
       (inputType === 'cardio' ? set.durationMin === '' : inputType === 'reps' ? set.reps === '' : set.weight === '' || set.reps === '')
-    if (isEmpty && !window.confirm('값이 비어 있어요. 그대로 저장할까요?')) return
+    const isZero =
+      !isEmpty &&
+      (inputType === 'cardio'
+        ? Number(set.durationMin) === 0
+        : inputType === 'reps'
+        ? Number(set.reps) === 0
+        : Number(set.weight) === 0 || Number(set.reps) === 0)
+    if (isZero) {
+      if (await confirm('값이 0으로 입력되어 있어요. 이 세트를 삭제할까요?')) {
+        removeSet(name, idx)
+      }
+      return
+    }
+    if (isEmpty && !(await confirm('값이 비어 있어요. 그대로 저장할까요?'))) return
     saveSetAndStartRest(name, idx)
   }
 
@@ -465,7 +485,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 내 루틴 파트에서 종목을 완전히 삭제(다음 세션에도 다시 나타나지 않음). Firestore에 즉시 반영.
   async function removeExerciseFromRoutine(name) {
     if (!selectedTemplate || !selectedPart) return
-    if (!window.confirm(`"${name}"을(를) 이 파트에서 완전히 삭제할까요? 이후 세션에서도 보이지 않습니다.`)) return
+    if (!(await confirm(`"${name}"을(를) 이 파트에서 완전히 삭제할까요? 이후 세션에서도 보이지 않습니다.`))) return
     const nextExercises = partOrder.filter((n) => n !== name)
     setPartOrder(nextExercises)
     setRecords((r) => {
@@ -655,6 +675,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setPausedAccumMs(0)
     setFreeExercises([])
     setHiddenToday([])
+    // [2026-07-30 신규] 운동 완료 시 "+ 종목 추가" 패널을 열어둔 채로 끝내면(취소를 누르지
+    // 않고 완료) 다음 세션 시작 시에도 그 패널이 열린 채로 보이던 버그(⑫) 수정.
+    setAddingExercise(false)
+    setAddingFreeExercise(false)
     setSaving(false)
     // 운동완료 시점에 진행 중이던 휴식타이머는 즉시 사라져야 한다.
     setRestActive(false)
@@ -783,9 +807,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         </div>
       )}
 
-      {/* 운동조합: 내 루틴(최대 8개) 중 선택 / 자유 추가 운동 */}
+      {/* 운동방식: 내 루틴(최대 8개) 중 선택 / 자유 추가 운동 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0 }}>운동조합 :</span>
+        <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0 }}>운동방식 선택</span>
         {templates.map((t) => (
           <Chip
             key={t.id}
@@ -837,11 +861,33 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
       {/* ── idle: 운동 시작 전 ── */}
       {sessionPhase === 'idle' && (
-        <Card style={{ textAlign: 'center', padding: 24 }}>
-          <p className="text-keep-all" style={{ margin: 0, fontSize: 14, color: 'var(--color-label-normal)' }}>
-            아래 버튼을 누르면 바로 웜업이 시작돼요. 준비가 되면 언제든 "본운동 시작"으로 넘어갈 수 있어요.
-          </p>
-        </Card>
+        <>
+          <Card style={{ textAlign: 'center', padding: 24 }}>
+            <p className="text-keep-all" style={{ margin: 0, fontSize: 14, color: 'var(--color-label-normal)' }}>
+              아래 버튼을 누르면 바로 웜업이 시작돼요. 준비가 되면 언제든 "본운동 시작"으로 넘어갈 수 있어요.
+            </p>
+          </Card>
+          {/* [2026-07-30 신규] 운동 시작 전, 카드 아래 남는 빈 공간이 허전하다는 피드백으로
+              기존 앱 로고를 회색톤·저투명도 워터마크로 채워넣었다(⑭). 클릭에 영향이 없도록
+              pointerEvents:none으로 순수 장식 용도로만 둔다. */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '48px 0',
+              pointerEvents: 'none',
+            }}
+          >
+            <img
+              src="/icon-512.png"
+              alt=""
+              width={168}
+              height={168}
+              style={{ opacity: 0.07, filter: 'grayscale(100%)' }}
+            />
+          </div>
+        </>
       )}
 
       {/* ── warmup: 웜업 중(정해진 시간 없이 경과시간만 표시) ── */}

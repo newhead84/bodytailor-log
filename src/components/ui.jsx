@@ -68,13 +68,14 @@ export function SectionTitle({ children, action }) {
   )
 }
 
-export function EmptyState({ title, description, action }) {
+export function EmptyState({ title, description, action, style }) {
   return (
     <div
       style={{
         textAlign: 'center',
         padding: '40px 20px',
         color: 'var(--color-label-neutral)',
+        ...style,
       }}
     >
       <p style={{ fontSize: 'var(--fs-headline2)', color: 'var(--color-label-strong)', fontWeight: 700, margin: '0 0 6px' }}>{title}</p>
@@ -232,6 +233,85 @@ export function BackButton({ onClick, children = '돌아가기' }) {
       {children}
     </button>
   )
+}
+
+// [2026-07-30 신규] window.confirm은 브라우저가 도메인 이름을 강제로 붙여서 보여주므로
+// ("bodytailor-log.vercel.app 내용:" 등), 앱 전체에서 쓰는 삭제/취소 확인 팝업을 이 커스텀
+// 모달로 교체한다. useConfirm() 훅이 반환하는 confirm(message) 함수는 Promise<boolean>을
+// 반환해 기존 `if (!window.confirm(msg)) return` 패턴을 `if (!(await confirm(msg))) return`
+// 형태로 그대로 바꿔 쓸 수 있다.
+const ConfirmContext = React.createContext(null)
+
+export function ConfirmProvider({ children }) {
+  const [state, setState] = React.useState(null) // { message, resolve }
+
+  const confirm = React.useCallback((message) => {
+    return new Promise((resolve) => {
+      setState({ message, resolve })
+    })
+  }, [])
+
+  function respond(result) {
+    state?.resolve(result)
+    setState(null)
+  }
+
+  return (
+    <ConfirmContext.Provider value={confirm}>
+      {children}
+      {state && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: 24,
+          }}
+          onClick={() => respond(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 320,
+              background: 'var(--color-bg-elevated)',
+              border: '1px solid var(--color-line)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-card)',
+              padding: 20,
+            }}
+          >
+            <p
+              className="text-keep-all"
+              style={{ margin: '0 0 18px', fontSize: 'var(--fs-body1)', lineHeight: 'var(--lh-body1)', color: 'var(--color-label-strong)' }}
+            >
+              {state.message}
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="ghost" full onClick={() => respond(false)}>
+                취소
+              </Button>
+              <Button variant="primary" full onClick={() => respond(true)}>
+                확인
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </ConfirmContext.Provider>
+  )
+}
+
+export function useConfirm() {
+  const ctx = React.useContext(ConfirmContext)
+  if (!ctx) throw new Error('useConfirm은 ConfirmProvider 하위에서만 사용할 수 있습니다.')
+  return ctx
 }
 
 export function Chip({ children, active, onClick, style }) {

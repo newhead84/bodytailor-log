@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { Button, Card, BackButton } from './ui'
+import { Button, Card, BackButton, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '../storage'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset } from '../utils/exerciseLibrary'
@@ -11,6 +11,7 @@ const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 // isFirstSetup === true면 아직 루틴이 하나도 없는 상태(온보딩 직후)로,
 // 최소 1개는 만들어야 메인 화면으로 넘어갈 수 있지만, "나중에 입력"으로 건너뛸 수도 있다.
 export default function RoutineManager({ uid, templates, customExercises, onChanged, onClose, onSkip, isFirstSetup }) {
+  const confirm = useConfirm()
   const [editingId, setEditingId] = useState(isFirstSetup ? 'new' : null) // null | 'new' | templateId
   const [error, setError] = useState('')
   // [2026-07-28] MY탭에만 있던 "분할운동 템플릿에서 추가"를 이 화면에도 제공.
@@ -67,7 +68,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
   }
 
   async function handleDelete(t) {
-    if (!window.confirm(`"${t.title}" 루틴을 삭제할까요? 되돌릴 수 없어요.`)) return
+    if (!(await confirm(`"${t.title}" 루틴을 삭제할까요? 되돌릴 수 없어요.`))) return
     await deleteRoutineTemplate(uid, t.id)
     await onChanged()
   }

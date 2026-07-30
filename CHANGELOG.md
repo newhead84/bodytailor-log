@@ -2,6 +2,28 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-07-30] UI/UX 개선·버그수정 17건 반영
+- 공통: 삭제/취소 등 확인 팝업을 브라우저 기본 window.confirm(도메인명이 강제로 붙음)에서
+  커스텀 모달로 전면 교체, 하단 탭 전환에 페이드 애니메이션 추가 | ui.jsx(ConfirmProvider/
+  useConfirm 신규), main.jsx(Provider로 wrap), App.jsx(tabWrapperStyle에 opacity 트랜지션),
+  RoutineManager.jsx/RoutineSetup.jsx(파트 삭제 확인 추가)/MyPageTab.jsx/WorkoutInput.jsx/
+  CalendarView.jsx(전부 window.confirm → useConfirm 교체)
+- 홈탭: "오늘의 운동" 문구 삭제, 캘린더 요약을 상위 3개 제한→전체 부위·실제 수행 순서로 변경,
+  분/세트/Cal 표시에서 단위 폰트를 숫자보다 작게 분리, 날짜 선택 시 과거 날짜에 새 기록을
+  추가하는 기능 신규(추가된 기록은 isBackfilled로 표시해 볼륨/통계엔 반영되지만 XP·랭킹
+  점수에는 미반영), "날짜를 선택해 주세요" 문구/여백 정리 | HomeTab.jsx, CalendarView.jsx
+  (EditLogForm 컴포넌트 분리, daySummary 재작성, saveNewLog/startCreateNew 신규),
+  storage.js(addWorkoutLog가 isBackfilled면 XP 스킵)
+- 기록탭/MY탭: "운동조합" 용어를 "운동방식"으로 전면 변경, 무게/횟수가 0인 세트를 완료하면
+  저장 대신 삭제 여부를 묻도록 변경, 세션 종료·시작·파트 전환 시 "+종목추가" 패널이 열린
+  채로 남아있던 버그 수정, 웜업 전 화면 하단 빈 공간에 앱 로고 워터마크 추가 |
+  WorkoutInput.jsx, MyPageTab.jsx
+- 리포트탭: 캘린더에서 추가/수정한 기록이 부위별 추이·점진적 과부하 통계에 반영되지 않던
+  버그 수정(logsVersion 의존성 누락), 랭킹 점수 계산에서 isBackfilled 기록 제외, 차트
+  3종에 다크테마 툴팁 스타일 적용 + 탭을 벗어나면 리마운트되도록 해 흰색 툴팁 카드가 다른
+  탭까지 계속 떠 있던 버그 수정, "부위별 운동 추이" 카드 상하 패딩 축소 | ReportTab.jsx,
+  App.jsx(isActive prop 전달)
+
 [2026-07-30] 사용자 피드백 4건 반영
 - (1) 홈탭: 기록탭에서 웜업/본운동이 시작되면(기록하러 가기·기록탭 직접 진입·"한 세트 더?"
   모두 포함) 홈탭 카드가 "운동중 · 이어서 하기"로 바뀌고, 실수로 시작했을 때를 위한 별도

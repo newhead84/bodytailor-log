@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Dumbbell, Moon } from 'lucide-react'
-import { Card, SectionTitle, Button } from './ui'
+import { Card, Button } from './ui'
 import { getRecentWorkoutLogs } from '../storage'
 import CalendarView from './CalendarView'
 import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
@@ -33,7 +33,7 @@ function getSuggestedNext(routineTemplates, recentLogs) {
   return { template, part: template.parts[nextIdx] }
 }
 
-export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, workoutPhase, onGoToLog, onCancelWorkout }) {
+export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, workoutPhase, onGoToLog, onCancelWorkout, onLogsChanged }) {
   // [2026-07-30 신규] 기록탭에서 웜업/본운동이 시작되면("오늘 운동 기록하러 가기" 또는
   // "한 세트 더?"를 통해 진입한 경우 모두 포함) 홈탭 카드가 "운동중" 상태로 바뀐다.
   const isWorkoutInProgress = workoutPhase === 'warmup' || workoutPhase === 'main'
@@ -83,7 +83,6 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, w
         {quote}
       </p>
 
-      <SectionTitle>오늘의 운동</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--color-label-normal)' }}>
           {recentLogs[0]
@@ -125,7 +124,7 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, w
       </Card>
 
       <div style={{ margin: '0 -20px 4px' }}>
-        <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} />
+        <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} onLogsChanged={onLogsChanged} />
       </div>
 
       {monthSummary && (

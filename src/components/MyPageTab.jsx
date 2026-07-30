@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Card, SectionTitle, Button, Chip, TierBadge } from './ui'
+import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm } from './ui'
 import { updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
 import { logout } from '../firebase'
 import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
@@ -17,6 +17,7 @@ const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
 export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo }) {
+  const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
@@ -198,7 +199,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   }
 
   async function handleRemoveCustomExercise(name) {
-    if (!window.confirm(`"${name}"을(를) 삭제할까요? 이미 루틴/기록에 추가된 항목은 그대로 남아요.`)) return
+    if (!(await confirm(`"${name}"을(를) 삭제할까요? 이미 루틴/기록에 추가된 항목은 그대로 남아요.`))) return
     await removeCustomExercise(uid, customExercisePart, name)
     await onProfileUpdated?.()
   }
@@ -337,7 +338,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
       <SectionTitle
         action={
           <Button variant="secondary" onClick={onManageRoutines}>
-            운동조합 변경
+            운동방식 변경
           </Button>
         }
       >

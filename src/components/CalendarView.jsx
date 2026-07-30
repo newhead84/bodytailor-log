@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Card, Button, Chip, EmptyState } from './ui'
-import { getWorkoutLogsInRange, updateWorkoutLog, deleteWorkoutLog } from '../storage'
+import { Card, Button, Chip, EmptyState, useConfirm } from './ui'
+import { getWorkoutLogsInRange, updateWorkoutLog, deleteWorkoutLog, addWorkoutLog } from '../storage'
 import { Plus, X } from 'lucide-react'
 import {
   getExerciseDisplayAtom,
@@ -18,12 +18,17 @@ import {
 //   달력 표시에만 반영, 저장 구조 변경은 없음). warmupActualSec이 없는 과거 기록은 분리 불가하므로
 //   hasWarmupData로 구분해 그 경우 기존처럼 합산 시간만 보여준다.
 // ② 유산소는 세트 개수 대신 실제 수행 시간(분)을 누적해서 보여준다(세트수로는 무의미했음).
+// [2026-07-30 재수정] ③ 상위 3개로 자르던 것을 없애고 그날 수행한 부위 전체를 보여준다.
+//   ④ "많이 한 순서"(세트수 내림차순) 대신, 로그에 기록된 실제 수행 순서(부위가 처음 등장한
+//   순서) 그대로 보여준다 — 유산소는 세트수 대신 "분"이라 숫자가 커서 순서가 뒤바뀌던 문제도
+//   함께 해결된다.
 function daySummary(logs) {
   let totalDurationSec = 0
   let totalWarmupSec = 0
   let hasWarmupData = false
   let totalCalories = 0
   const atomCounts = {} // 근력 부위: 세트 수, 유산소: 누적 분(min)
+  const atomOrder = [] // 부위가 처음 등장한 순서(=수행 순서) 보존
   logs.forEach((log) => {
     totalDurationSec += log.totalDurationSec || 0
     totalCalories += log.caloriesKcal || 0
@@ -34,6 +39,7 @@ function daySummary(logs) {
     ;(log.exercises || []).forEach((ex) => {
       const atom = getExerciseDisplayAtom(ex.name)
       if (!atom) return
+      if (!(atom in atomCounts)) atomOrder.push(atom)
       if (atom === '유산소') {
         const minutes = (ex.sets || []).reduce((sum, s) => sum + (s.durationMin || 0), 0)
         atomCounts[atom] = (atomCounts[atom] || 0) + minutes
@@ -43,14 +49,14 @@ function daySummary(logs) {
     })
   })
   const totalMainSec = hasWarmupData ? Math.max(0, totalDurationSec - totalWarmupSec) : null
-  const atomList = Object.entries(atomCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([atom, count]) => ({
+  const atomList = atomOrder.map((atom) => {
+    const count = atomCounts[atom]
+    return {
       atom,
-      count,
-      label: atom === '유산소' ? `${atom} ${Math.round(count)}분` : `${atom} ${count}세트`,
-    }))
+      count: atom === '유산소' ? Math.round(count) : count,
+      unit: atom === '유산소' ? '분' : '세트',
+    }
+  })
   return { totalDurationSec, totalWarmupSec, totalMainSec, hasWarmupData, totalCalories, atomList }
 }
 
@@ -81,7 +87,222 @@ function formatExerciseSets(ex) {
   return ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')
 }
 
-export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
+// [2026-07-30 신규] 날짜별 기록 편집 폼. 기존 로그 수정(editingLogId)과, 캘린더에서 날짜를
+// 선택해 새로 추가하는 지난 기록(⑤) 양쪽에서 동일하게 재사용한다.
+function EditLogForm({
+  editDraft,
+  savingEdit,
+  onUpdateDate,
+  onUpdateSet,
+  onAddSet,
+  onDeleteSet,
+  onAddExercise,
+  addingExercise,
+  onToggleAdding,
+  addCategory,
+  onSelectCategory,
+  exerciseListRef,
+  onCancel,
+  onSave,
+  isNew,
+}) {
+  return (
+    <Card style={{ marginBottom: 10 }}>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-label-neutral)' }}>날짜</div>
+        <input
+          type="date"
+          value={editDraft?.date || ''}
+          onChange={(e) => onUpdateDate(e.target.value)}
+          style={{ padding: '8px 10px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 14 }}
+        />
+      </div>
+      {editDraft?.exercises.map((ex, exIdx) => (
+        <div key={ex.name} style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{ex.name}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {ex.sets.map((s, setIdx) => (
+              <div key={setIdx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {ex.inputType === 'cardio' ? (
+                  <>
+                    <input
+                      type="number"
+                      value={s.incline}
+                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'incline', e.target.value)}
+                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>% ·</span>
+                    <input
+                      type="number"
+                      value={s.speedKmh}
+                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'speedKmh', e.target.value)}
+                      style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>km/h ·</span>
+                    <input
+                      type="number"
+                      value={s.durationMin}
+                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'durationMin', e.target.value)}
+                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>분</span>
+                  </>
+                ) : ex.inputType === 'reps' ? (
+                  <>
+                    <input
+                      type="number"
+                      value={s.reps}
+                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
+                      style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="number"
+                      value={s.weight}
+                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'weight', e.target.value)}
+                      style={{ width: 64, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>kg ×</span>
+                    <input
+                      type="number"
+                      value={s.reps}
+                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
+                      style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
+                  </>
+                )}
+                <button
+                  onClick={() => onDeleteSet(exIdx, setIdx)}
+                  aria-label="세트 삭제"
+                  style={{
+                    marginLeft: 'auto',
+                    width: 24,
+                    height: 24,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--color-label-neutral)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <X size={14} strokeWidth={2} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => onAddSet(exIdx)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              marginTop: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--color-primary-strong)',
+            }}
+          >
+            <Plus size={13} strokeWidth={2} /> 세트 추가
+          </button>
+        </div>
+      ))}
+
+      {!addingExercise ? (
+        <button
+          onClick={() => onToggleAdding(true)}
+          style={{
+            width: '100%',
+            marginBottom: 10,
+            padding: '10px',
+            borderRadius: 10,
+            border: '1px dashed var(--color-line)',
+            color: 'var(--color-label-neutral)',
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          + 운동 추가
+        </button>
+      ) : (
+        <div
+          style={{
+            marginBottom: 10,
+            padding: 12,
+            borderRadius: 10,
+            background: 'var(--color-bg-elevated)',
+          }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {BODY_PART_ATOMS.map((atom) => (
+              <Chip
+                key={atom}
+                active={addCategory === atom}
+                onClick={() => onSelectCategory(atom)}
+                style={
+                  addCategory === atom
+                    ? { borderColor: PART_COLORS[atom], background: `${PART_COLORS[atom]}22`, color: PART_COLORS[atom] }
+                    : undefined
+                }
+              >
+                {atom}
+              </Chip>
+            ))}
+          </div>
+          <div
+            ref={exerciseListRef}
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignContent: 'flex-start',
+              gap: 6,
+              marginBottom: 8,
+              maxHeight: 180,
+              overflowY: 'auto',
+              scrollBehavior: 'smooth',
+            }}
+          >
+            {getExercisesForPart(addCategory)
+              .filter((n) => !editDraft?.exercises.some((ex) => ex.name === n))
+              .map((n) => (
+                <Chip
+                  key={n}
+                  onClick={() => onAddExercise(n)}
+                  style={{ borderColor: PART_COLORS[addCategory], color: PART_COLORS[addCategory] }}
+                >
+                  {n}
+                </Chip>
+              ))}
+          </div>
+          <button onClick={() => onToggleAdding(false)} style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            취소
+          </button>
+        </div>
+      )}
+      {editDraft?.exercises.length === 0 && (
+        <p className="text-keep-all" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+          {isNew
+            ? '추가할 운동을 하나 이상 골라주세요.'
+            : '운동을 모두 지웠어요. 이대로 저장할 수 없으니, 이 날짜 기록 자체를 지우려면 취소 후 "삭제"를 눌러주세요.'}
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <Button variant="ghost" style={{ flex: 1 }} onClick={onCancel} disabled={savingEdit}>
+          취소
+        </Button>
+        <Button style={{ flex: 1 }} onClick={onSave} disabled={savingEdit || editDraft?.exercises.length === 0}>
+          {savingEdit ? '저장 중…' : '저장'}
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsChanged }) {
+  const confirm = useConfirm()
   const [cursor, setCursor] = useState(() => {
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() } // month: 0-indexed
@@ -93,6 +314,10 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
   const [editingLogId, setEditingLogId] = useState(null)
   const [editDraft, setEditDraft] = useState(null) // { date, exercises: [{name, inputType, sets:[...]}] }
   const [savingEdit, setSavingEdit] = useState(false)
+  // [2026-07-30 신규] 캘린더에서 날짜를 선택해 "지난 기록"을 새로 추가하는 흐름(⑤). 기존
+  // 로그가 없는 날짜에도, 이미 로그가 있는 날짜에도 추가할 수 있다. 이렇게 새로 추가한 기록은
+  // isBackfilled로 표시해 볼륨/캘린더/통계에는 반영하되 랭킹 점수 계산에서는 제외한다(⑦).
+  const [isCreatingLog, setIsCreatingLog] = useState(false)
   // [2026-07-29 신규] 날짜별 기록 수정 화면에서 "운동 추가" 시 부위 카테고리를 먼저 고르고
   // 그 부위 라이브러리 종목 중에서 선택하는 방식(WorkoutInput.jsx 자유 추가 운동과 동일 패턴).
   const [addingExercise, setAddingExercise] = useState(false)
@@ -175,6 +400,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
   const selectedLogs = selectedDate ? logsByDate[selectedDate] || [] : []
 
   function startEdit(log) {
+    setIsCreatingLog(false)
     setEditingLogId(log.id)
     setEditDraft({
       date: log.date,
@@ -189,7 +415,17 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
 
   function cancelEdit() {
     setEditingLogId(null)
+    setIsCreatingLog(false)
     setEditDraft(null)
+    setAddingExercise(false)
+  }
+
+  // 선택한 날짜에 새 기록을 추가하는 흐름 시작(⑤). 빈 운동 목록으로 시작해서, 아래
+  // "+ 운동 추가"로 종목을 골라 채우고 저장하면 그 날짜의 새 로그가 생성된다.
+  function startCreateNew() {
+    setEditingLogId(null)
+    setIsCreatingLog(true)
+    setEditDraft({ date: selectedDate, exercises: [] })
     setAddingExercise(false)
   }
 
@@ -243,32 +479,38 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
     setAddingExercise(false)
   }
 
+  // saveEdit/saveNewLog가 공통으로 쓰는 정리 로직(입력값 숫자 변환 + 총 볼륨 계산)을 분리했다.
+  function buildCleanedPayload(draft) {
+    const cleanedExercises = draft.exercises.map((ex) => ({
+      name: ex.name,
+      inputType: ex.inputType,
+      sets: ex.sets.map((s) => {
+        if (ex.inputType === 'cardio') {
+          return {
+            incline: Number(s.incline) || 0,
+            speedKmh: Number(s.speedKmh) || 0,
+            durationMin: Number(s.durationMin) || 0,
+          }
+        }
+        if (ex.inputType === 'reps') {
+          return { reps: parseInt(s.reps, 10) || 0 }
+        }
+        return { weight: Number(s.weight) || 0, reps: parseInt(s.reps, 10) || 0 }
+      }),
+    }))
+    // 유산소/횟수전용 종목은 무게 개념이 없어 볼륨 계산에서 제외한다(운동기록 입력 화면과 동일 규칙).
+    const totalVolume = cleanedExercises.reduce(
+      (sum, ex) => sum + (ex.inputType === 'sets' || !ex.inputType ? calcVolume(ex.sets) : 0),
+      0
+    )
+    return { cleanedExercises, totalVolume }
+  }
+
   async function saveEdit(log) {
     if (!editDraft?.date) return
     setSavingEdit(true)
     try {
-      const cleanedExercises = editDraft.exercises.map((ex) => ({
-        name: ex.name,
-        inputType: ex.inputType,
-        sets: ex.sets.map((s) => {
-          if (ex.inputType === 'cardio') {
-            return {
-              incline: Number(s.incline) || 0,
-              speedKmh: Number(s.speedKmh) || 0,
-              durationMin: Number(s.durationMin) || 0,
-            }
-          }
-          if (ex.inputType === 'reps') {
-            return { reps: parseInt(s.reps, 10) || 0 }
-          }
-          return { weight: Number(s.weight) || 0, reps: parseInt(s.reps, 10) || 0 }
-        }),
-      }))
-      // 유산소/횟수전용 종목은 무게 개념이 없어 볼륨 계산에서 제외한다(운동기록 입력 화면과 동일 규칙).
-      const totalVolume = cleanedExercises.reduce(
-        (sum, ex) => sum + (ex.inputType === 'sets' || !ex.inputType ? calcVolume(ex.sets) : 0),
-        0
-      )
+      const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
       await updateWorkoutLog(uid, log.id, {
         date: editDraft.date,
         exercises: cleanedExercises,
@@ -277,17 +519,44 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
       const grouped = await loadMonth()
       setLogsByDate(grouped)
       cancelEdit()
+      onLogsChanged?.()
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  // [2026-07-30 신규] 캘린더에서 날짜를 선택해 새로 추가한 "지난 기록"을 저장한다(⑤).
+  // isBackfilled: true로 저장해, 볼륨/캘린더/부위별 추이 등 통계에는 반영되지만 랭킹 점수
+  // 계산(리포트 탭의 attendanceScore/volumeScore/overloadScore)에서는 제외되도록 표시한다(⑦).
+  async function saveNewLog() {
+    if (!editDraft?.date || editDraft.exercises.length === 0) return
+    setSavingEdit(true)
+    try {
+      const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
+      await addWorkoutLog(uid, {
+        date: editDraft.date,
+        exercises: cleanedExercises,
+        totalVolume,
+        sessionType: 'extra',
+        scoreWeight: 0,
+        isBackfilled: true,
+      })
+      const grouped = await loadMonth()
+      setLogsByDate(grouped)
+      cancelEdit()
+      onLogsChanged?.()
     } finally {
       setSavingEdit(false)
     }
   }
 
   async function handleDeleteLog(log) {
-    if (!window.confirm(`${log.date} 기록을 삭제할까요? 되돌릴 수 없어요.`)) return
+    if (!(await confirm(`${log.date} 기록을 삭제할까요? 되돌릴 수 없어요.`))) return
     await deleteWorkoutLog(uid, log.id)
     const grouped = await loadMonth()
     setLogsByDate(grouped)
     if (editingLogId === log.id) cancelEdit()
+    onLogsChanged?.()
   }
 
   return (
@@ -346,7 +615,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                     <span
                       className="text-keep-all"
                       style={{
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: 700,
                         borderRadius: 4,
                         padding: '1px 3px',
@@ -355,13 +624,16 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                         color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
                       }}
                     >
-                      웜업 {Math.round(summary.totalWarmupSec / 60)}분 · 본 {Math.round(summary.totalMainSec / 60)}분
+                      웜업 {Math.round(summary.totalWarmupSec / 60)}
+                      <span style={{ fontSize: 8, fontWeight: 600 }}>분</span> · 본{' '}
+                      {Math.round(summary.totalMainSec / 60)}
+                      <span style={{ fontSize: 8, fontWeight: 600 }}>분</span>
                     </span>
                   ) : (
                     summary.totalDurationSec > 0 && (
                       <span
                         style={{
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: 700,
                           borderRadius: 4,
                           padding: '1px 3px',
@@ -370,14 +642,15 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                           color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
                         }}
                       >
-                        {Math.round(summary.totalDurationSec / 60)}분
+                        {Math.round(summary.totalDurationSec / 60)}
+                        <span style={{ fontSize: 8, fontWeight: 600 }}>분</span>
                       </span>
                     )
                   )}
                   {summary.totalCalories > 0 && (
                     <span
                       style={{
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: 700,
                         borderRadius: 4,
                         padding: '1px 3px',
@@ -386,10 +659,11 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                         color: isSelected ? 'var(--color-on-gold)' : 'var(--color-warning)',
                       }}
                     >
-                      {summary.totalCalories}Cal
+                      {summary.totalCalories}
+                      <span style={{ fontSize: 8, fontWeight: 600 }}>Cal</span>
                     </span>
                   )}
-                  {summary.atomList.map(({ atom, label }) => (
+                  {summary.atomList.map(({ atom, count, unit }) => (
                     <div key={atom} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                       <span
                         style={{
@@ -403,15 +677,16 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                       <span
                         className="text-keep-all"
                         style={{
-                          fontSize: 9,
-                          lineHeight: '11px',
+                          fontSize: 10,
+                          lineHeight: '12px',
                           color: isSelected ? 'var(--color-on-gold)' : 'var(--color-label-normal)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {label}
+                        {atom} {count}
+                        <span style={{ fontSize: 8 }}>{unit}</span>
                       </span>
                     </div>
                   ))}
@@ -426,217 +701,43 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
         {loading ? (
           <p style={{ textAlign: 'center', color: 'var(--color-label-neutral)', fontSize: 13 }}>불러오는 중…</p>
         ) : !selectedDate ? (
-          <EmptyState title="날짜를 선택해 주세요" description="점이 표시된 날짜에 운동 기록이 있어요." />
-        ) : selectedLogs.length === 0 ? (
-          <EmptyState title="기록 없음" description={`${selectedDate}에는 운동 기록이 없어요.`} />
+          <EmptyState
+            title="날짜를 선택해 주세요"
+            description="날짜를 선택하시면 이전 운동 기록을 추가하거나 수정할 수 있어요."
+            style={{ padding: '20px 20px' }}
+          />
         ) : (
-          selectedLogs.map((log) =>
-            editingLogId === log.id ? (
-              <Card key={log.id} style={{ marginBottom: 10 }}>
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-label-neutral)' }}>날짜</div>
-                  <input
-                    type="date"
-                    value={editDraft?.date || ''}
-                    onChange={(e) => updateDraftDate(e.target.value)}
-                    style={{ padding: '8px 10px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 14 }}
-                  />
-                </div>
-                {editDraft?.exercises.map((ex, exIdx) => (
-                  <div key={ex.name} style={{ marginBottom: 14 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{ex.name}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {ex.sets.map((s, setIdx) => (
-                        <div key={setIdx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {ex.inputType === 'cardio' ? (
-                            <>
-                              <input
-                                type="number"
-                                value={s.incline}
-                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'incline', e.target.value)}
-                                style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
-                              />
-                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>% ·</span>
-                              <input
-                                type="number"
-                                value={s.speedKmh}
-                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'speedKmh', e.target.value)}
-                                style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
-                              />
-                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>km/h ·</span>
-                              <input
-                                type="number"
-                                value={s.durationMin}
-                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'durationMin', e.target.value)}
-                                style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
-                              />
-                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>분</span>
-                            </>
-                          ) : ex.inputType === 'reps' ? (
-                            <>
-                              <input
-                                type="number"
-                                value={s.reps}
-                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'reps', e.target.value)}
-                                style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
-                              />
-                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
-                            </>
-                          ) : (
-                            <>
-                              <input
-                                type="number"
-                                value={s.weight}
-                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'weight', e.target.value)}
-                                style={{ width: 64, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
-                              />
-                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>kg ×</span>
-                              <input
-                                type="number"
-                                value={s.reps}
-                                onChange={(e) => updateDraftSet(exIdx, setIdx, 'reps', e.target.value)}
-                                style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
-                              />
-                              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
-                            </>
-                          )}
-                          <button
-                            onClick={() => deleteDraftSet(exIdx, setIdx)}
-                            aria-label="세트 삭제"
-                            style={{
-                              marginLeft: 'auto',
-                              width: 24,
-                              height: 24,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'var(--color-label-neutral)',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <X size={14} strokeWidth={2} />
-                          </button>
-                        </div>
-                      ))}
+          <>
+            {selectedLogs.length === 0 && !isCreatingLog && (
+              <EmptyState title="기록 없음" description={`${selectedDate}에는 운동 기록이 없어요.`} style={{ padding: '20px 20px' }} />
+            )}
+            {selectedLogs.map((log) =>
+              editingLogId === log.id ? (
+                <EditLogForm
+                  key={log.id}
+                  editDraft={editDraft}
+                  savingEdit={savingEdit}
+                  onUpdateDate={updateDraftDate}
+                  onUpdateSet={updateDraftSet}
+                  onAddSet={addDraftSet}
+                  onDeleteSet={deleteDraftSet}
+                  onAddExercise={addDraftExercise}
+                  addingExercise={addingExercise}
+                  onToggleAdding={setAddingExercise}
+                  addCategory={addCategory}
+                  onSelectCategory={selectAddCategory}
+                  exerciseListRef={exerciseListRef}
+                  onCancel={cancelEdit}
+                  onSave={() => saveEdit(log)}
+                />
+              ) : (
+                <Card key={log.id} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontWeight: 700 }}>
+                      {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'}
                     </div>
-                    <button
-                      onClick={() => addDraftSet(exIdx)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        marginTop: 6,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: 'var(--color-primary-strong)',
-                      }}
-                    >
-                      <Plus size={13} strokeWidth={2} /> 세트 추가
-                    </button>
-                  </div>
-                ))}
-
-                {!addingExercise ? (
-                  <button
-                    onClick={() => setAddingExercise(true)}
-                    style={{
-                      width: '100%',
-                      marginBottom: 10,
-                      padding: '10px',
-                      borderRadius: 10,
-                      border: '1px dashed var(--color-line)',
-                      color: 'var(--color-label-neutral)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
-                    + 운동 추가
-                  </button>
-                ) : (
-                  <div
-                    style={{
-                      marginBottom: 10,
-                      padding: 12,
-                      borderRadius: 10,
-                      background: 'var(--color-bg-elevated)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                      {BODY_PART_ATOMS.map((atom) => (
-                        <Chip
-                          key={atom}
-                          active={addCategory === atom}
-                          onClick={() => selectAddCategory(atom)}
-                          style={
-                            addCategory === atom
-                              ? { borderColor: PART_COLORS[atom], background: `${PART_COLORS[atom]}22`, color: PART_COLORS[atom] }
-                              : undefined
-                          }
-                        >
-                          {atom}
-                        </Chip>
-                      ))}
-                    </div>
-                    {/* [2026-07-30 신규] 부위별로 색상을 구분하고(디자인 가이드 v2 팔레트), 종목이 많아
-                        스크롤이 생기는 부위를 선택했을 때도 목록이 항상 위에서부터 보이도록 스크롤 컨테이너로
-                        감싸고 부위 전환 시 스크롤 위치를 맨 위로 되돌린다. */}
-                    <div
-                      ref={exerciseListRef}
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        alignContent: 'flex-start',
-                        gap: 6,
-                        marginBottom: 8,
-                        maxHeight: 180,
-                        overflowY: 'auto',
-                        scrollBehavior: 'smooth',
-                      }}
-                    >
-                      {getExercisesForPart(addCategory)
-                        .filter((n) => !editDraft?.exercises.some((ex) => ex.name === n))
-                        .map((n) => (
-                          <Chip
-                            key={n}
-                            onClick={() => addDraftExercise(n)}
-                            style={{ borderColor: PART_COLORS[addCategory], color: PART_COLORS[addCategory] }}
-                          >
-                            {n}
-                          </Chip>
-                        ))}
-                    </div>
-                    <button onClick={() => setAddingExercise(false)} style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                      취소
-                    </button>
-                  </div>
-                )}
-                {editDraft?.exercises.length === 0 && (
-                  <p className="text-keep-all" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                    운동을 모두 지웠어요. 이대로 저장할 수 없으니, 이 날짜 기록 자체를 지우려면 취소 후 "삭제"를
-                    눌러주세요.
-                  </p>
-                )}
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <Button variant="ghost" style={{ flex: 1 }} onClick={cancelEdit} disabled={savingEdit}>
-                    취소
-                  </Button>
-                  <Button
-                    style={{ flex: 1 }}
-                    onClick={() => saveEdit(log)}
-                    disabled={savingEdit || editDraft?.exercises.length === 0}
-                  >
-                    {savingEdit ? '저장 중…' : '저장'}
-                  </Button>
-                </div>
-              </Card>
-            ) : (
-              <Card key={log.id} style={{ marginBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <div style={{ fontWeight: 700 }}>
-                    {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                    {log.totalDurationSec > 0 && <span>{Math.round(log.totalDurationSec / 60)}분</span>}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                      {log.totalDurationSec > 0 && <span>{Math.round(log.totalDurationSec / 60)}분</span>}
                     {log.caloriesKcal > 0 && <span>{log.caloriesKcal}kcal</span>}
                     <button onClick={() => startEdit(log)} style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
                       수정
@@ -658,8 +759,44 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary }) {
                   총 볼륨 {log.totalVolume?.toLocaleString()}
                 </div>
               </Card>
-            )
-          )
+              )
+            )}
+            {isCreatingLog ? (
+              <EditLogForm
+                editDraft={editDraft}
+                savingEdit={savingEdit}
+                onUpdateDate={updateDraftDate}
+                onUpdateSet={updateDraftSet}
+                onAddSet={addDraftSet}
+                onDeleteSet={deleteDraftSet}
+                onAddExercise={addDraftExercise}
+                addingExercise={addingExercise}
+                onToggleAdding={setAddingExercise}
+                addCategory={addCategory}
+                onSelectCategory={selectAddCategory}
+                exerciseListRef={exerciseListRef}
+                onCancel={cancelEdit}
+                onSave={saveNewLog}
+                isNew
+              />
+            ) : (
+              <button
+                onClick={startCreateNew}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: 10,
+                  border: '1px dashed var(--color-line)',
+                  color: 'var(--color-label-neutral)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  marginBottom: 10,
+                }}
+              >
+                + 이 날짜에 운동 기록 추가
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

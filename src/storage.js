@@ -160,7 +160,8 @@ function computeSessionXp({ totalVolume, scoreWeight, totalDurationSec }) {
 
 export async function addWorkoutLog(uid, logData) {
   // logData: { date, exercises: [{name, part, sets:[{weight,reps}]}], totalVolume,
-  //            totalDurationSec, caloriesKcal, routineTemplateId, partName, sessionType, scoreWeight }
+  //            totalDurationSec, caloriesKcal, routineTemplateId, partName, sessionType, scoreWeight,
+  //            isBackfilled }
   const col = collection(db, 'workoutLogs', uid, 'logs')
   const ref = await addDoc(col, {
     sessionType: 'cycle',
@@ -168,6 +169,12 @@ export async function addWorkoutLog(uid, logData) {
     ...logData,
     createdAt: serverTimestamp(),
   })
+
+  // [2026-07-30 신규] 캘린더에서 과거 날짜에 새로 추가한 기록(isBackfilled)은 볼륨/캘린더/통계에는
+  // 반영하되, XP·티어·랭킹 점수에는 반영하지 않는다("과거 기록은 점수에만 미반영" 요청).
+  if (logData.isBackfilled) {
+    return { id: ref.id, xpEarned: 0 }
+  }
 
   const xpEarned = computeSessionXp(logData)
   await updateDoc(doc(db, 'users', uid), {
