@@ -4,7 +4,7 @@ import { getWorkoutLogsInRange, updateWorkoutLog, deleteWorkoutLog, addWorkoutLo
 import { Plus, X } from 'lucide-react'
 import {
   getExerciseDisplayAtom,
-  PART_COLORS,
+  getPartColor,
   calcVolume,
   BODY_PART_ATOMS,
   getExercisesForPart,
@@ -311,7 +311,7 @@ function EditLogForm({
                 onClick={() => onSelectCategory(atom)}
                 style={
                   addCategory === atom
-                    ? { borderColor: PART_COLORS[atom], background: `${PART_COLORS[atom]}22`, color: PART_COLORS[atom] }
+                    ? { borderColor: getPartColor(atom), background: `${getPartColor(atom)}22`, color: getPartColor(atom) }
                     : undefined
                 }
               >
@@ -338,7 +338,7 @@ function EditLogForm({
                 <Chip
                   key={n}
                   onClick={() => onAddExercise(n)}
-                  style={{ borderColor: PART_COLORS[addCategory], color: PART_COLORS[addCategory] }}
+                  style={{ borderColor: getPartColor(addCategory), color: getPartColor(addCategory) }}
                 >
                   {n}
                 </Chip>
@@ -862,7 +862,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                       )
                     }
                     // atom — 유산소는 이름 텍스트 없이 h/m 값만, 나머지 부위는 "이름 N set" 뱃지
-                    const partColor = PART_COLORS[row.atom] || 'var(--color-primary-normal)'
+                    const partColor = getPartColor(row.atom) || 'var(--color-primary-normal)'
                     if (row.atom === '유산소') {
                       return (
                         <span

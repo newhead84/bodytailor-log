@@ -1,8 +1,8 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-30] 캘린더 부위 뱃지 텍스트 잘림 해결(10set 이상도 ellipsis 없이
- *            폰트 크기 자동 축소로 한 줄 표시) + 날짜선택 시 세트 입력 행 가로 스크롤 추가
- *            (운동명/입력필드가 길어 삭제버튼이 잘리던 문제 해결).
+ * 최신 변경: [2026-07-30] MY탭에 "화면 테마" 선택(다크/라이트) 기능 신규 추가.
+ *            기본 매트블랙골드 유지 + 예전 화이트+블루 테마로 선택적 전환 가능,
+ *            계정(Firestore) 기준 저장.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -140,6 +140,16 @@ export default function App() {
     })
     return unsub
   }, [])
+
+  // [2026-07-30 신규] MY탭 "화면 테마" 선택(userDoc.themePreference: 'dark'|'light')을
+  // html 태그의 data-theme 속성에 반영한다. tokens.css의 html[data-theme='light'] 블록이
+  // 이 속성만 보고 전체 색상 변수를 스위칭하므로 여기서는 속성만 세팅하면 된다.
+  // 적용 범위는 "로그인 이후 메인 4탭 전체"로 한정 — 로그인/온보딩 화면(userDoc이 없거나
+  // 온보딩 미완료)에서는 항상 dark를 유지하고, 온보딩이 끝난 뒤부터만 사용자 선택을 반영한다.
+  useEffect(() => {
+    const theme = userDoc?.onboardingCompleted ? userDoc.themePreference || 'dark' : 'dark'
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [userDoc?.onboardingCompleted, userDoc?.themePreference])
 
   const refreshUserDoc = useCallback(async () => {
     if (!authUser) return

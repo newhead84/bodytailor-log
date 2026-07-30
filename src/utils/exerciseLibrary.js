@@ -142,6 +142,38 @@ export const PART_COLORS = {
   '유산소': '#2FBEA8', // Back -15% 파생
 }
 
+// [2026-07-30 신규] MY탭 "화면 테마" 라이트 모드용 원래 파스텔톤 팔레트.
+// 출처: 과거 대화(운동 앱 UI/UX 기능 설계, 2026-07-28)에서 확정했던 매트블랙 전환 이전 색상.
+// 이두/삼두는 당시 '팔' 단일 색상이었으므로, 다크 팔레트와 동일한 방식(±10% 명도 파생)으로
+// 나눴다. PART_COLORS(다크)와 마찬가지로 `${color}22` 형태의 hex 투명도 접미사 트릭이
+// CalendarView.jsx 등에서 쓰이고 있어, CSS 변수가 아닌 hex 문자열 그대로 유지한다.
+const PART_COLORS_LIGHT = {
+  '가슴': '#FF6B6B',
+  '등': '#4D96FF',
+  '어깨': '#FFB84D',
+  '이두': '#81D38B', // 팔(#6BCB77) +10%
+  '삼두': '#5BAD65', // 팔(#6BCB77) -10%
+  '하체': '#9D65C9',
+  '코어': '#FF8FAB',
+  '유산소': '#54B4D3',
+}
+
+// 현재 MY탭에서 선택된 화면 테마(html[data-theme])에 맞는 부위별 색상 팔레트를 반환한다.
+// (App.jsx가 로그인 후 메인 화면부터 html 태그에 data-theme을 반영하므로, 렌더링 시점에
+// 그 값을 그대로 읽으면 된다 — 테마가 바뀌면 userDoc 갱신으로 상위 트리가 다시 렌더링된다.)
+function getActivePartColors() {
+  if (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light') {
+    return PART_COLORS_LIGHT
+  }
+  return PART_COLORS
+}
+
+// 부위명(atom) → 현재 테마 기준 색상. CalendarView.jsx 등에서 PART_COLORS[atom]을 직접 쓰던
+// 자리를 이 함수로 교체해 테마 전환이 반영되도록 한다.
+export function getPartColor(atom) {
+  return getActivePartColors()[atom] || 'var(--color-label-neutral)'
+}
+
 // 종목명 → 소속 원자 부위. 여러 부위에 속하지 않는 1:1 매핑 전제.
 export function getExerciseAtom(name) {
   for (const [atom, list] of Object.entries(EXERCISE_LIBRARY)) {
@@ -159,7 +191,7 @@ export function getExerciseDisplayAtom(name) {
 
 // 종목명 → 색상. 등록되지 않은(사용자 직접 추가) 종목은 중립색을 반환.
 export function getExerciseColor(name) {
-  return PART_COLORS[getExerciseDisplayAtom(name)] || 'var(--color-label-neutral)'
+  return getPartColor(getExerciseDisplayAtom(name))
 }
 
 // 복합/별칭 파트명 → 원자 부위 배열 매핑

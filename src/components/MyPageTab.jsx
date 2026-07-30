@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm } from './ui'
-import { updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
+import { updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
 import { logout } from '../firebase'
 import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS } from '../utils/exerciseLibrary'
@@ -24,6 +24,8 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   )
   const [wakeLockEnabled, setWakeLockEnabled] = useState(!!userDoc?.restTimerWakeLockEnabled)
   const [restSoundId, setRestSoundId] = useState(userDoc?.restTimerSoundId || 'beep')
+  // [2026-07-30 신규] 화면 테마: 'dark'(매트블랙골드, 기본) | 'light'(구 화이트+블루+쿨그레이)
+  const [themePreference, setThemePreferenceState] = useState(userDoc?.themePreference || 'dark')
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
   const [addingCustomGoal, setAddingCustomGoal] = useState(false)
@@ -155,6 +157,14 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   async function selectRestSound(soundId) {
     setRestSoundId(soundId)
     await updateUserProfile(uid, { restTimerSoundId: soundId })
+  }
+
+  // [2026-07-30 신규] MY탭 "화면 테마" 선택 저장. onProfileUpdated()로 App.jsx의 userDoc을
+  // 다시 불러오면, App.jsx의 data-theme effect가 반응해 즉시 전체 화면에 반영된다.
+  async function selectTheme(theme) {
+    setThemePreferenceState(theme)
+    await setThemePreference(uid, theme)
+    await onProfileUpdated?.()
   }
 
   // "분할운동 템플릿" — 트레이너들이 자주 쓰는 2/3/4분할 프리셋을 그대로
@@ -532,6 +542,21 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
               </Chip>
             ))}
           </div>
+        </div>
+      </Card>
+
+      <SectionTitle>화면 테마</SectionTitle>
+      <Card style={{ marginBottom: 20 }}>
+        <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+          기본은 매트블랙골드 테마예요. 예전 화이트+블루 테마로 선택적으로 바꿀 수 있어요.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Chip active={themePreference === 'dark'} onClick={() => selectTheme('dark')} style={{ flex: 1, justifyContent: 'center' }}>
+            매트블랙골드
+          </Chip>
+          <Chip active={themePreference === 'light'} onClick={() => selectTheme('light')} style={{ flex: 1, justifyContent: 'center' }}>
+            화이트+블루
+          </Chip>
         </div>
       </Card>
 

@@ -78,6 +78,58 @@
   --bottom-nav-height: 60px;
 }
 
+/* [2026-07-30 신규] MY탭 "화면 테마" — 라이트 테마(html[data-theme="light"]).
+   출처: 과거 대화에서 만든 v1 tokens.css(Wanted 디자인시스템 기반: Pretendard, 화이트+블루+쿨그레이).
+   변수명은 위 :root(다크/기본)와 완전히 동일하게 유지하고 값만 교체 — 컴포넌트 코드 수정 없이
+   html 태그의 data-theme 속성만 바꾸면 전체 화면에 캐스케이드로 반영된다.
+   적용 범위: 로그인/온보딩 화면은 제외, 온보딩 완료 후 메인 앱 화면부터 적용(App.jsx 참고). */
+html[data-theme='light'] {
+  /* Primary (v1: 블루) */
+  --color-primary-normal: #3182f6;
+  --color-primary-strong: #1b64da;
+  --color-primary-heavy: #0d3f8c;
+  --color-primary-bg: #eff6ff;
+  /* 라이트 테마는 파란 색면 위에 흰 텍스트를 올려 대비를 확보한다(다크의 "골드 위 브라운"과 대응). */
+  --color-on-gold: #ffffff;
+
+  /* Label (쿨그레이) */
+  --color-label-strong: #191f28;
+  --color-label-normal: #4e5968;
+  --color-label-neutral: #8b95a1;
+  --color-label-disable: #b0b8c1;
+
+  /* Surface / Line (화이트) */
+  --color-bg: #ffffff;
+  --color-bg-elevated: #f9fafb;
+  --color-bg-card: #ffffff;
+  --color-line: #e5e8eb;
+  --color-line-strong: #d1d6db;
+
+  /* 가이드 3.2 "브랜드 골드 3단계"에 해당하던 포인트 컬러를 라이트에서는 블루 계열로 대체.
+     (ui.jsx의 secondary 버튼, CalendarView 오늘 표시 링, WorkoutInput 완료 아이콘 등에서 사용) */
+  --color-gold-100: #eff6ff;
+  --color-gold-500: #3182f6;
+  --color-gold-700: #1b64da;
+
+  --color-success: #00c471;
+  --color-danger: #f04452;
+  --color-warning: #ff9500;
+  /* 캘린더 토요일 표기 — 라이트에서는 primary(블루)와 겹치지 않는 별도 톤 사용 */
+  --color-info: #0891b2;
+
+  /* Tier colors — v1 tokens.css 그대로 */
+  --tier-iron: #8b95a1;
+  --tier-bronze: #b5651d;
+  --tier-silver: #9aa5b1;
+  --tier-gold: #f5b400;
+  --tier-platinum: #34c0c9;
+  --tier-diamond: #4f7cff;
+  --tier-legend: linear-gradient(135deg, #ff9f43, #ff4d9d 50%, #7b5cff);
+
+  --shadow-card: 0 2px 8px rgba(25, 31, 40, 0.06);
+  --shadow-nav: 0 -2px 12px rgba(25, 31, 40, 0.06);
+}
+
 * {
   box-sizing: border-box;
 }

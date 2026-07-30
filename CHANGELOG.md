@@ -2,6 +2,20 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-07-30] MY탭 화면 테마 선택 기능(다크/라이트) 신규 추가
+- MY탭에 "화면 테마" 카드 추가: 기본 매트블랙골드 유지 + 예전 화이트+블루+쿨그레이
+  테마로 선택적 전환 가능. 계정(Firestore users/{uid}.themePreference) 기준 저장,
+  기기를 바꿔도 유지됨. 적용 범위는 로그인 이후 메인 4탭 전체(로그인/온보딩 화면 제외) |
+  MyPageTab.jsx(테마 선택 UI), App.jsx(userDoc.themePreference → html[data-theme] 반영),
+  storage.js(themePreference 필드 기본값 + setThemePreference 함수)
+- tokens.css: html[data-theme='light'] 오버라이드 블록 추가. 변수명은 기존과 동일하게
+  유지하고 값만 화이트+블루+쿨그레이(과거 Wanted 디자인시스템 기반 v1 스펙)로 교체 |
+  tokens.css
+- 운동 파트별 6~8색 팔레트도 라이트 테마 전용 파스텔톤(PART_COLORS_LIGHT)을 추가하고,
+  현재 테마에 따라 색을 반환하는 getPartColor() 헬퍼로 통합. CalendarView.jsx의
+  PART_COLORS[atom] 직접 참조 3곳을 getPartColor(atom)로 교체 |
+  exerciseLibrary.js, CalendarView.jsx
+
 [2026-07-30] 캘린더 부위 뱃지 텍스트 잘림 해결 + 세트 입력 행 가로 스크롤 추가
 - 캘린더 셀의 "부위 N set" 뱃지: 세트 수가 두 자리(10set 이상)가 되면 ellipsis로
   뒤가 잘리던 문제 → ellipsis 제거, 부위명 글자수+세트 자릿수 기준으로 폰트 크기를
