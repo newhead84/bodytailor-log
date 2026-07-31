@@ -3,6 +3,7 @@ import { Sparkles } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm } from './ui'
 import RestTimer from './RestTimer'
+import logoMarkTransparent from '../assets/logo-mark-transparent.png'
 import {
   calcVolume,
   getExercisesForPart,
@@ -880,16 +881,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             }}
           >
             <img
-              src="/icon-512.png"
+              src={logoMarkTransparent}
               alt=""
               width={168}
               height={168}
-              /* [2026-07-30] 아이콘 PNG 자체에 매트블랙 배경이 불투명하게 그려져 있어, 라이트
-                 테마(흰 배경)에서 검은 사각형이 그대로 도드라지던 문제 수정. mixBlendMode:
-                 'screen'을 적용하면 검은 픽셀은 뒤 배경색에 그대로 녹아들어 투명한 것처럼
-                 보이고(screen(0, bg) = bg), 밝은 덤벨/화살표 부분만 남아 새 이미지 에셋
-                 없이도 다크/라이트 테마 모두에서 자연스럽게 보인다. */
-              style={{ opacity: 0.16, filter: 'grayscale(100%)', mixBlendMode: 'screen' }}
+              /* [2026-07-31] 기존에는 icon-512.png(매트블랙 배경 통포함)에 mixBlendMode:'screen'
+                 트릭을 적용해 배경을 지웠으나, screen 블렌드 특성상 라이트(흰 배경) 테마에서는
+                 로고의 밝은 픽셀(덤벨/화살표)까지 배경색에 수렴해버려 렌더링 시점에 따라 로고가
+                 떴다 사라지는 것처럼 보이는 문제가 있었다. 배경(#0A0A0B, 단색)만 투명 처리해
+                 미리 만들어둔 logo-mark-transparent.png를 블렌드 트릭 없이 그대로 사용하도록 교체 —
+                 다크/라이트 테마 배경색과 무관하게 항상 자연스럽게 보인다. */
+              style={{ opacity: 0.16, filter: 'grayscale(100%)' }}
             />
           </div>
         </>
