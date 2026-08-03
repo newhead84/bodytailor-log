@@ -8,7 +8,8 @@ import {
   calcVolume,
   getExercisesForPart,
   getCustomExercisesForPart,
-  getExerciseColor,
+  getAtomsForPartName,
+  getExerciseColorWithCustom,
   getExerciseAtom,
   getExerciseDisplayAtom,
   getExerciseInputType,
@@ -16,7 +17,10 @@ import {
   BODY_PART_ATOMS,
 } from '../utils/exerciseLibrary'
 import { estimateCalories } from '../utils/calories'
-import { addWorkoutLog, getLastRecordForExercise, updateRoutineTemplate } from '../storage'
+import { getSuggestedNext } from '../utils/routineSuggestion'
+import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate } from '../storage'
+import { todayStr } from '../utils/date'
+import { pickSetEncouragement } from '../utils/setEncouragements'
 
 const REST_OPTIONS = [
   { label: '1분', value: 60 },
@@ -27,10 +31,6 @@ const REST_OPTIONS = [
 // 자유 추가 운동에서는 루틴(내 루틴)에 얽매이지 않고 코어·유산소를 포함한
 // 공식 7개 부위 중에서 골라 기록할 수 있다.
 const EXTRA_CATEGORIES = BODY_PART_ATOMS
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 function draftKey(uid) {
   return `bodytailor-draft-${uid}-${todayStr()}`
@@ -85,8 +85,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const confirm = useConfirm()
   // 운동방식: 내 루틴(최대 8개) 중 하나 또는 '자유 추가 운동'
   const [sessionType, setSessionType] = useState('routine') // 'routine' | 'extra'
-  const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id || null)
-  const [selectedPartName, setSelectedPartName] = useState(templates[0]?.parts?.[0]?.name || null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState(null)
+  const [selectedPartName, setSelectedPartName] = useState(null)
 
   const [expandedExercise, setExpandedExercise] = useState(null)
   const [records, setRecords] = useState({}) // { [exerciseName]: [{weight, reps, saved}] }
@@ -94,6 +94,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const [restSeconds, setRestSeconds] = useState(90)
   const [restKey, setRestKey] = useState(0)
   const [restActive, setRestActive] = useState(false)
+  // [2026-08-02 신규, 같은 날 재수정] 종목 하나를 "세트완료" 처리할 때 잠깐 뜨는 응원 멘트
+  // 팝업(⑨). 처음엔 세트 하나 저장할 때마다 떴는데, 너무 잦다는 피드백으로 종목 완료 시점
+  // 1회로 옮겼다. 문구는 매번 랜덤(직전과 중복 방지).
+  const [setToast, setSetToast] = useState(null)
   const [saving, setSaving] = useState(false)
   // [2026-07-28] 운동완료 축하 팝업(획득 XP 표시). null이면 미노출.
   const [celebration, setCelebration] = useState(null) // { xpEarned } | null
@@ -173,14 +177,47 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPart])
 
-  // 루틴 목록이 처음 로드되거나 바뀔 때, 선택된 루틴/파트가 더 이상 없으면 첫 번째로 되돌린다.
+  // [2026-07-31 신규] 홈탭과 동일한 로테이션 추천(getSuggestedNext) 기준으로 "오늘 할 운동"을
+  // 자동 선택하기 위한 최근 로그 조회(①). 임시저장(draft)에 이미 선택값이 있으면 그게 우선이고,
+  // 이 로그는 draft가 없을 때의 초기 자동 선택에만 쓰인다.
+  const [suggestionLogs, setSuggestionLogs] = useState([])
+  const [suggestionLogsLoaded, setSuggestionLogsLoaded] = useState(false)
   useEffect(() => {
-    if (!templates.some((t) => t.id === selectedTemplateId)) {
+    if (!uid) return
+    let cancelled = false
+    getRecentWorkoutLogs(uid, 10)
+      .then((logs) => {
+        if (cancelled) return
+        setSuggestionLogs(logs)
+        setSuggestionLogsLoaded(true)
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestionLogsLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [uid])
+
+  // 루틴 목록이 처음 로드되거나 바뀔 때, 선택된 루틴/파트가 없거나 더 이상 존재하지 않으면
+  // 자동으로 다시 선택한다.
+  // - draft(이어쓰기)로 이미 유효한 선택값이 복원돼 있으면 그대로 두고 손대지 않는다.
+  // - 그 외(첫 진입 등)에는 홈탭과 동일한 로테이션 추천으로 "오늘 할 운동"을 자동 선택한다.
+  //   최근 로그 조회가 끝나기 전에는 성급하게 templates[0]으로 확정하지 않고 기다린다(경쟁 조건 방지).
+  useEffect(() => {
+    if (templates.length === 0) return
+    if (selectedTemplateId && templates.some((t) => t.id === selectedTemplateId)) return
+    if (!suggestionLogsLoaded) return
+    const suggestion = getSuggestedNext(templates, suggestionLogs)
+    if (suggestion) {
+      setSelectedTemplateId(suggestion.template.id)
+      setSelectedPartName(suggestion.part.name)
+    } else {
       setSelectedTemplateId(templates[0]?.id || null)
       setSelectedPartName(templates[0]?.parts?.[0]?.name || null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templates])
+  }, [templates, suggestionLogsLoaded, suggestionLogs])
 
   // 임시 저장 불러오기 (이어쓰기)
   useEffect(() => {
@@ -307,6 +344,16 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // [2026-07-30 신규] 이전 세션에서 남아있을 수 있는 종목추가 패널 열림 상태를 방어적으로 초기화(⑫).
     setAddingExercise(false)
     setAddingFreeExercise(false)
+    // [2026-08-02 신규] 앱을 다른 탭으로 전환하거나 화면을 꺼도 운동이 시작됐음을 알 수 있도록
+    // 알림바에 표시한다(⑦). 휴식타이머 종료 알림과 동일하게 MY탭 알림 설정(restNotificationEnabled)을
+    // 그대로 따르고, 권한 요청은 하지 않는다(이미 그 설정 화면에서 요청함).
+    if (restNotificationEnabled && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('운동을 시작했어요', { body: '웜업 타이머가 진행 중이에요.', tag: 'bodytailor-workout' })
+      } catch (e) {
+        // 무시
+      }
+    }
   }
 
   function handleStartMain() {
@@ -531,7 +578,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 덮어써서, 오늘 임시로 숨긴 종목이 드래그 도중 배열에서 통째로 사라지며 목록 길이가 바뀌고
   // Reorder.Item들이 리마운트되어 "튕겨 날아가는" 것처럼 보이는 원인이 됐다. 숨긴 종목은 원래
   // 상대 위치를 유지한 채, 보이는 종목들의 순서만 갈아끼운다.
+  // [2026-08-01 수정] 완료된 종목은 draggable=false라 자기 자신이 움직이진 않지만, 아직 완료
+  // 안 한 종목을 드래그해서 완료된 종목의 자리 "위"로 넘기는 건 막혀있지 않았다(⑥). 완료된
+  // 종목들은 visibleExercises 상의 인덱스가 고정되어야 하므로, 그 인덱스에 원래와 다른 이름이
+  // 오는 재배열은 거부(무시)한다 — 미완료 종목끼리만 나머지 자리에서 순서를 바꿀 수 있다.
   function handleReorder(nextVisibleOrder) {
+    const completedFixedOk = visibleExercises.every(
+      (n, i) => !completedExercises[n] || nextVisibleOrder[i] === n
+    )
+    if (!completedFixedOk) return
     let i = 0
     const merged = partOrder.map((n) => (hiddenToday.includes(n) ? n : nextVisibleOrder[i++]))
     setPartOrder(merged)
@@ -562,12 +617,16 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }
 
   // ── 세트완료(운동 단위 완료) ──
+  // [2026-08-02 수정] 응원 멘트 토스트(⑨)가 세트 하나 저장할 때마다 떠서 너무 잦다는
+  // 피드백으로, 종목 하나를 통째로 "세트완료" 처리하는 이 시점으로 옮겼다.
   function completeExercise(name) {
     setCompletedExercises((c) => ({ ...c, [name]: true }))
     setExpandedExercise((cur) => (cur === name ? null : cur))
     if (!completionOrderRef.current.includes(name)) {
       completionOrderRef.current = [...completionOrderRef.current, name]
     }
+    setSetToast(pickSetEncouragement())
+    setTimeout(() => setSetToast((cur) => (cur ? null : cur)), 1600)
   }
 
   function toggleUncompleteExercise(name) {
@@ -649,22 +708,29 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       scoreWeight: sessionType === 'extra' ? 0.7 : 1.0,
     })
 
-    // [2026-07-30 신규] 루틴 세션이고 완료 체크한 종목이 있으면, 그 순서를 '내 루틴'
-    // 해당 파트의 종목 순서에 반영한다(④). 완료 체크를 안 한 나머지 종목은 기존 상대 순서를 유지한 채
-    // 뒤로 붙인다. 자유 추가 운동(sessionType==='extra')은 루틴 자체가 없으므로 대상이 아니다.
+    // [2026-08-01 수정] 이전에는 완료 체크한 순서를 '내 루틴' 종목 순서에 자동/조용히
+    // 반영했는데(④), 그러다 보니 사용자가 의도치 않게 루틴 순서가 바뀌었다고 느끼거나(10, 11번
+    // 피드백), 언제 바뀌는지 파악하기 어려웠다. 이제는 완료 순서가 등록된 루틴 순서와 다를 때만
+    // "루틴 순서를 이 순서로 바꿀까요?"라고 먼저 물어보고, 확인한 경우에만 반영한다.
     if (sessionType === 'routine' && selectedTemplate && selectedPart) {
       const completedOrder = completionOrderRef.current.filter((n) => partOrder.includes(n))
       if (completedOrder.length > 0) {
         const remaining = partOrder.filter((n) => !completedOrder.includes(n))
         const nextOrder = [...completedOrder, ...remaining]
         const changed = nextOrder.some((n, i) => n !== partOrder[i])
-        if (changed) {
+        if (changed && (await confirm('오늘 완료한 순서대로 "내 루틴"의 종목 순서를 바꿀까요?'))) {
           setPartOrder(nextOrder)
           await persistPartExercises(nextOrder)
         }
       }
     }
     completionOrderRef.current = []
+
+    // [2026-08-02 신규] "자유 추가 운동"으로 오늘 기록한 종목은 어떤 루틴 파트에도 속하지
+    // 않아, 완료 팝업에서 바로 "내 루틴에 반영"할 수 있게 필요한 정보를 미리 담아둔다(⑫).
+    // '내 루틴 운동' 세션은 종목 추가 시점에 이미 addExerciseToRoutine으로 즉시 반영되므로 대상 없음.
+    const pendingRoutineAdd = sessionType === 'extra' ? exercises.map((e) => ({ name: e.name, atom: e.part })) : null
+    const templateForAdd = sessionType === 'extra' ? selectedTemplate : null
 
     localStorage.removeItem(draftKey(uid))
     setRecords({})
@@ -683,8 +749,32 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setSaving(false)
     // 운동완료 시점에 진행 중이던 휴식타이머는 즉시 사라져야 한다.
     setRestActive(false)
-    setCelebration({ xpEarned })
+    setCelebration({ xpEarned, pendingRoutineAdd, templateForAdd })
     onSaved?.()
+  }
+
+  // [2026-08-02 신규] 완료 팝업의 "오늘 운동 내루틴에 반영" 버튼 핸들러(⑫). 오늘 기록한 종목 중
+  // 아직 어느 파트에도 없는 것만, 그 종목의 부위(atom)를 포함하는 첫 번째 파트에 추가한다.
+  // (사용자 확인: 오늘 뺀 종목을 자동으로 제거하지는 않음 — 추가만.)
+  async function handleAddTodayToRoutine(pendingList, template) {
+    if (!template || !pendingList?.length) return { addedCount: 0 }
+    const existingNames = new Set(template.parts.flatMap((p) => p.exercises))
+    const toAdd = pendingList.filter((e) => e.name && !existingNames.has(e.name))
+    if (toAdd.length === 0) return { addedCount: 0 }
+    const nextParts = template.parts.map((p) => ({ ...p, exercises: [...p.exercises] }))
+    let addedCount = 0
+    toAdd.forEach((e) => {
+      const targetPart = nextParts.find((p) => getAtomsForPartName(p.name).includes(e.atom))
+      if (targetPart && !targetPart.exercises.includes(e.name)) {
+        targetPart.exercises.push(e.name)
+        addedCount++
+      }
+    })
+    if (addedCount > 0) {
+      await updateRoutineTemplate(uid, template.id, { parts: nextParts })
+      await onRoutineUpdated?.()
+    }
+    return { addedCount }
   }
 
   if (templates.length === 0) {
@@ -717,23 +807,59 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   return (
     <div ref={rootRef} style={{ padding: '16px 20px 140px' }}>
+      {/* [2026-08-02 신규] 세트완료 응원 멘트 토스트(⑨). 화면 상단 고정, 1줄, 자동으로 사라짐. */}
+      {setToast && (
+        <div
+          key={setToast}
+          className="bt-set-toast"
+          style={{
+            position: 'fixed',
+            top: 70,
+            left: '50%',
+            zIndex: 50,
+            padding: '10px 18px',
+            borderRadius: 999,
+            background: 'var(--color-primary-normal)',
+            color: 'var(--color-on-gold-button)',
+            fontSize: 13,
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.28)',
+            pointerEvents: 'none',
+          }}
+        >
+          {setToast}
+        </div>
+      )}
       {/* 총 운동시간 (웜업 시작 시점부터 누적, 일시정지 구간 제외) */}
+      {/* [2026-07-31 신규] 스크롤을 내려도 계속 보이도록 상단에 고정(⑤). 부모 탭 컨테이너
+          (App.jsx tabWrapperStyle)의 overflowY:auto가 스크롤 조상이라 position:sticky가
+          그 기준으로 정상 동작한다. */}
       {sessionPhase !== 'idle' && (
         <div
           style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 5,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             marginBottom: 14,
             padding: '10px 14px',
             borderRadius: 10,
-            background: 'var(--color-bg-elevated)',
+            // [2026-08-02 신규] 운동이 실제로 진행 중(일시정지 아님)일 때는 골드 계열의 은은한
+            // 배경으로 바꿔, 타이머가 흐르고 있다는 걸 카드 색만 봐도 알 수 있게 한다(⑦).
+            background: isPaused ? 'var(--color-bg-elevated)' : 'var(--color-rest-bg)',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.18)',
+            transition: 'background 0.2s ease',
           }}
         >
           <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
             {isPaused ? '일시정지됨' : sessionPhase === 'warmup' ? '웜업 중' : '총 운동시간'}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {/* [2026-08-01 수정] 경과시간이 1시간을 넘어 h:mm:ss(예: 1:23:45) 형태로 길어지면
+              flexWrap: 'wrap' 때문에 -10초/+10초 버튼과 함께 2줄로 줄바꿈되던 문제(⑨) 수정 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
             <button
               title="10초 빼기"
               onClick={() => handleAdjustElapsed(-10)}
@@ -931,7 +1057,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 >
                   <ExerciseCard
                     name={name}
-                    draggable
+                    draggable={!completedExercises[name] || expandedExercise === name}
                     isDone={!!completedExercises[name]}
                     expanded={expandedExercise === name}
                     lastRecord={lastRecords[name]}
@@ -947,6 +1073,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                     onRemoveSet={(idx) => removeSet(name, idx)}
                     onHideToday={() => hideExerciseToday(name)}
                     onRemoveFromRoutine={() => removeExerciseFromRoutine(name)}
+                    customExercises={customExercises}
                   />
                 </SortableExerciseItem>
               ))}
@@ -973,6 +1100,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                   onRemoveSet={(idx) => removeSet(name, idx)}
                   isExtra
                   onRemoveExtra={() => removeFreeExercise(name)}
+                  customExercises={customExercises}
                 />
               ))}
             </div>
@@ -1001,15 +1129,26 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
                   "{selectedPart?.name}" 파트 종목 중에서 골라 추가해 주세요.
                 </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                  {[...getExercisesForPart(selectedPart?.name), ...getCustomExercisesForPart(customExercises, selectedPart?.name)]
-                    .filter((n) => !partOrder.includes(n))
-                    .map((n) => (
-                      <Chip key={n} onClick={() => addExerciseToRoutine(n)}>
-                        {n}
-                      </Chip>
-                    ))}
-                </div>
+                {/* [2026-08-02 변경] 복합 파트(예: "등&이두")를 고르면 그동안 두 부위 종목이 구분
+                    없이 한 줄에 섞여 나와 헷갈렸다(⑩). 부위(atom)별로 소제목을 달아 묶어서 보여준다. */}
+                {getAtomsForPartName(selectedPart?.name).map((atom) => {
+                  const names = [...getExercisesForPart(atom), ...getCustomExercisesForPart(customExercises, atom)].filter(
+                    (n) => !partOrder.includes(n)
+                  )
+                  if (names.length === 0) return null
+                  return (
+                    <div key={atom} style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)', marginBottom: 6 }}>{atom}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {names.map((n) => (
+                          <Chip key={n} onClick={() => addExerciseToRoutine(n)}>
+                            {n}
+                          </Chip>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
                 <button onClick={() => setAddingExercise(false)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
                   취소
                 </button>
@@ -1066,7 +1205,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       )}
 
       {celebration && (
-        <WorkoutCompleteModal xpEarned={celebration.xpEarned} onClose={() => setCelebration(null)} />
+        <WorkoutCompleteModal
+          xpEarned={celebration.xpEarned}
+          pendingRoutineAdd={celebration.pendingRoutineAdd}
+          templateForAdd={celebration.templateForAdd}
+          onAddToRoutine={handleAddTodayToRoutine}
+          onClose={() => setCelebration(null)}
+        />
       )}
 
       <div
@@ -1124,7 +1269,16 @@ export default WorkoutInput
 
 // [2026-07-28] 운동완료 축하 팝업. 격려 문구 + 획득 XP + 체크마크 애니메이션.
 // 배경을 눌러도 닫히지 않게(다음 행동 유도) 버튼으로만 닫는다.
-function WorkoutCompleteModal({ xpEarned, onClose }) {
+function WorkoutCompleteModal({ xpEarned, pendingRoutineAdd, templateForAdd, onAddToRoutine, onClose }) {
+  const [addState, setAddState] = useState('idle') // idle | adding | done
+  const hasPendingCandidates = !!(templateForAdd && pendingRoutineAdd?.length)
+
+  async function handleAddClick() {
+    setAddState('adding')
+    await onAddToRoutine?.(pendingRoutineAdd, templateForAdd)
+    setAddState('done')
+  }
+
   return (
     <div
       style={{
@@ -1188,6 +1342,20 @@ function WorkoutCompleteModal({ xpEarned, onClose }) {
             +{xpEarned} XP 획득
           </div>
         )}
+        {/* [2026-08-02 신규] 자유 추가 운동으로 기록한 오늘의 종목을, 화면 이동 없이 바로
+            "내 루틴"에 반영할 수 있는 버튼(⑫). 이미 루틴에 있는 종목이나 부위가 애매한 종목은
+            자동으로 건너뛴다. */}
+        {hasPendingCandidates && (
+          <Button
+            full
+            variant="secondary"
+            onClick={handleAddClick}
+            disabled={addState !== 'idle'}
+            style={{ marginBottom: 10 }}
+          >
+            {addState === 'done' ? '내 루틴에 반영했어요!' : '오늘 운동 내 루틴에 반영'}
+          </Button>
+        )}
         <Button full onClick={onClose}>
           확인
         </Button>
@@ -1250,16 +1418,18 @@ function ExerciseCard({
   onRemoveFromRoutine,
   isExtra,
   onRemoveExtra,
+  customExercises,
 }) {
-  const color = getExerciseColor(name)
+  const color = getExerciseColorWithCustom(name, customExercises)
   const inputType = getExerciseInputType(name)
   const weightStep = getWeightStep(name)
+
   return (
     <Card style={{ padding: 0, borderLeft: `4px solid ${color}` }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 10px 6px', gap: 6 }}>
         {draggable && (
           <div
-            title={isDone ? '완료된 종목도 순서를 바꿀 수 있어요' : '눌러서 위아래로 드래그'}
+            title={isDone ? '펼친 상태에서 순서를 바꿀 수 있어요' : '눌러서 위아래로 드래그'}
             onPointerDown={(e) => dragControls?.start(e)}
             style={{
               flexShrink: 0,
@@ -1286,8 +1456,10 @@ function ExerciseCard({
               width: 22,
               height: 22,
               borderRadius: '50%',
-              background: 'var(--color-primary-normal)',
-              color: 'var(--color-on-gold)',
+              // [2026-08-02 변경] 완료 체크가 "시작" 버튼과 같은 골드 톤이라 구분이 잘 안 된다는
+              // 피드백(⑮)으로, 완료 표시는 --color-success(초록)로 확실히 다르게 구분한다.
+              background: 'var(--color-success)',
+              color: '#ffffff',
               fontSize: 13,
               display: 'flex',
               alignItems: 'center',
@@ -1338,7 +1510,7 @@ function ExerciseCard({
               fontWeight: 700,
               whiteSpace: 'nowrap',
               background: expanded ? 'var(--color-bg-elevated)' : 'var(--color-primary-normal)',
-              color: expanded ? 'var(--color-label-neutral)' : 'var(--color-on-gold)',
+              color: expanded ? 'var(--color-label-neutral)' : 'var(--color-on-gold-button)',
             }}
           >
             {expanded ? '접기' : '시작'}
@@ -1406,16 +1578,46 @@ function ExerciseCard({
 // placeholder(중량은 "kg", 횟수는 "회" 등)로 이미 단위를 구분할 수 있어, 모든 세트가
 // 동일하게 Stepper(placeholder만 사용)를 쓰도록 통일했다.
 function SetRow({ set, inputType, weightStep, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
+  const isCardio = inputType === 'cardio'
+
+  const buttons = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: isCardio ? 0 : 'auto', flexShrink: 0 }}>
+      <IconButton title={set.saved ? '저장됨' : '세트 저장'} onClick={onSave} disabled={set.saved} tone="save">
+        <path d="M5 12l5 5L19 7" />
+      </IconButton>
+      <IconButton title="세트 추가(직전 값 복사)" onClick={onCopy}>
+        <path d="M12 6v12M6 12h12" />
+      </IconButton>
+      {onRemove && (
+        <IconButton title="세트 삭제" onClick={onRemove} muted>
+          <path d="M7 7l10 10M17 7L7 17" />
+        </IconButton>
+      )}
+    </div>
+  )
+
+  // [2026-08-02 재구조화] 경사/속도/시간 스텝퍼 3개 + 저장/복사/삭제 버튼까지 한 줄(nowrap)에
+  // 넣고 가로 스크롤로 우겨넣는 방식을 세 차례(⑪⑫⑬) 폭/간격만 조금씩 조정하며 패치했는데도
+  // 계속 겹쳐 보인다는 신고가 반복됐다. 근본 원인은 "폭이 좁다"가 아니라 "한 줄에 들어가기엔
+  // 절대적으로 항목이 너무 많다"는 구조 문제였다. cardio 종목만 스텝퍼 줄과 버튼 줄을 아예
+  // 분리된 두 줄로 나눠서, 두 영역이 서로 폭을 다툴 일 자체를 없앴다(가로 스크롤 불필요).
+  if (isCardio) {
+    return (
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <Stepper value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} placeholder="경사%" width={52} />
+          <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} placeholder="km/h" width={54} />
+          <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" width={48} />
+        </div>
+        {buttons}
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 4, marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 }}>
-        {inputType === 'cardio' ? (
-          <>
-            <Stepper value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} placeholder="경사%" width={38} />
-            <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} placeholder="km/h" width={40} />
-            <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" width={36} />
-          </>
-        ) : inputType === 'reps' ? (
+        {inputType === 'reps' ? (
           <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={44} />
         ) : (
           <>
@@ -1425,27 +1627,17 @@ function SetRow({ set, inputType, weightStep, onWeightChange, onRepsChange, onFi
           </>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 'auto', flexShrink: 0 }}>
-        <IconButton title={set.saved ? '저장됨' : '세트 저장'} onClick={onSave} disabled={set.saved} tone="save">
-          <path d="M5 12l5 5L19 7" />
-        </IconButton>
-        <IconButton title="세트 추가(직전 값 복사)" onClick={onCopy}>
-          <path d="M12 6v12M6 12h12" />
-        </IconButton>
-        {onRemove && (
-          <IconButton title="세트 삭제" onClick={onRemove} muted>
-            <path d="M7 7l10 10M17 7L7 17" />
-          </IconButton>
-        )}
-      </div>
+      {buttons}
     </div>
   )
 }
 
 function IconButton({ children, onClick, title, muted, disabled, tone }) {
+  // [2026-08-02 변경] 세트 저장 체크 아이콘도 "시작" 버튼과 같은 골드 배경이라 대비가
+  // 약하다는 피드백으로, 브라운(--color-on-gold) 대신 베이지 토큰(--color-on-gold-button)을 쓴다.
   const toneStyle =
     tone === 'save' || tone === 'done'
-      ? { background: 'var(--color-primary-normal)', border: 'none', stroke: 'var(--color-on-gold)' }
+      ? { background: 'var(--color-primary-normal)', border: 'none', stroke: 'var(--color-on-gold-button)' }
       : { background: muted ? 'var(--color-bg-elevated)' : 'var(--color-primary-bg)', border: '1px solid var(--color-line)', stroke: muted ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }
   return (
     <button
@@ -1489,7 +1681,7 @@ function Stepper({ value, onChange, step, placeholder, width = 52 }) {
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="record-notation"
-        style={{ width, textAlign: 'center', border: 'none', fontSize: 15, fontWeight: 700 }}
+        style={{ width, boxSizing: 'border-box', padding: '0 2px', textAlign: 'center', border: 'none', fontSize: 15, fontWeight: 700 }}
       />
       <button
         onClick={() => onChange(String((Number(value) || 0) + step))}

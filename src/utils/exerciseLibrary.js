@@ -1,8 +1,13 @@
 // exerciseLibrary.js
-// [2026-07-30] 사용자 피드백 반영: 중복 종목(힙어덕션머신 - 힙어브덕션머신과 동일 취급) 및
-//   한국 내 헬스장에서 흔하지 않은 머신(재이콥스래더) 삭제, 동작 가이드 이미지가 없는 나머지
-//   종목(헥스프레스/뉴트럴그립랫풀다운/펜들레이로우/체스트서포티드로우/브이스쿼트/행잉니레이즈/
-//   시티드니업머신)도 함께 삭제해 라이브러리를 단순화했다. (관련 매핑은 exerciseImageMap.js도 동일 반영)
+// [2026-08-01] 정책 변경: "동작 가이드 이미지 매핑이 없으면 종목을 라이브러리에서 삭제"하던
+//   기존 원칙을 폐지했다. 이미지 커버리지는 종목 존재 여부와 별개 문제이며, 매핑이 없는 종목은
+//   그냥 화면에서 "이미지 준비중"으로 보여주면 충분하다(ExerciseGuideImage.jsx가 이미 그 케이스를
+//   처리함). 이 정책 때문에 2026-07-28~30 사이 삭제됐던 종목 중 실사용 빈도가 높은 것들
+//   (플레이트레터럴로우, 랫풀다운 내로우/뉴트럴그립 계열)을 복원하고, 요청받은 어시스트
+//   풀업/친업을 신규 추가했다. 이미지 소스 자체도 free-exercise-db(정지 이미지)에서
+//   ExerciseGymGifsDB(GIF)로 교체했다 — exerciseImageMap.js, exerciseImageApi.js 참고.
+// [2026-07-30] 중복 종목(힙어덕션머신 - 힙어브덕션머신과 동일 취급) 및 한국 내 헬스장에서
+//   흔하지 않은 머신(재이콥스래더) 삭제.
 // [2026-07-28] 운동 종목 DB 확충 + 부위 세분화(이두/삼두 분리) + 정식 웨이트 트레이닝 명칭으로 정리.
 //   - 기존에는 사용자가 실제로 쓰던 소수 종목만 있었고, 이두/삼두는 화면 노출 시 '팔'로 합쳐서 보여줬음.
 //   - 이번 개편으로 각 부위별 머신/케이블/프리웨이트(덤벨·바벨·스미스머신) 종목을 폭넓게 추가하고,
@@ -21,12 +26,12 @@ export const EXERCISE_LIBRARY = {
     '인클라인덤벨프레스',
     '디클라인덤벨프레스',
     '인클라인스미스프레스',
-    '스미스플랫프레스',
+    '플랫스미스프레스',
     '체스트프레스머신',
     '펙덱플라이',
     '케이블크로스오버',
     '덤벨플라이',
-    '로우케이블플라이',
+    '케이블로우플라이',
     '체스트딥스',
     '푸시업',
     '스벤드프레스',
@@ -34,6 +39,7 @@ export const EXERCISE_LIBRARY = {
   '등': [
     '랫풀다운',
     '리버스그립랫풀다운',
+    '내로우그립랫풀다운',
     '바벨로우',
     '원암덤벨로우',
     'T바로우',
@@ -42,41 +48,44 @@ export const EXERCISE_LIBRARY = {
     '스트레이트암풀다운',
     '풀업',
     '친업',
+    '어시스트풀업',
+    '어시스트친업',
     '데드리프트',
     '백익스텐션',
     '바벨슈러그',
+    '플레이트레터럴로우',
   ],
   '어깨': [
-    '머신숄더프레스',
+    '숄더프레스머신',
     '스미스숄더프레스',
     '덤벨숄더프레스',
     '바벨오버헤드프레스',
     '아놀드프레스',
-    '사이드레터럴레이즈',
+    '덤벨사이드레터럴레이즈',
     '케이블레터럴레이즈',
-    '프론트레이즈',
+    '덤벨프론트레이즈',
     '리어델트펙덱',
     '벤트오버덤벨레이즈',
-    '페이스풀',
-    '업라이트로우',
+    '케이블페이스풀',
+    '바벨업라이트로우',
   ],
   '이두': [
     '바벨컬',
     '이지바컬',
     '덤벨컬',
     '인클라인덤벨컬',
-    '해머컬',
-    '프리처컬',
-    '컨센트레이션컬',
+    '덤벨해머컬',
+    '바벨프리처컬',
+    '덤벨컨센트레이션컬',
     '케이블컬',
     '케이블로프컬',
     '리버스바벨컬',
   ],
   '삼두': [
-    '케이블푸시다운(스트레이트바)',
-    '케이블푸시다운(로프)',
+    '스트레이트바케이블푸시다운',
+    '로프케이블푸시다운',
     '오버헤드케이블익스텐션',
-    '라잉트라이셉스익스텐션',
+    '바벨라잉트라이셉스익스텐션',
     '덤벨킥백',
     '벤치딥스',
     '클로즈그립벤치프레스',
@@ -85,18 +94,18 @@ export const EXERCISE_LIBRARY = {
   ],
   '하체': [
     '레그익스텐션',
-    '레그컬(라잉)',
-    '레그컬(시티드)',
+    '라잉레그컬',
+    '시티드레그컬',
     '루마니안데드리프트',
     '레그프레스',
     '백스쿼트',
     '프론트스쿼트',
-    '스미스머신스쿼트',
-    '런지',
-    '불가리안스플릿스쿼트',
-    '힙쓰러스트',
-    '스탠딩카프레이즈',
-    '시티드카프레이즈',
+    '스미스스쿼트',
+    '덤벨런지',
+    '덤벨불가리안스플릿스쿼트',
+    '바벨힙쓰러스트',
+    '바벨스탠딩카프레이즈',
+    '바벨시티드카프레이즈',
     '힙어브덕션머신',
     '굿모닝',
   ],
@@ -158,13 +167,30 @@ const PART_COLORS_LIGHT = {
   '유산소': '#54B4D3',
 }
 
+// [2026-08-01 신규] MY탭 "화면 테마" 베이지블랙 모드용 팔레트.
+// 베이지 배경(--color-bg #F6ECE1 등)은 명도가 높아, 다크용 고채도 팔레트(PART_COLORS)를
+// 그대로 쓰면 CalendarView.jsx의 뱃지(배경 hexToRgba(partColor, 0.14~0.18) + 텍스트 partColor)
+// 조합에서 저대비로 안 보이는 문제가 있었다. 라이트 팔레트(파스텔, 밝음)를 재사용하지 않고
+// 베이지 배경 전용으로 명도를 낮춘(어둡게+채도 유지) 버전을 새로 만들어 텍스트/뱃지 모두
+// 대비를 확보한다. 색상 자체의 계열(가이드 6색)은 유지하고 명도만 낮췄다.
+const PART_COLORS_BEIGE = {
+  '가슴': '#C23824',   // Chest, 어둡게
+  '등': '#0E8F79',     // Back, 어둡게
+  '어깨': '#1D6FBF',   // Shoulder, 어둡게
+  '이두': '#C23E75',   // Arms +10%
+  '삼두': '#A52F5E',   // Arms -10%
+  '하체': '#6B3FA0',   // Legs, 어둡게
+  '코어': '#4F8F1F',   // Core, 어둡게
+  '유산소': '#0B6F60', // Back -15% 파생
+}
+
 // 현재 MY탭에서 선택된 화면 테마(html[data-theme])에 맞는 부위별 색상 팔레트를 반환한다.
 // (App.jsx가 로그인 후 메인 화면부터 html 태그에 data-theme을 반영하므로, 렌더링 시점에
 // 그 값을 그대로 읽으면 된다 — 테마가 바뀌면 userDoc 갱신으로 상위 트리가 다시 렌더링된다.)
 function getActivePartColors() {
-  if (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light') {
-    return PART_COLORS_LIGHT
-  }
+  const theme = typeof document !== 'undefined' ? document.documentElement.getAttribute('data-theme') : null
+  if (theme === 'light') return PART_COLORS_LIGHT
+  if (theme === 'beige') return PART_COLORS_BEIGE
   return PART_COLORS
 }
 
@@ -192,6 +218,21 @@ export function getExerciseDisplayAtom(name) {
 // 종목명 → 색상. 등록되지 않은(사용자 직접 추가) 종목은 중립색을 반환.
 export function getExerciseColor(name) {
   return getPartColor(getExerciseDisplayAtom(name))
+}
+
+// [2026-08-01 신규] 공통 라이브러리 종목은 기존과 동일하게 색상을 찾고, 거기서 못 찾은
+// 이름(=커스텀 종목)은 customExercises(users/{uid}.customExercises, 부위별 배열)에서
+// 등록된 부위를 역으로 찾아 그 부위 색상을 반환한다. 커스텀 종목이 항상 회색(중립색)으로만
+// 보이던 문제(⑦) 수정.
+export function getExerciseColorWithCustom(name, customExercises) {
+  const builtInAtom = getExerciseAtom(name)
+  if (builtInAtom) return getPartColor(builtInAtom)
+  if (customExercises) {
+    for (const atom of BODY_PART_ATOMS) {
+      if ((customExercises[atom] || []).includes(name)) return getPartColor(atom)
+    }
+  }
+  return 'var(--color-label-neutral)'
 }
 
 // 복합/별칭 파트명 → 원자 부위 배열 매핑

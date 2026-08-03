@@ -17,11 +17,12 @@ import {
   Legend,
 } from 'recharts'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
-import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange } from '../storage'
+import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom } from '../storage'
 import { getTierByXp } from '../utils/tier'
-import { computeAttendanceScore, computeVolumeScore, computeOverloadScore, computeFinalScore } from '../utils/scoring'
+import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeFinalScore } from '../utils/scoring'
 import { getExerciseAtom, BODY_PART_ATOMS } from '../utils/exerciseLibrary'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
+import { toLocalDateStr } from '../utils/date'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
 // 눈에 잘 띄지 않던 '통계' 서브탭을 하나의 '리포트' 탭으로 통합했다. 여기에 추가로
@@ -43,17 +44,16 @@ const CHART_TOOLTIP_STYLE = {
   itemStyle: { color: 'var(--color-label-normal)' },
 }
 
-function isoWeekLabel(dateStr) {
-  const d = new Date(dateStr)
-  const onejan = new Date(d.getFullYear(), 0, 1)
-  const week = Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7)
-  return `${d.getMonth() + 1}월 ${week}주`
-}
-
+// [2026-08-02 수정] date.getDay()가 일요일=0이라, 기존 코드(day만큼 그대로 빼기)는 결과적으로
+// "일~토" 기준 주간 경계가 되고 있었다(⑬으로 명시적 경계 도입했을 때도 이 부분은 못 고쳤음).
+// 요청대로 "월~일" 기준으로 바꾼다 — 일요일(0)은 6일 전 월요일로, 그 외 요일은 (day-1)일 전
+// 월요일로 계산한다. 이 함수를 쓰는 출석률/부위별 추이/볼륨비교/과부하 계산이 모두 동일하게
+// 월~일 기준으로 바뀐다(일관성 유지).
 function startOfWeek(d) {
   const date = new Date(d)
   const day = date.getDay()
-  date.setDate(date.getDate() - day)
+  const diff = day === 0 ? 6 : day - 1
+  date.setDate(date.getDate() - diff)
   return date
 }
 
@@ -89,20 +89,6 @@ function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
   )
 }
 
-function byExercise(logs) {
-  const map = {}
-  logs.forEach((log) => {
-    log.exercises?.forEach((ex) => {
-      const topWeight = Math.max(...ex.sets.map((s) => s.weight), 0)
-      const totalVolume = ex.sets.reduce((s, st) => s + st.weight * st.reps, 0)
-      if (!map[ex.name] || map[ex.name].topWeight < topWeight) {
-        map[ex.name] = { topWeight, totalVolume }
-      }
-    })
-  })
-  return map
-}
-
 export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true }) {
   // 랭킹 관련 상태
   const [entries, setEntries] = useState([])
@@ -117,6 +103,25 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   const [logs, setLogs] = useState([])
   const [statsLoading, setStatsLoading] = useState(true)
   const [selectedExercise, setSelectedExercise] = useState(null)
+
+  // [2026-07-31 신규] 다른 유저들이 즐겨찾는 운동(부위별 공개 집계, ⑨)
+  const [popularityByAtom, setPopularityByAtom] = useState([])
+  const [popularityLoading, setPopularityLoading] = useState(true)
+  const [selectedPopAtom, setSelectedPopAtom] = useState(BODY_PART_ATOMS[0])
+  useEffect(() => {
+    let cancelled = false
+    getExercisePopularityByAtom(BODY_PART_ATOMS).then((result) => {
+      if (cancelled) return
+      setPopularityByAtom(result)
+      setPopularityLoading(false)
+      // 데이터가 있는 첫 부위를 기본 선택(전부 비어있으면 그냥 첫 부위 유지)
+      const firstWithData = result.find((r) => Object.keys(r.counts).length > 0)
+      if (firstWithData) setSelectedPopAtom(firstWithData.atom)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function loadRanking() {
     setRankingLoading(true)
@@ -134,10 +139,10 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     let cancelled = false
     async function loadStats() {
       setStatsLoading(true)
-      const to = new Date().toISOString().slice(0, 10)
+      const to = toLocalDateStr(new Date())
       const fromDate = new Date()
       fromDate.setDate(fromDate.getDate() - STATS_RANGE_DAYS)
-      const from = fromDate.toISOString().slice(0, 10)
+      const from = toLocalDateStr(fromDate)
       const data = await getWorkoutLogsInRange(uid, from, to)
       if (!cancelled) {
         setLogs(data)
@@ -161,21 +166,26 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     prevWeekStart.setDate(prevWeekStart.getDate() - 7)
     const fourWeeksAgo = new Date(weekStart)
     fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28)
+    // [2026-07-31 신규] 점진적 과부하를 "같은 종목의 직전 수행 대비"로 판단하기 위해,
+    // 이번 주 이전 수행 기록도 함께 조회한다(탐색 범위는 현재 통계 조회 범위와 동일하게
+    // STATS_RANGE_DAYS로 제한, 사용자 확인).
+    const overloadRangeStart = new Date(weekStart)
+    overloadRangeStart.setDate(overloadRangeStart.getDate() - STATS_RANGE_DAYS)
 
-    const fmt = (d) => d.toISOString().slice(0, 10)
+    const fmt = (d) => toLocalDateStr(d)
     // [2026-07-30 신규] 캘린더에서 추가한 과거 기록(isBackfilled)은 볼륨/캘린더/통계에는
     // 반영되지만, 랭킹 점수(출석/볼륨/과부하) 계산에서는 제외한다.
     const excludeBackfilled = (arr) => arr.filter((l) => !l.isBackfilled)
     const thisWeekLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(weekStart), fmt(today)))
     const baselineLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(fourWeeksAgo), fmt(prevWeekStart)))
-    const lastWeekLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(prevWeekStart), fmt(weekStart)))
+    const overloadRangeLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(overloadRangeStart), fmt(today)))
 
     const thisWeekVolume = thisWeekLogs.reduce((s, l) => s + (l.totalVolume || 0), 0)
     const baselineAvgVolume = baselineLogs.length > 0 ? baselineLogs.reduce((s, l) => s + (l.totalVolume || 0), 0) / 4 : 0
 
     const attendanceScore = computeAttendanceScore(thisWeekLogs.length, targetSessionsPerWeek)
     const volumeScore = computeVolumeScore(thisWeekVolume, baselineAvgVolume)
-    const overloadScore = computeOverloadScore(byExercise(thisWeekLogs), byExercise(lastWeekLogs))
+    const overloadScore = computeOverloadByOccurrence(overloadRangeLogs, fmt(weekStart)).score
     const finalScore = computeFinalScore({ attendanceScore, volumeScore, overloadScore })
 
     await upsertLeaderboardEntry('all', period, uid, {
@@ -213,7 +223,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     const weekStart = startOfWeek(today)
     const prevWeekStart = new Date(weekStart)
     prevWeekStart.setDate(prevWeekStart.getDate() - 7)
-    const fmt = (d) => d.toISOString().slice(0, 10)
+    const fmt = (d) => toLocalDateStr(d)
     const thisWeekVolume = logs
       .filter((l) => l.date >= fmt(weekStart))
       .reduce((s, l) => s + (l.totalVolume || 0), 0)
@@ -230,56 +240,90 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     }
   }, [logs])
 
+  // [2026-08-02 재수정] 기존에는 isoWeekLabel(연중 몇 번째 주)로 로그를 묶은 뒤 "배열의 마지막
+  // 항목"을 이번 주로 간주했다(⑬). 월말/월초처럼 이번 주에 기록이 하나도 없는 경우, 배열의
+  // 마지막 항목이 실제로는 지난주(또는 그 이전)가 되어버려 출석률이 엉뚱하게 계산되고, 기준이
+  // "몇 월 몇 주"인지도 한눈에 안 들어왔다. weeklyVolumeCompare와 동일하게 오늘 기준
+  // startOfWeek() 경계로 이번 주/지난주를 명시적으로 구분하고, 실제 날짜 범위를 라벨로 함께 낸다.
+  const weekDateRangeLabel = (start) => {
+    const end = new Date(start)
+    end.setDate(end.getDate() + 6)
+    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}`
+    return `${fmt(start)}~${fmt(end)}`
+  }
+
   const weeklyAttendance = useMemo(() => {
-    const byWeek = {}
-    logs.forEach((log) => {
-      const label = isoWeekLabel(log.date)
-      byWeek[label] = (byWeek[label] || 0) + 1
-    })
-    return Object.entries(byWeek).map(([week, sessions]) => ({ week, sessions }))
+    const today = new Date()
+    const weekStart = startOfWeek(today)
+    const prevWeekStart = new Date(weekStart)
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
+    const fmt = (d) => toLocalDateStr(d)
+    const thisWeekSessions = logs.filter((l) => l.date >= fmt(weekStart)).length
+    const lastWeekSessions = logs.filter((l) => l.date >= fmt(prevWeekStart) && l.date < fmt(weekStart)).length
+    return {
+      thisWeekSessions,
+      lastWeekSessions,
+      thisWeekLabel: weekDateRangeLabel(weekStart),
+      lastWeekLabel: weekDateRangeLabel(prevWeekStart),
+    }
   }, [logs])
 
-  const thisWeekSessions = weeklyAttendance[weeklyAttendance.length - 1]?.sessions || 0
+  const thisWeekSessions = weeklyAttendance.thisWeekSessions
   const attendanceRate = Math.min(100, Math.round((thisWeekSessions / targetSessionsPerWeek) * 100))
 
   // ── 부위별 운동 추이 (신규) ──
-  const bodyPartWeekly = useMemo(() => {
-    const byWeek = {}
+  // [2026-07-31 변경] 라이브러리 개편 전 이름 등으로 현재 EXERCISE_LIBRARY와 매칭되지
+  // 않는 종목은 '기타'로 뭉쳐 보여주지 않고, 집계 단계에서부터 완전히 제외한다
+  // (사용자 확인: 화면에서만 숨기는 대신 계산에서도 제외하는 방식 선택).
+  // [2026-08-02 재수정] 기존에는 isoWeekLabel로 묶은 뒤 "배열의 마지막/마지막에서 두번째 항목"을
+  // 각각 이번 주/지난 주로 가정했다(⑭). 이번 주에 기록이 없는 주간이 하나라도 있으면 인덱스가
+  // 밀려서, 실제로는 기록이 있는 이번 주/지난 주인데도 "기록 없음"으로 잘못 표시되는 버그가
+  // 있었다. weeklyAttendance/weeklyVolumeCompare와 동일하게 startOfWeek() 명시적 경계로
+  // 이번 주·지난 주 로그만 각각 직접 걸러서 집계한다.
+  const bodyPartWeekTotals = useMemo(() => {
+    const today = new Date()
+    const weekStart = startOfWeek(today)
+    const prevWeekStart = new Date(weekStart)
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
+    const fmt = (d) => toLocalDateStr(d)
+    const thisWeekStartStr = fmt(weekStart)
+    const prevWeekStartStr = fmt(prevWeekStart)
+
+    const thisWeek = {}
+    const lastWeek = {}
     logs.forEach((log) => {
-      const label = isoWeekLabel(log.date)
-      if (!byWeek[label]) byWeek[label] = { week: label }
+      let target = null
+      if (log.date >= thisWeekStartStr) target = thisWeek
+      else if (log.date >= prevWeekStartStr && log.date < thisWeekStartStr) target = lastWeek
+      if (!target) return
       log.exercises?.forEach((ex) => {
-        const atom = getExerciseAtom(ex.name) || '기타'
+        const atom = getExerciseAtom(ex.name)
+        if (!atom) return
         const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
-        byWeek[label][atom] = (byWeek[label][atom] || 0) + volume
+        target[atom] = (target[atom] || 0) + volume
       })
     })
-    return Object.values(byWeek)
+    return { thisWeek, lastWeek }
   }, [logs])
 
   const presentBodyParts = useMemo(() => {
-    const set = new Set()
-    bodyPartWeekly.forEach((week) => {
-      Object.keys(week).forEach((k) => {
-        if (k !== 'week') set.add(k)
-      })
-    })
-    // 표시 순서는 BODY_PART_ATOMS 기준으로 고정, 기록에 없는 부위는 제외
-    return [...BODY_PART_ATOMS, '기타'].filter((atom) => set.has(atom))
-  }, [bodyPartWeekly])
+    const set = new Set([
+      ...Object.keys(bodyPartWeekTotals.thisWeek),
+      ...Object.keys(bodyPartWeekTotals.lastWeek),
+    ])
+    // 표시 순서는 BODY_PART_ATOMS 기준으로 고정, 기록에 없는 부위는 제외.
+    return BODY_PART_ATOMS.filter((atom) => set.has(atom))
+  }, [bodyPartWeekTotals])
 
   // [2026-07-29] 스택 막대 대신 레이더 차트로 교체 — 부위를 축으로 두고
   // "이번 주 vs 지난 주"를 겹쳐 그려서 어느 부위가 늘고 줄었는지 한눈에 비교되도록 함.
   const bodyPartRadar = useMemo(() => {
-    if (bodyPartWeekly.length === 0) return []
-    const thisWeek = bodyPartWeekly[bodyPartWeekly.length - 1] || {}
-    const lastWeek = bodyPartWeekly[bodyPartWeekly.length - 2] || {}
     return presentBodyParts.map((atom) => ({
       part: atom,
-      이번주: Math.round(thisWeek[atom] || 0),
-      지난주: Math.round(lastWeek[atom] || 0),
+      이번주: Math.round(bodyPartWeekTotals.thisWeek[atom] || 0),
+      지난주: Math.round(bodyPartWeekTotals.lastWeek[atom] || 0),
     }))
-  }, [bodyPartWeekly, presentBodyParts])
+  }, [bodyPartWeekTotals, presentBodyParts])
 
   // [2026-07-29 신규] 레이더 차트 축 눈금(반지름 숫자)이 90도로 꺾여서 나와 의미를 알기 어렵다는
   // 피드백으로 그 숫자는 없애고, 대신 각 부위 라벨 아래에 이번 주 볼륨·세트 수를 직접 표기하기
@@ -287,13 +331,14 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   const bodyPartThisWeekDetail = useMemo(() => {
     const today = new Date()
     const weekStart = startOfWeek(today)
-    const fmt = (d) => d.toISOString().slice(0, 10)
+    const fmt = (d) => toLocalDateStr(d)
     const detail = {}
     logs
       .filter((l) => l.date >= fmt(weekStart))
       .forEach((log) => {
         log.exercises?.forEach((ex) => {
-          const atom = getExerciseAtom(ex.name) || '기타'
+          const atom = getExerciseAtom(ex.name)
+          if (!atom) return
           const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
           if (!detail[atom]) detail[atom] = { volume: 0, sets: 0 }
           detail[atom].volume += volume
@@ -303,31 +348,16 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     return detail
   }, [logs])
 
-  // ── 점진적 과부하 진행상황 (신규) ──
+  // ── 점진적 과부하 진행상황 ──
+  // [2026-07-31 변경] "지난주 전체 대비"에서 "같은 종목의 직전 수행 대비"로 판단 기준
+  // 변경(사용자 확인). 3분할처럼 한 주 안에 같은 종목을 여러 번 하는 경우, 이번 주
+  // 수행 회차를 각각 그 직전 수행과 비교해 모두 노출한다. 직전 수행 탐색 범위는
+  // logs가 이미 조회돼 있는 현재 통계 조회 범위(STATS_RANGE_DAYS)로 제한된다.
   const overloadProgress = useMemo(() => {
     const today = new Date()
     const weekStart = startOfWeek(today)
-    const prevWeekStart = new Date(weekStart)
-    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
-    const fmt = (d) => d.toISOString().slice(0, 10)
-
-    const thisWeekLogs = logs.filter((l) => l.date >= fmt(weekStart))
-    const lastWeekLogs = logs.filter((l) => l.date >= fmt(prevWeekStart) && l.date < fmt(weekStart))
-    const currentByEx = byExercise(thisWeekLogs)
-    const previousByEx = byExercise(lastWeekLogs)
-    const names = Object.keys(currentByEx)
-
-    const details = names.map((name) => {
-      const prev = previousByEx[name]
-      const cur = currentByEx[name]
-      const improved = !prev || cur.topWeight > prev.topWeight || cur.totalVolume > prev.totalVolume
-      return { name, improved, isNew: !prev }
-    })
-
-    return {
-      score: computeOverloadScore(currentByEx, previousByEx),
-      details,
-    }
+    const fmt = (d) => toLocalDateStr(d)
+    return computeOverloadByOccurrence(logs, fmt(weekStart))
   }, [logs])
 
   // ── 제일 많이 한 운동 (신규) ──
@@ -349,6 +379,19 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     logs.forEach((log) => log.exercises?.forEach((e) => set.add(e.name)))
     return Array.from(set)
   }, [logs])
+
+  // [2026-07-31 신규] 선택된 부위에서 다른 유저들이 즐겨찾는 운동 Top5 + 내 제일 많이 한 운동과의
+  // 비교(⑨). "내 것과 일치" 표시는 mostFrequentExercises(전체 부위, 위에서 이미 계산됨)에
+  // 이름이 포함되는지로 판단한다.
+  const myFrequentNameSet = useMemo(() => new Set(mostFrequentExercises.map((e) => e.name)), [mostFrequentExercises])
+  const popularTop = useMemo(() => {
+    const entry = popularityByAtom.find((r) => r.atom === selectedPopAtom)
+    if (!entry) return []
+    return Object.entries(entry.counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+  }, [popularityByAtom, selectedPopAtom])
 
   const exerciseTrend = useMemo(() => {
     if (!selectedExercise) return []
@@ -428,9 +471,10 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ width: 24, textAlign: 'center', fontWeight: 800, color: 'var(--color-label-neutral)' }}>{myRank}</span>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{myEntry.nickname} (나)</div>
+                  {/* [2026-08-01] 닉네임+티어가 세로 2줄이던 걸 한 줄로 통합(티어 뱃지 오른쪽에 닉네임) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <TierBadge label={tier.label} tierKey={tier.key} size="sm" />
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{myEntry.nickname} (나)</span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -460,6 +504,17 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                 {thisWeekSessions} / {targetSessionsPerWeek}회
               </span>
             </div>
+            {/* [2026-08-02 신규] 분모(목표 횟수)가 사용자가 직접 정한 값이 아니라 "내 루틴"
+                분할 파트 개수(예: 3분할=3회)에서 자동으로 오는 값이라, 화면만 봐서는 그 기준을
+                알기 어렵다는 피드백이 있었다. 로직은 그대로 두고, 기준을 짧게 밝혀준다. */}
+            <p className="text-keep-all" style={{ fontSize: 11, color: 'var(--color-label-neutral)', margin: '4px 0 0' }}>
+              목표 {targetSessionsPerWeek}회는 내 루틴 분할 기준이에요
+            </p>
+            {/* [2026-08-02 신규] "이번 주"의 실제 날짜 범위(⑬)를 함께 표기해, 월말/월초처럼
+                주 경계가 헷갈리는 시점에도 어떤 기준으로 계산된 값인지 명확히 알 수 있게 한다. */}
+            <p className="record-notation" style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--color-label-neutral)' }}>
+              이번주 {weeklyAttendance.thisWeekLabel} · 지난주 {weeklyAttendance.lastWeekLabel} 대비 {weeklyAttendance.lastWeekSessions}회
+            </p>
           </Card>
 
           {/* 주간 총 볼륨 */}
@@ -534,31 +589,45 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
             </ResponsiveContainer>
           </Card>
 
-          {/* 점진적 과부하 진행상황 (신규) */}
+          {/* 점진적 과부하 진행상황 */}
           <SectionTitle>점진적 과부하 진행상황</SectionTitle>
           <Card style={{ marginBottom: 20 }}>
-            {overloadProgress.details.length === 0 ? (
+            {overloadProgress.occurrences.length === 0 ? (
               <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>
-                이번 주 기록이 아직 없어요. 기록을 남기면 지난주 대비 과부하 진행률을 보여줄게요.
+                이번 주 기록이 아직 없어요. 기록을 남기면 직전 수행 대비 과부하 진행률을 보여줄게요.
+              </p>
+            ) : overloadProgress.occurrences.every((o) => o.isNew) ? (
+              // [2026-07-31] 이번 주 회차가 전부 "첫 기록"(비교할 직전 수행이 없음)이면
+              // 점수 계산상 100%가 나오지만 근거 리스트는 전부 숨겨져 카드 하단이 텅 비어
+              // 보이는 문제가 있어, 이 경우 숫자 대신 안내 문구로 대체한다.
+              <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>
+                아직 비교할 직전 수행 기록이 없어요. 같은 종목을 다시 하면 과부하 진행률을 보여줄게요.
               </p>
             ) : (
               <>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
                   <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-primary-normal)' }}>{overloadProgress.score}%</span>
                   <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                    지난주 대비 중량·볼륨이 늘어난 종목 비율
+                    직전 수행 대비 중량·볼륨이 늘어난 회차 비율
                   </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {/* [2026-07-30 변경] 지난주 기록이 없어 비교 대상이 없는 "첫 기록" 종목은
-                      리스트에서 숨긴다(점수 계산 로직은 기존과 동일하게 유지). */}
-                  {overloadProgress.details
-                    .filter((d) => !d.isNew)
-                    .map((d) => (
-                      <div key={d.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                        <span className="text-keep-all">{d.name}</span>
-                        <span style={{ fontWeight: 700, color: d.improved ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>
-                          {d.improved ? '▲ 향상' : '유지'}
+                  {/* [2026-07-31 변경] "지난주 전체 대비"에서 "같은 종목의 직전 수행 대비"로
+                      바뀌면서, 3분할 등으로 같은 종목을 이번 주에 여러 번 했다면 회차마다
+                      (날짜 표기로 구분) 각각 노출된다. 비교 대상(직전 수행)이 없는 "첫 기록"
+                      회차는 리스트에서 숨긴다(점수 계산에는 포함, 표시만 제외 — 기존 방침 유지). */}
+                  {overloadProgress.occurrences
+                    .filter((o) => !o.isNew)
+                    .map((o, i) => (
+                      <div key={`${o.name}-${o.date}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span className="text-keep-all">
+                          {o.name}{' '}
+                          <span style={{ color: 'var(--color-label-neutral)', fontSize: 11 }}>
+                            ({o.date.slice(5).replace('-', '/')})
+                          </span>
+                        </span>
+                        <span style={{ fontWeight: 700, color: o.improved ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>
+                          {o.improved ? '▲ 향상' : '유지'}
                         </span>
                       </div>
                     ))}
@@ -579,6 +648,54 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                     <span className="text-keep-all" style={{ fontSize: 14 }}>
                       <span style={{ color: 'var(--color-label-neutral)', marginRight: 8 }}>{i + 1}</span>
                       {item.name}
+                    </span>
+                    <span className="record-notation" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
+                      {item.count}회
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* 다른 유저 즐겨찾는 운동 (신규, ⑨) */}
+          <SectionTitle>다른 유저들이 즐겨하는 운동</SectionTitle>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {BODY_PART_ATOMS.map((atom) => (
+              <Chip key={atom} active={selectedPopAtom === atom} onClick={() => setSelectedPopAtom(atom)}>
+                {atom}
+              </Chip>
+            ))}
+          </div>
+          <Card style={{ marginBottom: 20 }}>
+            {popularityLoading ? (
+              <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>불러오는 중…</p>
+            ) : popularTop.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>
+                아직 이 부위의 데이터가 충분하지 않아요.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {popularTop.map((item, i) => (
+                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span className="text-keep-all" style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ color: 'var(--color-label-neutral)' }}>{i + 1}</span>
+                      {item.name}
+                      {myFrequentNameSet.has(item.name) && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            background: 'var(--color-primary-bg)',
+                            color: 'var(--color-primary-strong)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          내 최다 운동과 일치
+                        </span>
+                      )}
                     </span>
                     <span className="record-notation" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
                       {item.count}회

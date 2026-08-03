@@ -3,6 +3,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // [2026-07-31 신규] 문의(inquiries) 관리자 판별 헬퍼: 요청자 본인의 users/{uid} 문서에서
+    // role 필드를 읽어 '관리자'인지 확인한다.
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == '관리자'
+    }
+
     // users/{uid} — 본인 문서만 읽기/쓰기
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
@@ -25,6 +32,26 @@ service cloud.firestore {
     match /leaderboard/{group}/{period}/{uid} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // exercisePopularity/{atom} — 개인정보 없는 부위별 종목 수행 횟수 공개 집계(⑨).
+    // 로그인한 모든 사용자가 열람 가능(리포트 탭 "다른 유저 즐겨찾는 운동" 노출 목적).
+    // 쓰기(카운트 증가)도 로그인 사용자면 가능 — 개인 식별 정보가 없는 집계 수치라
+    // leaderboard처럼 본인 uid로 제한할 필요가 없다. 악의적 대량 조작 우려가 커지면
+    // Cloud Functions 전용 쓰기로 옮기는 것을 권장(leaderboard와 동일한 원칙).
+    match /exercisePopularity/{atom} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // inquiries/{inquiryId} — MY탭 1:1 문의(⑩). 본인은 작성 + 본인 문의만 열람 가능.
+    // 관리자(role === '관리자')는 전체 열람 + 답변(reply/status) 수정 가능. uid/content는
+    // 작성자 본인도 수정 불가(문의 내용 위변조 방지, 답변만 관리자가 갱신).
+    match /inquiries/{inquiryId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
+      allow update: if isAdmin();
+      allow delete: if false;
     }
 
     // Phase2 이후 컬렉션(gymRoster, roleRequests, connections, programs,

@@ -3,7 +3,7 @@ import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm } from './ui'
 import { updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
 import { logout } from '../firebase'
 import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
-import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS } from '../utils/exerciseLibrary'
+import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS, getExercisesForPart } from '../utils/exerciseLibrary'
 import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
 
 // [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
@@ -16,7 +16,7 @@ const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
-export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo }) {
+export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -24,7 +24,8 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   )
   const [wakeLockEnabled, setWakeLockEnabled] = useState(!!userDoc?.restTimerWakeLockEnabled)
   const [restSoundId, setRestSoundId] = useState(userDoc?.restTimerSoundId || 'beep')
-  // [2026-07-30 신규] 화면 테마: 'dark'(매트블랙골드, 기본) | 'light'(구 화이트+블루+쿨그레이)
+  // [2026-07-30 신규, 2026-08-01 3종으로 확장] 화면 테마: 'dark'(블랙골드, 기본) |
+  // 'beige'(베이지블랙, 골드 포인트 유지) | 'light'(화이트블루, 구 v1)
   const [themePreference, setThemePreferenceState] = useState(userDoc?.themePreference || 'dark')
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
@@ -38,6 +39,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
   const [customExerciseInput, setCustomExerciseInput] = useState('')
   const [savingCustomExercise, setSavingCustomExercise] = useState(false)
   const customExercises = userDoc?.customExercises || {}
+  // [2026-08-01 되돌림] 프로필 사진 직접 업로드/크롭 기능은 Storage 유료 플랜 이슈로 보류.
+  // 구글 로그인 사진이 있으면 그걸 쓰고, 없으면 닉네임 첫 글자 이니셜 플레이스홀더를 보여준다.
+  const profilePhotoURL = googlePhotoURL || null
   const [profileForm, setProfileForm] = useState(() => ({
     nickname: userDoc?.nickname || '',
     gender: userDoc?.onboarding?.gender || '',
@@ -188,8 +192,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
     }
   }
 
-  // 나만 보이는 커스텀 종목 추가. 같은 부위에 이미 있는 이름(또는 공통 라이브러리와 겹치는
-  // 이름)은 중복 추가하지 않는다.
+  // 나만 보이는 커스텀 종목 추가. 같은 부위에 이미 있는 이름(정확히 동일)은 조용히 무시하고,
+  // [2026-08-01 신규] 정확히 같지는 않지만 이름이 서로 포함관계(부분 일치)인 유사 종목이
+  // 공통 라이브러리 또는 기존 커스텀 종목 중에 있으면, 추가 전에 확인창으로 알려준다(⑧).
   async function handleAddCustomExercise() {
     const trimmed = customExerciseInput.trim().slice(0, 20)
     if (!trimmed) return
@@ -198,6 +203,18 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
       setCustomExerciseInput('')
       return
     }
+
+    const candidates = [...getExercisesForPart(customExercisePart), ...existing]
+    const similar = candidates.filter(
+      (n) => n !== trimmed && (n.includes(trimmed) || trimmed.includes(n))
+    )
+    if (similar.length > 0) {
+      const ok = await confirm(
+        `이미 비슷한 종목이 있어요: ${similar.join(', ')}\n그래도 "${trimmed}"을(를) 새로 추가할까요?`
+      )
+      if (!ok) return
+    }
+
     setSavingCustomExercise(true)
     try {
       await addCustomExercise(uid, customExercisePart, trimmed)
@@ -216,6 +233,8 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
 
   return (
     <div style={{ padding: '20px 20px 100px' }}>
+      {/* [2026-08-02 재수정] 캡션 문구 자체가 불필요하다는 피드백으로 완전히 삭제(⑰).
+          카드를 탭하면 티어·XP 안내로 이동하는 동작(onShowTierInfo)은 그대로 유지된다. */}
       <SectionTitle>등급</SectionTitle>
       <Card onClick={onShowTierInfo} style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -232,9 +251,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
             다음 티어 {nextTier.label}까지 {(nextTier.min - xp).toLocaleString()} XP
           </p>
         )}
-        <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-primary-strong)', margin: '10px 0 0', fontWeight: 600 }}>
-          탭하면 티어 체계와 XP 안내를 볼 수 있어요 →
-        </p>
       </Card>
 
       <SectionTitle
@@ -249,6 +265,63 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
         프로필
       </SectionTitle>
       <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+          <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
+            {profilePhotoURL ? (
+              <img
+                src={profilePhotoURL}
+                alt="프로필 사진"
+                style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: '50%',
+                  background: 'var(--color-bg-elevated)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: 'var(--color-primary-strong)',
+                }}
+              >
+                {(userDoc?.nickname || '?').trim().charAt(0)}
+              </div>
+            )}
+          </div>
+          {/* [2026-08-01 변경] 프로필 카드 레이아웃 재구성: 사진 오른쪽에 1행(닉네임+역할+성별+나이)
+              /2행(신체정보)/3행(운동목표) 텍스트 3줄 배치. 수정 모드에서는 아래 폼에서 편집하므로
+              읽기 전용일 때만 노출. */}
+          {!editingProfile && (
+            <div
+              className="text-keep-all"
+              style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--color-label-normal)', lineHeight: '20px' }}
+            >
+              <div>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+                  {userDoc?.nickname || '닉네임 미설정'}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 6 }}>
+                  {userDoc?.role} · {userDoc?.onboarding?.gender} · {userDoc?.onboarding?.age}세
+                </span>
+              </div>
+              <div>
+                {userDoc?.onboarding?.weightKg}kg · {userDoc?.onboarding?.heightCm}cm
+                {bmi != null && (
+                  <span className="record-notation">
+                    {' '}· BMI {bmi.toFixed(1)} ({bmiCategory})
+                  </span>
+                )}
+              </div>
+              {userDoc?.onboarding?.goals?.length > 0 && (
+                <div>{userDoc.onboarding.goals.join(' · ')}</div>
+              )}
+            </div>
+          )}
+        </div>
         {editingProfile ? (
           <div>
             <div style={{ marginBottom: 12 }}>
@@ -320,29 +393,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
               </Button>
             </div>
           </div>
-        ) : (
-          <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)', lineHeight: '20px' }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-              {userDoc?.nickname || '닉네임 미설정'}
-            </span>
-            <br />
-            {userDoc?.role} · {userDoc?.onboarding?.gender} · {userDoc?.onboarding?.age}세
-            <br />
-            {userDoc?.onboarding?.weightKg}kg · {userDoc?.onboarding?.heightCm}cm
-            {bmi != null && (
-              <span className="record-notation">
-                {' '}
-                · BMI {bmi.toFixed(1)} ({bmiCategory})
-              </span>
-            )}
-            {userDoc?.onboarding?.goals?.length > 0 && (
-              <>
-                <br />
-                {userDoc.onboarding.goals.join(' · ')}
-              </>
-            )}
-          </div>
-        )}
+        ) : null}
       </Card>
 
       <SectionTitle
@@ -548,17 +599,58 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, onManageRout
       <SectionTitle>화면 테마</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-          기본은 매트블랙골드 테마예요. 예전 화이트+블루 테마로 선택적으로 바꿀 수 있어요.
+          기본은 블랙골드 테마예요. 베이지블랙이나 화이트블루로 선택적으로 바꿀 수 있어요.
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
           <Chip active={themePreference === 'dark'} onClick={() => selectTheme('dark')} style={{ flex: 1, justifyContent: 'center' }}>
-            매트블랙골드
+            블랙골드
+          </Chip>
+          <Chip active={themePreference === 'beige'} onClick={() => selectTheme('beige')} style={{ flex: 1, justifyContent: 'center' }}>
+            베이지블랙
           </Chip>
           <Chip active={themePreference === 'light'} onClick={() => selectTheme('light')} style={{ flex: 1, justifyContent: 'center' }}>
-            화이트+블루
+            화이트블루
           </Chip>
         </div>
       </Card>
+
+      {/* [2026-07-31 신규] MY탭 1:1 문의(⑩). role === '관리자'인 계정에서만 "문의 관리"
+          진입점이 추가로 보인다. */}
+      <SectionTitle>문의</SectionTitle>
+      <Card onClick={onShowInquiries} style={{ marginBottom: userDoc?.role === '관리자' ? 10 : 20 }}>
+        <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
+          문의하기
+        </p>
+        <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+          어플 관련 개선의견이나 버그를 남기고 답변을 확인할 수 있어요.
+        </p>
+      </Card>
+      {userDoc?.role === '관리자' && (
+        <Card onClick={onShowInquiryAdmin} style={{ marginBottom: 20 }}>
+          <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
+            문의 관리
+          </p>
+          <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            사용자들이 남긴 문의를 확인하고 답변을 남길 수 있어요.
+          </p>
+        </Card>
+      )}
+
+      {/* [2026-08-01 신규] 온보딩 화면(Onboarding.jsx) QA/디자인 확인용 재열람 진입점.
+          일반회원/VIP에게는 불필요한 개발용 기능이라 관리자 계정에만 노출한다. */}
+      {userDoc?.role === '관리자' && (
+        <>
+          <SectionTitle>개발자 도구</SectionTitle>
+          <Card onClick={onShowOnboardingPreview} style={{ marginBottom: 20 }}>
+            <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
+              온보딩 화면 미리보기
+            </p>
+            <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+              가입 시 보이는 온보딩 화면을 다시 열어볼 수 있어요. 여기서 입력해도 실제 계정 정보는 저장되지 않아요.
+            </p>
+          </Card>
+        </>
+      )}
 
       <Button variant="ghost" full onClick={logout}>
         로그아웃

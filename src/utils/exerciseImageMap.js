@@ -1,118 +1,121 @@
 // exerciseImageMap.js
-// [2026-07-28] 운동 종목별 동작 가이드 이미지 연동을 위한 매핑 테이블 신규 추가.
-//   - 데이터 출처: free-exercise-db (https://github.com/yuhonas/free-exercise-db), Unlicense(퍼블릭 도메인).
-//   - 이 앱의 한글 종목명(exerciseLibrary.js) → 위 데이터셋의 영문 종목명으로 1:1 매핑한다.
-//   - 데이터셋에 대응하는 종목이 없거나 애매한 경우는 매핑을 만들지 않는다.
-//     exerciseImageApi.js가 매핑이 없으면 null을 반환하고, 화면에서는 '이미지 준비중'으로 표시한다.
-// [2026-07-30] 매핑이 없던 종목들(헥스프레스/뉴트럴그립랫풀다운/펜들레이로우/체스트서포티드로우/
-//   브이스쿼트/행잉니레이즈/시티드니업머신/재이콥스래더)과 중복 종목(힙어덕션머신)을
-//   exerciseLibrary.js에서 함께 삭제해, 아래 목록은 이제 라이브러리 전체 종목과 1:1로 대응한다.
+// [2026-08-01] 이미지 소스를 free-exercise-db(정지 이미지, Public Domain)에서
+//   ExerciseGymGifsDB(GIF, https://github.com/JahelCuadrado/ExerciseGymGifsDB)로 교체했다.
+//   - 값 형식이 바뀌었다: 기존에는 "영문 종목명 문자열"이었고, 이제는 데이터셋의 "muscle/slug"
+//     경로 문자열이다(예: 'pectorals/barbell-bench-press'). exerciseImageApi.js가 이 경로로
+//     jsDelivr GIF URL을 직접 조립한다.
+//   - 라이선스 주의: 이 저장소는 README에 "GIF는 각자 원저작자 소유이며 이 저장소는 정리/제공
+//     레이어일 뿐"이라고 명시돼 있어, free-exercise-db(Unlicense)만큼 라이선스가 깨끗하지는
+//     않다. 사용자 확인 하에 감수하고 진행하기로 함(2026-08-01).
+//   - 정책 변경: 매핑이 없는 종목도 라이브러리에서 삭제하지 않는다(exerciseLibrary.js 참고).
+//     매핑이 없으면 그냥 "이미지 준비중"으로 표시된다.
+//   - GIF DB 자체에 매칭되는 동작이 없는 항목(예: 평범한 맨몸 푸시업, 플랭크, 케이블페이스풀,
+//     플레이트레터럴로우, 로잉머신, 에어바이크, 케이블크런치, 앱롤아웃, 케이블우드촙 등)은
+//     의도적으로 매핑을 비워뒀다.
+// [2026-08-01] 종목명 표기 정리(22건): 덤벨/바벨/스미스/케이블 등 장비명이 암묵적으로만
+//   전제되던 종목명에 장비 접두어를 명시하고(예: 해머컬→덤벨해머컬), 괄호 표기(예: 랫풀다운
+//   (내로우그립))·순서 뒤바뀜(예: 스미스플랫프레스)·접두/접미 혼용(예: 머신숄더프레스) 등
+//   불일치를 통일했다. 이 파일의 키와 exerciseLibrary.js의 종목명을 동일하게 갱신했다.
+//   기존 저장된 기록(workoutLogs 등)의 종목명은 과거 값 그대로 남지만, 사용자 확인 하에
+//   과거 기록과의 매칭은 신경쓰지 않기로 함(2026-07-28 결정과 동일 원칙).
 export const EXERCISE_IMAGE_MAP = {
   // 가슴
-  '플랫바벨프레스': 'Barbell Bench Press - Medium Grip',
-  '인클라인바벨프레스': 'Barbell Incline Bench Press - Medium Grip',
-  '디클라인바벨프레스': 'Decline Barbell Bench Press',
-  '플랫덤벨프레스': 'Dumbbell Bench Press',
-  '인클라인덤벨프레스': 'Incline Dumbbell Press',
-  '디클라인덤벨프레스': 'Decline Dumbbell Bench Press',
-  '인클라인스미스프레스': 'Smith Machine Incline Bench Press',
-  '스미스플랫프레스': 'Smith Machine Bench Press',
-  '체스트프레스머신': 'Machine Bench Press',
-  '펙덱플라이': 'Butterfly',
-  '케이블크로스오버': 'Cable Crossover',
-  '덤벨플라이': 'Dumbbell Flyes',
-  '로우케이블플라이': 'Flat Bench Cable Flyes',
-  '체스트딥스': 'Dips - Chest Version',
-  '푸시업': 'Pushups',
-  '스벤드프레스': 'Svend Press',
+  '플랫바벨프레스': 'pectorals/barbell-bench-press',
+  '인클라인바벨프레스': 'pectorals/barbell-incline-bench-press',
+  '디클라인바벨프레스': 'pectorals/barbell-decline-bench-press',
+  '플랫덤벨프레스': 'pectorals/dumbbell-bench-press',
+  '인클라인덤벨프레스': 'pectorals/dumbbell-incline-bench-press',
+  '디클라인덤벨프레스': 'pectorals/dumbbell-decline-bench-press',
+  '인클라인스미스프레스': 'pectorals/smith-incline-bench-press',
+  '플랫스미스프레스': 'pectorals/smith-bench-press',
+  '체스트프레스머신': 'pectorals/lever-chest-press',
+  '케이블크로스오버': 'pectorals/cable-standing-up-straight-crossovers',
+  '덤벨플라이': 'pectorals/dumbbell-fly',
+  '케이블로우플라이': 'pectorals/cable-low-fly',
+  '체스트딥스': 'pectorals/chest-dip',
+  '스벤드프레스': 'pectorals/weighted-svend-press',
 
   // 등
-  '랫풀다운': 'Wide-Grip Lat Pulldown',
-  '리버스그립랫풀다운': 'Underhand Cable Pulldowns',
-  '바벨로우': 'Bent Over Barbell Row',
-  '원암덤벨로우': 'One-Arm Dumbbell Row',
-  'T바로우': 'T-Bar Row with Handle',
-  '시티드케이블로우': 'Seated Cable Rows',
-  '하이로우머신': 'Leverage High Row',
-  '스트레이트암풀다운': 'Straight-Arm Pulldown',
-  '풀업': 'Pullups',
-  '친업': 'Chin-Up',
-  '데드리프트': 'Barbell Deadlift',
-  '백익스텐션': 'Hyperextensions (Back Extensions)',
-  '바벨슈러그': 'Barbell Shrug',
+  '랫풀다운': 'lats/cable-pulldown',
+  '리버스그립랫풀다운': 'lats/reverse-grip-machine-lat-pulldown',
+  '내로우그립랫풀다운': 'lats/cable-lateral-pulldown-with-v-bar',
+  '바벨로우': 'upper-back/barbell-bent-over-row',
+  '원암덤벨로우': 'upper-back/dumbbell-one-arm-bent-over-row',
+  'T바로우': 'upper-back/lever-t-bar-row',
+  '시티드케이블로우': 'upper-back/cable-seated-row',
+  '하이로우머신': 'upper-back/lever-high-row',
+  '스트레이트암풀다운': 'lats/cable-straight-arm-pulldown',
+  '풀업': 'lats/pull-up',
+  '친업': 'upper-back/chin-ups-narrow-parallel-grip',
+  '어시스트풀업': 'lats/assisted-pull-up',
+  '어시스트친업': 'lats/assisted-standing-chin-up',
+  '데드리프트': 'glutes/barbell-deadlift',
+  '백익스텐션': 'spine/hyperextension',
+  '바벨슈러그': 'traps/barbell-shrug',
 
   // 어깨
-  '머신숄더프레스': 'Leverage Shoulder Press',
-  '스미스숄더프레스': 'Smith Machine Overhead Shoulder Press',
-  '덤벨숄더프레스': 'Dumbbell Shoulder Press',
-  '바벨오버헤드프레스': 'Barbell Shoulder Press',
-  '아놀드프레스': 'Arnold Dumbbell Press',
-  '사이드레터럴레이즈': 'Side Lateral Raise',
-  '케이블레터럴레이즈': 'Cable Seated Lateral Raise',
-  '프론트레이즈': 'Front Dumbbell Raise',
-  '리어델트펙덱': 'Reverse Machine Flyes',
-  '벤트오버덤벨레이즈': 'Bent Over Dumbbell Rear Delt Raise With Head On Bench',
-  '페이스풀': 'Face Pull',
-  '업라이트로우': 'Upright Barbell Row',
+  '숄더프레스머신': 'delts/lever-shoulder-press',
+  '스미스숄더프레스': 'delts/smith-shoulder-press',
+  '아놀드프레스': 'delts/dumbbell-arnold-press',
+  '덤벨사이드레터럴레이즈': 'delts/dumbbell-lateral-raise',
+  '케이블레터럴레이즈': 'delts/cable-lateral-raise',
+  '덤벨프론트레이즈': 'delts/dumbbell-front-raise',
+  '리어델트펙덱': 'delts/lever-seated-reverse-fly',
+  '벤트오버덤벨레이즈': 'delts/dumbbell-rear-delt-raise',
+  '바벨업라이트로우': 'delts/barbell-upright-row',
 
   // 이두
-  '바벨컬': 'Barbell Curl',
-  '이지바컬': 'EZ-Bar Curl',
-  '덤벨컬': 'Dumbbell Bicep Curl',
-  '인클라인덤벨컬': 'Incline Dumbbell Curl',
-  '해머컬': 'Hammer Curls',
-  '프리처컬': 'Preacher Curl',
-  '컨센트레이션컬': 'Concentration Curls',
-  '케이블컬': 'Standing Biceps Cable Curl',
-  '케이블로프컬': 'Cable Hammer Curls - Rope Attachment',
-  '리버스바벨컬': 'Reverse Barbell Curl',
+  '바벨컬': 'biceps/barbell-curl',
+  '이지바컬': 'biceps/ez-barbell-curl',
+  '덤벨컬': 'biceps/dumbbell-biceps-curl',
+  '인클라인덤벨컬': 'biceps/dumbbell-incline-curl',
+  '덤벨해머컬': 'biceps/dumbbell-hammer-curl',
+  '바벨프리처컬': 'biceps/barbell-preacher-curl',
+  '덤벨컨센트레이션컬': 'biceps/dumbbell-concentration-curl',
+  '케이블컬': 'biceps/cable-curl',
+  '케이블로프컬': 'biceps/cable-hammer-curl-with-rope',
+  '리버스바벨컬': 'biceps/barbell-reverse-curl',
 
   // 삼두
-  '케이블푸시다운(스트레이트바)': 'Triceps Pushdown',
-  '케이블푸시다운(로프)': 'Triceps Pushdown - Rope Attachment',
-  '오버헤드케이블익스텐션': 'Cable Rope Overhead Triceps Extension',
-  '라잉트라이셉스익스텐션': 'EZ-Bar Skullcrusher',
-  '덤벨킥백': 'Tricep Dumbbell Kickback',
-  '벤치딥스': 'Bench Dips',
-  '클로즈그립벤치프레스': 'Close-Grip Barbell Bench Press',
-  '트라이셉스프레스머신': 'Machine Triceps Extension',
-  '딥스머신': 'Dip Machine',
+  '스트레이트바케이블푸시다운': 'triceps/cable-pushdown',
+  '로프케이블푸시다운': 'triceps/cable-pushdown-with-rope-attachment',
+  '오버헤드케이블익스텐션': 'triceps/cable-overhead-triceps-extension-rope-attachment',
+  '바벨라잉트라이셉스익스텐션': 'triceps/barbell-lying-triceps-extension',
+  '덤벨킥백': 'triceps/dumbbell-kickback',
+  '벤치딥스': 'triceps/bench-dip-on-floor',
+  '클로즈그립벤치프레스': 'triceps/barbell-close-grip-bench-press',
+  '트라이셉스프레스머신': 'triceps/lever-triceps-extension',
+  '딥스머신': 'triceps/lever-seated-dip',
 
   // 하체
-  '레그익스텐션': 'Leg Extensions',
-  '레그컬(라잉)': 'Lying Leg Curls',
-  '레그컬(시티드)': 'Seated Leg Curl',
-  '루마니안데드리프트': 'Romanian Deadlift',
-  '레그프레스': 'Leg Press',
-  '백스쿼트': 'Barbell Full Squat',
-  '프론트스쿼트': 'Front Barbell Squat',
-  '스미스머신스쿼트': 'Smith Machine Squat',
-  '런지': 'Barbell Lunge',
-  '불가리안스플릿스쿼트': 'Split Squats',
-  '힙쓰러스트': 'Barbell Hip Thrust',
-  '스탠딩카프레이즈': 'Standing Calf Raises',
-  '시티드카프레이즈': 'Seated Calf Raise',
-  '힙어브덕션머신': 'Thigh Abductor',
-  '굿모닝': 'Good Morning',
+  '레그익스텐션': 'quads/lever-leg-extension',
+  '라잉레그컬': 'hamstrings/lever-lying-leg-curl',
+  '시티드레그컬': 'hamstrings/lever-seated-leg-curl',
+  '루마니안데드리프트': 'glutes/barbell-romanian-deadlift',
+  '레그프레스': 'quads/lever-alternate-leg-press',
+  '백스쿼트': 'quads/barbell-bench-squat',
+  '프론트스쿼트': 'quads/barbell-bench-front-squat',
+  '스미스스쿼트': 'quads/smith-chair-squat',
+  '덤벨런지': 'glutes/dumbbell-lunge',
+  '덤벨불가리안스플릿스쿼트': 'quads/dumbbell-single-leg-split-squat',
+  '바벨힙쓰러스트': 'glutes/barbell-glute-bridge',
+  '바벨스탠딩카프레이즈': 'calves/barbell-standing-calf-raise',
+  '바벨시티드카프레이즈': 'calves/barbell-seated-calf-raise',
+  '힙어브덕션머신': 'abductors/lever-seated-hip-abduction',
+  '굿모닝': 'hamstrings/barbell-good-morning',
 
   // 코어
-  '행잉레그레이즈': 'Hanging Leg Raise',
-  '플랭크': 'Plank',
-  '사이드플랭크': 'Side Bridge',
-  '크런치': 'Crunches',
-  '디클라인싯업': 'Decline Crunch',
-  '러시안트위스트': 'Russian Twist',
-  '케이블크런치': 'Cable Crunch',
-  '앱롤아웃': 'Ab Roller',
-  '케이블우드촙': 'Standing Cable Wood Chop',
+  '행잉레그레이즈': 'abs/hanging-leg-raise',
+  '사이드플랭크': 'abs/bodyweight-incline-side-plank',
+  '크런치': 'abs/crunch-floor',
+  '디클라인싯업': 'abs/decline-sit-up',
+  '러시안트위스트': 'abs/russian-twist',
 
   // 유산소
-  '트레드밀': 'Running, Treadmill',
-  '인클라인워킹': 'Walking, Treadmill',
-  '실내사이클': 'Recumbent Bike',
-  '실외러닝': 'Trail Running/Walking',
-  '로잉머신': 'Rowing, Stationary',
-  '일립티컬': 'Elliptical Trainer',
-  '스텝밀': 'Stairmaster',
-  '에어바이크': 'Air Bike',
+  '트레드밀': 'cardio/walking-on-incline-treadmill',
+  '인클라인워킹': 'cardio/walking-on-incline-treadmill',
+  '실내사이클': 'cardio/stationary-bike-walk',
+  '실외러닝': 'cardio/run',
+  '일립티컬': 'cardio/walk-elliptical-cross-trainer',
+  '스텝밀': 'cardio/walking-on-stepmill',
 }

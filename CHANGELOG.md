@@ -2,6 +2,354 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-08-02] 기록탭/리포트탭/MY탭 후속 수정 (7건 반영, 운동 종목 DB 재구축은 보류)
+- **응원 멘트 타이밍 변경**: 세트 하나 저장할 때마다 뜨던 응원 토스트를, 종목 하나를
+  "세트완료"로 마칠 때 1회만 뜨도록 변경(`WorkoutInput.jsx` `completeExercise()`).
+- **[근본원인 재분석] 트레드밀 입력 겹침**: 폭/간격 조정으로 세 차례 패치했는데도 반복
+  재발 — "한 줄에 항목이 너무 많다"는 구조적 원인으로 판단, cardio 종목만 스텝퍼 줄/
+  버튼 줄을 아예 2줄로 분리(`WorkoutInput.jsx` `SetRow`). 가로 스크롤 의존 제거.
+- **세트 저장(✓) 아이콘 색상**: 골드 배경 위 브라운(`--color-on-gold`) → 베이지
+  (`--color-on-gold-button`)로 변경, "시작" 버튼과 동일 처리(`IconButton`).
+- **출석률 주 기준 수정**: `startOfWeek()`가 실제로는 일~토 기준으로 계산되고 있던 버그
+  발견, 월~일(ISO 주) 기준으로 수정. 이 함수를 공유하는 부위별 추이/볼륨비교/과부하 계산도
+  동일하게 적용(`ReportTab.jsx`).
+- **"n/n회" 라벨 보완**: 목표 횟수가 "내 루틴" 분할 파트 개수에서 자동으로 오는 값임을
+  알기 어렵다는 피드백으로, 로직은 유지하고 "목표 N회는 내 루틴 분할 기준이에요" 문구 추가.
+- **MY탭 등급 캡션 삭제**: "탭하면 티어·XP 안내 →" 캡션 텍스트 제거(탭 동작 자체는 유지).
+- **동작 가이드 이미지 연동 전면 삭제**: 이미지 소스가 유료(라이선스) DB였던 것으로
+  확인되어, `ExerciseGuideImage.jsx`/`exerciseImageMap.js`/`exerciseImageApi.js` 삭제 및
+  `WorkoutInput.jsx`(기록탭 종목카드 롱프레스 이미지 토글)/`RoutineSetup.jsx`(MY탭 루틴
+  편집 화면 롱프레스 이미지 토글, 안내문구) 양쪽에서 관련 코드 전부 제거.
+- **(보류) 운동 종목 DB 9필드 재구축**: 부위 8개 유지 + 종목별 세부부위/장비/운동패턴/
+  단측여부/기본단위/난이도 구조화 작업은 사용자가 첨부한 표준 DB(144종)와 병합 검토 중.
+  다음 세션에서 이어서 확정 예정 — 이번 반영분에는 포함되지 않음.
+
+[2026-08-02] 홈/캘린더/기록/리포트/MY 버그수정+기능개선 (18건 요청 중 16건 코드 반영, 1건 보류, 1건 설계문서만)
+- **[근본원인 수정] 날짜 UTC 버그**: `new Date().toISOString().slice(0,10)`가 UTC 기준이라
+  한국시간(UTC+9) 00:00~08:59 사이엔 실제로는 다음날인데도 어제 날짜로 계산되던 버그를
+  발견. 이 때문에 ①홈탭 "오늘도 득근!" 상태가 자정 넘어도 안 바뀌고 ②그 시간대에 저장한
+  운동기록이 전날 날짜로 잘못 저장되는 심각한 데이터 버그가 있었음. 로컬 타임존 기준
+  날짜 문자열을 만드는 공용 유틸(`utils/date.js`)을 새로 만들어 HomeTab/WorkoutInput/
+  ReportTab의 모든 UTC 날짜 계산을 교체.
+- **휴식일수 계산**: 오늘 날짜를 아직 끝나지 않은 날로 보고 휴식일 카운트에서 제외(오늘
+  운동할 기회가 남아있는데 미리 "휴식 1일"로 표기되던 문제 수정), 캘린더 전월 패딩 추가로
+  이번 달 카운트가 섞이지 않도록 날짜 접두사 필터링 추가.
+- **캘린더 전월 날짜 패딩**: 1일 앞 빈 칸에 실제 전월 날짜+기록을 회색조로 표시, 클릭 시
+  달력 이동 없이 하단에 그 날짜 상세만 표시. 조회 범위(loadMonth)도 전월 패딩 구간까지 확장.
+- **날짜상세 카드 개편**: 타이틀을 날짜만으로 줄이고 부위 요약을 카드 최상단 별도 줄로,
+  복사/수정/삭제를 아이콘 버튼(Copy/Pencil/Trash2)으로 교체.
+- **운동기록 클립보드 붙여넣기**: "복사" 시 텍스트와 함께 종목/세트 데이터도 내부 클립보드에
+  저장, 다른 날짜 선택 후 "붙여넣기" 버튼으로 새 기록 생성 가능.
+- **안내문구 축소**: "날짜를 선택하시면 이전 운동 기록을 추가하거나 수정할 수 있어요." → 1줄로.
+- **리포트탭 출석율**: 배열 인덱스로 "이번주"를 추정하던 로직(월말/월초에 기록 공백 있으면
+  오류)을 startOfWeek() 명시적 경계 계산으로 교체, "이번주 M/D~M/D · 지난주 M/D~M/D 대비"
+  날짜 범위 라벨 추가.
+- **부위별 운동추이 "기록없음" 버그**: 위와 동일한 배열-인덱스 가정 버그가 원인이었음(이번주에
+  기록이 없는 주가 하나라도 있으면 인덱스가 밀려 실제 기록이 있는 주도 안 잡히던 문제).
+  이번주/지난주를 각각 명시적 날짜 경계로 직접 필터링하도록 수정. (이제 안 쓰이는
+  `isoWeekLabel()` 함수 제거)
+- **기록탭 타이머 카드**: 운동 진행 중(일시정지 아님)일 때 카드 배경을 골드 틴트로 변경.
+  타이머 자체는 이미 Date.now() 기반(벽시계 계산)이라 탭 전환에 안전했음을 확인.
+- **운동 시작 알림**: 알림 설정이 켜져 있고 권한이 허용된 경우, 운동 시작 시 OS 알림 발송.
+- **골드버튼 텍스트 대비**: "시작"/세트완료 체크 버튼 전용 신규 토큰
+  `--color-on-gold-button`(베이지) 추가(디자인가이드 v2.2, 별도 문서 전달 — 프로젝트
+  지식의 디자인가이드 문서 갱신 필요).
+- **세트완료 체크 색상**: "시작" 버튼과 구분이 잘 안 되던 문제로, 완료 표시를
+  `--color-success`(초록)+흰색으로 확실히 구분.
+- **세트완료 응원 멘트**: 101개 짧은 문구 뱅크(`utils/setEncouragements.js`) 신규, 세트
+  저장 시 화면 상단에 1.6초간 튀어오르는 토스트로 표시(직전 멘트 중복 방지).
+- **종목추가 부위 그룹핑**: "내 루틴" 종목추가 시 복합 파트(예: "등&이두")를 고르면 부위별
+  소제목으로 묶어서 표시(기존엔 두 부위 종목이 한 줄에 섞여 헷갈림).
+- **트레드밀 인풋**: 경사/속도/시간 스텝퍼 입력창 폭을 10px 안팎으로 확대, 스텝퍼 간 간격
+  확대(2px→6px)로 −/+ 버튼과 숫자가 겹쳐 보이던 문제 완화.
+- **완료 팝업 "오늘 운동 내루틴에 반영"**: 자유 추가 운동으로 기록한 오늘의 종목 중 아직
+  루틴에 없는 것만, 별도 화면 이동 없이 완료 팝업 안에서 바로 해당 부위 파트에 추가.
+- **MY탭 등급 카드**: "탭하면 티어 체계와 XP 안내를 볼 수 있어요" 안내문구를 카드 안에서
+  섹션 타이틀 옆으로 옮겨 카드 높이 축소.
+- **exercise DB 재설계 (설계만, 미착수)**: `docs/EXERCISE_DB_DESIGN_v1.md` 신규 — 9개 필수
+  필드 + 선택필드안, 네이밍 규칙([각도/그립]+[장비명]+[운동명], 하체는 접두사 없음, 상체/팔만
+  "원암"), 마이그레이션 체크리스트. 실제 라이브러리 데이터 구축은 다음 세션.
+- **보류**: 계정연동 온보딩 구조변경(#16)은 이번 세션에서 다루지 않음.
+| src/components/HomeTab.jsx, WorkoutInput.jsx, CalendarView.jsx, ReportTab.jsx,
+  MyPageTab.jsx, src/utils/date.js(신규), src/utils/setEncouragements.js(신규),
+  src/styles/tokens.css, docs/EXERCISE_DB_DESIGN_v1.md(신규)
+
+[2026-08-01] 운동 종목명 표기 정리 (22건) — 부위 세분화는 보류, 명칭 일관성만 정리
+- 부위 체계(BODY_PART_ATOMS 8개)는 그대로 유지하기로 결정, ExerciseGymGifsDB 기준
+  세분화 재구성은 보류.
+- 대신 덤벨/바벨/머신/스미스/케이블 등 장비명 표기가 종목마다 제각각이던 문제를 정리:
+  괄호 표기→접두어 통일(랫풀다운(내로우그립)→내로우그립랫풀다운, 레그컬(라잉/시티드)→
+  라잉/시티드레그컬, 케이블푸시다운(스트레이트바/로프)→스트레이트바/로프케이블푸시다운),
+  순서 뒤바뀜 수정(스미스플랫프레스→플랫스미스프레스), 접두/접미 혼용 수정(머신숄더프레스→
+  숄더프레스머신, 스미스머신스쿼트→스미스스쿼트), 장비 순서 통일(로우케이블플라이→
+  케이블로우플라이).
+- 장비가 암묵적으로만 전제되던 종목명에 장비명 명시(13건): 사이드레터럴레이즈→
+  덤벨사이드레터럴레이즈, 프론트레이즈→덤벨프론트레이즈, 해머컬→덤벨해머컬, 프리처컬→
+  바벨프리처컬, 컨센트레이션컬→덤벨컨센트레이션컬, 업라이트로우→바벨업라이트로우,
+  페이스풀→케이블페이스풀, 라잉트라이셉스익스텐션→바벨라잉트라이셉스익스텐션, 런지→
+  덤벨런지, 불가리안스플릿스쿼트→덤벨불가리안스플릿스쿼트, 힙쓰러스트→바벨힙쓰러스트,
+  스탠딩카프레이즈→바벨스탠딩카프레이즈, 시티드카프레이즈→바벨시티드카프레이즈.
+- 스쿼트/데드리프트/벤치프레스 계열은 한국 헬스장 관례상 장비 접두어 없이 그대로 유지
+  (예: 백스쿼트, 데드리프트, 클로즈그립벤치프레스는 변경 없음).
+- 부수 효과: getWeightStep()이 종목명에 "덤벨"/"머신"/"케이블" 포함 여부로 증량 단위를
+  정하는데, 위 종목들은 이름에 장비 단어가 없어 전부 기본 2.5kg으로 잘못 처리되고
+  있었음 — 이번 개명으로 증량 단위도 자동으로 올바르게 반영됨(덤벨 계열 2kg 등).
+- 기존 저장된 기록의 종목명은 과거 값 그대로 유지되며, 과거 기록과의 자동 매칭은
+  신경쓰지 않기로 함(2026-07-28 정책과 동일).
+| src/utils/exerciseLibrary.js, src/utils/exerciseImageMap.js
+
+[2026-08-01] 로고/앱 아이콘 전면 교체 — 여백 최소화 + 배경 정리
+- 기존 app-icon-mark.png·public/icon-*.png 계열이 전부 원형 플레이트 로고 주변에
+  베이지색(#FAF1E7) 정사각 배경이 이미지 자체에 구워져 있어, 둥근 컨테이너에 넣었을 때
+  원 바깥 여백이 "박스 테두리"처럼 보이던 문제를 확인. 사용자가 제공한 고해상도
+  배경투명 원본(1080x1080)으로 전량 교체.
+- "any" 용도 아이콘(app-icon-mark.png, logo-mark-transparent.png, icon-192.png,
+  icon-512.png, apple-touch-icon.png, favicon-32.png)은 여백 최소화한 배경투명 PNG로
+  통일 — 로그인 화면 등 다크 배경 위에 그대로 얹혀도 예전처럼 박스 테두리가 보이지 않음.
+- 마스커블 아이콘(icon-192-maskable.png, icon-512-maskable.png)만 예외적으로 안전영역
+  확보를 위해 로고를 캔버스의 72%로 축소 배치 — 배경색은 manifest.json
+  background_color/SplashScreen.jsx와 동일한 베이지(#FAF1E7)를 유지해, 기존에 이미
+  해결해둔 "OS 스플래시 vs 인앱 스플래시 배경 불일치" 문제가 재발하지 않도록 함.
+| src/assets/app-icon-mark.png, src/assets/logo-mark-transparent.png,
+  public/icon-192.png, public/icon-512.png, public/icon-192-maskable.png,
+  public/icon-512-maskable.png, public/apple-touch-icon.png, public/favicon-32.png
+
+[2026-08-01] 사용자 피드백 14건 반영 (리포트/종목라이브러리/이미지연동/기록입력/스플래시)
+- 리포트탭 "내 순위" 카드: 닉네임+티어뱃지가 세로 2줄이던 걸 한 줄로 통합(①) | ReportTab.jsx
+- 종목 라이브러리: "가이드 이미지 매핑 없으면 종목 삭제" 정책 폐지. 이 정책 때문에 이전에
+  삭제됐던 플레이트레터럴로우/랫풀다운(내로우그립) 복원, 어시스트풀업·어시스트친업 신규
+  추가(②③④) | exerciseLibrary.js
+- 이미지 연동 방식 전면 교체: free-exercise-db(정지 이미지) → ExerciseGymGifsDB(GIF, jsDelivr
+  CDN). URL을 muscle/slug로 직접 조립하는 방식이라 더 이상 전체 데이터셋을 fetch/캐싱할
+  필요가 없어져 exerciseImageApi.js가 단순해짐. 약 75개 종목 매핑을 새 데이터셋 기준으로
+  재작성(⑤) — 라이선스가 free-exercise-db(Unlicense)만큼 깨끗하진 않다는 점 확인 후
+  사용자 확인 하에 진행 | exerciseImageMap.js, exerciseImageApi.js, ExerciseGuideImage.jsx
+- 기록탭: 완료된 종목의 자리는 고정하고, 미완료 종목을 드래그해 완료된 종목 자리 "위"로
+  넘기지 못하도록 handleReorder에 제약 추가(⑥) | WorkoutInput.jsx
+- 커스텀 종목도 등록된 부위 기준으로 부위별 색상이 적용되도록 getExerciseColorWithCustom
+  헬퍼 추가(⑦) | exerciseLibrary.js, WorkoutInput.jsx
+- 커스텀 종목 추가 시 공통 라이브러리·기존 커스텀 종목 중 이름이 부분 일치(포함관계)하는
+  유사 종목이 있으면 추가 전 확인창으로 알림(⑧) | MyPageTab.jsx
+- 경과시간이 1시간 넘어 h:mm:ss로 길어져도 2줄로 줄바꿈되지 않도록 타이머 행
+  flexWrap: nowrap 처리(⑨) | WorkoutInput.jsx
+- 운동완료 시 완료 순서를 "내 루틴" 종목 순서에 조용히 자동 반영하던 것을, 순서가 실제로
+  달라질 때만 먼저 확인창으로 물어보고 사용자가 확인한 경우에만 반영하도록 변경(⑩⑪) |
+  WorkoutInput.jsx
+- 유산소(트레드밀 등) 세트 "추가" 시 이전 행에 삭제(×) 버튼이 새로 나타나며 버튼 폭이
+  늘어나 스텝퍼와 겹쳐 보이던 문제, cardio 스텝퍼 폭/간격을 좁혀 여유 확보(⑫) |
+  WorkoutInput.jsx
+- 최초 진입 시 안드로이드 OS 레벨 스플래시(매니페스트 자동생성, 아이콘만 큼직하게 표시)와
+  인앱 스플래시(로고+"불러오는 중")의 배경색이 서로 달라(다크 vs 다크그라디언트) 두 화면이
+  번갈아 나오는 것처럼 보이던 문제. 아이콘 자체의 베이지 배경색(#FAF1E7, icon-512.png
+  샘플링 확인)으로 manifest.json background_color와 SplashScreen.jsx 배경을 통일해 아이콘
+  테두리가 화면과 자연스럽게 이어지도록 함(완전한 단일 화면화는 안드로이드 플랫폼 제약상
+  불가능) | manifest.json, SplashScreen.jsx
+
+[2026-08-01] 프로필 사진 업로드 기능 보류(구글 사진+이니셜로 복귀) / 베이지블랙 버튼·노티바·캘린더 추가 개선
+- 프로필 사진 업로드: Firebase Storage가 유료(Blaze) 플랜에서만 생성 가능하다는 제약 확인.
+  Cloudinary 등 외부 서비스 검토 대신, 이번엔 기능 자체를 보류하기로 결정. 카메라 버튼/
+  파일선택/크롭모달/업로드·삭제 로직 전부 제거하고 구글 로그인 사진 → 없으면 닉네임
+  이니셜 표기로 원복 | MyPageTab.jsx, storage.js, firebase.js, PhotoCropModal.jsx(삭제),
+  storage.rules(삭제), .env.example, README.md
+- 베이지블랙 "채워진(solid) 버튼"이 여전히 어두운 골드 배경+갈색 텍스트라 골드 느낌이
+  강하다는 피드백. 앱 아이콘(덤벨 플레이트)의 짙은 회색을 배경으로, 베이지를 텍스트로
+  쓰는 새 토큰(--color-fill-strong/--color-on-fill) 추가. primary-normal/on-gold(리포트
+  숫자·차트 등 텍스트 강조용)는 그대로 둬서 영향받지 않고, ui.jsx 버튼(primary)과
+  CalendarView 선택 날짜 배경/뱃지 텍스트만 새 토큰을 쓰도록 변경 — 캘린더에서 날짜
+  선택 시 배지가 안 보이던 문제도 같이 해결됨 | tokens.css, ui.jsx, CalendarView.jsx
+- 노티바(브라우저 상태표시줄 theme-color)가 베이지 테마에서도 다크와 같은 쨍한 골드
+  (#FFC94D)를 쓰고 있던 것을 확인, 베이지는 위 짙은 회색(#3A3A3A)을 쓰도록 분기 추가 |
+  App.jsx
+
+[2026-08-01] 베이지블랙 테마 대비 개선(버튼/텍스트 안 보임, 캘린더 뱃지 저대비)
+- 원인: 베이지 테마(html[data-theme='beige'])가 --color-gold-100/500/700과
+  --color-primary-normal/strong/heavy를 재정의하지 않아 :root(다크)의 밝은 크림골드값이
+  그대로 상속됨. ui.jsx secondary 버튼(수정/권한요청 등)이 background: --color-primary-bg
+  (베이지) + color: --color-gold-100(밝은 크림골드) 조합이라 명도차가 거의 없어 텍스트가
+  안 보였음. StatsView/ReportTab/WorkoutInput 등 강조 숫자 텍스트도 동일 토큰 사용
+- 배경 밝기(--color-bg/-card/-elevated 등)는 그대로 유지하고, 골드 계열 토큰만 블랙 톤이
+  섞인 더 진한 브라운골드로 재정의해 베이지 배경 위 대비 확보 | tokens.css
+- 캘린더 운동기록 뱃지: getActivePartColors()가 'light'만 분기 처리하고 있어 'beige'는
+  다크용 고채도 팔레트(PART_COLORS)로 fallback되어 저대비였음. 베이지 전용
+  PART_COLORS_BEIGE(명도 낮춘 버전) 신규 추가 및 분기 처리 | exerciseLibrary.js
+- 프로필 사진 업로드 지연/실패: 코드 로직 자체는 정상이며, Firebase Storage 버킷
+  활성화/storage.rules 배포/Vercel VITE_FIREBASE_STORAGE_BUCKET 환경변수 설정 여부를
+  콘솔에서 확인 필요(코드 수정 대상 아님, 이번 세션 미반영)
+
+[2026-08-01] 앱 아이콘/로고 전면 교체 / 화면 테마 3종 체계(베이지블랙 추가) / 프로필 사진 크롭 모달
+- 앱 아이콘: 첨부된 "PR NOTE" 원판(플레이트) 이미지를 사용. 기존 이미지가 이미 둥근모서리
+  사각형+흰 여백이 포함된 "아이콘 목업" 형태라 그대로 쓰면 OS가 다시 라운딩을 적용해
+  "아이콘 안에 아이콘"처럼 보이는 문제가 있어, 배경 subtraction으로 여백/라운딩을 제거하고
+  베이지 단색 배경 위에 플레이트가 프레임에 꽉 차는 순수 정사각형 원본을 새로 제작.
+  "PR NOTE" 텍스트는 원본 그대로 유지(임의 제거 없음). standard(icon-192/512, apple-touch,
+  favicon-32)과 maskable(icon-192/512-maskable, 세이프존 72% 패딩) 버전을 분리 생성 |
+  public/icon-192.png, icon-192-maskable.png, icon-512.png, icon-512-maskable.png,
+  apple-touch-icon.png, favicon-32.png
+- 로고 사용처 전체 교체: WorkoutInput의 워터마크(logo-mark-transparent.png)는 베이지
+  배경을 색상거리 기반으로 투명 처리해 재생성(그레이스케일 필터 적용 그대로 유지),
+  LoginScreen의 lucide Dumbbell 임시 로고는 새 아이콘 이미지(app-icon-mark.png)로 교체 |
+  src/assets/logo-mark-transparent.png, src/assets/app-icon-mark.png(신규), LoginScreen.jsx
+- 화면 테마 3종 체계로 확장: 기존 dark/light 2종에 **베이지블랙**(`beige`) 신규 추가.
+  블랙골드 테마의 베이지 버전 개념으로 골드 포인트 컬러는 그대로 유지하고 배경/텍스트만
+  라이트(베이지, PR NOTE 아이콘의 베이지 톤 채택)로 반전. MY탭 테마 선택 Chip을 3개로
+  확장하고 표시 라벨을 블랙골드/베이지블랙/화이트블루로 정리(기존 "매트블랙골드"/
+  "화이트+블루" 표기에서 변경) | tokens.css, App.jsx, MyPageTab.jsx, storage.js(주석)
+- 프로필 사진 크롭 모달 신규: 사진 선택 시 바로 업로드하지 않고, 원형 뷰포트 안에서
+  드래그로 위치를 옮기고 슬라이더로 확대/축소해 원하는 영역만 잘라 업로드할 수 있도록
+  변경(기존에는 원본 전체를 비율만 유지한 채 축소해 업로드 — 실질적인 "크롭"이 아니었음).
+  새 npm 의존성 추가 없이 canvas + pointer 이벤트만으로 구현. 확정 시 나온 정사각형
+  Blob은 기존 uploadProfilePhoto/resizeImageForProfile 파이프라인에 그대로 전달되어
+  512px 이하로 재압축됨(용량 문제 추가 개선) | PhotoCropModal.jsx(신규), MyPageTab.jsx
+
+[2026-08-01] 프로필 사진 업로드 속도 개선 / 프로필 카드 레이아웃 재구성
+- 사진 업로드 지연 문제: 원본 파일을 리사이즈 없이 그대로 업로드하던 것을, 업로드 전
+  canvas로 장축 512px 축소 + JPEG 재인코딩(품질 0.85)하도록 변경해 전송 용량을 크게
+  절감. GIF는 리사이즈 대상에서 제외, 리사이즈 실패/역효과 시 원본으로 자동 폴백 |
+  storage.js (resizeImageForProfile, uploadProfilePhoto)
+- (참고) Storage 버킷 활성화/규칙 배포 여부는 Firebase 콘솔 확인이 필요한 인프라
+  영역이라 이번 작업 범위에서 제외, 사용자에게 별도 확인 안내함
+- 프로필 카드 레이아웃을 "사진(왼쪽, 세로 중앙정렬) + 텍스트 3행(우측)" 구조로 재구성:
+  1행 닉네임(강조)+역할+성별+나이, 2행 신체정보(체중/키/BMI), 3행 운동목표(길면
+  자동 2줄바꿈, keep-all 유지). 사진 처리중/삭제/에러 상태 텍스트는 헤더 행 아래
+  별도 줄로 이동(수정모드/읽기전용 모드 공통 노출) | MyPageTab.jsx
+
+[2026-08-01] 인풋 배경 통일 / 프로필 사진 버그 수정 / 온보딩 페이지 분리
+- (원인) `input`/`textarea`/`select`에 배경·글자색 리셋이 없어 매트블랙 배경 위에서
+  브라우저 기본 흰 배경이 그대로 노출되던 문제를 전역으로 수정: `input, textarea, select
+  { background: transparent; color: inherit; }` + `::placeholder` 색상 + 테마별
+  `color-scheme`(다크/라이트) 분기 추가 → 온보딩·캘린더·MY탭 등 모든 인풋에 일괄 반영
+  | tokens.css
+- 프로필 사진 업로드/삭제가 응답 없이 멈추면 "처리 중" 문구가 영구적으로 남는 버그 보고:
+  Storage 요청에 15초 타임아웃 가드(`withTimeout`)를 추가해 응답이 없으면 강제로 실패
+  처리하고 안내 문구를 띄우도록 수정. 근본 원인은 Storage 규칙 미배포/버킷 미설정/
+  Vercel 환경변수(`VITE_FIREBASE_STORAGE_BUCKET`) 누락 등 인프라 설정 쪽일 가능성이
+  높아 별도 확인 필요 | MyPageTab.jsx
+- 프로필 사진 옆 상태 텍스트("사진 처리 중…"/"사진 삭제"/에러 문구) 영역을 상단 정렬로
+  바꾸고 줄간격을 지정해, 긴 에러 문구가 여러 줄로 꺾여도 아바타와 자연스럽게 나란히
+  보이도록 수정 | MyPageTab.jsx
+- 온보딩 나이/몸무게/키가 "basic" 한 페이지에 몰려 있던 구조를 질문당 1페이지(성별 →
+  나이 → 몸무게 → 키 → 목표, 총 5단계)로 분리하고, framer-motion으로 방향성 있는
+  슬라이드 전환 애니메이션 추가. 숫자 입력은 큰 카드형 스타일로 교체 | Onboarding.jsx
+
+[2026-08-01] MY탭 프로필 원형 사진 업로드/삭제 기능 신규 추가
+- 프로필 카드 상단에 56px 원형 사진 표시: 직접 업로드한 사진 > 구글 로그인 사진
+  (authUser.photoURL) > 닉네임 첫 글자 플레이스홀더 순으로 폴백 | MyPageTab.jsx
+- 사진 우측 하단 카메라 아이콘 탭 → 갤러리에서 이미지 선택(5MB 이하, 이미지 파일만
+  허용) → Firebase Storage(profilePhotos/{uid})에 업로드 → Firestore
+  users/{uid}.profilePhotoURL에 저장 | MyPageTab.jsx, storage.js
+- 업로드한 사진이 있을 때만 "사진 삭제" 버튼 노출 → 확인 팝업 후 Storage 파일 삭제 +
+  profilePhotoURL을 null로 되돌려 구글 사진/플레이스홀더로 복귀 | MyPageTab.jsx, storage.js
+- 이 프로젝트 최초로 Firebase Storage 연동: firebase.js에 getStorage 추가, 저장소
+  루트에 storage.rules 신규 생성(본인 uid 경로만 쓰기/삭제, 5MB·이미지 타입 검증 —
+  firestore.rules와 별도로 `firebase deploy --only storage:rules`로 배포 필요) |
+  firebase.js, storage.rules
+- 데이터 모델(8.5) users/{uid}에 profilePhotoURL 필드 추가
+
+[2026-08-01] MY탭 "온보딩 화면 미리보기" 신규 추가 (관리자 전용 QA 진입점)
+- 가입 완료 후에는 Onboarding.jsx 화면을 다시 볼 방법이 없어, MY탭 최하단에
+  "개발자 도구" 섹션과 "온보딩 화면 미리보기" 카드를 신규 추가(role === '관리자' 계정에만
+  노출, 일반회원/VIP는 미노출) | MyPageTab.jsx
+- Onboarding.jsx에 previewMode/onClose prop 추가: previewMode일 때 상단에 닫기 버튼과
+  "실제 저장되지 않음" 안내 배너를 보여주고, 마지막 단계 "시작하기"를 눌러도 onComplete
+  (실제 Firestore 저장)를 호출하지 않고 onClose만 실행 → 실제 계정의 onboarding 데이터는
+  절대 덮어쓰지 않는 순수 뷰어로 동작 | Onboarding.jsx
+- App.jsx에 showOnboardingPreview 상태 추가, TierInfoScreen 등 기존 MY탭 전체화면
+  전환과 동일한 패턴(useBackableScreen으로 기기 뒤로가기 연동) 적용 | App.jsx
+
+[2026-08-01] 캘린더/홈탭 버그 수정 7건
+- 캘린더 월 이동 화살표(‹ ›)가 raw button이라 color 미지정 → 브라우저 기본(검정) 텍스트색이
+  매트블랙 배경과 겹쳐 안 보이던 문제 수정: color: var(--color-label-strong) 명시 | CalendarView.jsx
+- 홈탭 "오늘도 득근!" 상태가 자정을 넘겨도 그대로 남아있던 문제 수정: doneToday 계산용
+  useMemo가 recentLogs에만 의존해 날짜 자체는 재계산 트리거가 아니었음 → "오늘 날짜"를
+  state로 분리하고 마운트/포커스복귀(visibilitychange, focus)마다 갱신, useMemo 의존성에도
+  포함 | HomeTab.jsx
+- 캘린더 날짜별 상세 카드 타이틀을 "날짜 · 내 루틴 운동/자유 추가 운동"에서 "날짜 · 부위"
+  (예: 등&이두&코어&유산소)로 변경. 텍스트 복사 첫 줄도 동일하게 변경(getLogPartsLabel 신규,
+  부위 정보가 없는 옛 기록은 기존 라벨로 폴백) | CalendarView.jsx
+- "복붙" 버튼 라벨을 "텍스트 복사"로 변경 | CalendarView.jsx
+- 캘린더에서 지난 기록 추가/수정 시 세트 초기값이 숫자 0이라 매번 지우고 입력해야 했던
+  문제 수정: makeEmptySet()이 빈 문자열을 반환하도록 변경(기록탭 WorkoutInput과 동일 패턴) |
+  CalendarView.jsx
+- 캘린더 기록 수정/추가 폼의 날짜 인풋 옆에 "해당 날짜에 운동내역 복사" 버튼 신규 추가:
+  지금 편집 중인 종목/세트 내용을 날짜 인풋에 입력된 날짜로 별도 신규 기록으로 저장(원래
+  편집하던 기록은 그대로 유지, 시간 정보는 복사 대상 아님). 대상 날짜에 이미 기록이 있으면
+  실수로 중복 추가하지 않도록 확인 팝업 노출 후 진행 | CalendarView.jsx
+
+[2026-07-31] 부위별 운동추이 '기타' 제외 + 점진적 과부하 판단 기준 변경
+- 부위별 운동 추이(레이더 차트): 현재 EXERCISE_LIBRARY와 이름이 매칭되지 않는 과거
+  종목(라이브러리 개편 전 이름 등)을 '기타' 축으로 뭉쳐 보여주던 것을, 집계 단계에서부터
+  완전히 제외하도록 변경(사용자 확인: 화면 숨김이 아닌 계산 자체에서 제외) | ReportTab.jsx
+- 점진적 과부하 진행상황: "지난주 전체 대비"에서 "같은 종목의 직전 수행 대비"로 판단
+  기준 변경. 3분할 등으로 한 주 안에 같은 종목을 여러 번 하는 경우, 회차마다 그 직전
+  수행과 개별 비교해 모두 노출(직전 수행 탐색 범위는 현재 통계 조회 범위로 제한). 랭킹
+  점수의 과부하 항목(30% 비중)도 동일 기준으로 재계산하도록 변경(사용자 확인) |
+  ReportTab.jsx, utils/scoring.js(computeOverloadByOccurrence 신규)
+- 위 종목 리스트가 전부 "첫 기록"(비교 대상 없음)일 때 100%로 표시되며 근거 리스트가
+  비어 카드 하단이 텅 비어 보이던 문제도 함께 반영: 이 경우 숫자 대신 안내 문구로 대체
+  | ReportTab.jsx
+
+[2026-07-31] 기록탭 자동선택/UX 개선 + 리포트 부위별 인기운동 + MY탭 1:1 문의 (11건)
+- 기록탭 진입 시 홈탭과 동일한 로테이션 추천(getSuggestedNext, 신규 공용 유틸로 분리)
+  기준으로 "오늘 할 운동"의 루틴/파트가 자동 선택되도록 변경(기존엔 항상 1번 루틴·1번
+  파트로 고정 초기화됐음) | WorkoutInput.jsx, HomeTab.jsx, utils/routineSuggestion.js(신규)
+- 휴식타이머 카드 평상시 배경을 --color-bg-elevated에서 전용 토큰 --color-rest-bg로 교체:
+  두 테마 모두에서 페이지 배경과 구분이 잘 안 되던 문제 수정(휴식 초과 시 danger 배경은
+  별개로 유지) | RestTimer.jsx, tokens.css
+- 기록탭 종목명에도 롱프레스 → 동작 가이드 이미지 노출 / 이름 재탭 → 닫힘 추가(기존엔
+  MY탭 루틴설정 화면에만 있고 기록탭엔 연결되어 있지 않았음), 종목명 텍스트 선택 방지 겸용
+  | WorkoutInput.jsx, ExerciseGuideImage.jsx(재사용)
+- 캘린더 날짜별 상세 기록 카드에 "복붙" 버튼 추가: 날짜+종목별 기록+웜업/본운동·칼로리·
+  총볼륨 요약을 텍스트 블록으로 클립보드에 복사 | CalendarView.jsx
+- 기록탭 상단 총운동시간 영역을 position:sticky로 스크롤 시에도 계속 보이게 고정 |
+  WorkoutInput.jsx
+- 완료된 종목은 기본적으로 드래그(순서변경) 잠금, 단 펼친(expanded) 상태에서는 다시
+  드래그 가능하도록 변경 | WorkoutInput.jsx
+- 유산소(트레드밀 등) 세트 입력 행에서 스텝퍼 3개+저장/복사 버튼이 nowrap으로 한 줄에
+  다 안 들어가 버튼이 밀리던 문제 수정: 스텝퍼 영역만 자체 가로 스크롤 처리, 버튼 영역은
+  항상 고정 노출 | WorkoutInput.jsx(SetRow)
+- 리포트 탭에 "다른 유저들이 즐겨하는 운동" 신규 섹션 추가: 부위별 공개 집계 컬렉션
+  (exercisePopularity, 개인정보 없이 종목명+횟수만 저장)을 신설하고, 부위 Chip으로
+  전환하며 Top5 노출, 내 "제일 많이 한 운동"과 겹치는 항목은 배지로 표시 | ReportTab.jsx,
+  storage.js(incrementExercisePopularity/getExercisePopularityByAtom), firestore.rules
+- MY탭에 "문의하기"(1:1 문의 작성 + 답변 확인) 신규 화면 추가, role==='관리자' 계정에는
+  "문의 관리"(전체 문의 열람 + 답변 등록) 화면도 추가 노출. 이메일 대신 앱 내 문의로
+  대체(당초 이메일 발송 방식 논의했으나 최종적으로 인앱 문의로 변경) | MyPageTab.jsx,
+  InquiryScreen.jsx(신규), InquiryAdminScreen.jsx(신규), storage.js(submitInquiry/
+  getMyInquiries/getAllInquiries/replyToInquiry), firestore.rules(inquiries, isAdmin())
+- 덤벨 2kg 증량 단위(getWeightStep) 재검토: 코드 추적 결과 이미 정상적으로 연결되어
+  있음을 확인, 별도 코드 수정 없이 남겨둠(배포본이 PWA 서비스워커 캐시로 최신 빌드를
+  못 받아온 것일 가능성 있어 재확인 권장) | exerciseLibrary.js(변경 없음, 검증만)
+- 참고: getMyInquiries가 where(uid==)+orderBy(createdAt) 복합 쿼리를 쓰므로, 최초 실행
+  시 Firebase 콘솔에 복합 인덱스 생성 안내(링크)가 뜰 수 있음 — 뜨면 그 링크로 인덱스
+  생성 필요
+- 참고: "문의 관리" 화면을 쓰려면 본인 계정의 Firestore users/{uid}.role을 '관리자'로
+  직접 한 번 바꿔줘야 함(관리자 지정 화면은 아직 없음, Phase2 대상)
+
+[2026-07-31] 종목 동작 가이드 이미지 자동닫힘 개선 + 롱프레스 텍스트 선택 방지
+- 롱프레스로 연 동작 가이드 이미지를 닫으려면 같은 종목을 다시 롱프레스해야 했던 불편함을
+  개선: 이미지가 열려있는 상태에서 "시작 자세/종료 자세" 토글 버튼 영역 외의 다른 곳을
+  터치(touchstart/mousedown)하는 즉시 닫히도록 변경. click 완료를 기다리지 않고 터치 시작
+  시점에 바로 닫힘 | RoutineSetup.jsx
+- 위 요건을 만족하기 위해 파트(PartEditor)별로 따로 관리하던 열림 상태(Set)를 화면 전체
+  기준 단일 상태(openGuideName)로 상위 컴포넌트(RoutineSetup)에 끌어올림 — 화면 전체에서
+  이미지는 한 번에 하나만 열릴 수 있음 | RoutineSetup.jsx
+- 시작/종료 자세 토글 버튼 영역에 data-guide-toggle-controls 속성을 추가해, 이 영역만
+  "바깥 터치" 판정에서 제외되도록 처리 | ExerciseGuideImage.jsx
+- 종목 Chip을 롱프레스할 때 텍스트가 선택되거나 iOS에서 복사/공유 콜아웃 메뉴가 뜨는 문제
+  방지: user-select/-webkit-touch-callout 등 스타일 및 contextmenu 방지 추가 |
+  RoutineSetup.jsx (ExerciseChipWithImage)
+
+[2026-07-31] 종목 이미지 트리거를 'i' 버튼 → 롱프레스로 변경 + 캘린더 상세카드 가로 스크롤 재수정
+- MY탭 "내 루틴" 편집화면(PartEditor)에서 종목 Chip 옆에 있던 별도 'i' 정보 버튼을 제거하고,
+  종목 Chip 자체를 길게 누르면(500ms, 터치/마우스 모두 지원) 동작 이미지가 토글되도록 변경.
+  짧게 탭/클릭하면 기존처럼 루틴에 추가/제거되는 동작은 그대로 유지. 새 하위 컴포넌트
+  ExerciseChipWithImage 추가, Chip(ui.jsx)이 onMouseDown/onTouchStart 등 추가 이벤트를
+  전달받을 수 있도록 rest props 스프레드 지원 추가 | RoutineSetup.jsx, ui.jsx
+- 캘린더 날짜 클릭 시 상세카드의 종목별 기록(세트/무게 등)이 화면 밖으로 잘리던 문제 재수정:
+  기존에는 종목명 span과 기록 span이 한 flex 줄에서 minWidth:0으로 폭을 나눠 갖는 구조라
+  실기기에서 스크롤이 걸리지 않았음(이름 span과 폭 경합). 종목명을 윗줄로 분리하고 기록
+  텍스트는 카드 전체 너비(100%)를 독립적으로 차지하는 가로 스크롤 박스로 재구성 | CalendarView.jsx
+
 [2026-07-31] 기록탭 로고 워터마크 화이트테마 깜빡임 재수정
 - [2026-07-30]에 mixBlendMode:'screen' 트릭으로 1차 수정했으나, screen 블렌드 특성상
   라이트(흰 배경) 테마에서는 로고의 밝은 픽셀(덤벨/화살표)까지 배경색에 수렴해버려

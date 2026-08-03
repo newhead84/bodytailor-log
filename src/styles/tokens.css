@@ -16,6 +16,19 @@
   --color-primary-bg: #1c1c20;
   /* 골드 색면(버튼 등) 위에 올라가는 텍스트 전용 색 — 흰색 대신 짙은 브라운으로 대비 확보 */
   --color-on-gold: #3d2e00;
+  /* [2026-08-02 신규, 디자인가이드 v2.2] "시작"/세트완료 체크 버튼처럼 눌리는 빈도가 높은
+     골드 버튼에서 짙은 브라운 텍스트의 대비가 약하다는 피드백(⑧)으로, 이 두 버튼 전용으로
+     베이지 텍스트 토큰을 새로 추가했다. 다른 골드 색면(선택된 캘린더 날짜, 차트 라벨 등)은
+     기존 --color-on-gold(브라운)를 그대로 사용해 영향받지 않는다. */
+  --color-on-gold-button: #f4efe3;
+
+  /* [2026-08-01 신규] "완전히 채워진(solid fill) 버튼/선택 상태" 전용 배경·텍스트 토큰.
+     기본(다크)·라이트 테마는 기존 골드 배경(primary-normal)+브라운 텍스트(on-gold) 조합을
+     그대로 참조해 외형 변화가 없다. 베이지 테마만 아래 blocks에서 이 두 토큰을 짙은
+     회색(앱 아이콘의 덤벨 플레이트 색) + 베이지 텍스트로 재정의해, 골드 텍스트/차트 등
+     다른 강조 표현(primary-normal 직접 참조)은 그대로 두고 "채워진 버튼류"만 톤을 바꾼다. */
+  --color-fill-strong: var(--color-primary-normal);
+  --color-on-fill: var(--color-on-gold);
 
   /* Label (구 쿨그레이 → 매트블랙 위 텍스트 톤으로 교체) */
   --color-label-strong: #f4f0e6;
@@ -42,6 +55,11 @@
   /* [2026-07-30 신규] 캘린더 토요일 표기 전용 파랑. --color-ex-shoulder(스카이블루)는 운동
      파트 색상 전용이라 재사용하지 않고, 매트블랙 배경 대비를 확인한 별도 톤을 추가한다. */
   --color-info: #5b9dff;
+  /* [2026-07-31 신규] 휴식타이머 카드 전용 배경. 기존 --color-bg-elevated는 매트블랙에서도
+     페이지 배경과 명도 차이가 크지 않아 카드 경계가 잘 안 보인다는 피드백을 반영해,
+     골드 계열의 아주 낮은 채도 배경을 별도로 추가한다(휴식 초과 시의 --color-danger 배경과는
+     확실히 구분되는 톤). */
+  --color-rest-bg: #2a2410;
 
   /* Tier colors */
   /* [2026-07-29] 등급이 올라갈수록 화려하고 빛나게 보이도록, 이전까지 정의만 되어 있고
@@ -91,6 +109,8 @@ html[data-theme='light'] {
   --color-primary-bg: #eff6ff;
   /* 라이트 테마는 파란 색면 위에 흰 텍스트를 올려 대비를 확보한다(다크의 "골드 위 브라운"과 대응). */
   --color-on-gold: #ffffff;
+  /* [2026-08-02 신규] 라이트 테마는 이미 흰 텍스트라 대비 문제가 없어 동일 값을 그대로 사용. */
+  --color-on-gold-button: #ffffff;
 
   /* Label (쿨그레이) */
   --color-label-strong: #191f28;
@@ -120,6 +140,9 @@ html[data-theme='light'] {
   --color-warning: #ff9500;
   /* 캘린더 토요일 표기 — 라이트에서는 primary(블루)와 겹치지 않는 별도 톤 사용 */
   --color-info: #0891b2;
+  /* 휴식타이머 카드 전용 배경 — 라이트 테마는 옅은 블루 계열로, 페이지 배경(흰색)과 확실히
+     구분되게 한다. */
+  --color-rest-bg: #eaf2ff;
 
   /* Tier colors — v1 tokens.css 그대로 */
   --tier-iron: #8b95a1;
@@ -132,6 +155,81 @@ html[data-theme='light'] {
 
   --shadow-card: 0 2px 8px rgba(25, 31, 40, 0.06);
   --shadow-nav: 0 -2px 12px rgba(25, 31, 40, 0.06);
+}
+
+/* [2026-08-01 신규] MY탭 "화면 테마" 세 번째 옵션 — 베이지블랙(html[data-theme="beige"]).
+   출처: PR NOTE 아이콘 이미지의 베이지 톤(#F6ECE1 계열)을 배경으로 채택. "블랙골드"(다크) 테마의
+   베이지 버전 개념으로, 골드 포인트 컬러는 브랜드 일관성을 위해 그대로 유지하고 배경/텍스트만
+   라이트(베이지)로 반전한다 — "화이트+블루"(구 v1) 테마처럼 포인트 컬러 자체를 바꾸는 방식과는 다르다.
+   변수명은 위 두 블록과 완전히 동일하게 유지하고 값만 교체 — 컴포넌트 코드 수정 없이
+   html 태그의 data-theme 속성만 바꾸면 전체 화면에 캐스케이드로 반영된다. */
+html[data-theme='beige'] {
+  /* [2026-08-01 수정] 기존에는 gold-100/500/700을 재정의하지 않아 :root(다크)의 밝은
+     크림골드(#ffe1a0 등)가 그대로 새어 들어갔고, ui.jsx의 secondary 버튼(수정/권한요청 등)
+     background: --color-primary-bg(베이지) + color: --color-gold-100(밝은 크림골드) 조합이
+     명도차가 거의 없어 텍스트가 안 보이는 문제가 있었다. 배경 밝기(--color-bg 등)는 그대로
+     유지하고, 골드 계열만 블랙 톤이 섞인 더 진한 브라운골드로 낮춰 베이지 배경 위에서도
+     또렷하게 읽히도록 한다. StatsView/ReportTab/WorkoutInput 등 곳곳의 강조 텍스트가 모두
+     이 토큰(primary-normal/strong/heavy)을 참조하므로 이 값만 바꾸면 전체가 함께 개선된다. */
+  --color-primary-normal: #8a6608;
+  --color-primary-strong: #6b4e06;
+  --color-primary-heavy: #4a3600;
+  --color-primary-bg: #efe3cf;
+  /* 골드 색면 위 텍스트 — 블랙골드 테마와 동일하게 짙은 브라운으로 대비 확보 */
+  --color-on-gold: #3d2e00;
+  /* [2026-08-02 신규] 베이지 테마도 다크와 동일한 브라운-온-골드 조합이라 같은 문제가 있어,
+     "시작"/체크 버튼 전용으로 배경(베이지)과 같은 톤의 밝은 텍스트로 대비를 확보한다. */
+  --color-on-gold-button: #f6ece1;
+
+  /* [2026-08-01 신규] 가이드 3.2 "브랜드 골드 3단계"에 해당하는 gold-100/500/700을 베이지
+     전용으로 재정의. 이전에는 이 세 값이 베이지 블록에 없어 :root(다크)의 밝은 크림골드가
+     그대로 상속되어 위 primary-normal/strong 문제와 동일한 저대비 이슈가 있었다. */
+  --color-gold-100: #b8860b;
+  --color-gold-500: #8a6608;
+  --color-gold-700: #6b4e06;
+
+  /* [2026-08-01 신규] "채워진(solid) 버튼"/캘린더 선택 날짜 배경이 어두운 골드+갈색 텍스트라
+     여전히 골드 느낌이 강하고, 캘린더에서 날짜를 선택하면 그 안의 운동기록 뱃지가 잘 안
+     보인다는 피드백 반영. 배경을 앱 아이콘(덤벨 플레이트)에 쓰인 짙은 회색으로, 그 위
+     텍스트는 베이지(페이지 배경과 동일 톤)로 바꿔 "블랙 톤 + 베이지"를 활용한다.
+     primary-normal/on-gold 자체는 그대로 둬서 리포트 숫자·차트 등 골드 텍스트 강조는
+     영향받지 않고, ui.jsx 버튼(primary)/CalendarView 선택 날짜에서만 이 토큰을 쓰도록
+     별도로 참조를 바꿨다. */
+  --color-fill-strong: #3a3a3a;
+  --color-on-fill: var(--color-bg);
+
+  /* Label — 베이지 배경 위 짙은 에스프레소 브라운 계열 */
+  --color-label-strong: #2a2118;
+  --color-label-normal: #5c5347;
+  --color-label-neutral: #8a8074;
+  --color-label-disable: #c9c0b0;
+
+  /* Surface / Line — 베이지 2단계 */
+  --color-bg: #f6ece1;
+  --color-bg-elevated: #fffbf3;
+  --color-bg-card: #fdf6ea;
+  --color-line: #e3d5c0;
+  --color-line-strong: #d0bfa0;
+
+  --color-success: #2f9e58;
+  --color-danger: #e2493a;
+  --color-warning: #c97a17;
+  /* 캘린더 토요일 표기 — 베이지 배경에서 골드 포인트와 겹치지 않는 별도 블루 톤 */
+  --color-info: #2e6fcb;
+  /* 휴식타이머 카드 전용 배경 — 베이지 배경과 확실히 구분되는 옅은 골드 틴트 */
+  --color-rest-bg: #f4e7c9;
+
+  /* Tier colors — 블랙골드 테마와 동일(대부분 채도가 높아 베이지 배경에서도 대비 유지) */
+  --tier-iron: #b8860b;
+  --tier-bronze: #c97a3d;
+  --tier-silver: #9aa0a8;
+  --tier-gold: #e0a300;
+  --tier-platinum: #1eb8a6;
+  --tier-diamond: #3d6fd1;
+  --tier-legend: linear-gradient(135deg, #ff9f43, #ff4d9d 50%, #7b5cff);
+
+  --shadow-card: 0 2px 8px rgba(25, 31, 40, 0.08);
+  --shadow-nav: 0 -2px 12px rgba(25, 31, 40, 0.08);
 }
 
 * {
@@ -210,8 +308,32 @@ input:focus-visible {
   outline-offset: 2px;
 }
 
-input {
+/* [2026-08-01 신규] 인풋 배경/글자색 전역 리셋. 기존에는 button만 리셋되고 input은
+   font-family만 리셋되어 있어, 매트블랙 배경 위에서 브라우저 기본 흰 배경이 그대로
+   노출되는 문제가 있었다(온보딩·캘린더 세트 입력 등). 배경을 투명 처리해 부모(카드/행)
+   배경색을 그대로 상속하게 하고, 라이트 테마에서도 동일하게 자연스럽게 동작한다. */
+input,
+textarea,
+select {
   font-family: inherit;
+  background: transparent;
+  color: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-label-neutral);
+  opacity: 1;
+}
+
+/* 네이티브 폼 컨트롤(예: type="date"의 달력 아이콘) 색상을 테마에 맞춰 반전 표시.
+   다크 테마 기본, 라이트 테마에서는 별도 오버라이드. */
+:root {
+  color-scheme: dark;
+}
+html[data-theme='light'],
+html[data-theme='beige'] {
+  color-scheme: light;
 }
 
 ::-webkit-scrollbar {
@@ -288,4 +410,32 @@ input {
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+/* [2026-08-02 신규] 세트완료 응원 멘트 토스트(⑨). 살짝 튀어오르듯 나타났다가 위로 사라진다. */
+@keyframes bt-set-toast {
+  0% {
+    transform: translate(-50%, 6px) scale(0.92);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(-50%, 0) scale(1.02);
+    opacity: 1;
+  }
+  25% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+  85% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -8px) scale(0.98);
+    opacity: 0;
+  }
+}
+
+.bt-set-toast {
+  animation: bt-set-toast 1.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }

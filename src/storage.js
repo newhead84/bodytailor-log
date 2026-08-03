@@ -23,6 +23,88 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore'
+import { getExerciseAtom } from './utils/exerciseLibrary'
+
+// ───────────── exercisePopularity/{atom} — 부위별 "다른 유저 즐겨찾는 운동" 공개 집계 ─────────────
+// [2026-07-31 신규] 개인정보 없이 "부위(atom) → 종목명 → 수행 횟수"만 담는 공개 집계 문서.
+// 라이브러리에 등록된 종목(getExerciseAtom이 null이 아닌 경우)만 집계하고, 사용자가 직접 추가한
+// 커스텀 종목명은 제외한다(롱테일 방지). 로그 저장 시마다 호출되며 실패해도 기록 저장 자체는
+// 막지 않는다(집계는 부가 기능이므로).
+async function incrementExercisePopularity(exercises) {
+  if (!exercises || exercises.length === 0) return
+  const byAtom = {}
+  exercises.forEach((ex) => {
+    const atom = getExerciseAtom(ex.name)
+    if (!atom) return
+    byAtom[atom] = byAtom[atom] || {}
+    byAtom[atom][ex.name] = (byAtom[atom][ex.name] || 0) + 1
+  })
+  await Promise.all(
+    Object.entries(byAtom).map(([atom, counts]) => {
+      const updates = {}
+      Object.entries(counts).forEach(([name, n]) => {
+        updates[`counts.${name}`] = increment(n)
+      })
+      return setDoc(doc(db, 'exercisePopularity', atom), updates, { merge: true }).catch(() => {})
+    })
+  )
+}
+
+// 리포트 탭에서 부위별 "다른 유저 즐겨찾는 운동"을 보여주기 위한 조회.
+// BODY_PART_ATOMS 전체를 순회해 문서가 있는 것만 { atom, counts } 형태로 반환한다.
+export async function getExercisePopularityByAtom(atoms) {
+  const results = await Promise.all(
+    atoms.map(async (atom) => {
+      const snap = await getDoc(doc(db, 'exercisePopularity', atom))
+      return { atom, counts: snap.exists() ? snap.data().counts || {} : {} }
+    })
+  )
+  return results
+}
+
+// ───────────── inquiries/{inquiryId} — MY탭 1:1 문의 + 관리자 답변 ─────────────
+// [2026-07-31 신규] 이메일 대신 앱 안에서 문의를 남기고 답변을 확인할 수 있게 한다.
+// 관리자(role === '관리자') 계정만 전체 문의를 열람하고 답변을 남길 수 있다.
+export async function submitInquiry(uid, nickname, content) {
+  const col = collection(db, 'inquiries')
+  await addDoc(col, {
+    uid,
+    nickname: nickname || '',
+    content,
+    status: '대기',
+    reply: '',
+    repliedAt: null,
+    createdAt: serverTimestamp(),
+  })
+}
+
+// 본인이 남긴 문의 목록(최신순)
+export async function getMyInquiries(uid) {
+  const col = collection(db, 'inquiries')
+  const q = query(col, where('uid', '==', uid), orderBy('createdAt', 'desc'))
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+
+// 관리자 전용: 전체 문의 목록(미답변 먼저, 그다음 최신순)
+export async function getAllInquiries() {
+  const col = collection(db, 'inquiries')
+  const snap = await getDocs(query(col, orderBy('createdAt', 'desc')))
+  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  return list.sort((a, b) => {
+    if (a.status === b.status) return 0
+    return a.status === '대기' ? -1 : 1
+  })
+}
+
+// 관리자 전용: 답변 등록
+export async function replyToInquiry(inquiryId, reply) {
+  await updateDoc(doc(db, 'inquiries', inquiryId), {
+    reply,
+    status: '답변완료',
+    repliedAt: serverTimestamp(),
+  })
+}
 
 // ───────────────────────── users/{uid} ─────────────────────────
 
@@ -81,7 +163,7 @@ export async function updateUserProfile(uid, partial) {
   await updateDoc(doc(db, 'users', uid), partial)
 }
 
-// [2026-07-30 신규] MY탭 "화면 테마" 선택 저장. 'dark' | 'light'
+// [2026-07-30 신규, 2026-08-01 3종으로 확장] MY탭 "화면 테마" 선택 저장. 'dark' | 'beige' | 'light'
 export async function setThemePreference(uid, theme) {
   await updateDoc(doc(db, 'users', uid), { themePreference: theme })
 }
@@ -178,6 +260,9 @@ export async function addWorkoutLog(uid, logData) {
     ...logData,
     createdAt: serverTimestamp(),
   })
+
+  // 집계는 부가 기능이라 실패해도 기록 저장 자체에 영향 없게 별도로 처리(await하되 throw 안 함).
+  incrementExercisePopularity(logData.exercises)
 
   // [2026-07-30 신규] 캘린더에서 과거 날짜에 새로 추가한 기록(isBackfilled)은 볼륨/캘린더/통계에는
   // 반영하되, XP·티어·랭킹 점수에는 반영하지 않는다("과거 기록은 점수에만 미반영" 요청).

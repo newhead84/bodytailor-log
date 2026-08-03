@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Card, Button, Chip, EmptyState, useConfirm } from './ui'
 import { getWorkoutLogsInRange, updateWorkoutLog, deleteWorkoutLog, addWorkoutLog } from '../storage'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Copy, Pencil, Trash2, ClipboardPaste } from 'lucide-react'
 import {
   getExerciseDisplayAtom,
   getPartColor,
@@ -121,9 +121,9 @@ function HMLabel({ seconds, unitSize = 7 }) {
 // 종목의 입력 방식(inputType)에 맞는 빈 세트 하나를 만든다(4.3/9.10 스펙: 유산소는 경사/속도/시간,
 // 자체중량 종목은 횟수만, 그 외는 무게x횟수).
 function makeEmptySet(inputType) {
-  if (inputType === 'cardio') return { incline: 0, speedKmh: 0, durationMin: 0 }
-  if (inputType === 'reps') return { reps: 0 }
-  return { weight: 0, reps: 0 }
+  if (inputType === 'cardio') return { incline: '', speedKmh: '', durationMin: '' }
+  if (inputType === 'reps') return { reps: '' }
+  return { weight: '', reps: '' }
 }
 
 // [2026-07-28] 종목별 입력방식(9.10 요청: 푸쉬업/행잉은 횟수만, 트레드밀 등 유산소는
@@ -139,6 +139,46 @@ function formatExerciseSets(ex) {
     return ex.sets.map((s) => `${s.reps}회`).join('/')
   }
   return ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')
+}
+
+// [2026-07-31 신규] 날짜 상세 카드의 "복붙" 버튼용: 날짜 + 종목별 기록 + 하단 요약(웜업/본운동
+// 시간·칼로리·총볼륨)을 하나의 텍스트 블록으로 만든다(④). 초 단위 값을 h/m 텍스트로 바꾸는
+// HMLabel은 JSX 컴포넌트라 그대로 재사용할 수 없어, 여기서는 동일 포맷의 순수 문자열 버전을 쓴다.
+function formatHMPlain(seconds) {
+  if (!(seconds > 0)) return '0분'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.round((seconds % 3600) / 60)
+  if (h > 0 && m > 0) return `${h}시간 ${m}분`
+  if (h > 0) return `${h}시간`
+  return `${m}분`
+}
+
+// [신규] 날짜 상세 카드 타이틀 및 텍스트 복사 첫 줄에 쓸 "부위" 라벨.
+// 로그의 운동 종목들에서 부위를 중복 없이(등장 순서대로) 뽑아 '등&이두&코어&유산소'처럼 이어붙인다.
+// 부위를 하나도 찾지 못하는 옛 기록(라이브러리에 없는 종목만 있는 경우)은 기존 세션타입 라벨로 폴백.
+function getLogPartsLabel(log) {
+  const parts = [...new Set((log.exercises || []).map((ex) => getExerciseDisplayAtom(ex.name)).filter(Boolean))]
+  if (parts.length > 0) return parts.join('&')
+  return log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'
+}
+
+function buildLogCopyText(log) {
+  const lines = []
+  lines.push(`${log.date} · ${getLogPartsLabel(log)}`)
+  log.exercises?.forEach((ex) => {
+    lines.push(`${ex.name}: ${formatExerciseSets(ex)}`)
+  })
+  const summary = []
+  if (log.warmupActualSec != null && log.totalDurationSec > 0) {
+    summary.push(`웜업 ${formatHMPlain(log.warmupActualSec)}`)
+    summary.push(`본운동 ${formatHMPlain(Math.max(0, log.totalDurationSec - log.warmupActualSec))}`)
+  } else if (log.totalDurationSec > 0) {
+    summary.push(formatHMPlain(log.totalDurationSec))
+  }
+  if (log.caloriesKcal > 0) summary.push(`${log.caloriesKcal}kcal`)
+  summary.push(`총 볼륨 ${log.totalVolume?.toLocaleString() ?? 0}`)
+  if (summary.length) lines.push(summary.join(', '))
+  return lines.join('\n')
 }
 
 // [2026-07-30 신규] 날짜별 기록 편집 폼. 기존 로그 수정(editingLogId)과, 캘린더에서 날짜를
@@ -159,17 +199,43 @@ function EditLogForm({
   onCancel,
   onSave,
   isNew,
+  onCopyToDate,
+  copyingToDate,
+  copiedToDate,
 }) {
+  // [신규] 지금 편집 중인 내용을 날짜 인풋에 입력된 날짜로 복사해 별도 신규 기록으로 저장하는
+  // 버튼(⑦). 종목이 하나도 없으면 복사할 내용이 없으므로 비활성화.
+  const hasExercises = (editDraft?.exercises?.length || 0) > 0
+  const justCopied = copiedToDate && copiedToDate === editDraft?.date
   return (
     <Card style={{ marginBottom: 10 }}>
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-label-neutral)' }}>날짜</div>
-        <input
-          type="date"
-          value={editDraft?.date || ''}
-          onChange={(e) => onUpdateDate(e.target.value)}
-          style={{ padding: '8px 10px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 14 }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            type="date"
+            value={editDraft?.date || ''}
+            onChange={(e) => onUpdateDate(e.target.value)}
+            style={{ padding: '8px 10px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 14 }}
+          />
+          {onCopyToDate && (
+            <button
+              onClick={onCopyToDate}
+              disabled={!hasExercises || copyingToDate}
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: justCopied ? 'var(--color-success)' : 'var(--color-primary-strong)',
+                border: '1px solid var(--color-line)',
+                borderRadius: 8,
+                padding: '8px 10px',
+                opacity: !hasExercises || copyingToDate ? 0.5 : 1,
+              }}
+            >
+              {justCopied ? '복사됨!' : '해당 날짜에 운동내역 복사'}
+            </button>
+          )}
+        </div>
       </div>
       {editDraft?.exercises.map((ex, exIdx) => (
         <div key={ex.name} style={{ marginBottom: 14 }}>
@@ -376,6 +442,13 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   })
   const [logsByDate, setLogsByDate] = useState({})
   const [selectedDate, setSelectedDate] = useState(null)
+  // [2026-07-31 신규] 상세 카드 "복붙" 버튼(④) 클릭 후 잠깐 "복사됨!"으로 라벨을 바꿔
+  // 피드백을 준다. 어떤 log.id에 대해 복사됐는지만 기억하면 되므로 단일 상태로 관리한다.
+  const [copiedLogId, setCopiedLogId] = useState(null)
+  // [2026-08-02 신규] "복사" 버튼으로 복사한 기록을 다른 날짜에 붙여넣을 수 있게(⑤), 텍스트
+  // 클립보드 복사와 별개로 종목/세트 데이터 자체도 앱 내부 상태로 들고 있는다.
+  const [clipboardLog, setClipboardLog] = useState(null) // { exercises: [...] } | null
+  const [pastingClipboard, setPastingClipboard] = useState(false)
   const [loading, setLoading] = useState(true)
   // [2026-07-30 신규] 대한민국 공휴일 정보(⑤). 공공데이터포털 특일정보 API 연동, 월 이동 시마다
   // 조회(내부적으로 localStorage 30일 캐싱). 서비스키 미설정/호출 실패 시 빈 객체로 조용히 무시.
@@ -403,6 +476,9 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   // 로그가 없는 날짜에도, 이미 로그가 있는 날짜에도 추가할 수 있다. 이렇게 새로 추가한 기록은
   // isBackfilled로 표시해 볼륨/캘린더/통계에는 반영하되 랭킹 점수 계산에서는 제외한다(⑦).
   const [isCreatingLog, setIsCreatingLog] = useState(false)
+  // [신규] "해당 날짜에 운동내역 복사"(⑦) 진행 상태 및 완료 표시용 날짜.
+  const [copyingToDate, setCopyingToDate] = useState(false)
+  const [copiedToDate, setCopiedToDate] = useState(null)
   // [2026-07-29 신규] 날짜별 기록 수정 화면에서 "운동 추가" 시 부위 카테고리를 먼저 고르고
   // 그 부위 라이브러리 종목 중에서 선택하는 방식(WorkoutInput.jsx 자유 추가 운동과 동일 패턴).
   const [addingExercise, setAddingExercise] = useState(false)
@@ -421,7 +497,16 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   // 현재 커서(연/월) 범위의 기록을 다시 불러온다. 월 이동 시 useEffect에서, 수정/삭제/날짜변경 후에는
   // 아래 핸들러들에서 직접 호출한다.
   const loadMonth = useCallback(async () => {
-    const from = `${cursor.year}-${pad(cursor.month + 1)}-01`
+    // [2026-08-02 신규] 전월 날짜 패딩(⑧)에도 기록을 표시하기 위해, 이번 달 1일 앞에 채워지는
+    // 이전 달 말일들도 함께 조회 범위에 포함한다.
+    const firstDayOfWeek = new Date(cursor.year, cursor.month, 1).getDay()
+    const prevMonthLastDate = new Date(cursor.year, cursor.month, 0)
+    const daysInPrevMonth = prevMonthLastDate.getDate()
+    const paddingStartDay = daysInPrevMonth - firstDayOfWeek + 1
+    const from =
+      firstDayOfWeek > 0
+        ? `${prevMonthLastDate.getFullYear()}-${pad(prevMonthLastDate.getMonth() + 1)}-${pad(paddingStartDay)}`
+        : `${cursor.year}-${pad(cursor.month + 1)}-01`
     const lastDay = new Date(cursor.year, cursor.month + 1, 0).getDate()
     const to = `${cursor.year}-${pad(cursor.month + 1)}-${pad(lastDay)}`
     const logs = await getWorkoutLogsInRange(uid, from, to)
@@ -467,24 +552,43 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     const now = new Date()
     const isCurrentMonth = now.getFullYear() === cursor.year && now.getMonth() === cursor.month
     const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate()
-    const countedDays = isCurrentMonth ? now.getDate() : daysInMonth
-    const workoutDays = Object.keys(logsByDate).length
+    // [2026-08-02 버그수정] 오늘 날짜까지 포함해서 세면, 아직 오늘 운동을 할 기회가 남아있는데도
+    // "휴식 1일"로 미리 표기되는 문제가 있었다(①). 오늘은 아직 끝나지 않은 날이므로 휴식일
+    // 카운트 대상에서 제외하고, 어제까지의 날짜만으로 휴식일수를 계산한다.
+    const countedDays = isCurrentMonth ? Math.max(0, now.getDate() - 1) : daysInMonth
+    // [2026-08-02] 캘린더 전월 날짜 패딩(⑧)이 추가되며 logsByDate에 이전 달 날짜도 섞여 있을 수
+    // 있어, 이번 달 범위(YYYY-MM-)로 시작하는 날짜만 걸러서 센다.
+    const monthPrefix = `${cursor.year}-${pad(cursor.month + 1)}-`
+    const workoutDays = Object.keys(logsByDate).filter((ds) => ds.startsWith(monthPrefix)).length
     const restDays = Math.max(0, countedDays - workoutDays)
     onMonthSummary({ year: cursor.year, month: cursor.month, workoutDays, restDays, countedDays })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, logsByDate, cursor])
 
+  // [2026-08-02 변경] 전월 날짜 패딩(⑧): 기존에는 이번 달 1일 앞자리를 빈 칸(null)으로만
+  // 채웠는데, 그러면 "1일이 토요일이면 일~금이 다 비어 보여 마치 이번 달에 기록이 없는 것"
+  // 처럼 오인하기 쉬웠다. 이제 그 자리에 실제 이전 달 날짜(회색조)와 그날 기록을 함께 표시하고,
+  // 클릭하면 달력 자체는 이동하지 않고 하단에 그 날짜의 상세 정보만 보여준다.
   const grid = useMemo(() => {
     const firstDayOfWeek = new Date(cursor.year, cursor.month, 1).getDay()
     const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate()
+    const prevMonthLastDate = new Date(cursor.year, cursor.month, 0)
+    const daysInPrevMonth = prevMonthLastDate.getDate()
+    const prevYear = prevMonthLastDate.getFullYear()
+    const prevMonth = prevMonthLastDate.getMonth()
     const cells = []
-    for (let i = 0; i < firstDayOfWeek; i++) cells.push(null)
-    for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      const day = daysInPrevMonth - firstDayOfWeek + 1 + i
+      cells.push({ day, otherMonth: true, y: prevYear, m: prevMonth })
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push({ day: d, otherMonth: false, y: cursor.year, m: cursor.month })
+    }
     return cells
   }, [cursor])
 
-  function dateStr(d) {
-    return `${cursor.year}-${pad(cursor.month + 1)}-${pad(d)}`
+  function dateStr(cell) {
+    return `${cell.y}-${pad(cell.m + 1)}-${pad(cell.day)}`
   }
 
   // [2026-07-30 신규] 오늘 날짜 표시(①)를 위한 기준값. 자정을 넘기면 다음 렌더에서 자연히 갱신된다.
@@ -688,6 +792,39 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     }
   }
 
+  // [신규] 지금 편집/작성 중인 내용을 그대로 날짜 인풋에 입력된 날짜에 별도의 새 기록으로
+  // 복사 저장한다(⑦). 편집 중이던 원래 기록(있다면)은 그대로 유지되고 건드리지 않는다.
+  // 시간(웜업/휴게 등) 정보는 복사 대상이 아니므로 종목/세트만 복사한다.
+  // 대상 날짜에 이미 기록이 있으면 실수로 중복 추가하지 않도록 확인 팝업을 먼저 띄운다.
+  async function copyDraftToDate() {
+    if (!editDraft?.date || editDraft.exercises.length === 0) return
+    const targetDate = editDraft.date
+    setCopyingToDate(true)
+    try {
+      const existing = await getWorkoutLogsInRange(uid, targetDate, targetDate)
+      if (existing.length > 0) {
+        const ok = await confirm(`${targetDate} 날짜에는 이미 운동 기록이 있어요. 그래도 복사해서 추가할까요?`)
+        if (!ok) return
+      }
+      const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
+      await addWorkoutLog(uid, {
+        date: targetDate,
+        exercises: cleanedExercises,
+        totalVolume,
+        sessionType: 'extra',
+        scoreWeight: 0,
+        isBackfilled: true,
+      })
+      const grouped = await loadMonth()
+      setLogsByDate(grouped)
+      onLogsChanged?.()
+      setCopiedToDate(targetDate)
+      setTimeout(() => setCopiedToDate((cur) => (cur === targetDate ? null : cur)), 1500)
+    } finally {
+      setCopyingToDate(false)
+    }
+  }
+
   async function handleDeleteLog(log) {
     if (!(await confirm(`${log.date} 기록을 삭제할까요? 되돌릴 수 없어요.`))) return
     await deleteWorkoutLog(uid, log.id)
@@ -697,16 +834,79 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     onLogsChanged?.()
   }
 
+  // [2026-07-31 신규] 날짜+기록을 텍스트 블록으로 클립보드에 복사(④). navigator.clipboard가
+  // 없는 구형 환경(또는 비보안 컨텍스트)을 대비해 textarea+execCommand 폴백을 둔다.
+  async function handleCopyLog(log) {
+    const text = buildLogCopyText(log)
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      setCopiedLogId(log.id)
+      setTimeout(() => setCopiedLogId((cur) => (cur === log.id ? null : cur)), 1500)
+    } catch (e) {
+      // 클립보드 접근이 막힌 환경(권한 거부 등)은 조용히 무시 — 버튼 라벨이 안 바뀌는 것으로
+      // 실패를 알 수 있어 별도 에러 UI는 두지 않는다.
+    }
+    // [2026-08-02 신규] 텍스트 복사와 별개로, 종목/세트 데이터를 그대로 앱 내부 클립보드에
+    // 담아둔다. 이후 캘린더에서 다른 날짜를 선택해 "여기에 붙여넣기"를 누르면 이 데이터로
+    // 새 기록이 만들어진다(⑤).
+    setClipboardLog({
+      exercises: log.exercises.map((ex) => ({
+        name: ex.name,
+        inputType: ex.inputType || getExerciseInputType(ex.name),
+        sets: ex.sets.map((s) => ({ ...s })),
+      })),
+    })
+  }
+
+  // [2026-08-02 신규] 클립보드에 담아둔 기록을 선택한 날짜에 새 기록으로 붙여넣는다(⑤).
+  // 기존 "해당 날짜에 운동내역 복사"(copyDraftToDate)와 동일한 저장 규칙(isBackfilled)을 따른다.
+  async function pasteClipboardToDate(targetDate) {
+    if (!clipboardLog || !targetDate) return
+    setPastingClipboard(true)
+    try {
+      const existing = await getWorkoutLogsInRange(uid, targetDate, targetDate)
+      if (existing.length > 0) {
+        const ok = await confirm(`${targetDate} 날짜에는 이미 운동 기록이 있어요. 그래도 붙여넣을까요?`)
+        if (!ok) return
+      }
+      const { cleanedExercises, totalVolume } = buildCleanedPayload(clipboardLog)
+      await addWorkoutLog(uid, {
+        date: targetDate,
+        exercises: cleanedExercises,
+        totalVolume,
+        sessionType: 'extra',
+        scoreWeight: 0,
+        isBackfilled: true,
+      })
+      const grouped = await loadMonth()
+      setLogsByDate(grouped)
+      onLogsChanged?.()
+    } finally {
+      setPastingClipboard(false)
+    }
+  }
+
   return (
     <div style={{ padding: '16px 20px 8px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <button onClick={goToPrevMonth} style={{ fontSize: 18, padding: 6 }}>
+        <button onClick={goToPrevMonth} style={{ fontSize: 18, padding: 6, color: 'var(--color-label-strong)' }}>
           ‹
         </button>
         <span style={{ fontWeight: 700, fontSize: 16 }}>
           {cursor.year}년 {cursor.month + 1}월
         </span>
-        <button onClick={goToNextMonth} style={{ fontSize: 18, padding: 6 }}>
+        <button onClick={goToNextMonth} style={{ fontSize: 18, padding: 6, color: 'var(--color-label-strong)' }}>
           ›
         </button>
       </div>
@@ -739,9 +939,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {grid.map((d, i) => {
-          if (!d) return <div key={i} />
-          const ds = dateStr(d)
+        {grid.map((cell, i) => {
+          const ds = dateStr(cell)
           const dayLogs = logsByDate[ds] || []
           const hasLog = dayLogs.length > 0
           const summary = hasLog ? daySummary(dayLogs) : null
@@ -760,12 +959,20 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
           // [2026-07-30 신규] 요일 기준 색상(⑥): 그리드는 항상 일요일(0)~토요일(6) 순으로
           // 배치되므로, 그리드 인덱스를 7로 나눈 나머지가 곧 요일이다.
           const dow = i % 7
+          // [2026-08-02 신규] 전월 패딩 날짜는 회색조(옅은 색)로 눌러줘서 "지난 달"임을
+          // 한눈에 인식하게 하되, 일요일/공휴일/토요일 색상 구분은 그대로 적용한다(⑧).
           const dateColor = isSelected
-            ? 'var(--color-on-gold)'
+            ? 'var(--color-on-fill)'
             : holidayName || dow === 0
-            ? 'var(--color-danger)'
+            ? cell.otherMonth
+              ? 'rgba(255,110,92,0.45)'
+              : 'var(--color-danger)'
             : dow === 6
-            ? 'var(--color-info)'
+            ? cell.otherMonth
+              ? 'rgba(95,180,255,0.45)'
+              : 'var(--color-info)'
+            : cell.otherMonth
+            ? 'var(--color-label-neutral)'
             : undefined
 
           return (
@@ -783,10 +990,12 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                 padding: '6px 3px',
                 gap: 3,
                 overflow: 'hidden',
-                background: isSelected ? 'var(--color-primary-normal)' : 'transparent',
-                color: isSelected ? 'var(--color-on-gold)' : 'var(--color-label-strong)',
+                background: isSelected ? 'var(--color-fill-strong)' : 'transparent',
+                color: isSelected ? 'var(--color-on-fill)' : cell.otherMonth ? 'var(--color-label-neutral)' : 'var(--color-label-strong)',
                 // [2026-07-30 신규] "오늘"은 선택/기록 여부와 무관하게 항상 골드 테두리로 표시한다.
-                boxShadow: isToday ? `inset 0 0 0 1.5px ${isSelected ? 'var(--color-on-gold)' : 'var(--color-gold-500, var(--color-primary-normal))'}` : 'none',
+                boxShadow: isToday ? `inset 0 0 0 1.5px ${isSelected ? 'var(--color-on-fill)' : 'var(--color-gold-500, var(--color-primary-normal))'}` : 'none',
+                // [2026-08-02 신규] 전월 패딩 날짜는 살짝 흐리게(⑧), 선택된 경우는 예외.
+                opacity: cell.otherMonth && !isSelected ? 0.55 : 1,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3, flexShrink: 0 }}>
@@ -799,7 +1008,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                     color: dateColor,
                   }}
                 >
-                  {d}
+                  {cell.day}
                 </span>
                 {holidayName && (
                   <span
@@ -807,7 +1016,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                     style={{
                       fontSize: 7,
                       fontWeight: 600,
-                      color: isSelected ? 'var(--color-on-gold)' : 'var(--color-danger)',
+                      color: isSelected ? 'var(--color-on-fill)' : 'var(--color-danger)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -834,7 +1043,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                             textAlign: 'center',
                             whiteSpace: 'nowrap',
                             background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(74,222,128,0.14)',
-                            color: isSelected ? 'var(--color-on-gold)' : 'var(--color-success)',
+                            color: isSelected ? 'var(--color-on-fill)' : 'var(--color-success)',
                           }}
                         >
                           <HMLabel seconds={summary.totalDurationSec} unitSize={6} />
@@ -853,7 +1062,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                             padding: '1px 3px',
                             textAlign: 'center',
                             background: isSelected ? 'rgba(19,19,22,0.18)' : 'rgba(255,184,77,0.14)',
-                            color: isSelected ? 'var(--color-on-gold)' : 'var(--color-warning)',
+                            color: isSelected ? 'var(--color-on-fill)' : 'var(--color-warning)',
                           }}
                         >
                           {summary.totalCalories}
@@ -877,7 +1086,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                             whiteSpace: 'nowrap',
                             display: 'block',
                             background: isSelected ? 'rgba(19,19,22,0.18)' : hexToRgba(partColor, 0.18),
-                            color: isSelected ? 'var(--color-on-gold)' : partColor,
+                            color: isSelected ? 'var(--color-on-fill)' : partColor,
                           }}
                         >
                           <HMLabel seconds={row.count * 60} unitSize={6} />
@@ -901,7 +1110,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                           whiteSpace: 'nowrap',
                           display: 'block',
                           background: isSelected ? 'rgba(19,19,22,0.18)' : hexToRgba(partColor, 0.14),
-                          color: isSelected ? 'var(--color-on-gold)' : partColor,
+                          color: isSelected ? 'var(--color-on-fill)' : partColor,
                         }}
                       >
                         {row.atom} {row.count}
@@ -922,7 +1131,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
         ) : !selectedDate ? (
           <EmptyState
             title="날짜를 선택해 주세요"
-            description="날짜를 선택하시면 이전 운동 기록을 추가하거나 수정할 수 있어요."
+            description="날짜를 선택하면 기록을 추가·수정할 수 있어요."
             style={{ padding: '20px 20px' }}
           />
         ) : (
@@ -948,28 +1157,57 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                   exerciseListRef={exerciseListRef}
                   onCancel={cancelEdit}
                   onSave={() => saveEdit(log)}
+                  onCopyToDate={copyDraftToDate}
+                  copyingToDate={copyingToDate}
+                  copiedToDate={copiedToDate}
                 />
               ) : (
                 <Card key={log.id} style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <div style={{ fontWeight: 700 }}>
-                      {log.date} · {log.sessionType === 'extra' ? '자유 추가 운동' : '내 루틴 운동'}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                    <button onClick={() => startEdit(log)} style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
-                      수정
-                    </button>
-                    <button onClick={() => handleDeleteLog(log)} style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                      삭제
-                    </button>
+                  {/* [2026-08-02 변경] 타이틀이 "날짜 · 부위전체"로 너무 길어지던 문제(④):
+                      부위 요약은 카드 맨 위 별도 줄로 올리고, 타이틀에는 날짜만 남긴다.
+                      복사/수정/삭제도 텍스트 대신 한눈에 알아볼 수 있는 아이콘 버튼으로 바꿨다. */}
+                  <div className="text-keep-all" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-normal)', marginBottom: 4 }}>
+                    {getLogPartsLabel(log)}
                   </div>
-                </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontWeight: 700 }}>{log.date}</div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <button
+                        onClick={() => handleCopyLog(log)}
+                        aria-label="복사"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, color: copiedLogId === log.id ? 'var(--color-success)' : 'var(--color-primary-strong)' }}
+                      >
+                        <Copy size={16} strokeWidth={1.8} />
+                      </button>
+                      <button
+                        onClick={() => startEdit(log)}
+                        aria-label="수정"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, color: 'var(--color-primary-strong)' }}
+                      >
+                        <Pencil size={16} strokeWidth={1.8} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLog(log)}
+                        aria-label="삭제"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, color: 'var(--color-label-neutral)' }}
+                      >
+                        <Trash2 size={16} strokeWidth={1.8} />
+                      </button>
+                    </div>
+                  </div>
                 {log.exercises.map((ex) => (
-                  <div key={ex.name} style={{ fontSize: 13, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                    <span style={{ fontWeight: 600, flexShrink: 0 }}>{ex.name}</span>
-                    <span className="record-notation h-scroll" style={{ color: 'var(--color-label-normal)', display: 'block', minWidth: 0 }}>
+                  // [2026-07-31 재수정] 이름 span과 한 줄(flex)에서 minWidth:0으로 폭을 나눠 갖는
+                  // 기존 방식은 실기기에서 스크롤이 걸리지 않는 문제가 있어(이름 span과 폭 경합),
+                  // 이름을 윗줄로 분리하고 기록 텍스트는 카드 전체 너비(100%)를 온전히 차지하는
+                  // 독립된 가로 스크롤 박스로 바꿨다.
+                  <div key={ex.name} style={{ fontSize: 13, marginBottom: 6 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 2 }}>{ex.name}</div>
+                    <div
+                      className="record-notation h-scroll"
+                      style={{ color: 'var(--color-label-normal)', width: '100%' }}
+                    >
                       {formatExerciseSets(ex)}
-                    </span>
+                    </div>
                   </div>
                 ))}
                 <div style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 6 }}>
@@ -1022,24 +1260,53 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                 exerciseListRef={exerciseListRef}
                 onCancel={cancelEdit}
                 onSave={saveNewLog}
+                onCopyToDate={copyDraftToDate}
+                copyingToDate={copyingToDate}
+                copiedToDate={copiedToDate}
                 isNew
               />
             ) : (
-              <button
-                onClick={startCreateNew}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  borderRadius: 10,
-                  border: '1px dashed var(--color-line)',
-                  color: 'var(--color-label-neutral)',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  marginBottom: 10,
-                }}
-              >
-                + 이 날짜에 운동 기록 추가
-              </button>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                <button
+                  onClick={startCreateNew}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: 10,
+                    border: '1px dashed var(--color-line)',
+                    color: 'var(--color-label-neutral)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  + 이 날짜에 운동 기록 추가
+                </button>
+                {/* [2026-08-02 신규] 다른 날짜에서 "복사"한 기록이 있으면, 지금 선택한 날짜에
+                    바로 붙여넣을 수 있는 버튼을 함께 보여준다(⑤). */}
+                {clipboardLog && (
+                  <button
+                    onClick={() => pasteClipboardToDate(selectedDate)}
+                    disabled={pastingClipboard}
+                    style={{
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '12px 14px',
+                      borderRadius: 10,
+                      border: '1px solid var(--color-gold-700, var(--color-primary-strong))',
+                      color: 'var(--color-primary-strong)',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      opacity: pastingClipboard ? 0.6 : 1,
+                    }}
+                  >
+                    <ClipboardPaste size={15} strokeWidth={1.8} />
+                    붙여넣기
+                  </button>
+                )}
+              </div>
             )}
           </>
         )}

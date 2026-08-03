@@ -4,33 +4,15 @@ import { Card, Button } from './ui'
 import { getRecentWorkoutLogs } from '../storage'
 import CalendarView from './CalendarView'
 import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
+import { getSuggestedNext } from '../utils/routineSuggestion'
 import { pickRandomQuote } from '../utils/quotes'
+import { todayStr } from '../utils/date'
 
 // 로그 하나에서 실제로 수행한 부위들을 중복 없이 뽑아 "가슴·삼두"처럼 요약한다.
 function summarizePartsOfLog(log) {
   if (!log?.exercises?.length) return ''
   const atoms = [...new Set(log.exercises.map((ex) => getExerciseDisplayAtom(ex.name)).filter(Boolean))]
   return atoms.join('·')
-}
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-// 최근 기록들로부터, 직전에 사용한 루틴에서 다음에 수행할 파트를 추정한다.
-// (Firestore에 별도 "사이클 완료" 상태를 아직 두지 않아, 클라이언트에서 최근 로그 기준으로 근사한다.)
-function getSuggestedNext(routineTemplates, recentLogs) {
-  if (!routineTemplates || routineTemplates.length === 0) return null
-  const lastRoutineLog = recentLogs.find((l) => l.sessionType !== 'extra' && l.routineTemplateId && l.partName)
-  if (!lastRoutineLog) {
-    const t = routineTemplates[0]
-    return t?.parts?.[0] ? { template: t, part: t.parts[0] } : null
-  }
-  const template = routineTemplates.find((t) => t.id === lastRoutineLog.routineTemplateId) || routineTemplates[0]
-  if (!template?.parts?.length) return null
-  const idx = template.parts.findIndex((p) => p.name === lastRoutineLog.partName)
-  const nextIdx = idx === -1 ? 0 : (idx + 1) % template.parts.length
-  return { template, part: template.parts[nextIdx] }
 }
 
 export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, workoutPhase, onGoToLog, onCancelWorkout, onLogsChanged }) {
@@ -40,6 +22,11 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, w
   const [recentLogs, setRecentLogs] = useState([])
   const [showExtraCta, setShowExtraCta] = useState(false)
   const [monthSummary, setMonthSummary] = useState(null)
+  // [신규] "오늘 날짜"를 state로 들고 있어야, 자정을 넘긴 뒤 새 기록 없이 앱이 계속 켜져 있어도
+  // (또는 백그라운드에 있다가 다음날 포그라운드로 복귀해도) doneToday가 재계산된다. 기존에는
+  // useMemo가 recentLogs에만 의존해서, 날짜만 바뀌고 기록 배열 자체는 그대로면 어제의
+  // "오늘도 득근!" 완료 상태가 그대로 남아있었다.
+  const [today, setToday] = useState(() => todayStr())
   // [2026-07-29 신규] 앱 진입(마운트) 시마다 응원/습관/자기계발 문구 중 하나를 랜덤으로 뽑는다.
   // (직전 노출 문구와는 연달아 겹치지 않도록 utils/quotes.js에서 처리)
   const [quote] = useState(() => pickRandomQuote())
@@ -50,6 +37,7 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, w
       const logs = await getRecentWorkoutLogs(uid, 10)
       if (cancelled) return
       setRecentLogs(logs)
+      setToday(todayStr())
     }
     load()
     return () => {
@@ -58,7 +46,21 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, w
     // logsVersion: 운동 완료 직후(App.jsx) 값이 올라가며 재조회를 트리거한다(재진입 없이 즉시 반영).
   }, [uid, logsVersion])
 
-  const todayLogs = useMemo(() => recentLogs.filter((l) => l.date === todayStr()), [recentLogs])
+  // [신규] 탭이 백그라운드에 있다가 다시 보이거나(visibilitychange) 창이 포커스를 되찾을 때도
+  // 날짜를 다시 확인한다(모바일 PWA에서 자정을 넘긴 채 탭이 살아있는 경우를 대비).
+  useEffect(() => {
+    function refreshToday() {
+      setToday(todayStr())
+    }
+    document.addEventListener('visibilitychange', refreshToday)
+    window.addEventListener('focus', refreshToday)
+    return () => {
+      document.removeEventListener('visibilitychange', refreshToday)
+      window.removeEventListener('focus', refreshToday)
+    }
+  }, [])
+
+  const todayLogs = useMemo(() => recentLogs.filter((l) => l.date === today), [recentLogs, today])
   const doneToday = todayLogs.length > 0
   const suggested = useMemo(() => getSuggestedNext(routineTemplates, recentLogs), [routineTemplates, recentLogs])
 

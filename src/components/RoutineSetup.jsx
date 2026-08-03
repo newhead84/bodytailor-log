@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, BackButton, useConfirm } from './ui'
 import { BODY_PART_ATOMS, buildPartName, getExercisesForPart, getCustomExercisesForPart } from '../utils/exerciseLibrary'
-import ExerciseGuideImage from './ExerciseGuideImage'
 
 // [2026-07-28 개편] 고정 5분할(무분할~5분할) 프리셋 선택 화면을 없애고,
 // 부위(BODY_PART_ATOMS)를 자유롭게 조합해 파트를 만드는 단일 루틴 편집기로 변경.
@@ -215,25 +214,9 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
   )
 }
 
-// [2026-07-28] 종목 이름(Chip)을 누르면 그대로 루틴에 추가/제거되는 기존 동작은 유지하고,
-// 이미지는 이름 옆의 별도 'i' 정보 아이콘을 눌렀을 때만 목록 아래에 펼쳐서 보여준다.
-// (이전에는 기록탭에서 "시작"을 눌렀을 때 보였는데, 루틴 추가/수정 화면으로 이동했다.)
+// [2026-08-02 변경] 동작 가이드 이미지 연동을 전면 삭제하면서, 종목 Chip의 롱프레스
+// 토글 로직도 함께 제거했다. 이제 짧게 누르면 그대로 루틴에 추가/제거된다(기존 동작 유지).
 function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAtoms }) {
-  // [2026-07-29] 종목이 많을 때 'i'를 눌러도 파트 맨 아래 공유 영역에서 이미지가 뜨다 보니
-  // 어떤 종목 이미지인지 헷갈리고, 화면에 안 보여서 "눌러도 반응이 없다"는 피드백을 받았다.
-  // 종목을 세로 리스트로 바꾸고, 'i'를 누르면 바로 그 종목 아래에 펼쳐지도록 변경했다.
-  // 여러 종목을 동시에 펼쳐볼 수 있도록 Set으로 관리한다.
-  const [openNames, setOpenNames] = useState(() => new Set())
-
-  function toggleImage(name) {
-    setOpenNames((prev) => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      return next
-    })
-  }
-
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -247,45 +230,12 @@ function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAt
           </button>
         </div>
       </div>
-      {/* [2026-07-29] 종목을 세로 1줄씩(column) 배치하다 보니 i버튼 유무와 상관없이
-          항목 하나당 1행을 차지해 목록이 너무 길어진다는 피드백을 받았다. 기존처럼
-          여러 종목이 한 줄에 나란히 배치되도록 flex-wrap으로 되돌리고, i버튼을 눌러
-          이미지를 열었을 때만 그 줄 바로 아래에 전체 너비로 펼쳐지도록 했다. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, rowGap: 10 }}>
-        {availableExercises.map((name) => {
-          const isOpen = openNames.has(name)
-          return (
-            <React.Fragment key={name}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Chip active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
-                  {name}
-                </Chip>
-                <button
-                  onClick={() => toggleImage(name)}
-                  aria-label={`${name} 동작 이미지 ${isOpen ? '닫기' : '보기'}`}
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: '50%',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    flexShrink: 0,
-                    border: '1px solid var(--color-line)',
-                    color: isOpen ? 'var(--color-on-gold)' : 'var(--color-label-neutral)',
-                    background: isOpen ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
-                  }}
-                >
-                  i
-                </button>
-              </div>
-              {isOpen && (
-                <div style={{ width: '100%', margin: '-2px 0 2px' }}>
-                  <ExerciseGuideImage name={name} />
-                </div>
-              )}
-            </React.Fragment>
-          )
-        })}
+        {availableExercises.map((name) => (
+          <Chip key={name} active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
+            {name}
+          </Chip>
+        ))}
       </div>
     </div>
   )

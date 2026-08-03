@@ -203,7 +203,10 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
         right: 16,
         bottom: 'calc(var(--bottom-nav-height) + var(--safe-bottom) + 78px)',
         zIndex: 30,
-        background: overtime ? 'var(--color-danger, #E5484D)' : 'var(--color-bg-elevated)',
+        // [2026-07-31] 평상시 배경을 --color-bg-elevated에서 전용 토큰(--color-rest-bg)으로
+        // 교체 — 두 테마 모두에서 페이지 배경과 구분이 잘 안 되던 문제 수정(휴식 초과 시의
+        // danger 배경과는 별개 톤).
+        background: overtime ? 'var(--color-danger, #E5484D)' : 'var(--color-rest-bg)',
         color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)',
         borderRadius: 16,
         padding: '12px 16px',

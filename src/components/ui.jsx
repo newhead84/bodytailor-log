@@ -18,7 +18,7 @@ export function Button({ children, onClick, variant = 'primary', disabled, style
     opacity: disabled ? 0.45 : 1,
   }
   const variants = {
-    primary: { background: 'var(--color-primary-normal)', color: 'var(--color-on-gold)' },
+    primary: { background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)' },
     secondary: { background: 'var(--color-primary-bg)', color: 'var(--color-gold-100)' },
     ghost: { background: 'transparent', color: 'var(--color-label-normal)', border: '1px solid var(--color-line)' },
     danger: { background: 'var(--color-danger)', color: '#131316' },
@@ -314,7 +314,7 @@ export function useConfirm() {
   return ctx
 }
 
-export function Chip({ children, active, onClick, style }) {
+export function Chip({ children, active, onClick, style, ...rest }) {
   return (
     <button
       onClick={onClick}
@@ -329,6 +329,7 @@ export function Chip({ children, active, onClick, style }) {
         whiteSpace: 'nowrap',
         ...style,
       }}
+      {...rest}
     >
       {children}
     </button>

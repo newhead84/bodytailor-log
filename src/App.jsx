@@ -1,8 +1,10 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-07-31] 기록탭 로고 워터마크 화이트테마 깜빡임 재수정 — 배경만
- *            투명 처리한 새 이미지(logo-mark-transparent.png)로 교체, mixBlendMode
- *            블렌드 트릭 제거.
+ * 최신 변경: [2026-08-02] 기록탭/리포트탭/MY탭 후속 수정 7건 — 응원멘트 종목완료 시점으로
+ *            이동, 트레드밀 입력 2줄 레이아웃 재구조화(겹침 근본해결), 세트저장 버튼 베이지
+ *            텍스트, 출석률 월~일 기준 수정, "n/n회" 라벨 보완, MY탭 등급 캡션 삭제, 동작
+ *            가이드 이미지 연동 전면 삭제(라이선스 이슈) | 운동 종목 DB 9필드 재구축은 보류.
+ *            WorkoutInput/RoutineSetup/ReportTab/MyPageTab.jsx
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -18,6 +20,8 @@ import HomeTab from './components/HomeTab'
 import LogTab from './components/LogTab'
 import ReportTab from './components/ReportTab'
 import TierInfoScreen from './components/TierInfoScreen'
+import InquiryScreen from './components/InquiryScreen'
+import InquiryAdminScreen from './components/InquiryAdminScreen'
 import MyPageTab from './components/MyPageTab'
 import SplashScreen from './components/SplashScreen'
 import { useBackableScreen } from './hooks/useBackableScreen'
@@ -56,6 +60,12 @@ export default function App() {
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
   const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동조합 변경" 진입 여부
   const [showTierInfo, setShowTierInfo] = useState(false) // MY탭 "등급" 카드 탭 시 티어/XP 설명 전체화면 진입 여부
+  // [2026-08-01 신규] MY탭 "온보딩 화면 미리보기"(관리자 전용 QA) 진입 여부. 실제 계정의
+  // onboardingCompleted 여부와 무관하게 Onboarding.jsx를 미리보기 모드로 다시 열어본다.
+  const [showOnboardingPreview, setShowOnboardingPreview] = useState(false)
+  // [2026-07-31 신규] MY탭 "문의하기"/"문의 관리" 카드 탭 시 전체화면 진입 여부(⑩)
+  const [showInquiries, setShowInquiries] = useState(false)
+  const [showInquiryAdmin, setShowInquiryAdmin] = useState(false)
   // [2026-07-28] 홈탭/캘린더가 항상 마운트된 상태로 유지되어(위 주석 참고), 기록을 저장해도
   // 자체적으로는 다시 불러오지 않던 버그 수정. 기록 저장 시마다 이 값을 올려서 하위 컴포넌트의
   // 데이터 로딩 useEffect가 다시 실행되도록 만든다(재진입 없이 즉시 반영).
@@ -155,7 +165,10 @@ export default function App() {
     // 설치된 PWA의 스플래시 색상까지는 바뀌지 않는다(별도 논의 필요).
     const metaThemeColor = document.querySelector('meta[name="theme-color"]')
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', theme === 'light' ? '#3182F6' : '#FFC94D')
+      // [2026-08-01 수정] 베이지블랙은 더 이상 다크와 같은 쨍한 골드를 쓰지 않고, 앱
+      // 아이콘의 짙은 회색(버튼 배경과 동일 톤, --color-fill-strong)을 노티바/상태표시줄에 사용한다.
+      const color = theme === 'light' ? '#3182F6' : theme === 'beige' ? '#3A3A3A' : '#FFC94D'
+      metaThemeColor.setAttribute('content', color)
     }
   }, [userDoc?.onboardingCompleted, userDoc?.themePreference])
 
@@ -182,8 +195,14 @@ export default function App() {
   // RoutineSetup.jsx에서 별도로 같은 훅을 사용해 중첩 처리한다.)
   const closeManagingRoutines = useCallback(() => setManagingRoutines(false), [])
   const closeTierInfo = useCallback(() => setShowTierInfo(false), [])
+  const closeInquiries = useCallback(() => setShowInquiries(false), [])
+  const closeInquiryAdmin = useCallback(() => setShowInquiryAdmin(false), [])
+  const closeOnboardingPreview = useCallback(() => setShowOnboardingPreview(false), [])
   useBackableScreen(managingRoutines, closeManagingRoutines)
   useBackableScreen(showTierInfo, closeTierInfo)
+  useBackableScreen(showInquiries, closeInquiries)
+  useBackableScreen(showInquiryAdmin, closeInquiryAdmin)
+  useBackableScreen(showOnboardingPreview, closeOnboardingPreview)
 
   async function handleOnboardingComplete(onboardingData) {
     await saveOnboarding(authUser.uid, onboardingData)
@@ -244,6 +263,20 @@ export default function App() {
   // MY탭 등급 카드를 탭하면 티어 체계/XP 설명을 별도 전체 화면으로 보여준다.
   if (showTierInfo) {
     return <TierInfoScreen uid={authUser.uid} xp={userDoc.seasonXp || 0} onClose={closeTierInfo} />
+  }
+
+  if (showInquiries) {
+    return <InquiryScreen uid={authUser.uid} nickname={userDoc.nickname} onClose={closeInquiries} />
+  }
+
+  if (showInquiryAdmin) {
+    return <InquiryAdminScreen onClose={closeInquiryAdmin} />
+  }
+
+  // MY탭 "온보딩 화면 미리보기"(관리자 전용 QA). previewMode이므로 완료해도 실제 계정의
+  // 온보딩 데이터는 저장되지 않는다(handleOnboardingComplete/saveOnboarding을 타지 않음).
+  if (showOnboardingPreview) {
+    return <Onboarding previewMode onClose={closeOnboardingPreview} />
   }
 
   // 리포트 탭의 "주간 목표 세션 수"는 다중 루틴 모델에서는 대표값이 필요해,
@@ -325,6 +358,10 @@ export default function App() {
           onRoutineUpdated={refreshRoutineTemplates}
           onProfileUpdated={refreshUserDoc}
           onShowTierInfo={() => setShowTierInfo(true)}
+          onShowInquiries={() => setShowInquiries(true)}
+          onShowInquiryAdmin={() => setShowInquiryAdmin(true)}
+          onShowOnboardingPreview={() => setShowOnboardingPreview(true)}
+          googlePhotoURL={authUser?.photoURL}
         />
       </div>
       <BottomNav active={activeTab} onChange={handleTabPress} />
