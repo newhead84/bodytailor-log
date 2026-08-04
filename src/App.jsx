@@ -1,11 +1,11 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-04] 테마 기본값 dark→beige 변경 + 선택 안내문구 중립화, 칼로리
- *            계산 ACSM/Compendium 기반 전면 개편(트레드밀 실측 속도·경사 반영), 4탭 공통
- *            상단 고정 실시간 타이머 바 신규, [근본원인 수정] 내 루틴 종목추가/삭제 후
- *            재노출 안 되던 경쟁상태 버그 | App.jsx, LogTab/WorkoutInput/MyPageTab/
- *            GlobalTimerBar.jsx(신규), storage.js, utils/calories.js, styles/tokens.css.
- *            운동 종목 DB 재구축은 이번에도 보류.
+ * 최신 변경: [2026-08-04 (2)] 상단 고정 타이머로 조작 완전 통합(기록탭 전용 sticky 바
+ *            제거), 종목추가 재노출 문제는 아이콘 오인이 원인이라 "숨기기" 아이콘을
+ *            eye-off로 교체, 내 커스텀 종목 설명 보완, 홈탭 문구 300개(1줄 보장) 교체,
+ *            리포트 탭 출석률(7일 기준)/누적볼륨(부위별)/점진적과부하(부위별+중량추이
+ *            연동) 개편 | App.jsx, GlobalTimerBar/WorkoutInput/MyPageTab/ReportTab.jsx,
+ *            utils/quotes.js. 운동 종목 DB 재구축은 이번에도 보류.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -25,7 +25,7 @@ import InquiryScreen from './components/InquiryScreen'
 import InquiryAdminScreen from './components/InquiryAdminScreen'
 import MyPageTab from './components/MyPageTab'
 import SplashScreen from './components/SplashScreen'
-import GlobalTimerBar from './components/GlobalTimerBar'
+import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen } from './hooks/useBackableScreen'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
@@ -86,6 +86,18 @@ export default function App() {
   const logTabRef = useRef(null)
   const handleCancelWorkout = useCallback(() => {
     logTabRef.current?.cancelSession?.()
+  }, [])
+  // [2026-08-04 신규] 상단 고정 타이머 바의 조작 패널(±10초/초기화/일시정지) 펼침 여부.
+  // 기록탭 전용 sticky 바가 없어지면서, 이 컨트롤들이 전부 이 상단바 쪽으로 옮겨왔다.
+  const [timerBarExpanded, setTimerBarExpanded] = useState(false)
+  const handleTimerTogglePause = useCallback(() => {
+    logTabRef.current?.togglePause?.()
+  }, [])
+  const handleTimerReset = useCallback(() => {
+    logTabRef.current?.resetElapsed?.()
+  }, [])
+  const handleTimerAdjust = useCallback((deltaSec) => {
+    logTabRef.current?.adjustElapsed?.(deltaSec)
   }, [])
 
   // [2026-07-28] 네비게이션 "뒤로가기"(브라우저/기기 백 제스처)로 화면이 그대로 꺼지며
@@ -309,9 +321,12 @@ export default function App() {
   function tabWrapperStyle(tab) {
     const isActive = activeTab === tab
     const barShowing = sessionTiming.sessionPhase === 'warmup' || sessionTiming.sessionPhase === 'main'
+    // [2026-08-04 변경] 상단바가 펼침(조작 패널 노출) 상태면 그만큼 콘텐츠 상단 여백도 늘려,
+    // 탭 콘텐츠 맨 윗줄이 컨트롤 버튼들에 가려지지 않게 한다.
+    const barPx = GLOBAL_TIMER_BAR_HEIGHT + (timerBarExpanded ? GLOBAL_TIMER_BAR_CONTROLS_HEIGHT : 0)
     return {
       position: 'absolute',
-      top: barShowing ? 'calc(var(--safe-top) + var(--global-timer-bar-height))' : 0,
+      top: barShowing ? `calc(var(--safe-top) + ${barPx}px)` : 0,
       left: 0,
       right: 0,
       bottom: 0,
@@ -325,7 +340,15 @@ export default function App() {
 
   return (
     <div style={{ height: '100%', position: 'relative' }}>
-      <GlobalTimerBar timing={sessionTiming} onPress={() => setActiveTab('log')} />
+      <GlobalTimerBar
+        timing={sessionTiming}
+        onPress={() => setActiveTab('log')}
+        onTogglePause={handleTimerTogglePause}
+        onReset={handleTimerReset}
+        onAdjust={handleTimerAdjust}
+        expanded={timerBarExpanded}
+        onToggleExpanded={() => setTimerBarExpanded((v) => !v)}
+      />
       <div ref={homeScrollRef} style={tabWrapperStyle('home')}>
         <HomeTab
           uid={authUser.uid}

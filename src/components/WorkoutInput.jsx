@@ -352,7 +352,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }
 
   // 홈탭의 "취소" 버튼에서도 동일한 취소 동작을 호출할 수 있게 노출.
-  useImperativeHandle(ref, () => ({ cancelSession: handleCancelSession }))
+  // [2026-08-04 변경] 기록탭 전용 sticky 타이머 바를 없애고 4탭 공통 상단 GlobalTimerBar로
+  // 컨트롤을 옮기면서, 그 컨트롤(±10초/초기화/일시정지·재개)도 이 ref를 통해 App.jsx →
+  // GlobalTimerBar가 직접 호출할 수 있게 노출한다. handlePauseToggle/handleResetElapsed/
+  // handleAdjustElapsed는 아래쪽에서 정의되지만 함수 선언(function 문)이라 호이스팅되어
+  // 여기서 참조 가능하다.
+  useImperativeHandle(ref, () => ({
+    cancelSession: handleCancelSession,
+    togglePause: handlePauseToggle,
+    resetElapsed: handleResetElapsed,
+    adjustElapsed: handleAdjustElapsed,
+  }))
 
   // 운동 시작 버튼은 하나뿐: 누르면 곧바로 웜업이 시작되고(선택할 시간 없음),
   // 준비되면 "본운동 시작" 버튼으로 넘어간다.
@@ -850,108 +860,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           {setToast}
         </div>
       )}
-      {/* 총 운동시간 (웜업 시작 시점부터 누적, 일시정지 구간 제외) */}
-      {/* [2026-07-31 신규] 스크롤을 내려도 계속 보이도록 상단에 고정(⑤). 부모 탭 컨테이너
-          (App.jsx tabWrapperStyle)의 overflowY:auto가 스크롤 조상이라 position:sticky가
-          그 기준으로 정상 동작한다. */}
-      {sessionPhase !== 'idle' && (
-        <div
-          style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 5,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 14,
-            padding: '10px 14px',
-            borderRadius: 10,
-            // [2026-08-02 신규] 운동이 실제로 진행 중(일시정지 아님)일 때는 골드 계열의 은은한
-            // 배경으로 바꿔, 타이머가 흐르고 있다는 걸 카드 색만 봐도 알 수 있게 한다(⑦).
-            background: isPaused ? 'var(--color-bg-elevated)' : 'var(--color-rest-bg)',
-            boxShadow: '0 4px 10px rgba(0,0,0,0.18)',
-            transition: 'background 0.2s ease',
-          }}
-        >
-          <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
-            {isPaused ? '일시정지됨' : sessionPhase === 'warmup' ? '웜업 중' : '총 운동시간'}
-          </span>
-          {/* [2026-08-01 수정] 경과시간이 1시간을 넘어 h:mm:ss(예: 1:23:45) 형태로 길어지면
-              flexWrap: 'wrap' 때문에 -10초/+10초 버튼과 함께 2줄로 줄바꿈되던 문제(⑨) 수정 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
-            <button
-              title="10초 빼기"
-              onClick={() => handleAdjustElapsed(-10)}
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 6,
-                fontSize: 14,
-                fontWeight: 700,
-                color: 'var(--color-label-normal)',
-                border: '1px solid var(--color-line)',
-                background: 'var(--color-bg-elevated)',
-                flexShrink: 0,
-              }}
-            >
-              −
-            </button>
-            <span className="record-notation" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)', flexShrink: 0 }}>
-              {formatClock(elapsedSeconds)}
-            </span>
-            <button
-              title="10초 더하기"
-              onClick={() => handleAdjustElapsed(10)}
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 6,
-                fontSize: 14,
-                fontWeight: 700,
-                color: 'var(--color-label-normal)',
-                border: '1px solid var(--color-line)',
-                background: 'var(--color-bg-elevated)',
-                flexShrink: 0,
-              }}
-            >
-              +
-            </button>
-            <button
-              title="운동시간 초기화"
-              onClick={handleResetElapsed}
-              style={{
-                padding: '6px 10px',
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-                color: 'var(--color-label-neutral)',
-                border: '1px solid var(--color-line)',
-                background: 'var(--color-bg-elevated)',
-                flexShrink: 0,
-              }}
-            >
-              초기화
-            </button>
-            <button
-              onClick={handlePauseToggle}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-                background: isPaused ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
-                color: isPaused ? 'var(--color-on-gold)' : 'var(--color-label-normal)',
-                border: isPaused ? 'none' : '1px solid var(--color-line)',
-                flexShrink: 0,
-              }}
-            >
-              {isPaused ? '재개' : '일시정지'}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* [2026-08-04 변경] 기록탭 전용 sticky 타이머 바(총 운동시간 + ±10초/초기화/일시정지)를
+          제거했다. 운동 시작 후에는 이 바 대신 4탭 공통 상단 GlobalTimerBar가 항상 보이고,
+          동일한 컨트롤을 그쪽에서 제공한다(App.jsx → logTabRef.current.adjustElapsed 등).
+          elapsedSeconds/isPaused/handleAdjustElapsed/handleResetElapsed/handlePauseToggle는
+          여전히 draft 저장·자동재개 등 다른 로직에서 쓰이므로 그대로 둔다. */}
 
       {/* 운동방식: 내 루틴(최대 8개) 중 선택 / 자유 추가 운동 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
@@ -1541,10 +1454,17 @@ function ExerciseCard({
           </IconButton>
         ) : (
           <>
-            <IconButton title="오늘만 목록에서 숨기기" onClick={onHideToday} muted>
-              <path d="M7 7l10 10M17 7L7 17" />
+            {/* [2026-08-04 변경] "오늘만 숨기기"(임시)와 "완전히 삭제"(영구, 아래) 아이콘이
+                둘 다 X자 모양이라 구분이 안 돼, 사용자가 임시 숨김을 삭제로 착각해 누르고
+                "삭제했는데 종목추가 목록에 다시 안 뜬다"고 느끼는 원인이 됐다(② 재확인 결과).
+                두 기능은 스펙상(4.2/8.4) 임시 숨김·영구 삭제로 별개 유지가 맞으므로, 동작은
+                그대로 두고 아이콘만 눈에 잘 띄게 구분한다 — 숨기기는 eye-off 아이콘으로 교체. */}
+            <IconButton title="오늘만 목록에서 숨기기 (내일 다시 보임)" onClick={onHideToday} muted>
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+              <circle cx="12" cy="12" r="3" />
+              <path d="M4 4l16 16" />
             </IconButton>
-            <IconButton title="이 파트에서 완전히 삭제" onClick={onRemoveFromRoutine} muted>
+            <IconButton title="이 파트에서 완전히 삭제 (종목추가 목록에 다시 나타남)" onClick={onRemoveFromRoutine} muted>
               <path d="M5 7h14M9 7V5h6v2M7 7l1 12h8l1-12" />
             </IconButton>
           </>

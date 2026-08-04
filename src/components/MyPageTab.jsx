@@ -491,8 +491,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
 
       <SectionTitle>내 커스텀 종목</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
+        {/* [2026-08-04 변경] "기존 운동목록에 없는 운동명칭을 직접 지정해 추가하는 기능"이라는
+            핵심 설명이 빠져 있어, 커스텀 종목의 용도가 헷갈린다는 피드백으로 문구 보완. */}
         <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-          부위를 고르고 운동명을 추가하면, 이후 기록탭·루틴 편집에서 나만 볼 수 있는 종목으로 선택할 수 있어요.
+          기존 운동목록에 없는 운동명칭을 직접 지정해서 추가하는 기능이에요. 부위를 고르고 운동명을
+          입력하면, 이후 기록탭·루틴 편집에서 나만 볼 수 있는 종목으로 선택할 수 있어요.
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
           {BODY_PART_ATOMS.map((atom) => (

@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -20,7 +18,7 @@ import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom } from '../storage'
 import { getTierByXp } from '../utils/tier'
 import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeFinalScore } from '../utils/scoring'
-import { getExerciseAtom, BODY_PART_ATOMS } from '../utils/exerciseLibrary'
+import { getExerciseAtom, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 import { toLocalDateStr } from '../utils/date'
 
@@ -213,32 +211,33 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logsVersion])
 
-  // ── 주간 총 볼륨 ──
-  // [2026-07-29 개편] 기존에는 로그가 있는 모든 주를 "n월 n주"(연중 몇 번째 주) 라벨로 나열해서,
-  // "7월 31주"처럼 일자로 착각하기 쉬운 표기가 나왔다. 사용자가 실제로 궁금해하는 건 "요즘 늘고
-  // 있는지"이므로, 지난주 대비 이번 주 딱 두 막대만 비교하는 형태로 단순화했다(다른 곳에서도
-  // 이미 쓰는 startOfWeek 기준과 동일하게 계산).
-  const weeklyVolumeCompare = useMemo(() => {
-    const today = new Date()
-    const weekStart = startOfWeek(today)
-    const prevWeekStart = new Date(weekStart)
-    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
-    const fmt = (d) => toLocalDateStr(d)
-    const thisWeekVolume = logs
-      .filter((l) => l.date >= fmt(weekStart))
-      .reduce((s, l) => s + (l.totalVolume || 0), 0)
-    const lastWeekVolume = logs
-      .filter((l) => l.date >= fmt(prevWeekStart) && l.date < fmt(weekStart))
-      .reduce((s, l) => s + (l.totalVolume || 0), 0)
-    const diffPct = lastWeekVolume > 0 ? Math.round(((thisWeekVolume - lastWeekVolume) / lastWeekVolume) * 100) : null
-    return {
-      chartData: [
-        { label: '지난주', volume: lastWeekVolume },
-        { label: '이번주', volume: thisWeekVolume },
-      ],
-      diffPct,
-    }
+  // ── 누적 볼륨(부위별) ──
+  // [2026-08-04 변경] 기존 "지난주 대비 이번 주" 막대 비교는 두 주 사이 편차가 커서(예: 이번주
+  // 기록이 적으면 큰 폭 감소로 보임) 큰 의미가 없다는 피드백으로, 서비스 시작 이후 전체
+  // 누적 볼륨을 부위별로 보여주는 형태로 교체한다. STATS_RANGE_DAYS로 조회 범위가 제한된
+  // logs를 그대로 쓰므로, "최근 12주 누적"이 사실상의 전체 누적 범위가 된다.
+  const cumulativeVolumeByPart = useMemo(() => {
+    const totals = {}
+    logs.forEach((log) => {
+      log.exercises?.forEach((ex) => {
+        const atom = getExerciseAtom(ex.name)
+        if (!atom) return
+        const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
+        totals[atom] = (totals[atom] || 0) + volume
+      })
+    })
+    return BODY_PART_ATOMS.filter((atom) => totals[atom] > 0)
+      .map((atom) => ({ part: atom, volume: Math.round(totals[atom]) }))
+      .sort((a, b) => b.volume - a.volume)
   }, [logs])
+  const cumulativeVolumeTotal = useMemo(
+    () => cumulativeVolumeByPart.reduce((s, r) => s + r.volume, 0),
+    [cumulativeVolumeByPart]
+  )
+  const cumulativeVolumeMax = useMemo(
+    () => Math.max(1, ...cumulativeVolumeByPart.map((r) => r.volume)),
+    [cumulativeVolumeByPart]
+  )
 
   // [2026-08-02 재수정] 기존에는 isoWeekLabel(연중 몇 번째 주)로 로그를 묶은 뒤 "배열의 마지막
   // 항목"을 이번 주로 간주했다(⑬). 월말/월초처럼 이번 주에 기록이 하나도 없는 경우, 배열의
@@ -268,8 +267,25 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     }
   }, [logs])
 
-  const thisWeekSessions = weeklyAttendance.thisWeekSessions
-  const attendanceRate = Math.min(100, Math.round((thisWeekSessions / targetSessionsPerWeek) * 100))
+  // [2026-08-04 변경] 기존에는 "이번 주 세션 수 / 내 루틴 분할 기준 목표 횟수"로 출석률을
+  // 계산해서, 예를 들어 3분할 루틴이면 주 3회만 채워도 100%가 되는 등 루틴 구성에 따라
+  // 기준이 달라졌다. 요청대로 루틴과 무관하게 "이번 주(월~일) 7일 중 실제로 운동을 완료한
+  // 날짜 수"만 기준으로 단순화한다. 같은 날 여러 번 기록해도 1일로만 센다.
+  const weeklyAttendanceDays = useMemo(() => {
+    const today = new Date()
+    const weekStart = startOfWeek(today)
+    const prevWeekStart = new Date(weekStart)
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
+    const fmt = (d) => toLocalDateStr(d)
+    const weekStartStr = fmt(weekStart)
+    const prevWeekStartStr = fmt(prevWeekStart)
+    const thisWeekDaySet = new Set(logs.filter((l) => l.date >= weekStartStr).map((l) => l.date))
+    const lastWeekDaySet = new Set(
+      logs.filter((l) => l.date >= prevWeekStartStr && l.date < weekStartStr).map((l) => l.date)
+    )
+    return { thisWeek: thisWeekDaySet.size, lastWeek: lastWeekDaySet.size }
+  }, [logs])
+  const attendanceRate = Math.round((weeklyAttendanceDays.thisWeek / 7) * 100)
 
   // ── 부위별 운동 추이 (신규) ──
   // [2026-07-31 변경] 라이브러리 개편 전 이름 등으로 현재 EXERCISE_LIBRARY와 매칭되지
@@ -359,6 +375,20 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     const fmt = (d) => toLocalDateStr(d)
     return computeOverloadByOccurrence(logs, fmt(weekStart))
   }, [logs])
+
+  // [2026-08-04 신규] 점진적 과부하 리스트를 종목명만 나열하지 않고 부위별로 묶어서 보여주기
+  // 위한 그룹핑. BODY_PART_ATOMS 순서로 정렬하고, 그 안에서는 기존 회차 순서를 유지한다.
+  const overloadByPart = useMemo(() => {
+    const visible = overloadProgress.occurrences.filter((o) => !o.isNew)
+    const groups = {}
+    visible.forEach((o) => {
+      const atom = getExerciseAtom(o.name) || '기타'
+      if (!groups[atom]) groups[atom] = []
+      groups[atom].push(o)
+    })
+    const order = [...BODY_PART_ATOMS, '기타']
+    return order.filter((atom) => groups[atom]?.length).map((atom) => ({ atom, occurrences: groups[atom] }))
+  }, [overloadProgress])
 
   // ── 제일 많이 한 운동 (신규) ──
   const mostFrequentExercises = useMemo(() => {
@@ -496,50 +526,60 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
       ) : (
         <>
           {/* 이번 주 출석률 */}
+          {/* [2026-08-04 변경] 루틴 분할 기준 목표 횟수 대신, 이번 주(월~일) 7일 중 운동을
+              완료한 날짜 수만으로 단순 계산하도록 바꿨다. */}
           <SectionTitle>이번 주 출석률</SectionTitle>
           <Card style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-primary-normal)' }}>{attendanceRate}%</span>
               <span className="record-notation" style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                {thisWeekSessions} / {targetSessionsPerWeek}회
+                {weeklyAttendanceDays.thisWeek} / 7일
               </span>
             </div>
-            {/* [2026-08-02 신규] 분모(목표 횟수)가 사용자가 직접 정한 값이 아니라 "내 루틴"
-                분할 파트 개수(예: 3분할=3회)에서 자동으로 오는 값이라, 화면만 봐서는 그 기준을
-                알기 어렵다는 피드백이 있었다. 로직은 그대로 두고, 기준을 짧게 밝혀준다. */}
             <p className="text-keep-all" style={{ fontSize: 11, color: 'var(--color-label-neutral)', margin: '4px 0 0' }}>
-              목표 {targetSessionsPerWeek}회는 내 루틴 분할 기준이에요
+              이번 주 7일 중 운동을 완료한 날짜 수 기준이에요 (루틴 분할과 무관)
             </p>
             {/* [2026-08-02 신규] "이번 주"의 실제 날짜 범위(⑬)를 함께 표기해, 월말/월초처럼
                 주 경계가 헷갈리는 시점에도 어떤 기준으로 계산된 값인지 명확히 알 수 있게 한다. */}
             <p className="record-notation" style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--color-label-neutral)' }}>
-              이번주 {weeklyAttendance.thisWeekLabel} · 지난주 {weeklyAttendance.lastWeekLabel} 대비 {weeklyAttendance.lastWeekSessions}회
+              이번주 {weeklyAttendance.thisWeekLabel} · 지난주 {weeklyAttendance.lastWeekLabel} 대비 {weeklyAttendanceDays.lastWeek}일
             </p>
           </Card>
 
-          {/* 주간 총 볼륨 */}
-          <SectionTitle>주간 총 볼륨</SectionTitle>
+          {/* 누적 볼륨(부위별) */}
+          {/* [2026-08-04 변경] "지난주 vs 이번주" 비교 대신, 지금까지 쌓인 전체 볼륨을 부위별
+              가로 막대로 보여준다. 각 파트 6색 팔레트(getPartColor)를 그대로 사용해 캘린더뷰 등
+              다른 화면과 색상 일관성을 유지한다. */}
+          <SectionTitle>누적 볼륨 (부위별)</SectionTitle>
           <Card style={{ marginBottom: 20 }}>
-            {weeklyVolumeCompare.diffPct != null && (
-              <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-normal)' }}>
-                지난주 대비{' '}
-                <b style={{ color: weeklyVolumeCompare.diffPct >= 0 ? 'var(--color-primary-normal)' : 'var(--color-label-neutral)' }}>
-                  {weeklyVolumeCompare.diffPct >= 0 ? `▲ ${weeklyVolumeCompare.diffPct}%` : `▼ ${Math.abs(weeklyVolumeCompare.diffPct)}%`}
-                </b>{' '}
-                {weeklyVolumeCompare.diffPct >= 0 ? '늘었어요' : '줄었어요'}
-              </p>
+            {cumulativeVolumeByPart.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>아직 데이터가 없어요.</p>
+            ) : (
+              <>
+                <p className="record-notation" style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
+                  전체 누적 {cumulativeVolumeTotal.toLocaleString()}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {cumulativeVolumeByPart.map((row) => {
+                    const color = getPartColor(row.part)
+                    const pct = Math.round((row.volume / cumulativeVolumeMax) * 100)
+                    return (
+                      <div key={row.part}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color }}>{row.part}</span>
+                          <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                            {row.volume.toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ height: 8, borderRadius: 999, background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 999, background: color }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
             )}
-            <div style={{ height: 160 }}>
-              <ResponsiveContainer key={isActive ? 'volume-on' : 'volume-off'} width="100%" height="100%">
-                <BarChart data={weeklyVolumeCompare.chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
-                  <XAxis dataKey="label" fontSize={12} stroke="var(--color-label-neutral)" />
-                  <YAxis fontSize={11} stroke="var(--color-label-neutral)" />
-                  <Tooltip {...CHART_TOOLTIP_STYLE} />
-                  <Bar dataKey="volume" fill="var(--color-primary-normal)" radius={[6, 6, 0, 0]} barSize={56} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
           </Card>
 
           {/* 부위별 운동 추이 (2026-07-29: 스택 막대 → 레이더 차트로 교체) */}
@@ -590,6 +630,10 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           </Card>
 
           {/* 점진적 과부하 진행상황 */}
+          {/* [2026-08-04 변경] 종목명을 부위 구분 없이 나열하던 것을, 부위별로 묶어서 보여주고
+              각 회차를 누르면 그 종목의 중량 추이 미니 차트가 바로 아래 펼쳐지도록 바꿨다.
+              (아래 "종목별 중량 추이" 섹션과 selectedExercise 상태를 공유해, 여기서 고른 종목이
+              그쪽 칩 목록에서도 그대로 활성 표시된다.) */}
           <SectionTitle>점진적 과부하 진행상황</SectionTitle>
           <Card style={{ marginBottom: 20 }}>
             {overloadProgress.occurrences.length === 0 ? (
@@ -611,26 +655,59 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                     직전 수행 대비 중량·볼륨이 늘어난 회차 비율
                   </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {/* [2026-07-31 변경] "지난주 전체 대비"에서 "같은 종목의 직전 수행 대비"로
-                      바뀌면서, 3분할 등으로 같은 종목을 이번 주에 여러 번 했다면 회차마다
-                      (날짜 표기로 구분) 각각 노출된다. 비교 대상(직전 수행)이 없는 "첫 기록"
-                      회차는 리스트에서 숨긴다(점수 계산에는 포함, 표시만 제외 — 기존 방침 유지). */}
-                  {overloadProgress.occurrences
-                    .filter((o) => !o.isNew)
-                    .map((o, i) => (
-                      <div key={`${o.name}-${o.date}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                        <span className="text-keep-all">
-                          {o.name}{' '}
-                          <span style={{ color: 'var(--color-label-neutral)', fontSize: 11 }}>
-                            ({o.date.slice(5).replace('-', '/')})
-                          </span>
-                        </span>
-                        <span style={{ fontWeight: 700, color: o.improved ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>
-                          {o.improved ? '▲ 향상' : '유지'}
-                        </span>
+                <p className="text-keep-all" style={{ fontSize: 11, color: 'var(--color-label-neutral)', margin: '0 0 12px' }}>
+                  종목을 누르면 중량 추이를 바로 볼 수 있어요.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {overloadByPart.map(({ atom, occurrences }) => (
+                    <div key={atom}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: getPartColor(atom), marginBottom: 6 }}>{atom}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {occurrences.map((o, i) => {
+                          const isSelected = selectedExercise === o.name
+                          return (
+                            <div key={`${o.name}-${o.date}-${i}`}>
+                              <button
+                                onClick={() => setSelectedExercise(isSelected ? null : o.name)}
+                                style={{
+                                  width: '100%',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  fontSize: 13,
+                                  padding: '6px 8px',
+                                  borderRadius: 8,
+                                  background: isSelected ? 'var(--color-bg-elevated)' : 'transparent',
+                                }}
+                              >
+                                <span className="text-keep-all">
+                                  {o.name}{' '}
+                                  <span style={{ color: 'var(--color-label-neutral)', fontSize: 11 }}>
+                                    ({o.date.slice(5).replace('-', '/')})
+                                  </span>
+                                </span>
+                                <span style={{ fontWeight: 700, color: o.improved ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>
+                                  {o.improved ? '▲ 향상' : '유지'}
+                                </span>
+                              </button>
+                              {isSelected && (
+                                <div style={{ height: 140, margin: '4px 0 2px' }}>
+                                  <ResponsiveContainer key={isActive ? 'overload-trend-on' : 'overload-trend-off'} width="100%" height="100%">
+                                    <LineChart data={exerciseTrend}>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
+                                      <XAxis dataKey="date" fontSize={10} stroke="var(--color-label-neutral)" />
+                                      <YAxis fontSize={10} stroke="var(--color-label-neutral)" />
+                                      <Tooltip {...CHART_TOOLTIP_STYLE} />
+                                      <Line type="monotone" dataKey="topWeight" stroke={getPartColor(atom)} strokeWidth={2} dot={{ r: 3 }} />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
-                    ))}
+                    </div>
+                  ))}
                 </div>
               </>
             )}
