@@ -24,9 +24,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   )
   const [wakeLockEnabled, setWakeLockEnabled] = useState(!!userDoc?.restTimerWakeLockEnabled)
   const [restSoundId, setRestSoundId] = useState(userDoc?.restTimerSoundId || 'beep')
-  // [2026-07-30 신규, 2026-08-01 3종으로 확장] 화면 테마: 'dark'(블랙골드, 기본) |
-  // 'beige'(베이지블랙, 골드 포인트 유지) | 'light'(화이트블루, 구 v1)
-  const [themePreference, setThemePreferenceState] = useState(userDoc?.themePreference || 'dark')
+  // [2026-07-30 신규, 2026-08-01 3종으로 확장, 2026-08-04 기본값 beige로 변경] 화면 테마:
+  // 'dark'(블랙골드) | 'beige'(베이지블랙, 기본) | 'light'(화이트블루, 구 v1)
+  const [themePreference, setThemePreferenceState] = useState(userDoc?.themePreference || 'beige')
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
   const [addingCustomGoal, setAddingCustomGoal] = useState(false)
@@ -598,9 +598,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
 
       <SectionTitle>화면 테마</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
-        <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-          기본은 블랙골드 테마예요. 베이지블랙이나 화이트블루로 선택적으로 바꿀 수 있어요.
-        </p>
         <div style={{ display: 'flex', gap: 8 }}>
           <Chip active={themePreference === 'dark'} onClick={() => selectTheme('dark')} style={{ flex: 1, justifyContent: 'center' }}>
             블랙골드

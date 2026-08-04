@@ -119,10 +119,11 @@ const DEFAULT_USER_DOC = {
   restTimerNotificationPermission: false,
   restTimerWakeLockEnabled: false,
   restTimerSoundId: 'beep',
-  // [2026-07-30 신규] MY탭 "화면 테마" 선택. 'dark'(매트블랙골드, 기본) | 'light'(구 화이트+블루+쿨그레이).
+  // [2026-07-30 신규, 2026-08-04 기본값을 dark→beige로 변경] MY탭 "화면 테마" 선택.
+  // 'dark'(매트블랙골드) | 'beige'(베이지블랙, 기본) | 'light'(구 화이트+블루+쿨그레이).
   // 계정(Firestore) 기준으로 저장해 기기를 바꿔도 유지된다. 로그인/온보딩 화면에는 적용하지 않고
   // 온보딩 완료 이후 메인 앱 화면부터 적용한다(App.jsx 참고).
-  themePreference: 'dark',
+  themePreference: 'beige',
   socialNotificationOptIn: false,
   routineSetupSkipped: false, // 최초 루틴 설정에서 "나중에 입력"을 눌렀는지 여부
   // [2026-07-30 신규] MY탭에서 사용자가 부위별로 직접 추가하는 "나만 보이는" 커스텀 종목.

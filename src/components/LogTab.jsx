@@ -6,6 +6,7 @@ import WorkoutInput from './WorkoutInput'
 // 기록탭은 이제 운동기록 입력(WorkoutInput)만 보여준다.
 // [2026-07-30] 홈탭의 "운동중" 상태 표시 + 취소 버튼을 위해 WorkoutInput의 ref(cancelSession)와
 // onSessionPhaseChange를 그대로 통과시킨다.
+// [2026-08-04 신규] 상단 고정 타이머 바(전탭 공통 표시)를 위해 onSessionTimingChange도 통과시킨다.
 const LogTab = forwardRef(function LogTab(
   {
     uid,
@@ -17,6 +18,7 @@ const LogTab = forwardRef(function LogTab(
     onLogSaved,
     onRoutineUpdated,
     onSessionPhaseChange,
+    onSessionTimingChange,
     customExercises,
     onGoToRoutineSetup,
   },
@@ -34,6 +36,7 @@ const LogTab = forwardRef(function LogTab(
       onSaved={onLogSaved}
       onRoutineUpdated={onRoutineUpdated}
       onSessionPhaseChange={onSessionPhaseChange}
+      onSessionTimingChange={onSessionTimingChange}
       customExercises={customExercises}
       onGoToRoutineSetup={onGoToRoutineSetup}
     />

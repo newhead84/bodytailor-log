@@ -94,6 +94,9 @@
 
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --bottom-nav-height: 60px;
+  /* [2026-08-04 신규] 상단 고정 타이머 바(GlobalTimerBar) 노치 대응 + 높이 */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --global-timer-bar-height: 40px;
 }
 
 /* [2026-07-30 신규] MY탭 "화면 테마" — 라이트 테마(html[data-theme="light"]).

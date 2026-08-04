@@ -1,10 +1,11 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-02] 기록탭/리포트탭/MY탭 후속 수정 7건 — 응원멘트 종목완료 시점으로
- *            이동, 트레드밀 입력 2줄 레이아웃 재구조화(겹침 근본해결), 세트저장 버튼 베이지
- *            텍스트, 출석률 월~일 기준 수정, "n/n회" 라벨 보완, MY탭 등급 캡션 삭제, 동작
- *            가이드 이미지 연동 전면 삭제(라이선스 이슈) | 운동 종목 DB 9필드 재구축은 보류.
- *            WorkoutInput/RoutineSetup/ReportTab/MyPageTab.jsx
+ * 최신 변경: [2026-08-04] 테마 기본값 dark→beige 변경 + 선택 안내문구 중립화, 칼로리
+ *            계산 ACSM/Compendium 기반 전면 개편(트레드밀 실측 속도·경사 반영), 4탭 공통
+ *            상단 고정 실시간 타이머 바 신규, [근본원인 수정] 내 루틴 종목추가/삭제 후
+ *            재노출 안 되던 경쟁상태 버그 | App.jsx, LogTab/WorkoutInput/MyPageTab/
+ *            GlobalTimerBar.jsx(신규), storage.js, utils/calories.js, styles/tokens.css.
+ *            운동 종목 DB 재구축은 이번에도 보류.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -24,6 +25,7 @@ import InquiryScreen from './components/InquiryScreen'
 import InquiryAdminScreen from './components/InquiryAdminScreen'
 import MyPageTab from './components/MyPageTab'
 import SplashScreen from './components/SplashScreen'
+import GlobalTimerBar from './components/GlobalTimerBar'
 import { useBackableScreen } from './hooks/useBackableScreen'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
@@ -73,6 +75,14 @@ export default function App() {
   // [2026-07-30 신규] 홈탭 "운동중" 상태 표시 + 취소 버튼용: 기록탭(WorkoutInput)의 세션
   // 진행 단계('idle'|'warmup'|'main')를 구독하고, ref로 취소 동작을 호출할 수 있게 한다.
   const [workoutPhase, setWorkoutPhase] = useState('idle')
+  // [2026-08-04 신규] 상단 고정 타이머 바(전탭 공통)용 타이밍 값. WorkoutInput의
+  // onSessionTimingChange가 바뀔 때마다 갱신되며, 실제 tick은 GlobalTimerBar 내부에서 돈다.
+  const [sessionTiming, setSessionTiming] = useState({
+    sessionPhase: 'idle',
+    sessionStartAt: null,
+    pauseStartedAt: null,
+    pausedAccumMs: 0,
+  })
   const logTabRef = useRef(null)
   const handleCancelWorkout = useCallback(() => {
     logTabRef.current?.cancelSession?.()
@@ -157,7 +167,7 @@ export default function App() {
   // 적용 범위는 "로그인 이후 메인 4탭 전체"로 한정 — 로그인/온보딩 화면(userDoc이 없거나
   // 온보딩 미완료)에서는 항상 dark를 유지하고, 온보딩이 끝난 뒤부터만 사용자 선택을 반영한다.
   useEffect(() => {
-    const theme = userDoc?.onboardingCompleted ? userDoc.themePreference || 'dark' : 'dark'
+    const theme = userDoc?.onboardingCompleted ? userDoc.themePreference || 'beige' : 'dark'
     document.documentElement.setAttribute('data-theme', theme)
     // [2026-07-30] 노티바(브라우저 주소창 틴트/상태표시줄) 색상이 테마와 무관하게 골드로
     // 고정돼 있던 문제 수정: index.html의 theme-color 메타 태그를 라이트=블루/다크=골드로
@@ -298,19 +308,24 @@ export default function App() {
   // visible로 바뀌고 사라질 때는 트랜지션이 끝난 뒤에 hidden으로 바뀌어 자연스럽게 페이드된다.
   function tabWrapperStyle(tab) {
     const isActive = activeTab === tab
+    const barShowing = sessionTiming.sessionPhase === 'warmup' || sessionTiming.sessionPhase === 'main'
     return {
       position: 'absolute',
-      inset: 0,
+      top: barShowing ? 'calc(var(--safe-top) + var(--global-timer-bar-height))' : 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
       overflowY: 'auto',
       opacity: isActive ? 1 : 0,
       visibility: isActive ? 'visible' : 'hidden',
-      transition: 'opacity 0.18s ease, visibility 0.18s ease',
+      transition: 'opacity 0.18s ease, visibility 0.18s ease, top 0.15s ease',
       pointerEvents: isActive ? 'auto' : 'none',
     }
   }
 
   return (
     <div style={{ height: '100%', position: 'relative' }}>
+      <GlobalTimerBar timing={sessionTiming} onPress={() => setActiveTab('log')} />
       <div ref={homeScrollRef} style={tabWrapperStyle('home')}>
         <HomeTab
           uid={authUser.uid}
@@ -335,6 +350,7 @@ export default function App() {
           onLogSaved={handleLogSaved}
           onRoutineUpdated={refreshRoutineTemplates}
           onSessionPhaseChange={setWorkoutPhase}
+          onSessionTimingChange={setSessionTiming}
           customExercises={userDoc.customExercises || {}}
           onGoToRoutineSetup={() => setManagingRoutines(true)}
         />

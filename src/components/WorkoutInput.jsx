@@ -11,12 +11,11 @@ import {
   getAtomsForPartName,
   getExerciseColorWithCustom,
   getExerciseAtom,
-  getExerciseDisplayAtom,
   getExerciseInputType,
   getWeightStep,
   BODY_PART_ATOMS,
 } from '../utils/exerciseLibrary'
-import { estimateCalories } from '../utils/calories'
+import { estimateCaloriesV2 } from '../utils/calories'
 import { getSuggestedNext } from '../utils/routineSuggestion'
 import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate } from '../storage'
 import { todayStr } from '../utils/date'
@@ -76,6 +75,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     onSaved,
     onRoutineUpdated,
     onSessionPhaseChange,
+    onSessionTimingChange,
     customExercises,
     onGoToRoutineSetup,
   },
@@ -171,11 +171,19 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     return () => clearInterval(t)
   }, [sessionPhase])
 
-  // 선택된 파트가 바뀔 때마다(또는 루틴 데이터가 갱신될 때마다) 표시 순서를 동기화
+  // [2026-08-04 근본원인 수정] "종목 추가했다가 X로 지우면 종목추가 목록에 다시 안 보이는"
+  // 버그의 원인. 기존에는 selectedPart(객체 참조)가 바뀔 때마다 재동기화했는데, addExerciseToRoutine
+  // /removeExerciseFromRoutine이 로컬 partOrder를 낙관적으로 갱신한 직후 스스로 호출하는
+  // persistPartExercises() → onRoutineUpdated()의 리페치가 라운드트립 도중 겹치면, 뒤늦게
+  // 도착한(추가 이전 시점의) 응답이 selectedPart를 다시 만들어내며 이 effect를 재실행시켜
+  // 방금 지운 종목을 partOrder에 도로 채워 넣는 경쟁 상태가 있었다(그 결과 그 종목이 여전히
+  // "루틴에 있는 것"으로 취급돼 종목추가 피커에 다시 안 뜸). 종목 추가/삭제로 인한
+  // routineTemplates prop 갱신에는 더 이상 반응하지 않고, 사용자가 실제로 다른
+  // 파트/루틴으로 전환했을 때(selectedTemplateId·selectedPartName 변경)에만 재동기화한다.
   useEffect(() => {
     setPartOrder(selectedPart?.exercises || [])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPart])
+  }, [selectedTemplateId, selectedPartName])
 
   // [2026-07-31 신규] 홈탭과 동일한 로테이션 추천(getSuggestedNext) 기준으로 "오늘 할 운동"을
   // 자동 선택하기 위한 최근 로그 조회(①). 임시저장(draft)에 이미 선택값이 있으면 그게 우선이고,
@@ -305,6 +313,16 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     onSessionPhaseChange?.(sessionPhase)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionPhase])
+
+  // [2026-08-04 신규] 탭 이동 중에도 상단에 실시간 타이머를 유지하기 위해, 타이밍 관련
+  // 값(시작시각/일시정지시각/누적 일시정지시간/현재 단계)이 바뀔 때마다 상위(App.jsx)에
+  // 전달한다. App.jsx는 이 값으로 자체 tick을 돌려 4탭 공통 상단 바에 경과시간을 표시한다.
+  // (기록탭이 화면에 없어도 이 컴포넌트 자체는 계속 마운트돼 있으므로 이 값들은 실시간으로
+  // 갱신된다 — App.jsx 287행 주석 참고.)
+  useEffect(() => {
+    onSessionTimingChange?.({ sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs])
 
   // [2026-07-30 신규] 운동 시작을 잘못 눌렀을 때를 위한 취소. 웜업/본운동 진행 중에만
   // 노출되며, 세션 상태(단계·타이머·오늘 입력한 기록)를 모두 초기화하고 임시저장(draft)도 지운다.
@@ -690,10 +708,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
     const totalDurationSec = sessionStartAt ? Math.round((Date.now() - sessionStartAt) / 1000) : null
 
-    // 기록한 종목 중 절반 이상이 유산소면 유산소 위주 세션으로 보고 칼로리 계산식을 달리 적용
-    const cardioCount = exercises.filter((e) => getExerciseDisplayAtom(e.name) === '유산소').length
-    const cardioHeavy = exercises.length > 0 && cardioCount / exercises.length >= 0.5
-    const caloriesKcal = estimateCalories(weightKg, totalDurationSec, cardioHeavy)
+    // [2026-08-04 개편] 기존 "유산소 종목이 절반 이상이면 통째로 MET 7.0" 방식(이분법) 대신,
+    // 종목별로 정확한 칼로리를 계산한다. 트레드밀/인클라인워킹은 실측 속도·경사로 ACSM
+    // 대사공식을 적용하고, 그 외 유산소는 Compendium 고정 MET, 근력 부위는 부위별 MET을
+    // 세트 수 비중으로 가중평균한다(utils/calories.js 참고).
+    const caloriesKcal = estimateCaloriesV2(weightKg, exercises, totalDurationSec)
 
     const { xpEarned } = await addWorkoutLog(uid, {
       date: todayStr(),

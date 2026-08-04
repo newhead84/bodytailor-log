@@ -2,6 +2,38 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-08-04] 테마/칼로리/상단 타이머 3건 + 내 루틴 종목추가 버그 1건 반영 (운동 종목 DB 재구축은 이번에도 보류)
+- **[근본원인 수정] 내 루틴 종목 추가/삭제 후 종목추가 목록에 재노출 안 되는 버그**: (첫
+  보고 시 "자유 추가 운동"으로 오인, 실제로는 "내 루틴" 분할 진행 중 종목추가/삭제
+  케이스였음) `WorkoutInput.jsx`의 `partOrder` 동기화 effect가 `selectedPart`(객체 참조)를
+  의존성으로 삼고 있어, 종목 추가/삭제 시 로컬로 낙관적 갱신한 직후 스스로 트리거하는
+  `persistPartExercises()`→`onRoutineUpdated()` 리페치가 라운드트립 도중 겹치면 뒤늦게
+  도착한 이전 시점 응답이 방금 지운 종목을 partOrder에 도로 채워 넣는 경쟁 상태가 있었음.
+  의존성을 `[selectedTemplateId, selectedPartName]`(실제 파트/루틴 전환 시점)로 변경해
+  routineTemplates prop 리페치 자체에는 더 이상 반응하지 않도록 수정.
+- **기본 테마 → 베이지블랙**: 신규 계정 기본값·온보딩 완료 후 폴백값을 `dark`→`beige`로
+  변경(`storage.js`, `App.jsx`, `MyPageTab.jsx`). MY탭 테마 선택 카드의 "기본은
+  블랙골드 테마예요..." 안내문구 삭제, 3개 칩만 남기고 특정 테마를 기본값처럼 안내하지
+  않도록 중립화.
+- **칼로리 계산 전면 개편**: 기존에는 세션 전체를 "웨이트(MET 5.0)" 또는 "유산소위주(MET
+  7.0)" 이분법으로만 판정했는데, ACSM 대사공식 + Compendium of Physical Activities 근사
+  MET 체계로 교체(`utils/calories.js` `estimateCaloriesV2`). 트레드밀/인클라인워킹은
+  실측 속도·경사로 세트별 MET을 직접 계산(ACSM 보행/러닝 공식), 그 외 유산소는 종목별
+  고정 MET, 근력 부위는 부위별 MET을 세트 수 비중으로 가중평균해 세션 시간 중 유산소를
+  뺀 나머지 시간에 적용. `WorkoutInput.jsx` 호출부 교체, 안 쓰는 `estimateCalories`/
+  `getExerciseDisplayAtom` import 정리.
+- **상단 고정 타이머 바(4탭 공통)**: 기존엔 홈탭에만 정적 "운동중" 카드가 있고 실시간
+  숫자는 기록탭에서만 보였던 문제 수정. 신규 `GlobalTimerBar.jsx` 추가, `WorkoutInput`→
+  `LogTab`→`App.jsx`로 `onSessionTimingChange` 콜백 체인 신설, 세션 진행 중(웜업/본운동)
+  이면 어느 탭에 있든 상단에 실시간 경과시간이 보이고 탭하면 기록탭으로 이동. 4탭 콘텐츠
+  컨테이너의 `top` 오프셋을 동적 조정해 겹치지 않게 처리, `--safe-top`/
+  `--global-timer-bar-height` 토큰 신규(`tokens.css`).
+- **(보류) 자유 추가 운동 X삭제 후 재노출 안 되는 버그**: 코드 정적 검토 결과
+  `removeFreeExercise()`/피커 필터 로직은 정상 작동해야 하는 구조라 원인 미확정.
+  재현 조건 확인 후 다음 세션에서 처리.
+- **(보류) 리포트탭 사이클 기준 비교**: 사이클 완료 판정 로직 선행 구현이 필요한
+  장기과제로 별도 분류, 이번 반영분에는 포함하지 않음.
+
 [2026-08-02] 기록탭/리포트탭/MY탭 후속 수정 (7건 반영, 운동 종목 DB 재구축은 보류)
 - **응원 멘트 타이밍 변경**: 세트 하나 저장할 때마다 뜨던 응원 토스트를, 종목 하나를
   "세트완료"로 마칠 때 1회만 뜨도록 변경(`WorkoutInput.jsx` `completeExercise()`).
