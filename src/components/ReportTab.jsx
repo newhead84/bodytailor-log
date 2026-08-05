@@ -12,7 +12,6 @@ import {
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
-  Legend,
 } from 'recharts'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom } from '../storage'
@@ -211,33 +210,26 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logsVersion])
 
-  // ── 누적 볼륨(부위별) ──
-  // [2026-08-04 변경] 기존 "지난주 대비 이번 주" 막대 비교는 두 주 사이 편차가 커서(예: 이번주
-  // 기록이 적으면 큰 폭 감소로 보임) 큰 의미가 없다는 피드백으로, 서비스 시작 이후 전체
-  // 누적 볼륨을 부위별로 보여주는 형태로 교체한다. STATS_RANGE_DAYS로 조회 범위가 제한된
-  // logs를 그대로 쓰므로, "최근 12주 누적"이 사실상의 전체 누적 범위가 된다.
-  const cumulativeVolumeByPart = useMemo(() => {
-    const totals = {}
+  // ── 부위별 운동 추이 (누적, 2026-08-05 통합) ──
+  // [2026-08-05 변경] 기존에는 "누적 볼륨(부위별)" 가로 막대 차트와 "부위별 운동 추이"
+  // (이번주 vs 지난주 비교) 레이더 차트가 별도 섹션으로 존재해 정보가 중복됐다는 피드백으로
+  // 하나의 레이더 차트로 통합한다. "지난주 대비 이번주" 비교는 두 주 사이 편차가 커서
+  // (이번주 기록이 적으면 큰 폭 감소로 보임) 의미가 크지 않다는 이전 피드백도 반영해,
+  // 레이더는 서비스 시작 이후 전체 누적 볼륨을 부위별 단일 축으로 보여준다.
+  const cumulativePartStats = useMemo(() => {
+    const stats = {}
     logs.forEach((log) => {
       log.exercises?.forEach((ex) => {
         const atom = getExerciseAtom(ex.name)
         if (!atom) return
         const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
-        totals[atom] = (totals[atom] || 0) + volume
+        if (!stats[atom]) stats[atom] = { volume: 0, sets: 0 }
+        stats[atom].volume += volume
+        stats[atom].sets += ex.sets.length
       })
     })
-    return BODY_PART_ATOMS.filter((atom) => totals[atom] > 0)
-      .map((atom) => ({ part: atom, volume: Math.round(totals[atom]) }))
-      .sort((a, b) => b.volume - a.volume)
+    return stats
   }, [logs])
-  const cumulativeVolumeTotal = useMemo(
-    () => cumulativeVolumeByPart.reduce((s, r) => s + r.volume, 0),
-    [cumulativeVolumeByPart]
-  )
-  const cumulativeVolumeMax = useMemo(
-    () => Math.max(1, ...cumulativeVolumeByPart.map((r) => r.volume)),
-    [cumulativeVolumeByPart]
-  )
 
   // [2026-08-02 재수정] 기존에는 isoWeekLabel(연중 몇 번째 주)로 로그를 묶은 뒤 "배열의 마지막
   // 항목"을 이번 주로 간주했다(⑬). 월말/월초처럼 이번 주에 기록이 하나도 없는 경우, 배열의
@@ -287,82 +279,25 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   }, [logs])
   const attendanceRate = Math.round((weeklyAttendanceDays.thisWeek / 7) * 100)
 
-  // ── 부위별 운동 추이 (신규) ──
   // [2026-07-31 변경] 라이브러리 개편 전 이름 등으로 현재 EXERCISE_LIBRARY와 매칭되지
   // 않는 종목은 '기타'로 뭉쳐 보여주지 않고, 집계 단계에서부터 완전히 제외한다
-  // (사용자 확인: 화면에서만 숨기는 대신 계산에서도 제외하는 방식 선택).
-  // [2026-08-02 재수정] 기존에는 isoWeekLabel로 묶은 뒤 "배열의 마지막/마지막에서 두번째 항목"을
-  // 각각 이번 주/지난 주로 가정했다(⑭). 이번 주에 기록이 없는 주간이 하나라도 있으면 인덱스가
-  // 밀려서, 실제로는 기록이 있는 이번 주/지난 주인데도 "기록 없음"으로 잘못 표시되는 버그가
-  // 있었다. weeklyAttendance/weeklyVolumeCompare와 동일하게 startOfWeek() 명시적 경계로
-  // 이번 주·지난 주 로그만 각각 직접 걸러서 집계한다.
-  const bodyPartWeekTotals = useMemo(() => {
-    const today = new Date()
-    const weekStart = startOfWeek(today)
-    const prevWeekStart = new Date(weekStart)
-    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
-    const fmt = (d) => toLocalDateStr(d)
-    const thisWeekStartStr = fmt(weekStart)
-    const prevWeekStartStr = fmt(prevWeekStart)
+  // (사용자 확인: 화면에서만 숨기는 대신 계산에서도 제외하는 방식 선택). cumulativePartStats
+  // 계산 시 getExerciseAtom이 null을 반환하면 그대로 건너뛰므로 이 원칙이 유지된다.
+  const presentBodyParts = useMemo(
+    () => BODY_PART_ATOMS.filter((atom) => cumulativePartStats[atom]?.volume > 0),
+    [cumulativePartStats]
+  )
 
-    const thisWeek = {}
-    const lastWeek = {}
-    logs.forEach((log) => {
-      let target = null
-      if (log.date >= thisWeekStartStr) target = thisWeek
-      else if (log.date >= prevWeekStartStr && log.date < thisWeekStartStr) target = lastWeek
-      if (!target) return
-      log.exercises?.forEach((ex) => {
-        const atom = getExerciseAtom(ex.name)
-        if (!atom) return
-        const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
-        target[atom] = (target[atom] || 0) + volume
-      })
-    })
-    return { thisWeek, lastWeek }
-  }, [logs])
-
-  const presentBodyParts = useMemo(() => {
-    const set = new Set([
-      ...Object.keys(bodyPartWeekTotals.thisWeek),
-      ...Object.keys(bodyPartWeekTotals.lastWeek),
-    ])
-    // 표시 순서는 BODY_PART_ATOMS 기준으로 고정, 기록에 없는 부위는 제외.
-    return BODY_PART_ATOMS.filter((atom) => set.has(atom))
-  }, [bodyPartWeekTotals])
-
-  // [2026-07-29] 스택 막대 대신 레이더 차트로 교체 — 부위를 축으로 두고
-  // "이번 주 vs 지난 주"를 겹쳐 그려서 어느 부위가 늘고 줄었는지 한눈에 비교되도록 함.
-  const bodyPartRadar = useMemo(() => {
-    return presentBodyParts.map((atom) => ({
-      part: atom,
-      이번주: Math.round(bodyPartWeekTotals.thisWeek[atom] || 0),
-      지난주: Math.round(bodyPartWeekTotals.lastWeek[atom] || 0),
-    }))
-  }, [bodyPartWeekTotals, presentBodyParts])
-
-  // [2026-07-29 신규] 레이더 차트 축 눈금(반지름 숫자)이 90도로 꺾여서 나와 의미를 알기 어렵다는
-  // 피드백으로 그 숫자는 없애고, 대신 각 부위 라벨 아래에 이번 주 볼륨·세트 수를 직접 표기하기
-  // 위한 집계. (하단의 커스텀 PolarAngleAxis tick에서 사용)
-  const bodyPartThisWeekDetail = useMemo(() => {
-    const today = new Date()
-    const weekStart = startOfWeek(today)
-    const fmt = (d) => toLocalDateStr(d)
-    const detail = {}
-    logs
-      .filter((l) => l.date >= fmt(weekStart))
-      .forEach((log) => {
-        log.exercises?.forEach((ex) => {
-          const atom = getExerciseAtom(ex.name)
-          if (!atom) return
-          const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
-          if (!detail[atom]) detail[atom] = { volume: 0, sets: 0 }
-          detail[atom].volume += volume
-          detail[atom].sets += ex.sets.length
-        })
-      })
-    return detail
-  }, [logs])
+  // [2026-08-05 변경] 기존 "이번 주 vs 지난 주" 두 시리즈를 겹쳐 그리던 레이더를,
+  // 서비스 시작 이후 누적 볼륨 단일 시리즈로 교체(위 cumulativePartStats 참조).
+  const bodyPartRadar = useMemo(
+    () =>
+      presentBodyParts.map((atom) => ({
+        part: atom,
+        누적볼륨: Math.round(cumulativePartStats[atom]?.volume || 0),
+      })),
+    [presentBodyParts, cumulativePartStats]
+  )
 
   // ── 점진적 과부하 진행상황 ──
   // [2026-07-31 변경] "지난주 전체 대비"에서 "같은 종목의 직전 수행 대비"로 판단 기준
@@ -402,12 +337,6 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
-  }, [logs])
-
-  const exerciseNames = useMemo(() => {
-    const set = new Set()
-    logs.forEach((log) => log.exercises?.forEach((e) => set.add(e.name)))
-    return Array.from(set)
   }, [logs])
 
   // [2026-07-31 신규] 선택된 부위에서 다른 유저들이 즐겨찾는 운동 Top5 + 내 제일 많이 한 운동과의
@@ -546,44 +475,11 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
             </p>
           </Card>
 
-          {/* 누적 볼륨(부위별) */}
-          {/* [2026-08-04 변경] "지난주 vs 이번주" 비교 대신, 지금까지 쌓인 전체 볼륨을 부위별
-              가로 막대로 보여준다. 각 파트 6색 팔레트(getPartColor)를 그대로 사용해 캘린더뷰 등
-              다른 화면과 색상 일관성을 유지한다. */}
-          <SectionTitle>누적 볼륨 (부위별)</SectionTitle>
-          <Card style={{ marginBottom: 20 }}>
-            {cumulativeVolumeByPart.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>아직 데이터가 없어요.</p>
-            ) : (
-              <>
-                <p className="record-notation" style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                  전체 누적 {cumulativeVolumeTotal.toLocaleString()}
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {cumulativeVolumeByPart.map((row) => {
-                    const color = getPartColor(row.part)
-                    const pct = Math.round((row.volume / cumulativeVolumeMax) * 100)
-                    return (
-                      <div key={row.part}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color }}>{row.part}</span>
-                          <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                            {row.volume.toLocaleString()}
-                          </span>
-                        </div>
-                        <div style={{ height: 8, borderRadius: 999, background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
-                          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 999, background: color }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-          </Card>
-
-          {/* 부위별 운동 추이 (2026-07-29: 스택 막대 → 레이더 차트로 교체) */}
-          {/* [2026-07-29~30 히스토리] 라벨(부위명 + 볼륨/세트수 2줄)이 tick 위치(outerRadius 반경)에
+          {/* 부위별 운동 추이 (누적 레이더 차트) */}
+          {/* [2026-08-05 변경] 기존에 별도 섹션이던 "누적 볼륨(부위별)" 가로 막대 차트를
+              여기로 통합했다(중복 정보라는 피드백). "이번주 vs 지난주" 비교 시리즈도
+              제거하고, 서비스 시작 이후 전체 누적 볼륨 단일 시리즈만 보여준다.
+              [2026-07-29~30 히스토리] 라벨(부위명 + 볼륨/세트수 2줄)이 tick 위치(outerRadius 반경)에
               그대로 찍혀 있어서 outerRadius를 키우면 라벨과 겹치고, 줄이면 차트 도형이 작아 보이는
               문제가 반복됐다(margin/outerRadius를 여러 차례 맞바꿔봐도 근본 원인이 아니었음).
               [2026-07-30 재수정] BodyPartAxisTick에서 라벨을 중심 반대 방향으로 고정 오프셋만큼
@@ -598,42 +494,36 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
               즉 잘릴 위험 없이 전체 카드 크기만 컴팩트해진다. 여기에 margin도 그 비율만큼
               살짝 더 줄여 실제 화면상 여백을 추가로 축소했다. */}
           <SectionTitle>부위별 운동 추이</SectionTitle>
-          {/* [2026-07-30 재수정] 범례(지난주/이번주)가 차트 하단에 배치되면서 남쪽 위치 부위
-              라벨(예: "삼두")과 겹치는 문제가 있었다. 범례를 차트 위쪽으로 옮기고, 상하 margin을
-              좁혀 위쪽 여백은 줄이고 아래쪽은 겹침 없이 라벨이 들어갈 공간만 남긴다. */}
-          <Card style={{ marginBottom: 8, height: 300, padding: '2px 14px' }}>
-            <ResponsiveContainer key={isActive ? 'radar-on' : 'radar-off'} width="100%" height="100%">
-              <RadarChart data={bodyPartRadar} outerRadius="62%" margin={{ top: 4, right: 26, bottom: 20, left: 26 }}>
-                <PolarGrid stroke="var(--color-line)" />
-                <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={bodyPartThisWeekDetail} />} />
-                {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.
-                    대신 위 커스텀 축 라벨에서 부위별 이번 주 볼륨·세트 수를 직접 보여준다. */}
-                <PolarRadiusAxis tick={false} axisLine={false} />
-                <Radar
-                  name="지난주"
-                  dataKey="지난주"
-                  stroke="var(--color-label-neutral)"
-                  fill="var(--color-label-neutral)"
-                  fillOpacity={0.25}
-                />
-                <Radar
-                  name="이번주"
-                  dataKey="이번주"
-                  stroke="var(--color-primary-normal)"
-                  fill="var(--color-primary-normal)"
-                  fillOpacity={0.45}
-                />
-                <Legend verticalAlign="top" align="center" wrapperStyle={{ fontSize: 12, top: 0 }} />
-                <Tooltip {...CHART_TOOLTIP_STYLE} />
-              </RadarChart>
-            </ResponsiveContainer>
+          <Card style={{ marginBottom: 20, height: 300, padding: '2px 14px' }}>
+            {bodyPartRadar.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>아직 데이터가 없어요.</p>
+            ) : (
+              <ResponsiveContainer key={isActive ? 'radar-on' : 'radar-off'} width="100%" height="100%">
+                <RadarChart data={bodyPartRadar} outerRadius="62%" margin={{ top: 20, right: 26, bottom: 20, left: 26 }}>
+                  <PolarGrid stroke="var(--color-line)" />
+                  <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={cumulativePartStats} />} />
+                  {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.
+                      대신 위 커스텀 축 라벨에서 부위별 누적 볼륨·세트 수를 직접 보여준다. */}
+                  <PolarRadiusAxis tick={false} axisLine={false} />
+                  <Radar
+                    name="누적 볼륨"
+                    dataKey="누적볼륨"
+                    stroke="var(--color-primary-normal)"
+                    fill="var(--color-primary-normal)"
+                    fillOpacity={0.45}
+                  />
+                  <Tooltip {...CHART_TOOLTIP_STYLE} />
+                </RadarChart>
+              </ResponsiveContainer>
+            )}
           </Card>
 
           {/* 점진적 과부하 진행상황 */}
           {/* [2026-08-04 변경] 종목명을 부위 구분 없이 나열하던 것을, 부위별로 묶어서 보여주고
               각 회차를 누르면 그 종목의 중량 추이 미니 차트가 바로 아래 펼쳐지도록 바꿨다.
-              (아래 "종목별 중량 추이" 섹션과 selectedExercise 상태를 공유해, 여기서 고른 종목이
-              그쪽 칩 목록에서도 그대로 활성 표시된다.) */}
+              [2026-08-05 변경] 하단에 별도로 있던 "종목별 중량 추이" 섹션(종목 칩 목록 +
+              고정 차트)은 여기서 종목을 누르면 바로 아래 인라인으로 같은 차트가 펼쳐지는 것과
+              기능이 중복된다는 피드백으로 완전히 제거했다. */}
           <SectionTitle>점진적 과부하 진행상황</SectionTitle>
           <Card style={{ marginBottom: 20 }}>
             {overloadProgress.occurrences.length === 0 ? (
@@ -783,30 +673,6 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
             )}
           </Card>
 
-          {/* 종목별 중량 추이 */}
-          <SectionTitle>종목별 중량 추이</SectionTitle>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-            {exerciseNames.map((name) => (
-              <Chip key={name} active={selectedExercise === name} onClick={() => setSelectedExercise(name)}>
-                {name}
-              </Chip>
-            ))}
-          </div>
-          {selectedExercise ? (
-            <Card style={{ height: 200 }}>
-              <ResponsiveContainer key={isActive ? 'trend-on' : 'trend-off'} width="100%" height="100%">
-                <LineChart data={exerciseTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
-                  <XAxis dataKey="date" fontSize={11} stroke="var(--color-label-neutral)" />
-                  <YAxis fontSize={11} stroke="var(--color-label-neutral)" />
-                  <Tooltip {...CHART_TOOLTIP_STYLE} />
-                  <Line type="monotone" dataKey="topWeight" stroke="var(--color-primary-normal)" strokeWidth={2} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </Card>
-          ) : (
-            <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', textAlign: 'center' }}>종목을 선택하면 중량 추이를 볼 수 있어요.</p>
-          )}
         </>
       )}
     </div>
