@@ -13,6 +13,7 @@ import {
   getExerciseAtom,
   getExerciseInputType,
   getWeightStep,
+  getGripOptions,
   BODY_PART_ATOMS,
 } from '../utils/exerciseLibrary'
 import { estimateCaloriesV2 } from '../utils/calories'
@@ -90,6 +91,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   const [expandedExercise, setExpandedExercise] = useState(null)
   const [records, setRecords] = useState({}) // { [exerciseName]: [{weight, reps, saved}] }
+  // [2026-08-05 신규] 그립 옵션이 있는 종목(EXERCISE_META.gripOptions, 8종목)에서 선택한 그립.
+  // 세트마다가 아니라 종목을 펼 때 1회 선택(한 세션 안에서 그립을 계속 바꾸는 경우는 드묾).
+  const [selectedGrips, setSelectedGrips] = useState({}) // { [exerciseName]: gripString }
   const [lastRecords, setLastRecords] = useState({}) // { [exerciseName]: {sets, date} }
   const [restSeconds, setRestSeconds] = useState(90)
   const [restKey, setRestKey] = useState(0)
@@ -486,6 +490,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         [name]: [{ weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
       }
     })
+
+    // [2026-08-05 신규] 그립 옵션이 있는 종목이면 기본값을 정해둔다: 직전 기록에 저장된
+    // 그립이 있으면 그걸 이어서 쓰고, 없으면 첫 번째 옵션을 기본으로 선택해둔다.
+    const gripOptions = getGripOptions(name)
+    if (gripOptions) {
+      setSelectedGrips((g) => (g[name] ? g : { ...g, [name]: last?.grip && gripOptions.includes(last.grip) ? last.grip : gripOptions[0] }))
+    }
+  }
+
+  function selectGrip(name, grip) {
+    setSelectedGrips((g) => ({ ...g, [name]: grip }))
   }
 
   function updateSet(name, idx, field, value) {
@@ -724,7 +739,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             .filter((s) => s.weight !== '' && s.reps !== '')
             .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
         }
-        return { name, part: getExerciseAtom(name) || '', inputType, sets: validSets }
+        const gripOptions = getGripOptions(name)
+        const grip = gripOptions ? selectedGrips[name] || gripOptions[0] : null
+        return { name, part: getExerciseAtom(name) || '', inputType, sets: validSets, ...(grip ? { grip } : {}) }
       })
       .filter((e) => e.sets.length > 0)
 
@@ -1018,6 +1035,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                     onHideToday={() => hideExerciseToday(name)}
                     onRemoveFromRoutine={() => removeExerciseFromRoutine(name)}
                     customExercises={customExercises}
+                    selectedGrip={selectedGrips[name]}
+                    onSelectGrip={(g) => selectGrip(name, g)}
                   />
                 </SortableExerciseItem>
               ))}
@@ -1045,6 +1064,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                   isExtra
                   onRemoveExtra={() => removeFreeExercise(name)}
                   customExercises={customExercises}
+                  selectedGrip={selectedGrips[name]}
+                  onSelectGrip={(g) => selectGrip(name, g)}
                 />
               ))}
             </div>
@@ -1365,10 +1386,13 @@ function ExerciseCard({
   isExtra,
   onRemoveExtra,
   customExercises,
+  selectedGrip,
+  onSelectGrip,
 }) {
   const color = getExerciseColorWithCustom(name, customExercises)
   const inputType = getExerciseInputType(name)
   const weightStep = getWeightStep(name)
+  const gripOptions = getGripOptions(name)
 
   return (
     <Card style={{ padding: 0, borderLeft: `4px solid ${color}` }}>
@@ -1487,6 +1511,29 @@ function ExerciseCard({
 
       {expanded && (
         <div style={{ padding: '0 16px 16px' }}>
+          {/* [2026-08-05 신규] 그립 통합 8종목(EXERCISE_META.gripOptions)에서만 노출되는
+              그립 선택 칩. 세트마다가 아니라 종목당 1회 선택하며, 선택값은 세트완료 시
+              workoutLogs.exercises[].grip으로 함께 저장된다. */}
+          {gripOptions && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '0 0 10px' }}>
+              {gripOptions.map((g) => (
+                <button
+                  key={g}
+                  onClick={() => onSelectGrip?.(g)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: selectedGrip === g ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
+                    color: selectedGrip === g ? 'var(--color-on-gold-button)' : 'var(--color-label-neutral)',
+                  }}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
           {lastRecord && (
             <div
               className="record-notation text-keep-all h-scroll"

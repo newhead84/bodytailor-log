@@ -1,9 +1,9 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-05 (7)] 버그수정 — HOWTO 탭 "내 루틴에 추가" 버튼이 하단 네비에 가려
- *            잘리던 문제. 진짜 원인은 콘텐츠 wrapper 하단 패딩이 32px뿐이라 다른 탭(100px)과
- *            달리 고정 BottomNav 높이를 못 벗어난 것 — 목록/상세 wrapper 모두 100px로 통일.
- *            (`HowToTab.jsx`). 이전 변경들은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-08-05 (8)] 종목별 동작 GIF 이미지 매핑 62개 보강 + 기존 매칭 오류 2건
+ *            수정(`exerciseImageMap.js`), 기록탭 세트 입력에 그립 선택 칩 신규 추가
+ *            (`WorkoutInput.jsx`, workoutLogs.exercises[].grip 필드 신규, `storage.js`
+ *            주석 갱신). 이전 변경들은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 

@@ -289,9 +289,11 @@ function computeSessionXp({ totalVolume, scoreWeight, totalDurationSec }) {
 }
 
 export async function addWorkoutLog(uid, logData) {
-  // logData: { date, exercises: [{name, part, sets:[{weight,reps}]}], totalVolume,
+  // logData: { date, exercises: [{name, part, sets:[{weight,reps}], grip?}], totalVolume,
   //            totalDurationSec, caloriesKcal, routineTemplateId, partName, sessionType, scoreWeight,
   //            isBackfilled }
+  // [2026-08-05 신규] exercises[].grip: 그립 통합 8종목(EXERCISE_META.gripOptions)에서 사용자가
+  // 기록 시 선택한 그립 문자열(예: '와이드'). 그립 옵션이 없는 종목은 필드 자체가 없다(옵셔널).
   const col = collection(db, 'workoutLogs', uid, 'logs')
   const ref = await addDoc(col, {
     sessionType: 'cycle',
