@@ -2,6 +2,40 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-08-05 (4)] HOWTO 탭 UI 신설 (5탭 구조: HOME/HOWTO/NOTE/REPORT/MY)
+- **하단 네비 5탭 + 영문 라벨 전환**: `BottomNav.jsx`에 HOWTO 탭(BookOpen 아이콘)을 홈
+  오른쪽에 신설하고, 라벨 전체를 한글(홈/기록/리포트)에서 영문(HOME/HOWTO/NOTE/REPORT/MY)
+  으로 변경. "기록" 탭은 라벨만 NOTE로 바뀌고 기능·데이터 구조는 그대로. (`BottomNav.jsx`)
+- **`HowToTab.jsx` 신규**: ① 최상단 온보딩 가이드 카드 — "다시 안 보기" 버튼을 눌러야
+  사라지며, `users/{uid}.howtoOnboardingDismissed`에 서버 저장(기기 바뀌어도 유지)
+  ② 부위별(8개 칩) 운동 탐색 + 이름/별칭 검색 ③ 종목 탭 시 상세 화면 — 동작 가이드
+  이미지(기존 ExerciseGuideImage 재사용, 별도 장비 사진 소스 없이 그대로 활용), 설명
+  (summary/howTo/tip), 그립 옵션, 근육 역할(주동/보조/안정/길항), 유사군 비교표(있는
+  경우) 표시 ④ "내 루틴에 추가" 버튼 — 원클릭 즉시 추가(확인 모달 없음). (`HowToTab.jsx`,
+  `App.jsx`)
+- **`quickAddExerciseToRoutine()` 신규**: 가장 먼저 만든 루틴(order 기준)에서 종목의
+  부위(atom)를 포함하는 파트를 찾아 추가하고, 없으면 첫 파트에 폴백. 이미 있으면 중복
+  추가하지 않고 안내만 표시. 루틴이 아예 없으면 MY탭에서 먼저 만들라고 안내. (`storage.js`)
+- **알려진 제한**: 루틴이 여러 개(최대 5개)인 사용자는 항상 첫 번째 루틴에만 추가됨(어떤
+  루틴에 넣을지 매번 물으면 "원클릭"의 의미가 없어 이렇게 결정, 2026-08-05). 필요시
+  MY탭에서 파트 이동 가능. 그립 선택 UI는 이번에도 `WorkoutInput.jsx` SetRow에는 아직
+  연결하지 않음(다음 세션).
+
+[2026-08-05 (3)] 버그수정 — 그립 통합 이전 종목명이 저장된 내 루틴에서 "숨기기 → 종목추가 재선택" 불가 문제
+- **근본원인**: 오늘 낮 세션에서 `exerciseLibrary.js`를 96→143개로 재구축하며 그립 통합
+  8종목(랫풀다운/시티드케이블로우/풀업/케이블푸시다운/바벨컬/케이블컬/플랫바벨프레스/푸시업)에
+  흡수된 옛 종목명(예: "리버스그립랫풀다운", "와이드그립풀업" 등 10개, 명칭 정리 2건 포함
+  총 14개)이 EXERCISE_LIBRARY에서 완전히 사라짐. 그 이전에 "내 루틴"에 그 이름으로 저장해둔
+  사용자는, 기록탭에서 그 종목을 "오늘만 숨기기"한 뒤 종목추가 목록에서 다시 찾으려 해도
+  `getExercisesForPart()`가 더 이상 그 이름을 반환하지 않아 영영 찾을 수 없었음(숨기기/삭제
+  기능 자체의 버그가 아니라, 라이브러리 재구축의 하위호환 누락이 원인).
+- **수정**: `exerciseLibrary.js`에 `LEGACY_EXERCISE_NAME_MAP`(옛 이름→새 이름, 14건) +
+  `normalizeExerciseName()`/`normalizeExerciseNames()` 신규 추가. `storage.js`의
+  `getRoutineTemplates()`가 Firestore에서 템플릿을 읽어올 때마다 `parts[].exercises` 배열을
+  이 함수로 정규화하도록 변경 — 별도 일괄 마이그레이션 스크립트 없이, 읽는 시점에 항상 최신
+  이름 기준으로 동작한다(이후 사용자가 정상적으로 저장/재정렬하면 Firestore 데이터 자체도
+  자연스럽게 새 이름으로 갱신됨). (`utils/exerciseLibrary.js`, `storage.js`)
+
 [2026-08-05 (2)] 운동 종목 DB 전면 개편(96→143개) + 그립 통합 + HOWTO 탭용 설명/비교 데이터 반영
 - **`exerciseLibrary.js` 전면 재구축**: `EXERCISE_DB_DESIGN_v2_1_통합본.md`(143개) 기준으로
   `EXERCISE_LIBRARY`를 96개에서 143개로 확장. 기존 헬퍼 함수 시그니처(`getExercisesForPart`,

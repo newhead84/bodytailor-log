@@ -1,12 +1,10 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-05 (2)] 운동 종목 DB 전면 개편 — exerciseLibrary.js를 96개에서
- *            143개로 재구축(그립 통합 8종목, 명칭 정리, 계단오르기머신 삭제), 근육역할/
- *            그립옵션/별칭은 EXERCISE_META로, HOWTO 탭용 설명·비교 데이터는
- *            EXERCISE_DESCRIPTIONS/EXERCISE_COMPARISON_GROUPS로 신규 추가(UI 구현은 다음
- *            세션). exerciseImageMap.js/calories.js 연쇄 정리 | utils/exerciseLibrary.js,
- *            utils/exerciseImageMap.js, utils/calories.js. 이전 변경([2026-08-05] 리포트
- *            탭 누적볼륨→레이더 통합, 종목별 중량추이 삭제)은 ReportTab.jsx.
+ * 최신 변경: [2026-08-05 (4)] HOWTO 탭 신설 — 하단 네비 5탭(HOME/HOWTO/NOTE/REPORT/MY,
+ *            영문 라벨) 구조로 확장. HowToTab.jsx: 온보딩 가이드(서버 저장, "다시 안보기"로
+ *            직접 닫기)+부위별/별칭 검색+종목 상세(설명·그립옵션·근육역할·유사군 비교)+
+ *            "내 루틴에 추가"(원클릭, quickAddExerciseToRoutine) | App.jsx, BottomNav.jsx,
+ *            HowToTab.jsx(신규), storage.js. 이전 변경들은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -19,6 +17,7 @@ import Onboarding from './components/Onboarding'
 import RoutineManager from './components/RoutineManager'
 import BottomNav from './components/BottomNav'
 import HomeTab from './components/HomeTab'
+import HowToTab from './components/HowToTab'
 import LogTab from './components/LogTab'
 import ReportTab from './components/ReportTab'
 import TierInfoScreen from './components/TierInfoScreen'
@@ -46,10 +45,11 @@ export default function App() {
   // 없어진다. 4탭을 position:absolute(inset:0)로 겹쳐두고 탭마다 자체 overflowY:auto 스크롤
   // 컨테이너를 둬서, 탭별 스크롤 위치도 서로 독립적으로 유지된다.
   const homeScrollRef = useRef(null)
+  const howtoScrollRef = useRef(null)
   const logScrollRef = useRef(null)
   const reportScrollRef = useRef(null)
   const myScrollRef = useRef(null)
-  const tabScrollRefs = { home: homeScrollRef, log: logScrollRef, report: reportScrollRef, my: myScrollRef }
+  const tabScrollRefs = { home: homeScrollRef, howto: howtoScrollRef, log: logScrollRef, report: reportScrollRef, my: myScrollRef }
   // 이미 보고 있는 탭을 한 번 더 누르면 그 탭 자신의 스크롤 위치를 맨 위로 되돌린다.
   const handleTabPress = useCallback((tab) => {
     setActiveTab((prev) => {
@@ -360,6 +360,15 @@ export default function App() {
           onGoToLog={() => setActiveTab('log')}
           onCancelWorkout={handleCancelWorkout}
           onLogsChanged={handleLogSaved}
+        />
+      </div>
+      <div ref={howtoScrollRef} style={tabWrapperStyle('howto')}>
+        <HowToTab
+          uid={authUser.uid}
+          userDoc={userDoc}
+          routineTemplates={routineTemplates}
+          onProfileUpdated={refreshUserDoc}
+          onRoutineUpdated={refreshRoutineTemplates}
         />
       </div>
       <div ref={logScrollRef} style={tabWrapperStyle('log')}>

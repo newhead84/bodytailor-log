@@ -2809,3 +2809,49 @@ export const EXERCISE_COMPARISON_GROUPS = [
 export function getComparisonGroupForExercise(name) {
   return EXERCISE_COMPARISON_GROUPS.find((g) => g.members.includes(name)) || null
 }
+
+// [2026-08-05 신규] 그립 통합(EXERCISE_DB_DESIGN_v2_1_통합본.md)으로 별도 종목명이 소멸된
+// 항목들의 옛 이름 → 새 이름 매핑. 사용자가 그립 통합 이전에 "내 루틴"에 저장해둔 종목명이
+// EXERCISE_LIBRARY에서 사라지면서, 그 종목을 "오늘만 숨기기"한 뒤 종목추가 목록에서 다시
+// 찾을 수 없게 되는 문제(getExercisesForPart가 더 이상 옛 이름을 반환하지 않음)를 발견해
+// 추가했다. 옛 이름 그 자체를 라이브러리에 되살리는 대신, 저장된 데이터를 읽는 시점에
+// 새 이름으로 변환(normalizeExerciseName)해 하위 호환을 확보한다.
+export const LEGACY_EXERCISE_NAME_MAP = {
+  '와이드그립랫풀다운': '랫풀다운',
+  '리버스그립랫풀다운': '랫풀다운',
+  '내로우그립랫풀다운': '랫풀다운',
+  '와이드그립시티드로우': '시티드케이블로우',
+  '와이드그립풀업': '풀업',
+  '스트레이트바케이블푸시다운': '케이블푸시다운',
+  '로프케이블푸시다운': '케이블푸시다운',
+  '리버스바벨컬': '바벨컬',
+  '케이블리버스컬': '케이블컬',
+  '와이드그립벤치프레스': '플랫바벨프레스',
+  '와이드푸시업': '푸시업',
+  '루마니안데드리프트(하체)': '루마니안데드리프트',
+  '덤벨플로어프레스(삼두)': '덤벨플로어프레스',
+  '계단오르기머신': '스텝밀',
+}
+
+// 종목명(옛 이름 포함) → 현재 라이브러리 기준 정식 이름. 매핑에 없으면 입력 그대로 반환
+// (커스텀 종목 등 라이브러리 밖 이름은 건드리지 않음).
+export function normalizeExerciseName(name) {
+  return LEGACY_EXERCISE_NAME_MAP[name] || name
+}
+
+// 종목명 배열(예: routineTemplate의 parts[].exercises)을 정규화 + 중복 제거해서 반환.
+// 옛 이름과 새 이름이 이미 함께 저장돼 있던 경우(예: "바벨컬"과 "리버스바벨컬"을 둘 다
+// 추가해둔 상태) 정규화 후 하나로 합쳐지므로 순서를 유지한 채 중복만 제거한다.
+export function normalizeExerciseNames(names) {
+  if (!Array.isArray(names)) return names
+  const seen = new Set()
+  const result = []
+  names.forEach((n) => {
+    const normalized = normalizeExerciseName(n)
+    if (!seen.has(normalized)) {
+      seen.add(normalized)
+      result.push(normalized)
+    }
+  })
+  return result
+}

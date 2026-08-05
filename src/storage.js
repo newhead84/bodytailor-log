@@ -23,7 +23,7 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore'
-import { getExerciseAtom } from './utils/exerciseLibrary'
+import { getExerciseAtom, normalizeExerciseNames } from './utils/exerciseLibrary'
 
 // ───────────── exercisePopularity/{atom} — 부위별 "다른 유저 즐겨찾는 운동" 공개 집계 ─────────────
 // [2026-07-31 신규] 개인정보 없이 "부위(atom) → 종목명 → 수행 횟수"만 담는 공개 집계 문서.
@@ -205,7 +205,18 @@ export async function getRoutineTemplates(uid) {
   const col = collection(db, 'routineTemplates', uid, 'templates')
   const q = query(col, orderBy('order', 'asc'))
   const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  // [2026-08-05 신규] 그립 통합(EXERCISE_DB_DESIGN_v2_1_통합본.md)으로 일부 종목명이 소멸/개명
+  // 되면서, 그 이전에 저장해둔 template.parts[].exercises에 옛 이름이 그대로 남아있으면
+  // EXERCISE_LIBRARY에서 더 이상 찾을 수 없어 "숨기기 → 종목추가에서 재선택" 같은 흐름이
+  // 깨지는 문제가 있었다(② 재확인). Firestore 문서 자체를 일괄 마이그레이션하는 대신,
+  // 읽어올 때마다 정규화해서 항상 최신 이름 기준으로 동작하게 한다.
+  return snap.docs.map((d) => {
+    const data = d.data()
+    const parts = Array.isArray(data.parts)
+      ? data.parts.map((p) => ({ ...p, exercises: normalizeExerciseNames(p.exercises) }))
+      : data.parts
+    return { id: d.id, ...data, parts }
+  })
 }
 
 export async function saveRoutineTemplate(uid, template) {
@@ -235,6 +246,33 @@ export async function updateRoutineTemplate(uid, templateId, partial) {
 
 export async function deleteRoutineTemplate(uid, templateId) {
   await deleteDoc(doc(db, 'routineTemplates', uid, 'templates', templateId))
+}
+
+// [2026-08-05 신규] HOWTO 탭 "내 루틴에 추가" 버튼용 — 원클릭 즉시 추가(확인 모달 없음, 사용자 확인).
+// 여러 루틴(최대 5개)이 있을 수 있으나, 어떤 루틴/파트에 넣을지 매번 물어보면 "원클릭"의 의미가
+// 없어지므로 order가 가장 앞선(가장 먼저 만든) 루틴을 기본 대상으로 삼는다. 그 루틴 안에서
+// 종목의 부위(atom)를 포함하는 파트를 찾아 넣고, 없으면 첫 번째 파트에 넣는다(폴백).
+// 이미 그 파트에 있으면 중복 추가하지 않고 알려만 준다.
+export async function quickAddExerciseToRoutine(uid, routineTemplates, exerciseName, atom) {
+  if (!routineTemplates || routineTemplates.length === 0) {
+    return { ok: false, reason: 'no-template' }
+  }
+  const template = routineTemplates[0]
+  const parts = template.parts || []
+  if (parts.length === 0) {
+    return { ok: false, reason: 'no-parts' }
+  }
+  let targetIndex = parts.findIndex((p) => (p.atoms || []).includes(atom))
+  if (targetIndex === -1) targetIndex = 0
+  const targetPart = parts[targetIndex]
+  if ((targetPart.exercises || []).includes(exerciseName)) {
+    return { ok: true, alreadyAdded: true, templateTitle: template.title, partName: targetPart.name }
+  }
+  const nextParts = parts.map((p, i) =>
+    i === targetIndex ? { ...p, exercises: [...(p.exercises || []), exerciseName] } : p
+  )
+  await saveRoutineTemplate(uid, { ...template, parts: nextParts })
+  return { ok: true, alreadyAdded: false, templateTitle: template.title, partName: targetPart.name }
 }
 
 // ───────────────── workoutLogs/{uid}/logs/{logId} ─────────────────

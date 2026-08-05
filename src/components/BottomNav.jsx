@@ -1,10 +1,14 @@
 import React from 'react'
-import { Home, NotebookPen, BarChart3, User } from 'lucide-react'
+import { Home, BookOpen, NotebookPen, BarChart3, User } from 'lucide-react'
 
+// [2026-08-05] IA 변경(IA_변경_HOWTO탭_addendum.md): 기존 4탭(홈/기록/리포트/MY) 고정 구조에서
+// HOWTO 탭을 홈 오른쪽에 신설해 5탭으로 확장하고, 라벨을 한글에서 영문(HOME/HOWTO/NOTE/
+// REPORT/MY)으로 변경했다. "기록" 탭은 기능·데이터 구조 변경 없이 라벨만 NOTE로 바뀜.
 const TABS = [
-  { key: 'home', label: '홈', Icon: Home },
-  { key: 'log', label: '기록', Icon: NotebookPen },
-  { key: 'report', label: '리포트', Icon: BarChart3 },
+  { key: 'home', label: 'HOME', Icon: Home },
+  { key: 'howto', label: 'HOWTO', Icon: BookOpen },
+  { key: 'log', label: 'NOTE', Icon: NotebookPen },
+  { key: 'report', label: 'REPORT', Icon: BarChart3 },
   { key: 'my', label: 'MY', Icon: User },
 ]
 
