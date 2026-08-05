@@ -15,9 +15,13 @@
 // 공식(ACSM 표준): kcal/min = MET × 3.5 × 체중(kg) / 200
 
 // Compendium of Physical Activities 근사 MET값(유산소, 중강도 기준)
+// [2026-08-05] 그립통합/DB재구축(v2.1)으로 "계단오르기머신"이 스텝밀과 중복 판단되어
+// 삭제됨에 따라 여기서도 죽은 키를 함께 정리. 신규 추가된 "트레드밀인터벌"은 속도 실측
+// 없이 인터벌(고강도/저강도 반복) 특성을 반영한 근사값을 추가했다.
 const CARDIO_FIXED_MET = {
   트레드밀: 6.0, // speedKmh 기록이 없을 때의 fallback (있으면 metFromSpeedIncline 사용)
   인클라인워킹: 4.0, // 위와 동일
+  트레드밀인터벌: 8.0, // 고강도/저강도 반복 평균 근사(Compendium "interval training" 계열)
   실내사이클: 7.0,
   실외러닝: 8.3,
   로잉머신: 7.0,
@@ -26,7 +30,6 @@ const CARDIO_FIXED_MET = {
   에어바이크: 8.0,
   배틀로프: 8.0,
   줄넘기: 11.0,
-  계단오르기머신: 9.0,
 }
 const CARDIO_MET_FALLBACK = 6.0 // 매핑 없는 신규/커스텀 유산소 종목용
 

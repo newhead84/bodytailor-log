@@ -1,10 +1,12 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-05] 리포트 탭 — "누적 볼륨(부위별)" 막대 차트를 삭제하고 "부위별
- *            운동 추이" 레이더 차트에 누적 볼륨 단일 시리즈로 통합(기존 이번주/지난주
- *            비교 시리즈 제거), 점진적 과부하에서 이미 인라인으로 중량 추이가 펼쳐지므로
- *            중복되던 "종목별 중량 추이" 섹션 삭제 | ReportTab.jsx. 운동 종목 DB
- *            (그립 통합/설명/비교/HOWTO 탭) 실제 코드 반영은 다음 세션으로 이월.
+ * 최신 변경: [2026-08-05 (2)] 운동 종목 DB 전면 개편 — exerciseLibrary.js를 96개에서
+ *            143개로 재구축(그립 통합 8종목, 명칭 정리, 계단오르기머신 삭제), 근육역할/
+ *            그립옵션/별칭은 EXERCISE_META로, HOWTO 탭용 설명·비교 데이터는
+ *            EXERCISE_DESCRIPTIONS/EXERCISE_COMPARISON_GROUPS로 신규 추가(UI 구현은 다음
+ *            세션). exerciseImageMap.js/calories.js 연쇄 정리 | utils/exerciseLibrary.js,
+ *            utils/exerciseImageMap.js, utils/calories.js. 이전 변경([2026-08-05] 리포트
+ *            탭 누적볼륨→레이더 통합, 종목별 중량추이 삭제)은 ReportTab.jsx.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 

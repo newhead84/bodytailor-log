@@ -18,6 +18,11 @@
 //   불일치를 통일했다. 이 파일의 키와 exerciseLibrary.js의 종목명을 동일하게 갱신했다.
 //   기존 저장된 기록(workoutLogs 등)의 종목명은 과거 값 그대로 남지만, 사용자 확인 하에
 //   과거 기록과의 매칭은 신경쓰지 않기로 함(2026-07-28 결정과 동일 원칙).
+// [2026-08-05] 그립 통합(EXERCISE_DB_DESIGN_v2_1_통합본.md)으로 별도 종목명이 소멸된 항목의
+//   매핑을 정리했다: 리버스그립랫풀다운/내로우그립랫풀다운/리버스바벨컬은 각각 랫풀다운/
+//   바벨컬 그립옵션으로 흡수되어 별도 이름으로는 더 이상 조회되지 않으므로 삭제(죽은 키).
+//   스트레이트바케이블푸시다운은 "케이블푸시다운"으로 개명(그립옵션: 스트레이트바/로프/패러럴)
+//   되어 키 이름을 맞췄고, 로프케이블푸시다운(흡수된 이름)은 삭제했다.
 export const EXERCISE_IMAGE_MAP = {
   // 가슴
   '플랫바벨프레스': 'pectorals/barbell-bench-press',
@@ -37,8 +42,6 @@ export const EXERCISE_IMAGE_MAP = {
 
   // 등
   '랫풀다운': 'lats/cable-pulldown',
-  '리버스그립랫풀다운': 'lats/reverse-grip-machine-lat-pulldown',
-  '내로우그립랫풀다운': 'lats/cable-lateral-pulldown-with-v-bar',
   '바벨로우': 'upper-back/barbell-bent-over-row',
   '원암덤벨로우': 'upper-back/dumbbell-one-arm-bent-over-row',
   'T바로우': 'upper-back/lever-t-bar-row',
@@ -74,11 +77,9 @@ export const EXERCISE_IMAGE_MAP = {
   '덤벨컨센트레이션컬': 'biceps/dumbbell-concentration-curl',
   '케이블컬': 'biceps/cable-curl',
   '케이블로프컬': 'biceps/cable-hammer-curl-with-rope',
-  '리버스바벨컬': 'biceps/barbell-reverse-curl',
 
   // 삼두
-  '스트레이트바케이블푸시다운': 'triceps/cable-pushdown',
-  '로프케이블푸시다운': 'triceps/cable-pushdown-with-rope-attachment',
+  '케이블푸시다운': 'triceps/cable-pushdown',
   '오버헤드케이블익스텐션': 'triceps/cable-overhead-triceps-extension-rope-attachment',
   '바벨라잉트라이셉스익스텐션': 'triceps/barbell-lying-triceps-extension',
   '덤벨킥백': 'triceps/dumbbell-kickback',
@@ -118,4 +119,8 @@ export const EXERCISE_IMAGE_MAP = {
   '실외러닝': 'cardio/run',
   '일립티컬': 'cardio/walk-elliptical-cross-trainer',
   '스텝밀': 'cardio/walking-on-stepmill',
+
+  // [2026-08-05] 그립 통합/DB 재구축(v2.1)으로 새로 추가된 47개 종목의 이미지 매핑은
+  // 이번 세션 범위 밖 — 매핑 없는 종목은 기존 정책대로 "이미지 준비중"으로 표시된다.
+  // 다음 이미지 커버리지 보강 세션에서 ExerciseGymGifsDB 슬러그를 순차 확인해 채운다.
 }

@@ -2,6 +2,35 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-08-05 (2)] 운동 종목 DB 전면 개편(96→143개) + 그립 통합 + HOWTO 탭용 설명/비교 데이터 반영
+- **`exerciseLibrary.js` 전면 재구축**: `EXERCISE_DB_DESIGN_v2_1_통합본.md`(143개) 기준으로
+  `EXERCISE_LIBRARY`를 96개에서 143개로 확장. 기존 헬퍼 함수 시그니처(`getExercisesForPart`,
+  `getExerciseAtom`, `getWeightStep`, `getExerciseInputType` 등)는 하위 호환을 위해 그대로
+  유지하고, 근육 역할/그립옵션/별칭 데이터는 이름을 키로 하는 신규 `EXERCISE_META` 맵으로
+  분리 추가(EXERCISE_LIBRARY 자체를 객체 배열로 바꾸지 않은 이유: WorkoutInput/RoutineSetup/
+  MyPageTab 등 여러 파일이 문자열 배열을 직접 다루고 있어 구조 자체를 바꾸면 영향범위가
+  지나치게 커짐). (`utils/exerciseLibrary.js`)
+- **그립 통합 8종목**: 랫풀다운/시티드케이블로우/풀업/케이블푸시다운/바벨컬/케이블컬/
+  플랫바벨프레스/푸시업은 `EXERCISE_META[name].gripOptions` 배열 보유. 신규 헬퍼
+  `getGripOptions()`/`getMuscleRoles()`/`getExerciseAlias()` 추가(실제 그립 선택 UI는
+  다음 세션에서 `WorkoutInput.jsx` SetRow에 반영 예정 — 이번엔 데이터 레이어만).
+- **명칭 정리**: "루마니안데드리프트(하체)"→"루마니안데드리프트", "덤벨플로어프레스(삼두)"→
+  "덤벨플로어프레스"(부위명 접미사 제거, 상위 카테고리로 이미 구분). "계단오르기머신"은
+  스텝밀과 중복 판단되어 삭제(11개 유산소 종목).
+- **HOWTO 탭용 데이터 신규 추가**: 143개 전 종목 설명(summary/howTo/tip, `EXERCISE_DESCRIPTIONS`
+  + `getExerciseDescription()`)과 헷갈리기 쉬운 유사군 8개 비교 데이터(`EXERCISE_COMPARISON_GROUPS`
+  + `getComparisonGroupForExercise()`) 추가. HOWTO 탭 UI 자체(5탭 구조, 온보딩 가이드,
+  부위별 탐색 화면)는 다음 세션에서 구현 예정 — 이번엔 데이터만 준비.
+- **연쇄 수정**: `exerciseImageMap.js`에서 그립 통합으로 소멸된 종목명 키(리버스그립랫풀다운/
+  내로우그립랫풀다운/리버스바벨컬/로프케이블푸시다운) 정리, "스트레이트바케이블푸시다운"→
+  "케이블푸시다운" 키 이름 변경. `calories.js`에서 "계단오르기머신" 죽은 키 삭제, 신규
+  "트레드밀인터벌" MET 근사값 추가. (`utils/exerciseImageMap.js`, `utils/calories.js`)
+- **주의(TODO)**: "루마니안데드리프트"는 등/하체 두 부위에 동일 이름으로 존재하는 유일한
+  의도된 중복 사례. `getExerciseAtom()`은 현재 항상 먼저 매칭되는 "등"을 반환하므로,
+  하체 화면에서 추가한 기록도 통계상 "등"으로 집계될 수 있다 — 정확한 구분이 필요해지면
+  exerciseId(이름-부위) 기반 저장으로 전환 필요(신규 종목 47개의 GIF 이미지 매핑도 미반영,
+  다음 세션 과제).
+
 [2026-08-05] 리포트 탭 — 누적 볼륨 막대 + 부위별 운동추이 레이더 통합, 종목별 중량 추이 섹션 제거
 - **"누적 볼륨(부위별)" 가로 막대 차트 삭제, "부위별 운동 추이" 레이더 차트로 통합**:
   두 섹션이 사실상 같은 정보(부위별 볼륨)를 중복 표시한다는 피드백. 레이더 차트가 이제
