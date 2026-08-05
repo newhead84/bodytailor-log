@@ -315,7 +315,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
 
   if (selectedExercise) {
     return (
-      <div style={{ padding: '16px 16px 32px' }}>
+      <div style={{ padding: '16px 16px 100px' }}>
         <ExerciseDetail
           uid={uid}
           name={selectedExercise}
@@ -328,7 +328,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
   }
 
   return (
-    <div style={{ padding: '16px 16px 32px' }}>
+    <div style={{ padding: '16px 16px 100px' }}>
       {!dismissed && (
         <OnboardingBanner
           uid={uid}

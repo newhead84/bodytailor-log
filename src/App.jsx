@@ -1,10 +1,9 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-05 (6)] HOWTO 탭 종목 상세 UX 개선 3건 — ① 목록↔상세 전환 시 스크롤
- *            리셋 안 해서 설명 긴 종목은 "내 루틴에 추가" 버튼 상단이 잘려 보이던 문제 수정
- *            ② 비교표 table-layout:fixed+가운데정렬로 가로 스크롤 없이 한 화면에 들어오게 개선
- *            ③ 그립옵션 8종목에 옵션별 차이 설명 신규 추가 | App.jsx, HowToTab.jsx,
- *            exerciseLibrary.js. 이전 변경들은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-08-05 (7)] 버그수정 — HOWTO 탭 "내 루틴에 추가" 버튼이 하단 네비에 가려
+ *            잘리던 문제. 진짜 원인은 콘텐츠 wrapper 하단 패딩이 32px뿐이라 다른 탭(100px)과
+ *            달리 고정 BottomNav 높이를 못 벗어난 것 — 목록/상세 wrapper 모두 100px로 통일.
+ *            (`HowToTab.jsx`). 이전 변경들은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
