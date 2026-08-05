@@ -5,7 +5,7 @@
 // (있으면) 비교 DB 표시 ④ "내 루틴에 추가" 버튼(원클릭 즉시 추가, quickAddExerciseToRoutine).
 // 근육역할/그립옵션/설명/비교 데이터는 모두 utils/exerciseLibrary.js에 이미 반영돼 있음
 // (EXERCISE_DB_DESIGN_v2_1_통합본.md 143개 기준, 2026-08-05 세션에서 선반영).
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Search, ChevronRight, X } from 'lucide-react'
 import { Card, SectionTitle, Chip, Button, EmptyState } from './ui'
 import {
@@ -19,6 +19,7 @@ import {
   getExerciseAlias,
   getExerciseDescription,
   getComparisonGroupForExercise,
+  getGripOptionNotes,
 } from '../utils/exerciseLibrary'
 import { updateUserProfile, quickAddExerciseToRoutine } from '../storage'
 import ExerciseGuideImage from './ExerciseGuideImage'
@@ -59,25 +60,38 @@ function OnboardingBanner({ uid, onDismissed }) {
   )
 }
 
+// [2026-08-05 수정] 이전에는 헤더 셀에 whiteSpace:nowrap을 걸고 overflowX:auto로 가로
+// 스크롤을 허용했는데, 비교군이 3~4개(+구분 열)면 화면 폭을 넘겨 스크롤이 꼭 필요했다.
+// table-layout:fixed + width:100%로 폭을 화면 안에 강제로 맞추고, 헤더 nowrap을 없애
+// 길면 자동 줄바꿈되게 바꿔서 가로 스크롤 없이도 전체가 한 화면에 들어오게 했다.
+// "구분" 열은 폭을 좁게 고정하고 나머지는 비교군 개수만큼 균등 분배한다. 요청에 따라
+// 헤더/본문 셀 모두 가운데 정렬로 변경.
 function ComparisonTable({ group, currentName }) {
+  const memberColWidth = `${(100 - 22) / group.members.length}%`
   return (
-    <div style={{ overflowX: 'auto', marginTop: 8 }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+    <div style={{ marginTop: 8 }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed', fontSize: 11 }}>
+        <colgroup>
+          <col style={{ width: '22%' }} />
+          {group.members.map((m) => (
+            <col key={m} style={{ width: memberColWidth }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
-            <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--color-label-neutral)', borderBottom: '1px solid var(--color-line)' }}>
+            <th style={{ textAlign: 'center', padding: '6px 4px', color: 'var(--color-label-neutral)', borderBottom: '1px solid var(--color-line)' }}>
               구분
             </th>
             {group.members.map((m) => (
               <th
                 key={m}
+                className="text-keep-all"
                 style={{
-                  textAlign: 'left',
-                  padding: '6px 8px',
+                  textAlign: 'center',
+                  padding: '6px 4px',
                   borderBottom: '1px solid var(--color-line)',
                   color: m === currentName ? 'var(--color-primary-normal)' : 'var(--color-label-normal)',
                   fontWeight: m === currentName ? 800 : 700,
-                  whiteSpace: 'nowrap',
                 }}
               >
                 {m}
@@ -88,7 +102,7 @@ function ComparisonTable({ group, currentName }) {
         <tbody>
           {group.axes.map((axis) => (
             <tr key={axis}>
-              <td className="text-keep-all" style={{ padding: '6px 8px', color: 'var(--color-label-neutral)', borderBottom: '1px solid var(--color-line)' }}>
+              <td className="text-keep-all" style={{ textAlign: 'center', padding: '6px 4px', color: 'var(--color-label-neutral)', borderBottom: '1px solid var(--color-line)' }}>
                 {axis}
               </td>
               {group.members.map((m) => (
@@ -96,7 +110,8 @@ function ComparisonTable({ group, currentName }) {
                   key={m}
                   className="text-keep-all"
                   style={{
-                    padding: '6px 8px',
+                    textAlign: 'center',
+                    padding: '6px 4px',
                     borderBottom: '1px solid var(--color-line)',
                     background: m === currentName ? 'var(--color-bg-elevated)' : 'transparent',
                   }}
@@ -117,6 +132,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
   const alias = getExerciseAlias(name)
   const desc = getExerciseDescription(name)
   const gripOptions = getGripOptions(name)
+  const gripOptionNotes = getGripOptionNotes(name)
   const muscleRoles = getMuscleRoles(name)
   const comparisonGroup = getComparisonGroupForExercise(name)
   const color = getPartColor(atom)
@@ -194,6 +210,20 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
               </span>
             ))}
           </div>
+          {gripOptionNotes && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+              {gripOptions.map((g) =>
+                gripOptionNotes[g] ? (
+                  <div key={g} style={{ display: 'flex', gap: 6, fontSize: 12 }}>
+                    <span style={{ flexShrink: 0, fontWeight: 700, color: 'var(--color-label-neutral)' }}>{g}</span>
+                    <span className="text-keep-all" style={{ color: 'var(--color-label-normal)', lineHeight: 1.5 }}>
+                      {gripOptionNotes[g]}
+                    </span>
+                  </div>
+                ) : null
+              )}
+            </div>
+          )}
           <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--color-label-neutral)' }}>
             NOTE 탭 기록 시 세트마다 그립을 다르게 선택할 수 있어요.
           </p>
@@ -256,11 +286,20 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
   )
 }
 
-export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpdated, onRoutineUpdated }) {
+export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpdated, onRoutineUpdated, scrollContainerRef }) {
   const [dismissed, setDismissed] = useState(!!userDoc?.howtoOnboardingDismissed)
   const [selectedAtom, setSelectedAtom] = useState(BODY_PART_ATOMS[0])
   const [selectedExercise, setSelectedExercise] = useState(null)
   const [query, setQuery] = useState('')
+
+  // [2026-08-05 신규] 목록↔상세 전환은 탭 이동 없이 같은 스크롤 컨테이너 안에서 상태값만
+  // 바꾸는 구조라, 목록을 스크롤한 채로 상세에 들어가면 이전 스크롤 위치가 그대로 남는다.
+  // 상세 콘텐츠 길이(설명 길이 등)에 따라 하단 "내 루틴에 추가" 버튼이 화면 경계에 걸쳐
+  // 상단이 잘려 보이는 문제의 원인이었다. 목록↔상세 전환 시마다 맨 위로 리셋한다.
+  // (탭을 재탭했을 때 스크롤 맨 위로 되돌리는 App.jsx의 기존 동작과는 별개 — 그건 그대로 둔다.)
+  useEffect(() => {
+    scrollContainerRef?.current?.scrollTo({ top: 0 })
+  }, [selectedExercise, scrollContainerRef])
 
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase()

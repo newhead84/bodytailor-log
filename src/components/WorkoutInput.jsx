@@ -577,9 +577,21 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }
 
   // 내 루틴 파트에 종목 추가(파트 부위 조합에 맞는 종목 중에서 골라 저장)
+  // [2026-08-05 수정] 오늘 임시 숨김(hiddenToday) 처리된 종목은 partOrder에는 그대로 남아있으므로,
+  // "이미 있는 종목"으로 취급해 그냥 무시하면 안 된다. 이 경우는 새로 추가하는 게 아니라
+  // 숨김만 풀어주면 된다(루틴에는 이미 있으므로 partOrder에 다시 넣지 않음).
   async function addExerciseToRoutine(name) {
     const trimmed = (name || '').trim()
-    if (!trimmed || !selectedTemplate || !selectedPart || partOrder.includes(trimmed)) {
+    if (!trimmed || !selectedTemplate || !selectedPart) {
+      setAddingExercise(false)
+      return
+    }
+    if (hiddenToday.includes(trimmed)) {
+      setHiddenToday((prev) => prev.filter((n) => n !== trimmed))
+      setAddingExercise(false)
+      return
+    }
+    if (partOrder.includes(trimmed)) {
       setAddingExercise(false)
       return
     }
@@ -1064,8 +1076,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 {/* [2026-08-02 변경] 복합 파트(예: "등&이두")를 고르면 그동안 두 부위 종목이 구분
                     없이 한 줄에 섞여 나와 헷갈렸다(⑩). 부위(atom)별로 소제목을 달아 묶어서 보여준다. */}
                 {getAtomsForPartName(selectedPart?.name).map((atom) => {
+                  // [2026-08-05 수정] partOrder에 있어도 오늘 임시 숨김(hiddenToday) 상태인 종목은
+                  // "이미 추가된 종목"이 아니라 "다시 꺼낼 수 있는 후보"로 노출해야 한다.
                   const names = [...getExercisesForPart(atom), ...getCustomExercisesForPart(customExercises, atom)].filter(
-                    (n) => !partOrder.includes(n)
+                    (n) => !partOrder.includes(n) || hiddenToday.includes(n)
                   )
                   if (names.length === 0) return null
                   return (

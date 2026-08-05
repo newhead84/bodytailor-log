@@ -1,10 +1,10 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-05 (4)] HOWTO 탭 신설 — 하단 네비 5탭(HOME/HOWTO/NOTE/REPORT/MY,
- *            영문 라벨) 구조로 확장. HowToTab.jsx: 온보딩 가이드(서버 저장, "다시 안보기"로
- *            직접 닫기)+부위별/별칭 검색+종목 상세(설명·그립옵션·근육역할·유사군 비교)+
- *            "내 루틴에 추가"(원클릭, quickAddExerciseToRoutine) | App.jsx, BottomNav.jsx,
- *            HowToTab.jsx(신규), storage.js. 이전 변경들은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-08-05 (6)] HOWTO 탭 종목 상세 UX 개선 3건 — ① 목록↔상세 전환 시 스크롤
+ *            리셋 안 해서 설명 긴 종목은 "내 루틴에 추가" 버튼 상단이 잘려 보이던 문제 수정
+ *            ② 비교표 table-layout:fixed+가운데정렬로 가로 스크롤 없이 한 화면에 들어오게 개선
+ *            ③ 그립옵션 8종목에 옵션별 차이 설명 신규 추가 | App.jsx, HowToTab.jsx,
+ *            exerciseLibrary.js. 이전 변경들은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -369,6 +369,7 @@ export default function App() {
           routineTemplates={routineTemplates}
           onProfileUpdated={refreshUserDoc}
           onRoutineUpdated={refreshRoutineTemplates}
+          scrollContainerRef={howtoScrollRef}
         />
       </div>
       <div ref={logScrollRef} style={tabWrapperStyle('log')}>

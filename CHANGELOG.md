@@ -2,6 +2,38 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-08-05 (6)] HOWTO 탭 종목 상세 UX 개선 3건
+- **① 상세 화면 진입 시 스크롤 리셋**: 목록↔상세 전환이 탭 이동 없이 같은 스크롤 컨테이너
+  안에서 상태값만 바꾸는 구조라, 목록을 스크롤한 채로 상세에 들어가면 이전 스크롤 위치가
+  그대로 남아 설명이 긴 종목일수록 하단 "내 루틴에 추가" 버튼 상단이 화면 경계에 걸려 잘려
+  보였음. 목록↔상세 전환(`selectedExercise` 변경) 때마다 스크롤을 맨 위로 리셋하도록 수정.
+  탭을 재탭했을 때 스크롤 위치를 되돌리는 App.jsx의 기존 동작과는 별개로 추가한 것이라
+  기존 탭 간 스크롤 유지 동작에는 영향 없음. (`App.jsx`: howtoScrollRef를 prop으로 전달,
+  `HowToTab.jsx`: useEffect로 리셋)
+- **② 비슷한 운동 비교표 반응형화 + 가운데 정렬**: 헤더 셀의 `whiteSpace: nowrap`과
+  `overflowX: auto` 때문에 비교군이 3~4개면 가로 스크롤이 필요했음. `table-layout: fixed`
+  + `width: 100%`로 폭을 화면 안에 맞추고 헤더 줄바꿈을 허용해 가로 스크롤 없이 한 화면에
+  들어오도록 수정. 요청에 따라 헤더·본문 모든 셀을 가운데 정렬로 변경. (`HowToTab.jsx`의
+  `ComparisonTable`)
+- **③ 그립 옵션별 차이 설명 신규 추가**: 그립 옵션이 있는 8종목(플랫바벨프레스·푸시업·
+  랫풀다운·시티드케이블로우·풀업·바벨컬·케이블컬·케이블푸시다운) 각각에 옵션별 자극 부위/
+  난이도/관절 부담 차이를 기존 운동 설명(EXERCISE_DESCRIPTIONS)과 같은 톤으로 새로 작성해
+  "그립 옵션" 카드에 옵션 칩 아래로 노출. (`exerciseLibrary.js`: `EXERCISE_GRIP_NOTES` +
+  `getGripOptionNotes()` 신규, `HowToTab.jsx`: 카드에 렌더링 추가)
+
+[2026-08-05 (5)] 버그수정 — 오늘 임시 숨김 처리한 종목이 "종목추가" 목록에서 안 보임
+- **재현**: 내 루틴 운동 목록에서 종목을 "오늘만 숨기기"한 뒤, 종목추가 패널을 열어도(열려있던
+  상태든 새로 열든 무관) 방금 숨긴 종목이 후보로 나타나지 않아 오늘 세션 중에는 다시 꺼낼
+  방법이 없었음.
+- **근본원인**: "오늘만 숨기기"(`hiddenToday`)는 `partOrder`에서 이름을 빼지 않고 화면
+  노출(`visibleExercises`)만 걸러내는 방식인데, 종목추가 후보 필터(`!partOrder.includes(n)`)가
+  `hiddenToday` 여부를 전혀 고려하지 않아 숨긴 종목도 "이미 루틴에 있는 종목"으로 취급되어
+  후보에서 제외됐음. 설령 후보에 나타나게 고쳐도 `addExerciseToRoutine()`이
+  `partOrder.includes(trimmed)`면 그냥 무시하고 끝나서 클릭해도 반응이 없었을 구조.
+- **수정**: 종목추가 후보 필터에 `hiddenToday.includes(n)` 예외 추가, `addExerciseToRoutine()`은
+  대상이 `hiddenToday`에 있으면 새로 추가하지 않고 `hiddenToday`에서만 제거(숨김 해제)하도록
+  분기 추가. (`WorkoutInput.jsx`)
+
 [2026-08-05 (4)] HOWTO 탭 UI 신설 (5탭 구조: HOME/HOWTO/NOTE/REPORT/MY)
 - **하단 네비 5탭 + 영문 라벨 전환**: `BottomNav.jsx`에 HOWTO 탭(BookOpen 아이콘)을 홈
   오른쪽에 신설하고, 라벨 전체를 한글(홈/기록/리포트)에서 영문(HOME/HOWTO/NOTE/REPORT/MY)
