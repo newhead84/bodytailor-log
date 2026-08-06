@@ -40,6 +40,13 @@
 //   - (조사 중 추가 발견) 숄더프레스머신(원암)에 매핑하려던 'delts/lever-one-arm-shoulder-press'도
 //     실제로는 숄더프레스가 아닌 다른 동작이라 사용하지 않고, 장비는 다르지만 동작이 정확한
 //     원암덤벨숄더프레스용 GIF로 대체했다(근사).
+// [2026-08-06] 사용자 피드백 반영(종목 정리): 21컬/팬디컬크로스오버/밴드푸시다운/
+//   덤벨플로어프레스/행잉니레이즈는 exerciseLibrary.js에서 완전 삭제되어 이 파일에도
+//   더 이상 등장하지 않는다(위 주석 중 이 종목들을 언급한 부분은 삭제 전 시점의 기록으로
+//   남겨둔다). 플레이트레터럴로우는 근사 GIF를 dumbbell-rear-delt-raise → barbell-rear-delt-row
+//   (동작이 더 정확함)로 교체했다. 핵스쿼트머신/힙어브덕션머신/힙어덕션머신은 각각
+//   "(브이스쿼트머신)"/"(아웃타이)"/"(이너타이)" 병기 표기로 키가 바뀌었다(옛 키는
+//   exerciseLibrary.js의 LEGACY_EXERCISE_NAME_MAP에서 새 이름으로 변환됨).
 export const EXERCISE_IMAGE_MAP = {
   // 가슴
   '플랫바벨프레스': 'pectorals/barbell-bench-press',
@@ -88,7 +95,7 @@ export const EXERCISE_IMAGE_MAP = {
   '스모데드리프트': 'glutes/barbell-sumo-deadlift',
   '하이퍼익스텐션(웨이티드)': 'spine/hyperextension', // 근사: 가중 버전 GIF 없어 맨몸 백익스텐션과 동일 GIF 재사용
   '덤벨슈러그': 'traps/dumbbell-shrug',
-  '플레이트레터럴로우': 'delts/dumbbell-rear-delt-raise', // 근사: 벤트오버덤벨레이즈와 동일 동작(장비만 원판↔덤벨)
+  '플레이트레터럴로우': 'delts/barbell-rear-delt-row', // [2026-08-06 수정] 기존 dumbbell-rear-delt-raise(덤벨 사용 동작)는 실제 동작과 차이가 커서, 몸통을 숙여 팔꿈치로 당기는 동작이 동일한 barbell-rear-delt-row로 교체(장비만 원판↔바벨 근사)
   '케이블슈러그': 'traps/cable-shrug',
 
   // 어깨
@@ -154,16 +161,16 @@ export const EXERCISE_IMAGE_MAP = {
   '바벨힙쓰러스트': 'glutes/barbell-glute-bridge',
   '바벨스탠딩카프레이즈': 'calves/barbell-standing-calf-raise',
   '바벨시티드카프레이즈': 'calves/barbell-seated-calf-raise',
-  '힙어브덕션머신': 'abductors/lever-seated-hip-abduction',
+  '힙어브덕션머신(아웃타이)': 'abductors/lever-seated-hip-abduction',
   '굿모닝': 'hamstrings/barbell-good-morning',
   '고블릿스쿼트': 'quads/dumbbell-goblet-squat',
   '스모스쿼트': 'glutes/smith-sumo-squat', // 근사: 장비는 스미스머신이지만 넓은 스탠스 자세 동일
-  '핵스쿼트머신': 'glutes/sled-hack-squat',
+  '핵스쿼트머신(브이스쿼트머신)': 'glutes/sled-hack-squat',
   '바벨워킹런지': 'glutes/barbell-lunge', // 근사: 걷기 동작 GIF는 없어 바벨 런지 정지 자세로 대체(장비는 정확)
   '스텝업': 'glutes/dumbbell-step-up',
   '원레그힙쓰러스트': 'glutes/single-leg-bridge-with-outstretched-leg', // 근사: 명칭은 다르나 동일 계열 동작
   '케이블킥백': 'glutes/cable-standing-hip-extension',
-  '힙어덕션머신': 'adductors/lever-seated-hip-adduction',
+  '힙어덕션머신(이너타이)': 'adductors/lever-seated-hip-adduction',
   '레그프레스카프레이즈': 'calves/sled-calf-press-on-leg-press',
   '원레그데드리프트(RDL)': 'glutes/dumbbell-single-leg-deadlift',
   '피스톨스쿼트': 'glutes/single-leg-squat-pistol-male',
@@ -178,7 +185,6 @@ export const EXERCISE_IMAGE_MAP = {
   '케이블크런치': 'abs/cable-kneeling-crunch',
   '앱롤아웃': 'abs/wheel-rollerout',
   '케이블우드촙': 'abs/cable-twist-up-down',
-  // 행잉니레이즈: DB에 어시스트/오블리크 변형만 있고 기본형이 없어 매핑 보류
   '캡틴스체어레그레이즈': 'abs/captains-chair-straight-leg-raise',
   '미들플랭크로테이션': 'abs/front-plank-with-twist',
   '팔로프프레스': 'abs/band-horizontal-pallof-press', // 근사: 장비는 밴드↔케이블 차이, 동작 동일
@@ -193,6 +199,9 @@ export const EXERCISE_IMAGE_MAP = {
   '실외러닝': 'cardio/run',
   '로잉머신': 'upper-back/cable-seated-row', // 근사: 로잉머신 GIF가 DB에 없어 유사한 당기기 동작으로 대체
   '일립티컬': 'cardio/walk-elliptical-cross-trainer',
+  // 아크트레이너: [2026-08-06 신규] 일립티컬과 별개 종목으로 추가했으나, 데이터셋에
+  // 대응하는 GIF가 없어 매핑하지 않는다(의도적으로 일립티컬 GIF를 재사용하지 않음 —
+  // 서로 다른 기구임을 시각적으로도 구분되게 하기 위함, 사용자 확인). "이미지 준비중"으로 표시.
   '스텝밀': 'cardio/walking-on-stepmill',
   '에어바이크': 'cardio/stationary-bike-run-v-3', // 근사: 에어바이크 전용 GIF 없어 스탠딩 사이클류로 대체
   '배틀로프': 'delts/battling-ropes',

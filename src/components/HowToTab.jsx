@@ -17,6 +17,7 @@ import {
   getMuscleRoles,
   getGripOptions,
   getExerciseAlias,
+  getExerciseAliases,
   getExerciseDescription,
   getComparisonGroupForExercise,
   getGripOptionNotes,
@@ -314,8 +315,8 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
     if (!q) return null
     return ALL_EXERCISE_NAMES.filter((name) => {
       if (name.toLowerCase().includes(q)) return true
-      const alias = getExerciseAlias(name)
-      return alias ? alias.toLowerCase().includes(q) : false
+      const aliases = getExerciseAliases(name)
+      return aliases.some((a) => a.toLowerCase().includes(q))
     })
   }, [query])
 

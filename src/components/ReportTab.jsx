@@ -17,7 +17,7 @@ import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom } from '../storage'
 import { getTierByXp } from '../utils/tier'
 import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeOverloadByOccurrenceForDisplay, computeFinalScore } from '../utils/scoring'
-import { getExerciseAtom, getExerciseInputType, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
+import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 import { toLocalDateStr } from '../utils/date'
 import { estimateCardioSetKcal } from '../utils/calories'
@@ -72,8 +72,16 @@ const LABEL_OFFSET = 16
 // [2026-08-06 (2) 수정] 지표(볼륨/kcal/체중볼륨)와 세트수를 " · "로 한 줄에 모두 이어붙이면
 // 부위에 지표가 2개 이상 섞였을 때 문자열이 길어져 레이더 차트 좌우 프레임 바깥으로 잘리는
 // 문제가 있었다. 지표 줄과 세트수 줄을 분리해 각 줄 길이를 절반 이하로 줄였다.
+// [2026-08-06 신규] 보조근(synergist) 가산이 도입되어, sets가 0이어도 secondaryScore만으로
+// 이 부위가 축에 나타날 수 있다(예: 등 운동만 한 사용자의 "이두" 축). 그 경우 직접 기록이
+// 없다는 걸 알 수 있도록 "보조근 개입만"이라고 표시하고, 직접 기록이 있는 부위는 기존처럼
+// 실제 지표(볼륨/kcal/체중볼륨)를 보여준다(보조근 가산분은 이미 score에 합산되어 레이더
+// 막대 높이에는 반영되지만, 이 상세 텍스트에는 섞지 않아 "직접 한 운동" 수치를 그대로 유지).
 function formatPartMetrics(stat) {
-  if (!stat || !stat.sets) return null
+  if (!stat) return null
+  if (!stat.sets) {
+    return stat.secondaryScore > 0 ? '보조근 개입만' : null
+  }
   const parts = []
   if (stat.volume > 0) parts.push(`볼륨 ${Math.round(stat.volume)}`)
   if (stat.kcal > 0) parts.push(`${Math.round(stat.kcal)}kcal`)
@@ -254,30 +262,57 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   //   - cardio(유산소): 세트별 소모 칼로리(estimateCardioSetKcal, calories.js MET 로직 재사용)
   //   - reps(맨몸/횟수전용): 체중(온보딩 weightKg, 없으면 70kg 근사) × 총 횟수
   // score는 세 지표를 그대로 합산한 값으로, 부위 간 상대 비교(정규화)에만 쓴다(아래 bodyPartRadar).
+  // [2026-08-06 (2) 신규] "가슴/등 운동 시 이두·삼두·어깨도 나름 개입되는 점을 감안해서
+  // 표시했으면 함"(사용자 확인) — EXERCISE_META의 muscleRoles.synergist를 getSynergistAtoms로
+  // 부위(atom)로 변환해, 주동근이 아닌 부위에도 해당 세트 활동량의 30%를 secondaryScore로
+  // 가산한다. 주동근 부위와 겹치는 synergist는 제외(이미 그 부위 몫으로 전부 반영됨). 유산소는
+  // muscleRoles가 없어(기구 운동 특성상) 대상에서 자연히 제외된다. secondaryScore는 축 상세
+  // 텍스트에서 "primary volume/kcal/bwVolume"과 구분해 보여주고(BodyPartAxisTick 참고),
+  // 레이더 막대 높이(score)에는 그대로 합산해 반영한다.
+  const SYNERGIST_WEIGHT = 0.3
   const weightKg = userDoc?.onboarding?.weightKg || 70
   const cumulativePartStats = useMemo(() => {
     const stats = {}
+    const ensure = (atom) => {
+      if (!stats[atom]) stats[atom] = { volume: 0, kcal: 0, bwVolume: 0, sets: 0, score: 0, secondaryScore: 0 }
+      return stats[atom]
+    }
     logs.forEach((log) => {
       log.exercises?.forEach((ex) => {
         const atom = getExerciseAtom(ex.name)
         if (!atom) return
-        if (!stats[atom]) stats[atom] = { volume: 0, kcal: 0, bwVolume: 0, sets: 0, score: 0 }
+        const primary = ensure(atom)
         const inputType = getExerciseInputType(ex.name)
+        let primaryValue = 0
         if (inputType === 'cardio') {
           const kcal = ex.sets.reduce((s, st) => s + estimateCardioSetKcal(ex.name, st, weightKg), 0)
-          stats[atom].kcal += kcal
-          stats[atom].score += kcal
+          primary.kcal += kcal
+          primary.score += kcal
+          primaryValue = kcal
         } else if (inputType === 'reps') {
           const totalReps = ex.sets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
           const bwVolume = weightKg * totalReps
-          stats[atom].bwVolume += bwVolume
-          stats[atom].score += bwVolume
+          primary.bwVolume += bwVolume
+          primary.score += bwVolume
+          primaryValue = bwVolume
         } else {
           const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
-          stats[atom].volume += volume
-          stats[atom].score += volume
+          primary.volume += volume
+          primary.score += volume
+          primaryValue = volume
         }
-        stats[atom].sets += ex.sets.length
+        primary.sets += ex.sets.length
+
+        // 보조근(synergist) 부위 가산
+        if (inputType !== 'cardio' && primaryValue > 0) {
+          const synergistAtoms = getSynergistAtoms(ex.name).filter((a) => a !== atom)
+          synergistAtoms.forEach((synAtom) => {
+            const target = ensure(synAtom)
+            const weighted = primaryValue * SYNERGIST_WEIGHT
+            target.secondaryScore += weighted
+            target.score += weighted
+          })
+        }
       })
     })
     return stats
@@ -337,8 +372,11 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   // 계산 시 getExerciseAtom이 null을 반환하면 그대로 건너뛰므로 이 원칙이 유지된다.
   // [2026-08-06 변경] 기존 volume>0 기준으로는 유산소/맨몸 위주 부위(볼륨이 항상 0)가 표시
   // 조건 자체를 통과하지 못했다. "그 부위 운동을 한 번이라도 기록했는지(sets>0)"로 바꾼다.
+  // [2026-08-06 (2) 변경] 보조근 가산(secondaryScore) 도입으로, 직접 기록은 없어도(sets=0)
+  // 다른 부위 운동의 보조근으로 개입한 부위(예: 등 운동만 해도 이두가 30% 가산)는 여전히
+  // 레이더에 나타나야 하므로 secondaryScore>0 조건을 함께 본다.
   const presentBodyParts = useMemo(
-    () => BODY_PART_ATOMS.filter((atom) => cumulativePartStats[atom]?.sets > 0),
+    () => BODY_PART_ATOMS.filter((atom) => cumulativePartStats[atom]?.sets > 0 || cumulativePartStats[atom]?.secondaryScore > 0),
     [cumulativePartStats]
   )
 
