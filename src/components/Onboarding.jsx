@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button, Chip, BackButton } from './ui'
+import { HOWTO_ONBOARDING_TEXT } from './HowToTab'
 
 const GENDERS = ['남성', '여성']
 const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
@@ -121,6 +122,29 @@ export default function Onboarding({ onComplete, previewMode = false, onClose })
             }}
           >
             미리보기 모드예요. 여기서 입력해도 실제 계정 정보는 저장되지 않아요.
+          </div>
+          {/* [2026-08-06 신규] HOWTO 탭 상단 배너는 사용자가 "다시 안 보기"를 누르면 실제
+              계정에서는 다시 볼 방법이 없다. 관리자가 이 문구를 언제든 확인할 수 있도록
+              온보딩 미리보기 화면에도 같은 텍스트를 함께 노출한다(기능은 없는 읽기 전용). */}
+          <div
+            className="text-keep-all"
+            style={{
+              margin: '0 0 16px',
+              padding: '12px 14px',
+              borderRadius: 10,
+              background: 'var(--color-bg-elevated)',
+              border: '1px dashed var(--color-line)',
+            }}
+          >
+            <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: 'var(--color-label-neutral)' }}>
+              참고: HOWTO 탭 온보딩 배너 문구
+            </p>
+            <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+              {HOWTO_ONBOARDING_TEXT.title}
+            </p>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
+              {HOWTO_ONBOARDING_TEXT.body}
+            </p>
           </div>
         </>
       )}

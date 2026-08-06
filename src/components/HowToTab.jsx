@@ -31,6 +31,15 @@ const MUSCLE_ROLE_LABELS = [
   { key: 'antagonist', label: '길항근' },
 ]
 
+// [2026-08-06 신규] 배너 문구를 상수로 분리했다. 이 배너는 "다시 안 보기"를 누르면
+// users/{uid}.howtoOnboardingDismissed=true로 저장되어 실제 계정에서는 다시 볼 방법이
+// 없는데, MY탭 관리자용 "온보딩 화면 미리보기"(Onboarding.jsx previewMode)에서도 같은
+// 문구를 그대로 재사용해 관리자가 언제든 확인할 수 있게 한다.
+export const HOWTO_ONBOARDING_TEXT = {
+  title: 'HOWTO 탭 사용법',
+  body: '부위를 골라 운동을 살펴보고, 설명과 비슷한 운동 비교를 확인해보세요. 마음에 드는 종목은 "내 루틴에 추가" 버튼 한 번으로 바로 NOTE 탭에서 쓸 수 있게 담을 수 있어요.',
+}
+
 function OnboardingBanner({ uid, onDismissed }) {
   const [dismissing, setDismissing] = useState(false)
 
@@ -47,11 +56,10 @@ function OnboardingBanner({ uid, onDismissed }) {
   return (
     <Card style={{ marginBottom: 20, background: 'var(--color-primary-bg)', border: '1px solid var(--color-primary-normal)' }}>
       <p className="text-keep-all" style={{ margin: '0 0 6px', fontWeight: 700, fontSize: 15, color: 'var(--color-label-strong)' }}>
-        HOWTO 탭 사용법
+        {HOWTO_ONBOARDING_TEXT.title}
       </p>
       <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
-        부위를 골라 운동을 살펴보고, 설명과 비슷한 운동 비교를 확인해보세요. 마음에 드는
-        종목은 "내 루틴에 추가" 버튼 한 번으로 바로 NOTE 탭에서 쓸 수 있게 담을 수 있어요.
+        {HOWTO_ONBOARDING_TEXT.body}
       </p>
       <Button variant="ghost" onClick={handleDismiss} disabled={dismissing} style={{ fontSize: 13, padding: '8px 14px' }}>
         {dismissing ? '처리 중…' : '다시 안 보기'}

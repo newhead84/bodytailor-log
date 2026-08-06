@@ -123,3 +123,19 @@ export function estimateCaloriesV2(weightKg, exercises, totalDurationSec) {
   return Math.round(cardioKcal + resistanceKcal)
 }
 
+// [2026-08-06 신규] 유산소 세트 1개의 소모 칼로리만 단독으로 구하는 함수. 세션 전체를 대상으로
+// 하는 estimateCaloriesV2와 달리, "부위별 운동 추이" 레이더 차트에서 유산소 부위의 활동량을
+// (근력 부위의 볼륨에 대응하는) 지표로 누적하기 위해 종목/세트 단위로 잘라 쓸 수 있게 분리했다.
+// 계산 로직(MET 테이블·ACSM 속도경사 공식)은 estimateCaloriesV2와 동일하게 재사용한다.
+export function estimateCardioSetKcal(exerciseName, set, weightKg) {
+  const minutes = Number(set?.durationMin) || 0
+  if (minutes <= 0) return 0
+  const weight = weightKg && weightKg > 0 ? weightKg : 70
+  let met = CARDIO_FIXED_MET[exerciseName] ?? CARDIO_MET_FALLBACK
+  if (exerciseName === '트레드밀' || exerciseName === '인클라인워킹') {
+    const dynamicMet = metFromSpeedIncline(Number(set?.speedKmh), Number(set?.incline))
+    if (dynamicMet) met = dynamicMet
+  }
+  return kcalFromMet(met, weight, minutes)
+}
+

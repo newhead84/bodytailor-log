@@ -455,7 +455,16 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
     let last = lastRecords[name]
     if (last === undefined) {
-      last = await getLastRecordForExercise(uid, name)
+      // [2026-08-06 수정] 직전 기록 조회가 실패(네트워크 오류 등)하면 여기서 함수가
+      // 중단되어 아래 setRecords(세트 초기화)까지 도달하지 못했다. 그 결과 카드는
+      // 펼쳐지지만 인풋(스테퍼)이 아예 생기지 않는 증상이 발생했다. 조회 실패 시에도
+      // last를 null로 폴백해 세트 초기화가 항상 진행되도록 방어한다.
+      try {
+        last = await getLastRecordForExercise(uid, name)
+      } catch (err) {
+        console.error('직전 기록 조회 실패:', name, err)
+        last = null
+      }
       setLastRecords((r) => ({ ...r, [name]: last }))
     }
 

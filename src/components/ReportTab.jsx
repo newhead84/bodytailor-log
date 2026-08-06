@@ -17,9 +17,10 @@ import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom } from '../storage'
 import { getTierByXp } from '../utils/tier'
 import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeFinalScore } from '../utils/scoring'
-import { getExerciseAtom, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
+import { getExerciseAtom, getExerciseInputType, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 import { toLocalDateStr } from '../utils/date'
+import { estimateCardioSetKcal } from '../utils/calories'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
 // 눈에 잘 띄지 않던 '통계' 서브탭을 하나의 '리포트' 탭으로 통합했다. 여기에 추가로
@@ -63,6 +64,21 @@ function startOfWeek(d) {
 // 차트 도형 크기(outerRadius)와 라벨 위치를 서로 독립적으로 조정할 수 있게 했다.
 const LABEL_OFFSET = 16
 
+// [2026-08-06 신규] 부위별 활동량을 무게×횟수(근력형) 하나로만 재는 대신, 유산소는 소모
+// 칼로리, 맨몸/횟수전용 종목은 체중×횟수로 따로 누적한다(아래 cumulativePartStats 참조).
+// 축 라벨 아래 상세 텍스트는 그중 실제로 값이 있는 지표를 그 부위에 맞는 단위로 보여준다.
+// (한 부위 안에 웨이트 종목과 맨몸 종목이 섞여 있으면 두 지표 모두 값이 있을 수 있어, 그
+// 경우 두 지표를 · 로 이어 보여준다.)
+function formatPartDetail(stat) {
+  if (!stat || !stat.sets) return '기록 없음'
+  const parts = []
+  if (stat.volume > 0) parts.push(`볼륨 ${Math.round(stat.volume)}`)
+  if (stat.kcal > 0) parts.push(`${Math.round(stat.kcal)}kcal`)
+  if (stat.bwVolume > 0) parts.push(`체중볼륨 ${Math.round(stat.bwVolume)}`)
+  if (parts.length === 0) return `${stat.sets}세트`
+  return `${parts.join(' · ')} · ${stat.sets}세트`
+}
+
 function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
   const stat = detail?.[payload?.value]
   let lx = x
@@ -80,7 +96,7 @@ function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
         {payload?.value}
       </text>
       <text textAnchor={textAnchor} dy={14} fontSize={9} fill="var(--color-label-neutral)">
-        {stat ? `볼륨 ${Math.round(stat.volume)} · ${stat.sets}세트` : '기록 없음'}
+        {formatPartDetail(stat)}
       </text>
     </g>
   )
@@ -216,20 +232,41 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   // 하나의 레이더 차트로 통합한다. "지난주 대비 이번주" 비교는 두 주 사이 편차가 커서
   // (이번주 기록이 적으면 큰 폭 감소로 보임) 의미가 크지 않다는 이전 피드백도 반영해,
   // 레이더는 서비스 시작 이후 전체 누적 볼륨을 부위별 단일 축으로 보여준다.
+  // [2026-08-06 변경] 기존에는 부위별 활동량을 "무게×횟수(볼륨)" 단일 지표로만 재서, 유산소
+  // (무게 없음)·맨몸 위주 종목(코어 플랭크, 풀업 등)은 항상 볼륨이 0이 되어 부위별 운동
+  // 추이 레이더에서 아예 빠졌었다. 종목의 inputType에 따라 그 부위다운 지표를 따로 누적한다:
+  //   - sets(웨이트): 기존과 동일하게 무게×횟수 볼륨
+  //   - cardio(유산소): 세트별 소모 칼로리(estimateCardioSetKcal, calories.js MET 로직 재사용)
+  //   - reps(맨몸/횟수전용): 체중(온보딩 weightKg, 없으면 70kg 근사) × 총 횟수
+  // score는 세 지표를 그대로 합산한 값으로, 부위 간 상대 비교(정규화)에만 쓴다(아래 bodyPartRadar).
+  const weightKg = userDoc?.onboarding?.weightKg || 70
   const cumulativePartStats = useMemo(() => {
     const stats = {}
     logs.forEach((log) => {
       log.exercises?.forEach((ex) => {
         const atom = getExerciseAtom(ex.name)
         if (!atom) return
-        const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
-        if (!stats[atom]) stats[atom] = { volume: 0, sets: 0 }
-        stats[atom].volume += volume
+        if (!stats[atom]) stats[atom] = { volume: 0, kcal: 0, bwVolume: 0, sets: 0, score: 0 }
+        const inputType = getExerciseInputType(ex.name)
+        if (inputType === 'cardio') {
+          const kcal = ex.sets.reduce((s, st) => s + estimateCardioSetKcal(ex.name, st, weightKg), 0)
+          stats[atom].kcal += kcal
+          stats[atom].score += kcal
+        } else if (inputType === 'reps') {
+          const totalReps = ex.sets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
+          const bwVolume = weightKg * totalReps
+          stats[atom].bwVolume += bwVolume
+          stats[atom].score += bwVolume
+        } else {
+          const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
+          stats[atom].volume += volume
+          stats[atom].score += volume
+        }
         stats[atom].sets += ex.sets.length
       })
     })
     return stats
-  }, [logs])
+  }, [logs, weightKg])
 
   // [2026-08-02 재수정] 기존에는 isoWeekLabel(연중 몇 번째 주)로 로그를 묶은 뒤 "배열의 마지막
   // 항목"을 이번 주로 간주했다(⑬). 월말/월초처럼 이번 주에 기록이 하나도 없는 경우, 배열의
@@ -283,21 +320,28 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   // 않는 종목은 '기타'로 뭉쳐 보여주지 않고, 집계 단계에서부터 완전히 제외한다
   // (사용자 확인: 화면에서만 숨기는 대신 계산에서도 제외하는 방식 선택). cumulativePartStats
   // 계산 시 getExerciseAtom이 null을 반환하면 그대로 건너뛰므로 이 원칙이 유지된다.
+  // [2026-08-06 변경] 기존 volume>0 기준으로는 유산소/맨몸 위주 부위(볼륨이 항상 0)가 표시
+  // 조건 자체를 통과하지 못했다. "그 부위 운동을 한 번이라도 기록했는지(sets>0)"로 바꾼다.
   const presentBodyParts = useMemo(
-    () => BODY_PART_ATOMS.filter((atom) => cumulativePartStats[atom]?.volume > 0),
+    () => BODY_PART_ATOMS.filter((atom) => cumulativePartStats[atom]?.sets > 0),
     [cumulativePartStats]
   )
 
-  // [2026-08-05 변경] 기존 "이번 주 vs 지난 주" 두 시리즈를 겹쳐 그리던 레이더를,
-  // 서비스 시작 이후 누적 볼륨 단일 시리즈로 교체(위 cumulativePartStats 참조).
-  const bodyPartRadar = useMemo(
-    () =>
-      presentBodyParts.map((atom) => ({
+  // [2026-08-06 변경] 부위마다 활동량 지표 단위가 다르다(근력=kg·회, 유산소=kcal, 맨몸=체중·회).
+  // 서로 다른 단위를 레이더 한 축에 그대로 겹치면 스케일이 안 맞아 왜곡돼 보이므로, 부위별
+  // score(위 cumulativePartStats)를 "그중 최댓값을 100으로 놓은 상대 점수(%)"로 정규화해서
+  // 그린다. 원래 값(볼륨/kcal/체중볼륨)은 축 라벨 아래 상세 텍스트(BodyPartAxisTick)에 그대로
+  // 남겨서 실제 수치가 궁금할 때 확인할 수 있게 했다.
+  const bodyPartRadar = useMemo(() => {
+    const maxScore = Math.max(0, ...presentBodyParts.map((atom) => cumulativePartStats[atom]?.score || 0))
+    return presentBodyParts.map((atom) => {
+      const score = cumulativePartStats[atom]?.score || 0
+      return {
         part: atom,
-        누적볼륨: Math.round(cumulativePartStats[atom]?.volume || 0),
-      })),
-    [presentBodyParts, cumulativePartStats]
-  )
+        활동점수: maxScore > 0 ? Math.round((score / maxScore) * 100) : 0,
+      }
+    })
+  }, [presentBodyParts, cumulativePartStats])
 
   // ── 점진적 과부하 진행상황 ──
   // [2026-07-31 변경] "지난주 전체 대비"에서 "같은 종목의 직전 수행 대비"로 판단 기준
@@ -504,19 +548,25 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                   <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={cumulativePartStats} />} />
                   {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.
                       대신 위 커스텀 축 라벨에서 부위별 누적 볼륨·세트 수를 직접 보여준다. */}
-                  <PolarRadiusAxis tick={false} axisLine={false} />
+                  {/* [2026-08-06 변경] 부위마다 단위가 다른 지표(볼륨/kcal/체중볼륨)를 그대로 겹쳐
+                      그리면 스케일이 안 맞아 왜곡되므로, 0~100 상대 점수(활동점수)로 정규화해서
+                      그린다. 실제 원 수치는 축 라벨 아래(BodyPartAxisTick)에서 확인 가능. */}
+                  <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
                   <Radar
-                    name="누적 볼륨"
-                    dataKey="누적볼륨"
+                    name="활동 점수"
+                    dataKey="활동점수"
                     stroke="var(--color-primary-normal)"
                     fill="var(--color-primary-normal)"
                     fillOpacity={0.45}
                   />
-                  <Tooltip {...CHART_TOOLTIP_STYLE} />
+                  <Tooltip {...CHART_TOOLTIP_STYLE} formatter={(value) => [`${value}%`, '상대 활동 점수']} />
                 </RadarChart>
               </ResponsiveContainer>
             )}
           </Card>
+          <p className="text-keep-all" style={{ margin: '-14px 0 20px', fontSize: 11, color: 'var(--color-label-neutral)' }}>
+            부위마다 단위가 달라(근력=볼륨, 유산소=kcal, 맨몸=체중볼륨) 가장 활발한 부위를 100으로 놓은 상대 점수예요. 실제 수치는 축 라벨 아래에 함께 표시돼요.
+          </p>
 
           {/* 점진적 과부하 진행상황 */}
           {/* [2026-08-04 변경] 종목명을 부위 구분 없이 나열하던 것을, 부위별로 묶어서 보여주고
