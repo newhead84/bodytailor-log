@@ -263,6 +263,25 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* [2026-08-06 신규] 앱 전반 롱프레스 시 텍스트가 선택되거나(파란 하이라이트) iOS의
+   복사/공유 콜아웃 메뉴가 뜨는 것을 방지한다. 종목명 롱프레스 가이드 기능 등 곳곳에
+   길게 누르는 상호작용이 늘면서, 의도치 않은 텍스트 선택이 그 위에 겹쳐 뜨는 문제가
+   보고됐다. input/textarea/[contenteditable]은 실제 텍스트 입력·수정이 필요하므로
+   예외로 두어 정상적으로 선택/커서 이동이 가능하게 한다. */
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable='true'] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* 한글 줄바꿈 가독성 규칙: 사용자 노출 텍스트 기본 적용 (프로젝트 지침 7번) */
 body,
 p,

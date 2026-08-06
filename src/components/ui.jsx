@@ -37,9 +37,13 @@ export function Button({ children, onClick, variant = 'primary', disabled, style
   )
 }
 
-export function Card({ children, style, onClick, ...rest }) {
+// [2026-08-06 (2)] NOTE탭 종목카드가 "카드 바깥 탭 시 가이드 패널 닫기"를 구현하려면 카드
+// DOM 노드에 ref가 필요해 forwardRef로 전환했다. ref를 넘기지 않는 기존 사용처는 동작 변화
+// 없이 그대로 호환된다.
+export const Card = React.forwardRef(function Card({ children, style, onClick, ...rest }, ref) {
   return (
     <div
+      ref={ref}
       onClick={onClick}
       style={{
         background: 'var(--color-bg-card)',
@@ -55,7 +59,7 @@ export function Card({ children, style, onClick, ...rest }) {
       {children}
     </div>
   )
-}
+})
 
 export function SectionTitle({ children, action }) {
   return (

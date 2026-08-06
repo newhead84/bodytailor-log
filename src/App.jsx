@@ -1,11 +1,15 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-06 (2)] ① 루틴 편집 화면(파트 편집 카드)의 종목 목록을 atom(원자
- *            부위)별 소제목+색상으로 그룹핑(`RoutineSetup.jsx`) ② 종목 Chip/카드 롱프레스 →
- *            동작 가이드 이미지+설명+팁 인라인 표시 기능을 복원, 짧게 재탭하면 선택 상태
- *            변화 없이 닫힘(신규 `ExerciseGuideToggle.jsx`, `RoutineSetup.jsx`,
- *            `WorkoutInput.jsx`) ③ MY탭 커스텀 종목 중 정식 라이브러리에 동일 이름으로
- *            이미 추가된 항목에 "정식 종목에 추가됨" 배지 표시(`MyPageTab.jsx`).
+ * 최신 변경: [2026-08-06 (3)] ① 앱 전반 롱프레스 텍스트선택/iOS 콜아웃 방지(`tokens.css`,
+ *            입력요소 제외) ② NOTE탭 종목카드 동작가이드 닫기 로직을 pointer 시간차 기반으로
+ *            재설계 — 짧은재탭/재롱프레스/시작버튼/카드바깥탭 4가지로 닫힘(`ExerciseGuideToggle.jsx`,
+ *            `WorkoutInput.jsx`, `ui.jsx` Card forwardRef 전환) ③ "종목추가" 피커 2곳에 ⓘ
+ *            버튼 가이드 토글 신규 ④ NOTE탭 최초 1회 가이드 안내배너+다시보지않기 ⑤ 리포트탭
+ *            부위별 운동추이 텍스트 잘림 수정(지표줄/세트수줄 분리) ⑥ 점진적 과부하 진행상황
+ *            표시를 코어/유산소 별도 산식으로 계산하는 신규 함수 추가(랭킹 점수는 미변경,
+ *            `scoring.js` `computeOverloadByOccurrenceForDisplay`) ⑦ 과거 종목명 개편 이력이
+ *            반영 안 되어 있던 "기타" 오분류 근본 수정(`getExerciseAtom` 정규화 적용 +
+ *            `LEGACY_EXERCISE_NAME_MAP` 24건 보강).
  *            이전 변경들은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
@@ -389,6 +393,8 @@ export default function App() {
           onSessionTimingChange={setSessionTiming}
           customExercises={userDoc.customExercises || {}}
           onGoToRoutineSetup={() => setManagingRoutines(true)}
+          guideHintDismissed={!!userDoc.exerciseGuideHintDismissed}
+          onProfileUpdated={refreshUserDoc}
         />
       </div>
       <div ref={reportScrollRef} style={tabWrapperStyle('report')}>

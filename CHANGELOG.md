@@ -2,6 +2,55 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-08-06 (3)] 롱프레스 텍스트선택 방지 + 동작가이드 닫기 로직 재설계 + 종목추가 ⓘ가이드 + 첫사용 안내배너 + 리포트 텍스트잘림 수정 + 과부하 코어/유산소 별도산식 + "기타" 오분류 근본수정
+- **앱 전반 롱프레스 텍스트선택 방지**: `body`/`*`에 `user-select:none`,
+  `-webkit-touch-callout:none`을 전역 적용하고, `input`/`textarea`/`[contenteditable]`은
+  예외로 두어 정상 입력이 가능하게 했다. (`tokens.css`)
+- **NOTE탭 종목카드 동작가이드 닫기 로직 재설계(버그 근본수정)**: 기존엔 열고/닫는 상태
+  변경이 네이티브 `click` 이벤트 발생에 의존해, 터치 환경에서 짧은 연속 탭 시 click 타이밍이
+  불안정해 짧은 재탭으로 패널이 안 닫히는 문제가 있었다(실사용 테스트로 확인). 상태 변경을
+  pointerdown→pointerup 시간차 자체로 직접 판단하도록 재설계했고, click은 오직 트리거의
+  자체 onClick(선택 토글 등) 오발동 방지 용도로만 쓴다. 이제 4가지 방식 모두로 닫힌다:
+  (1)짧은 재탭 (2)다시 롱프레스(토글) (3)"시작/접기" 버튼 클릭 (4)카드 바깥 탭. (4)를 위해
+  `ui.jsx`의 `Card`를 `forwardRef`로 전환(ref 미전달 기존 사용처는 영향 없음).
+  (`ExerciseGuideToggle.jsx`, `WorkoutInput.jsx`, `ui.jsx`)
+- **"종목추가" 피커 ⓘ 가이드 신규**: 내 루틴/자유 추가 운동 종목추가 피커는 Chip을 누르면
+  즉시 종목이 추가되므로, 롱프레스 대신 종목명 옆 ⓘ 버튼을 눌러야 가이드가 열리고 다시
+  누르면 닫히는 방식으로 별도 구현(`ExerciseGuideInfoButton` 신규, 피커별로 한 번에 하나만
+  열림). (`WorkoutInput.jsx`)
+- **최초 1회 가이드 안내배너**: NOTE탭 상단에 "종목명을 길게 누르면…" 안내 배너를 최초
+  1회 노출, `users/{uid}.exerciseGuideHintDismissed`로 다시 보지 않기 저장(HowToTab
+  온보딩 배너와 동일 패턴). `App.jsx`→`LogTab.jsx`→`WorkoutInput.jsx` props 배선 추가.
+- **리포트탭 부위별 운동추이 텍스트 잘림 수정**: 볼륨/kcal/체중볼륨+세트수를 " · "로 한
+  줄에 모두 이어붙이면 지표가 2개 이상 섞인 부위에서 문자열이 길어져 레이더 차트 좌우
+  프레임 밖으로 잘렸다. 지표 줄과 세트수 줄을 분리해 각 줄 길이를 줄였다. (`ReportTab.jsx`)
+- **점진적 과부하 — 코어/유산소 별도 산식(표시 전용)**: 기존 `computeOverloadByOccurrence`가
+  중량×횟수(topWeight/totalVolume)만으로 향상 여부를 판단해, 무게 필드가 없는 reps형(맨몸)·
+  cardio형(유산소) 종목은 항상 0으로 계산되어 향상 판정이 사실상 불가능했다(근본원인 확인).
+  신규 `computeOverloadByOccurrenceForDisplay`(inputType별로 sets=중량/볼륨, reps=총 횟수,
+  cardio=총 운동시간 비교)를 추가해 리포트탭 "점진적 과부하 진행상황" 화면 표시(퍼센트·목록·
+  종목별 추이 그래프)에만 반영했다. **랭킹 점수(`handleRefreshMyScore`가 쓰는 기존
+  `computeOverloadByOccurrence`)는 전혀 변경하지 않음**(사용자 확인: 그래프 표시에만 반영).
+  종목 클릭 시 보여주는 추이 그래프도 기존엔 topWeight 고정이라 코어/유산소가 항상 평평한
+  0선이었는데, inputType에 맞는 지표(중량/총 횟수/총 시간)로 그리도록 함께 수정.
+  (`scoring.js`, `ReportTab.jsx`)
+- **"기타" 오분류 근본 수정**: `getExerciseAtom()`이 조회 전 `normalizeExerciseName()`을
+  거치지 않아, 이미 존재하던 `LEGACY_EXERCISE_NAME_MAP`(옛 이름→새 이름)이 routineTemplates
+  로딩 시에만 적용되고 workoutLogs(실제 기록) 분류에는 전혀 반영되지 않고 있었다(근본원인).
+  `getExerciseAtom()`에 정규화를 추가해 ReportTab·CalendarView 등 이 함수를 쓰는 모든
+  화면에 일괄 적용되게 했다. 추가로 CHANGELOG 이력을 감사해 "[2026-08-01] 운동 종목명
+  표기 정리(22건)" 세션에서 "과거 기록과의 자동 매칭은 신경쓰지 않기로 함"이라며 명시적으로
+  보류됐던 옛 이름들(레그컬 라잉/사이드레터럴레이즈/머신숄더프레스 등, 24건)이 지금까지
+  매핑에 전혀 없었던 것을 확인해 전부 보강했다. 저장된 Firestore 기록 자체는 건드리지
+  않고 분류 시점에서만 정규화한다. (`exerciseLibrary.js`)
+- **한계 안내**: 이번 보강은 과거 개명 이력에 대한 소급 보정이다. 앞으로 종목명을 또
+  바꾸는 세션에서 `LEGACY_EXERCISE_NAME_MAP` 갱신을 빠뜨리면 그 이름은 다시 "기타"로
+  분류될 수 있다 — 향후 종목명 변경 작업 시 QA 체크리스트에 "레거시 이름 매핑 갱신 확인"
+  항목을 추가해 이 재발을 방지하기로 함(프로젝트 지침 2번 QA 체크리스트에 반영 권장).
+| src/styles/tokens.css, src/components/ExerciseGuideToggle.jsx, src/components/WorkoutInput.jsx,
+  src/components/ui.jsx, src/components/ReportTab.jsx, src/utils/scoring.js,
+  src/utils/exerciseLibrary.js, src/App.jsx, src/components/LogTab.jsx
+
 [2026-08-06 (2)] 루틴 편집 화면 부위별 그룹핑 + 동작 가이드 롱프레스 복원 + 커스텀 종목 배지
 - **루틴 편집 화면(파트 편집 카드) atom별 그룹핑**: 복합 부위 파트(예: 등&이두&코어&유산소)를
   편집할 때 종목이 한 줄로 쭉 나열돼 어느 종목이 어느 부위인지 분간이 어렵다는 피드백. atom

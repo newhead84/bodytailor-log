@@ -16,7 +16,7 @@ import {
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom } from '../storage'
 import { getTierByXp } from '../utils/tier'
-import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeFinalScore } from '../utils/scoring'
+import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeOverloadByOccurrenceForDisplay, computeFinalScore } from '../utils/scoring'
 import { getExerciseAtom, getExerciseInputType, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 import { toLocalDateStr } from '../utils/date'
@@ -69,14 +69,16 @@ const LABEL_OFFSET = 16
 // 축 라벨 아래 상세 텍스트는 그중 실제로 값이 있는 지표를 그 부위에 맞는 단위로 보여준다.
 // (한 부위 안에 웨이트 종목과 맨몸 종목이 섞여 있으면 두 지표 모두 값이 있을 수 있어, 그
 // 경우 두 지표를 · 로 이어 보여준다.)
-function formatPartDetail(stat) {
-  if (!stat || !stat.sets) return '기록 없음'
+// [2026-08-06 (2) 수정] 지표(볼륨/kcal/체중볼륨)와 세트수를 " · "로 한 줄에 모두 이어붙이면
+// 부위에 지표가 2개 이상 섞였을 때 문자열이 길어져 레이더 차트 좌우 프레임 바깥으로 잘리는
+// 문제가 있었다. 지표 줄과 세트수 줄을 분리해 각 줄 길이를 절반 이하로 줄였다.
+function formatPartMetrics(stat) {
+  if (!stat || !stat.sets) return null
   const parts = []
   if (stat.volume > 0) parts.push(`볼륨 ${Math.round(stat.volume)}`)
   if (stat.kcal > 0) parts.push(`${Math.round(stat.kcal)}kcal`)
   if (stat.bwVolume > 0) parts.push(`체중볼륨 ${Math.round(stat.bwVolume)}`)
-  if (parts.length === 0) return `${stat.sets}세트`
-  return `${parts.join(' · ')} · ${stat.sets}세트`
+  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
@@ -90,14 +92,27 @@ function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
     lx = x + (dx / dist) * LABEL_OFFSET
     ly = y + (dy / dist) * LABEL_OFFSET
   }
+  const metrics = formatPartMetrics(stat)
+  const setsLabel = stat?.sets ? `${stat.sets}세트` : '기록 없음'
   return (
     <g transform={`translate(${lx},${ly})`}>
       <text textAnchor={textAnchor} fontSize={11} fill="var(--color-label-normal)" fontWeight={600}>
         {payload?.value}
       </text>
-      <text textAnchor={textAnchor} dy={14} fontSize={9} fill="var(--color-label-neutral)">
-        {formatPartDetail(stat)}
-      </text>
+      {metrics ? (
+        <>
+          <text textAnchor={textAnchor} dy={13} fontSize={8.5} fill="var(--color-label-neutral)">
+            {metrics}
+          </text>
+          <text textAnchor={textAnchor} dy={24} fontSize={8.5} fill="var(--color-label-neutral)">
+            {setsLabel}
+          </text>
+        </>
+      ) : (
+        <text textAnchor={textAnchor} dy={14} fontSize={9} fill="var(--color-label-neutral)">
+          {setsLabel}
+        </text>
+      )}
     </g>
   )
 }
@@ -348,11 +363,15 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   // 변경(사용자 확인). 3분할처럼 한 주 안에 같은 종목을 여러 번 하는 경우, 이번 주
   // 수행 회차를 각각 그 직전 수행과 비교해 모두 노출한다. 직전 수행 탐색 범위는
   // logs가 이미 조회돼 있는 현재 통계 조회 범위(STATS_RANGE_DAYS)로 제한된다.
+  // [2026-08-06 (2) 변경] 화면 표시는 inputType별로 비교 지표를 분리한
+  // computeOverloadByOccurrenceForDisplay를 사용(코어/유산소 별도 산식, 사용자 확인:
+  // 그래프 표시에만 반영). 랭킹 점수(handleRefreshMyScore)는 기존 computeOverloadByOccurrence
+  // (중량 기준)를 그대로 사용하며 이 변경의 영향을 받지 않는다.
   const overloadProgress = useMemo(() => {
     const today = new Date()
     const weekStart = startOfWeek(today)
     const fmt = (d) => toLocalDateStr(d)
-    return computeOverloadByOccurrence(logs, fmt(weekStart))
+    return computeOverloadByOccurrenceForDisplay(logs, fmt(weekStart), getExerciseInputType)
   }, [logs])
 
   // [2026-08-04 신규] 점진적 과부하 리스트를 종목명만 나열하지 않고 부위별로 묶어서 보여주기
@@ -396,14 +415,31 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
       .slice(0, 5)
   }, [popularityByAtom, selectedPopAtom])
 
+  // [2026-08-06 (2) 변경] 기존엔 topWeight(무게) 고정이라, 코어(맨몸/횟수전용)·유산소 종목은
+  // 무게 필드가 없어 항상 0으로 평평한 그래프만 보였다. inputType에 맞는 지표로 그린다.
+  //   - sets(중량형): 최고 중량(kg)
+  //   - reps(맨몸/횟수전용): 총 횟수(회)
+  //   - cardio(유산소): 총 운동시간(분)
+  const selectedExerciseInputType = selectedExercise ? getExerciseInputType(selectedExercise) : 'sets'
+  const trendMetricLabel =
+    selectedExerciseInputType === 'cardio' ? '총 운동시간(분)' : selectedExerciseInputType === 'reps' ? '총 횟수(회)' : '최고 중량(kg)'
   const exerciseTrend = useMemo(() => {
     if (!selectedExercise) return []
+    const inputType = getExerciseInputType(selectedExercise)
     return logs
       .filter((log) => log.exercises?.some((e) => e.name === selectedExercise))
       .map((log) => {
         const ex = log.exercises.find((e) => e.name === selectedExercise)
-        const topWeight = Math.max(...ex.sets.map((s) => s.weight), 0)
-        return { date: log.date.slice(5), topWeight }
+        if (inputType === 'cardio') {
+          const totalDurationMin = ex.sets.reduce((s, st) => s + (Number(st.durationMin) || 0), 0)
+          return { date: log.date.slice(5), value: totalDurationMin }
+        }
+        if (inputType === 'reps') {
+          const totalReps = ex.sets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
+          return { date: log.date.slice(5), value: totalReps }
+        }
+        const topWeight = Math.max(...ex.sets.map((s) => s.weight || 0), 0)
+        return { date: log.date.slice(5), value: topWeight }
       })
   }, [logs, selectedExercise])
 
@@ -592,7 +628,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
                   <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-primary-normal)' }}>{overloadProgress.score}%</span>
                   <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                    직전 수행 대비 중량·볼륨이 늘어난 회차 비율
+                    직전 수행 대비 향상된 회차 비율(중량·볼륨/횟수/시간)
                   </span>
                 </div>
                 <p className="text-keep-all" style={{ fontSize: 11, color: 'var(--color-label-neutral)', margin: '0 0 12px' }}>
@@ -630,16 +666,19 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                                 </span>
                               </button>
                               {isSelected && (
-                                <div style={{ height: 140, margin: '4px 0 2px' }}>
-                                  <ResponsiveContainer key={isActive ? 'overload-trend-on' : 'overload-trend-off'} width="100%" height="100%">
-                                    <LineChart data={exerciseTrend}>
-                                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
-                                      <XAxis dataKey="date" fontSize={10} stroke="var(--color-label-neutral)" />
-                                      <YAxis fontSize={10} stroke="var(--color-label-neutral)" />
-                                      <Tooltip {...CHART_TOOLTIP_STYLE} />
-                                      <Line type="monotone" dataKey="topWeight" stroke={getPartColor(atom)} strokeWidth={2} dot={{ r: 3 }} />
-                                    </LineChart>
-                                  </ResponsiveContainer>
+                                <div style={{ margin: '4px 0 2px' }}>
+                                  <p style={{ margin: '0 0 2px 8px', fontSize: 10, color: 'var(--color-label-neutral)' }}>{trendMetricLabel}</p>
+                                  <div style={{ height: 140 }}>
+                                    <ResponsiveContainer key={isActive ? 'overload-trend-on' : 'overload-trend-off'} width="100%" height="100%">
+                                      <LineChart data={exerciseTrend}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
+                                        <XAxis dataKey="date" fontSize={10} stroke="var(--color-label-neutral)" />
+                                        <YAxis fontSize={10} stroke="var(--color-label-neutral)" />
+                                        <Tooltip {...CHART_TOOLTIP_STYLE} />
+                                        <Line type="monotone" dataKey="value" stroke={getPartColor(atom)} strokeWidth={2} dot={{ r: 3 }} />
+                                      </LineChart>
+                                    </ResponsiveContainer>
+                                  </div>
                                 </div>
                               )}
                             </div>

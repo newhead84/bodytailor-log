@@ -74,6 +74,68 @@ export function computeOverloadByOccurrence(sortedLogs, periodStart) {
   return { score: Math.round((favorable / occurrences.length) * 100), occurrences }
 }
 
+// [2026-08-06 (2) 신규] 리포트 탭 "점진적 과부하 진행상황" 화면 표시(그래프/퍼센트) 전용
+// 함수. ⚠️ 랭킹 점수 계산에는 쓰이지 않는다 — 랭킹 점수(overloadScore, ReportTab.jsx
+// handleRefreshMyScore)는 여전히 위 computeOverloadByOccurrence(중량×횟수 기준)만 그대로
+// 사용한다(사용자 확인: "그래프 표시에만 반영", 랭킹 점수 산식은 미변경).
+//
+// 근본 원인: 기존 computeOverloadByOccurrence는 topWeight/totalVolume(중량 기반)만으로
+// 향상 여부를 판단해, 무게 필드가 없는 reps형(맨몸/횟수전용, 예: 크런치)·cardio형(유산소)
+// 종목은 두 값이 항상 0이 되어 사실상 향상 판정이 불가능했다(코어·유산소가 사실상 항상
+// "향상 없음"으로 집계). 이 함수는 종목별 inputType에 따라 비교 지표를 분리한다.
+//   - sets(중량형): 기존과 동일하게 topWeight/totalVolume
+//   - reps(맨몸/횟수전용): 총 횟수(모든 세트 reps 합)
+//   - cardio(유산소): 총 운동시간(분, durationMin 합)
+// getInputType은 exerciseLibrary.js의 getExerciseInputType을 호출부에서 주입한다
+// (scoring.js가 exerciseLibrary.js에 직접 의존하지 않도록 분리).
+export function computeOverloadByOccurrenceForDisplay(sortedLogs, periodStart, getInputType) {
+  const lastSeen = {} // exerciseName -> 직전 수행의 비교 지표(타입별로 다른 필드 구성)
+  const occurrences = []
+
+  function extractMetric(ex, inputType) {
+    if (!ex.sets || ex.sets.length === 0) return null
+    if (inputType === 'cardio') {
+      const totalDurationMin = ex.sets.reduce((s, st) => s + (Number(st.durationMin) || 0), 0)
+      return { kind: 'cardio', primary: totalDurationMin }
+    }
+    if (inputType === 'reps') {
+      const totalReps = ex.sets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
+      return { kind: 'reps', primary: totalReps }
+    }
+    const topWeight = Math.max(...ex.sets.map((s) => s.weight || 0), 0)
+    const totalVolume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
+    return { kind: 'sets', topWeight, totalVolume }
+  }
+
+  function isImproved(cur, prev) {
+    if (cur.kind === 'cardio' || cur.kind === 'reps') {
+      return cur.primary > prev.primary
+    }
+    return cur.topWeight > prev.topWeight || cur.totalVolume > prev.totalVolume
+  }
+
+  sortedLogs.forEach((log) => {
+    log.exercises?.forEach((ex) => {
+      const inputType = getInputType(ex.name)
+      const cur = extractMetric(ex, inputType)
+      if (!cur) return
+      const prev = lastSeen[ex.name]
+
+      if (log.date >= periodStart) {
+        const isNew = !prev
+        const improved = !isNew && isImproved(cur, prev)
+        occurrences.push({ date: log.date, name: ex.name, improved, isNew, inputType })
+      }
+
+      lastSeen[ex.name] = cur
+    })
+  })
+
+  if (occurrences.length === 0) return { score: 0, occurrences: [] }
+  const favorable = occurrences.filter((o) => o.isNew || o.improved).length
+  return { score: Math.round((favorable / occurrences.length) * 100), occurrences }
+}
+
 export function computeStreakBonus(consecutiveWeeks) {
   // 4주 연속마다 +5점, 최대 +20점
   return Math.min(20, Math.floor(consecutiveWeeks / 4) * 5)

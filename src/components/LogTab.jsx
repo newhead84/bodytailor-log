@@ -21,6 +21,8 @@ const LogTab = forwardRef(function LogTab(
     onSessionTimingChange,
     customExercises,
     onGoToRoutineSetup,
+    guideHintDismissed,
+    onProfileUpdated,
   },
   ref
 ) {
@@ -39,6 +41,8 @@ const LogTab = forwardRef(function LogTab(
       onSessionTimingChange={onSessionTimingChange}
       customExercises={customExercises}
       onGoToRoutineSetup={onGoToRoutineSetup}
+      guideHintDismissed={guideHintDismissed}
+      onProfileUpdated={onProfileUpdated}
     />
   )
 })

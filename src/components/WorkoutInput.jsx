@@ -19,7 +19,7 @@ import {
 } from '../utils/exerciseLibrary'
 import { estimateCaloriesV2 } from '../utils/calories'
 import { getSuggestedNext } from '../utils/routineSuggestion'
-import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate } from '../storage'
+import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate, updateUserProfile } from '../storage'
 import { todayStr } from '../utils/date'
 import { pickSetEncouragement } from '../utils/setEncouragements'
 
@@ -80,10 +80,28 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     onSessionTimingChange,
     customExercises,
     onGoToRoutineSetup,
+    guideHintDismissed,
+    onProfileUpdated,
   },
   ref
 ) {
   const templates = routineTemplates || []
+  // [2026-08-06 (2)] 종목명 롱프레스(NOTE탭 카드)/ⓘ버튼(종목추가 피커)으로 동작 가이드를 볼 수
+  // 있다는 걸 모르는 사용자를 위한 최초 1회 안내 배너. HowToTab.jsx의 온보딩 배너와 동일하게
+  // users/{uid}.exerciseGuideHintDismissed=true로 저장하며 다시 보지 않을 수 있다.
+  const [guideHintClosed, setGuideHintClosed] = useState(false)
+  const [dismissingGuideHint, setDismissingGuideHint] = useState(false)
+  const showGuideHint = !guideHintDismissed && !guideHintClosed
+  async function handleDismissGuideHint() {
+    setDismissingGuideHint(true)
+    try {
+      await updateUserProfile(uid, { exerciseGuideHintDismissed: true })
+      setGuideHintClosed(true)
+      onProfileUpdated?.()
+    } finally {
+      setDismissingGuideHint(false)
+    }
+  }
   const confirm = useConfirm()
   // 운동방식: 내 루틴(최대 8개) 중 하나 또는 '자유 추가 운동'
   const [sessionType, setSessionType] = useState('routine') // 'routine' | 'extra'
@@ -128,11 +146,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   // 내 루틴 파트에 종목 추가 패널
   const [addingExercise, setAddingExercise] = useState(false)
+  // [2026-08-06 (2)] "종목추가" 피커는 Chip을 누르면 즉시 추가되므로 롱프레스 대신 별도
+  // ⓘ 버튼으로 가이드를 연다. 한 번에 하나의 패널만 열리도록 피커별로 열린 종목명 1개만 기억.
+  const [pickerGuideName, setPickerGuideName] = useState(null)
 
   // 자유 추가 운동: 루틴과 무관하게 오늘 세션에서만 고른 종목 목록(코어·유산소 포함 전 부위)
   const [freeExercises, setFreeExercises] = useState([]) // string[]
   const [freeCategory, setFreeCategory] = useState(EXTRA_CATEGORIES[0])
   const [addingFreeExercise, setAddingFreeExercise] = useState(false)
+  const [freePickerGuideName, setFreePickerGuideName] = useState(null)
 
   // [2026-07-29 재수정] App.jsx가 이 컴포넌트를 언마운트하지 않고 display:none↔block으로만
   // 탭을 전환한다(휴식 타이머 상태 보존 목적). 그런데 Reorder.Item의 layout="position"이
@@ -905,6 +927,28 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           elapsedSeconds/isPaused/handleAdjustElapsed/handleResetElapsed/handlePauseToggle는
           여전히 draft 저장·자동재개 등 다른 로직에서 쓰이므로 그대로 둔다. */}
 
+      {showGuideHint && (
+        <Card
+          style={{
+            marginBottom: 14,
+            background: 'var(--color-primary-bg)',
+            border: '1px solid var(--color-primary-normal)',
+          }}
+        >
+          <p className="text-keep-all" style={{ margin: '0 0 6px', fontWeight: 700, fontSize: 14, color: 'var(--color-label-strong)' }}>
+            동작 가이드 보는 법
+          </p>
+          <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
+            종목 카드의 종목명을 길게 누르면 동작 이미지·설명을 볼 수 있어요. 다시 길게
+            누르거나, 짧게 탭하거나, 카드 밖을 눌러 닫을 수 있어요. 종목을 새로 고르는
+            화면에서는 종목명 옆 ⓘ 버튼을 눌러 같은 가이드를 볼 수 있어요.
+          </p>
+          <Button variant="ghost" onClick={handleDismissGuideHint} disabled={dismissingGuideHint} style={{ fontSize: 13, padding: '8px 14px' }}>
+            {dismissingGuideHint ? '처리 중…' : '다시 보지 않기'}
+          </Button>
+        </Card>
+      )}
+
       {/* 운동방식: 내 루틴(최대 8개) 중 선택 / 자유 추가 운동 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0 }}>운동방식 선택</span>
@@ -1118,9 +1162,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)', marginBottom: 6 }}>{atom}</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {names.map((n) => (
-                          <Chip key={n} onClick={() => addExerciseToRoutine(n)}>
-                            {n}
-                          </Chip>
+                          <React.Fragment key={n}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Chip onClick={() => addExerciseToRoutine(n)}>{n}</Chip>
+                              <ExerciseGuideInfoButton
+                                name={n}
+                                open={pickerGuideName === n}
+                                onToggle={() => setPickerGuideName((prev) => (prev === n ? null : n))}
+                              />
+                            </div>
+                            {pickerGuideName === n && <ExerciseGuidePanel name={n} />}
+                          </React.Fragment>
                         ))}
                       </div>
                     </div>
@@ -1156,9 +1208,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 {[...getExercisesForPart(freeCategory), ...getCustomExercisesForPart(customExercises, freeCategory)]
                   .filter((n) => !freeExercises.includes(n))
                   .map((n) => (
-                    <Chip key={n} onClick={() => addFreeExercise(n)}>
-                      {n}
-                    </Chip>
+                    <React.Fragment key={n}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Chip onClick={() => addFreeExercise(n)}>{n}</Chip>
+                        <ExerciseGuideInfoButton
+                          name={n}
+                          open={freePickerGuideName === n}
+                          onToggle={() => setFreePickerGuideName((prev) => (prev === n ? null : n))}
+                        />
+                      </div>
+                      {freePickerGuideName === n && <ExerciseGuidePanel name={n} />}
+                    </React.Fragment>
                   ))}
               </div>
               <button onClick={() => setAddingFreeExercise(false)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
@@ -1373,6 +1433,40 @@ function SortableExerciseItem({ name, orderKey, onDragEnd, layoutEnabled = true,
   )
 }
 
+// [2026-08-06 (2)] "종목추가" 피커 전용 ⓘ 버튼. 피커의 Chip은 누르면 즉시 종목이
+// 추가되므로 롱프레스 방식 대신, 이 버튼을 눌러야만 가이드가 열리고(추가 동작과 무관)
+// 다시 누르면 닫힌다. stopPropagation으로 Chip의 추가 동작에 영향을 주지 않는다.
+function ExerciseGuideInfoButton({ name, open, onToggle }) {
+  return (
+    <button
+      type="button"
+      title={`${name} 동작 가이드`}
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
+      style={{
+        flexShrink: 0,
+        width: 20,
+        height: 20,
+        borderRadius: '50%',
+        border: `1px solid ${open ? 'var(--color-primary-normal)' : 'var(--color-line)'}`,
+        background: open ? 'var(--color-primary-bg)' : 'transparent',
+        color: open ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)',
+        fontSize: 11,
+        fontWeight: 800,
+        fontStyle: 'italic',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        lineHeight: 1,
+      }}
+    >
+      i
+    </button>
+  )
+}
+
 // 운동 종목 한 칸(부위 색상 라인 + 세트 입력 영역). 루틴/자유 추가 운동 공통으로 사용.
 function ExerciseCard({
   name,
@@ -1405,11 +1499,15 @@ function ExerciseCard({
   const gripOptions = getGripOptions(name)
   // [2026-08-06 복원] 종목명을 롱프레스하면 동작 가이드 이미지+설명+팁을 볼 수 있던 기능이
   // 2026-08-02에 이미지 유료 DB 문제로 전면 삭제됐었는데, 무료 이미지+설명 데이터가 갖춰져
-  // 다시 붙였다. 짧게 재탭하면 패널만 닫히고 카드 펼침(expanded) 상태는 건드리지 않는다.
-  const { open: guideOpen, guideProps } = useExerciseGuidePress()
+  // 다시 붙였다.
+  // [2026-08-06 (2)] 닫히는 방법이 짧은 재탭뿐이라 사용자가 닫는 법을 못 찾는다는 피드백으로,
+  // (1)짧은 재탭 (2)다시 롱프레스 (3)"시작/접기" 버튼 클릭 (4)카드 바깥 탭 4가지 모두로
+  // 닫히게 확장했다. (4)를 위해 카드 컨테이너에 ref를 달아 훅에 넘긴다.
+  const cardRef = useRef(null)
+  const { open: guideOpen, guideProps, close: closeGuide } = useExerciseGuidePress(cardRef)
 
   return (
-    <Card style={{ padding: 0, borderLeft: `4px solid ${color}` }}>
+    <Card ref={cardRef} style={{ padding: 0, borderLeft: `4px solid ${color}` }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 10px 6px', gap: 6 }}>
         {draggable && (
           <div
@@ -1469,7 +1567,10 @@ function ExerciseCard({
         {isDone ? (
           <button
             title={expanded ? '접기' : '펼쳐서 보기'}
-            onClick={onOpen}
+            onClick={() => {
+              closeGuide()
+              onOpen()
+            }}
             style={{
               flexShrink: 0,
               width: 28,
@@ -1487,7 +1588,10 @@ function ExerciseCard({
           </button>
         ) : (
           <button
-            onClick={onOpen}
+            onClick={() => {
+              closeGuide()
+              onOpen()
+            }}
             style={{
               flexShrink: 0,
               padding: '8px 12px',
