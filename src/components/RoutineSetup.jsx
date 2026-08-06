@@ -1,7 +1,15 @@
 import React, { useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, BackButton, useConfirm } from './ui'
-import { BODY_PART_ATOMS, buildPartName, getExercisesForPart, getCustomExercisesForPart } from '../utils/exerciseLibrary'
+import {
+  BODY_PART_ATOMS,
+  buildPartName,
+  getExercisesForPart,
+  getCustomExercisesForPart,
+  getAtomsForPartName,
+  getPartColor,
+} from '../utils/exerciseLibrary'
+import ExerciseGuideToggle from './ExerciseGuideToggle'
 
 // [2026-07-28 개편] 고정 5분할(무분할~5분할) 프리셋 선택 화면을 없애고,
 // 부위(BODY_PART_ATOMS)를 자유롭게 조합해 파트를 만드는 단일 루틴 편집기로 변경.
@@ -149,7 +157,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
         <React.Fragment key={part.name}>
           <PartEditor
             part={part}
-            availableExercises={[...getExercisesForPart(part.name), ...getCustomExercisesForPart(customExercises, part.name)]}
+            customExercises={customExercises}
             onToggle={(name) => toggleExercise(idx, name)}
             onRemovePart={() => removePart(idx)}
             onEditAtoms={() => openEditPartPicker(idx)}
@@ -214,9 +222,13 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
   )
 }
 
-// [2026-08-02 변경] 동작 가이드 이미지 연동을 전면 삭제하면서, 종목 Chip의 롱프레스
-// 토글 로직도 함께 제거했다. 이제 짧게 누르면 그대로 루틴에 추가/제거된다(기존 동작 유지).
-function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAtoms }) {
+// [2026-08-06 변경] 복합 부위(예: 등&이두&코어&유산소) 파트는 종목이 한 줄로 쭉 나열되면
+// 어느 종목이 어느 부위인지 분간이 어렵다는 피드백으로, atom(원자 부위)별로 소제목 + 부위
+// 고유 색상을 넣어 구간을 나눴다. atom 순서는 파트명 토큰 순서(getAtomsForPartName)를 그대로
+// 따른다. 종목 Chip은 (2026-08-02에 전면 삭제됐던) 롱프레스 동작 가이드 토글을 다시 붙였다
+// (ExerciseGuideToggle, 짧게 재탭하면 선택 상태 변화 없이 닫힘 — 상세는 해당 파일 주석 참고).
+function PartEditor({ part, customExercises, onToggle, onRemovePart, onEditAtoms }) {
+  const atoms = getAtomsForPartName(part.name)
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -230,13 +242,44 @@ function PartEditor({ part, availableExercises, onToggle, onRemovePart, onEditAt
           </button>
         </div>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, rowGap: 10 }}>
-        {availableExercises.map((name) => (
-          <Chip key={name} active={part.exercises.includes(name)} onClick={() => onToggle(name)}>
-            {name}
-          </Chip>
-        ))}
-      </div>
+      {atoms.map((atom) => {
+        const names = [...new Set([...getExercisesForPart(atom), ...getCustomExercisesForPart(customExercises, atom)])]
+        if (names.length === 0) return null
+        const color = getPartColor(atom)
+        return (
+          <div key={atom} style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                color,
+                marginBottom: 8,
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />
+              {atom}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, rowGap: 10 }}>
+              {names.map((name) => (
+                <ExerciseGuideToggle key={name} name={name}>
+                  {(guideProps) => (
+                    <Chip
+                      active={part.exercises.includes(name)}
+                      onClick={() => onToggle(name)}
+                      {...guideProps}
+                    >
+                      {name}
+                    </Chip>
+                  )}
+                </ExerciseGuideToggle>
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

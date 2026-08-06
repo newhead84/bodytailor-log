@@ -1,10 +1,11 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-06] ① HOWTO 온보딩 배너 문구를 관리자용 온보딩 미리보기에도 노출
- *            (`HowToTab.jsx`, `Onboarding.jsx`) ② 종목 펼침 시 직전 기록 조회 실패로
- *            인풋이 안 생기던 버그 수정(`WorkoutInput.jsx`) ③ 부위별 운동 추이 레이더에서
- *            유산소/맨몸 부위가 누락되던 문제 수정 — 종목 유형별 지표 분리 누적 + 상대
- *            점수(0~100) 정규화 방식으로 변경(`ReportTab.jsx`, `calories.js`).
+ * 최신 변경: [2026-08-06 (2)] ① 루틴 편집 화면(파트 편집 카드)의 종목 목록을 atom(원자
+ *            부위)별 소제목+색상으로 그룹핑(`RoutineSetup.jsx`) ② 종목 Chip/카드 롱프레스 →
+ *            동작 가이드 이미지+설명+팁 인라인 표시 기능을 복원, 짧게 재탭하면 선택 상태
+ *            변화 없이 닫힘(신규 `ExerciseGuideToggle.jsx`, `RoutineSetup.jsx`,
+ *            `WorkoutInput.jsx`) ③ MY탭 커스텀 종목 중 정식 라이브러리에 동일 이름으로
+ *            이미 추가된 항목에 "정식 종목에 추가됨" 배지 표시(`MyPageTab.jsx`).
  *            이전 변경들은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */

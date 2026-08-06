@@ -506,32 +506,60 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </div>
 
         {(customExercises[customExercisePart] || []).length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-            {(customExercises[customExercisePart] || []).map((name) => (
-              <div
-                key={name}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 10px',
-                  borderRadius: 999,
-                  border: '1px solid var(--color-line)',
-                  background: 'var(--color-bg-card)',
-                  fontSize: 13,
-                }}
-              >
-                <span>{name}</span>
-                <button
-                  onClick={() => handleRemoveCustomExercise(name)}
-                  style={{ fontSize: 12, color: 'var(--color-label-neutral)', lineHeight: 1 }}
-                  aria-label={`${name} 삭제`}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+            {(customExercises[customExercisePart] || []).map((name) => {
+              // [2026-08-06 신규] 커스텀으로 추가했던 종목이 이후 업데이트로 정식 라이브러리에
+              // 똑같은 이름으로 들어온 경우(예: 플레이트레터럴로우), 굳이 커스텀에 남겨둘 이유가
+              // 없다는 걸 알아채기 쉽게 배지로 표시한다. 삭제해도 이미 기록된 과거 데이터는
+              // 이름 문자열로 그대로 저장돼 있어 영향 없다(기록탭/캘린더에 그대로 노출됨).
+              const isNowOfficial = getExercisesForPart(customExercisePart).includes(name)
+              return (
+                <div
+                  key={name}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: isNowOfficial ? '1px solid var(--color-primary-normal)' : '1px solid var(--color-line)',
+                    background: 'var(--color-bg-card)',
+                    fontSize: 13,
+                  }}
                 >
-                  ✕
-                </button>
-              </div>
-            ))}
+                  <span>{name}</span>
+                  {isNowOfficial && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: 999,
+                        background: 'var(--color-primary-bg)',
+                        color: 'var(--color-primary-strong)',
+                      }}
+                    >
+                      정식 종목에 추가됨
+                    </span>
+                  )}
+                  <button
+                    onClick={() => handleRemoveCustomExercise(name)}
+                    style={{ fontSize: 12, color: 'var(--color-label-neutral)', lineHeight: 1 }}
+                    aria-label={`${name} 삭제`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )
+            })}
           </div>
+        )}
+        {(customExercises[customExercisePart] || []).some((name) => getExercisesForPart(customExercisePart).includes(name)) && (
+          <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
+            "정식 종목에 추가됨" 배지가 붙은 항목은 이제 공식 목록에도 같은 이름으로 있어요.
+            ✕로 지워도 이후엔 공식 목록의 종목이 그대로 대체하고, 지금까지 기록한 내역은
+            그대로 남아요.
+          </p>
         )}
 
         <div style={{ display: 'flex', gap: 8 }}>

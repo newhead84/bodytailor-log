@@ -3,6 +3,7 @@ import { Sparkles } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm } from './ui'
 import RestTimer from './RestTimer'
+import { useExerciseGuidePress, ExerciseGuidePanel } from './ExerciseGuideToggle'
 import logoMarkTransparent from '../assets/logo-mark-transparent.png'
 import {
   calcVolume,
@@ -1402,6 +1403,10 @@ function ExerciseCard({
   const inputType = getExerciseInputType(name)
   const weightStep = getWeightStep(name)
   const gripOptions = getGripOptions(name)
+  // [2026-08-06 복원] 종목명을 롱프레스하면 동작 가이드 이미지+설명+팁을 볼 수 있던 기능이
+  // 2026-08-02에 이미지 유료 DB 문제로 전면 삭제됐었는데, 무료 이미지+설명 데이터가 갖춰져
+  // 다시 붙였다. 짧게 재탭하면 패널만 닫히고 카드 펼침(expanded) 상태는 건드리지 않는다.
+  const { open: guideOpen, guideProps } = useExerciseGuidePress()
 
   return (
     <Card style={{ padding: 0, borderLeft: `4px solid ${color}` }}>
@@ -1449,12 +1454,14 @@ function ExerciseCard({
           </button>
         )}
         <span
+          {...guideProps}
           style={{
             flex: 1,
             minWidth: 0,
             fontWeight: 700,
             fontSize: 15,
             color: isDone ? 'var(--color-label-neutral)' : 'var(--color-label-strong)',
+            ...guideProps.style,
           }}
         >
           {name}
@@ -1517,6 +1524,12 @@ function ExerciseCard({
           </>
         )}
       </div>
+
+      {guideOpen && (
+        <div style={{ padding: '0 10px 10px' }}>
+          <ExerciseGuidePanel name={name} />
+        </div>
+      )}
 
       {expanded && (
         <div style={{ padding: '0 16px 16px' }}>
