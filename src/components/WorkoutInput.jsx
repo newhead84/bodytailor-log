@@ -493,41 +493,56 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
     // 아직 이 종목에 값을 입력한 적이 없으면, 직전 기록의 마지막 세트 값을
     // 첫 세트의 기본값으로 미리 채워준다(그대로 저장해도 되고, 수정도 가능).
-    const inputType = getExerciseInputType(name)
-    setRecords((r) => {
-      if (r[name]) return r
-      const lastSet = last?.sets?.[last.sets.length - 1]
-      if (inputType === 'cardio') {
+    // [2026-08-07 수정] 기존에는 "records[종목명]이 이미 존재하면" 스킵하는 가드였는데,
+    // 존재 여부만 보고 빈 배열([])도 "이미 초기화됨"으로 취급해버려서 — 어떤 경로로든 한 번
+    // 빈 배열이 들어가면 이후 몇 번을 펼쳐도(카드는 펼쳐지는데 인풋 행이 하나도 안 뜨는 채로)
+    // 영구히 복구되지 않는 버그가 있었다. "실제로 입력 세트가 1개 이상 있을 때만" 스킵하도록
+    // 조건을 좁히고, 이 초기화 블록 전체를 try/catch로 감싸 중간에 예기치 못한 에러가 나도
+    // 최소한 빈 기본 세트 하나는 반드시 채워지도록 방어한다.
+    try {
+      const inputType = getExerciseInputType(name)
+      setRecords((r) => {
+        if (r[name]?.length > 0) return r
+        const lastSet = last?.sets?.[last.sets.length - 1]
+        if (inputType === 'cardio') {
+          return {
+            ...r,
+            [name]: [
+              {
+                weight: '0',
+                reps: '0',
+                incline: lastSet?.incline != null ? String(lastSet.incline) : '',
+                speedKmh: lastSet?.speedKmh != null ? String(lastSet.speedKmh) : '',
+                durationMin: lastSet?.durationMin != null ? String(lastSet.durationMin) : '',
+              },
+            ],
+          }
+        }
+        if (inputType === 'reps') {
+          return {
+            ...r,
+            [name]: [{ weight: '0', reps: lastSet ? String(lastSet.reps) : '' }],
+          }
+        }
         return {
           ...r,
-          [name]: [
-            {
-              weight: '0',
-              reps: '0',
-              incline: lastSet?.incline != null ? String(lastSet.incline) : '',
-              speedKmh: lastSet?.speedKmh != null ? String(lastSet.speedKmh) : '',
-              durationMin: lastSet?.durationMin != null ? String(lastSet.durationMin) : '',
-            },
-          ],
+          [name]: [{ weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
         }
-      }
-      if (inputType === 'reps') {
-        return {
-          ...r,
-          [name]: [{ weight: '0', reps: lastSet ? String(lastSet.reps) : '' }],
-        }
-      }
-      return {
-        ...r,
-        [name]: [{ weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
-      }
-    })
+      })
+    } catch (err) {
+      console.error('세트 초기화 실패, 기본값으로 폴백:', name, err)
+      setRecords((r) => (r[name]?.length > 0 ? r : { ...r, [name]: [{ weight: '', reps: '' }] }))
+    }
 
     // [2026-08-05 신규] 그립 옵션이 있는 종목이면 기본값을 정해둔다: 직전 기록에 저장된
     // 그립이 있으면 그걸 이어서 쓰고, 없으면 첫 번째 옵션을 기본으로 선택해둔다.
-    const gripOptions = getGripOptions(name)
-    if (gripOptions) {
-      setSelectedGrips((g) => (g[name] ? g : { ...g, [name]: last?.grip && gripOptions.includes(last.grip) ? last.grip : gripOptions[0] }))
+    try {
+      const gripOptions = getGripOptions(name)
+      if (gripOptions) {
+        setSelectedGrips((g) => (g[name] ? g : { ...g, [name]: last?.grip && gripOptions.includes(last.grip) ? last.grip : gripOptions[0] }))
+      }
+    } catch (err) {
+      console.error('그립 옵션 설정 실패:', name, err)
     }
   }
 
