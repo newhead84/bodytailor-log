@@ -2,6 +2,43 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-08-10] 그립옵션 종목 2개 이상 동시 추가 지원 + 이지바컬 그립옵션 추가
+- **요구사항**: 그립옵션이 있는 종목(랫풀다운 등)을 그립을 다르게 해서 "내 루틴"/기록탭
+  세션에 동시에 2개 이상 추가할 수 있어야 함(사용자 확인: 기록탭 세션 + MY탭 "내 루틴" 둘 다,
+  리포트/랭킹 집계 시 그립이 다르면 완전히 별개 종목처럼 집계, NOTE탭 종목추가에서도 가능해야 함).
+- **핵심 변경**: 종목 식별자를 "이름" 단독에서 `makeExerciseKey(이름, 그립)` = "이름::그립"
+  합성키로 바꿨다(신규 `utils/exerciseKey.js`). 그립이 없는 종목은 지금까지와 동일하게 순수
+  이름 문자열이 그대로 키가 되어 하위 호환된다. 그립은 이제 종목 추가 시점(피커에서 그립별로
+  별도 Chip)에 인스턴스에 고정되며, 기존에 카드를 펼친 채로 그립을 바꾸던 칩 UI는 제거했다
+  (그립 자체가 식별자가 됐으므로 사후 변경은 새 인스턴스를 또 추가하는 것과 동치).
+- **영향 파일**:
+  - `utils/exerciseKey.js`(신규): `makeExerciseKey`/`parseExerciseKey`/`exerciseKeyLabel`
+  - `WorkoutInput.jsx`: records/completedExercises/partOrder/freeExercises/hiddenToday 등
+    키를 합성키로 통일. `openExercise`/`trySaveSet`/`totalVolume`/`hasAnyRecord`/
+    `handleFinishWorkout`(저장 시 합성키→{name, grip}으로 분해)/`handleAddTodayToRoutine`
+    수정. "종목 추가" 피커(내 루틴/자유 추가 운동 둘 다) 신규 `expandGripCandidates()` 헬퍼로
+    그립옵션 종목을 그립별 Chip("이름 (그립)")으로 펼침. `ExerciseCard`는 base name/그립을
+    분해해 라이브러리 조회·제목 표시에 사용, 그립 선택 칩 UI 제거.
+  - `RoutineSetup.jsx`(MY탭 "내 루틴" 편집기): `PartEditor`의 종목 Chip도 그립옵션이 있으면
+    그립별 토글 Chip으로 펼침. 부위 재조합 시 필터링(`stillAvailable`)은 합성키의 base name
+    기준으로 비교하도록 수정.
+  - `utils/scoring.js`: `computeOverloadByOccurrence`/`ForDisplay`가 "직전 수행" 추적 키를
+    이름 단독에서 이름+그립 합성키로 변경(그립이 다르면 별개 종목으로 향상 여부 판단).
+  - `ReportTab.jsx`: "제일 많이 한 운동 Top5"(`mostFrequentExercises`), 과부하 진행상황
+    회차 선택(`selectedExercise`)·중량추이(`exerciseTrend`)를 합성키 기준으로 집계/식별하도록
+    변경. "다른 유저들이 즐겨찾는 운동"(`popularTop`, 크로스유저 인기 집계)은 그립 구분 없이
+    기존 종목명 기준 그대로 유지(범위 밖으로 명시적으로 남겨둠).
+  - `utils/exerciseLibrary.js`: 이지바컬에 `gripOptions: ["언더핸드", "오버핸드"]` 추가
+    (바벨컬과 동일 — 사용자 확인).
+- **범위 밖으로 남겨둔 부분(참고)**: 캘린더뷰의 과거 기록 편집 화면(`CalendarView.jsx`)은
+  여전히 `ex.name` 단독을 키/중복판정 기준으로 쓴다(기존에도 "커스텀 운동 prop 연결 미반영"
+  으로 플래그된 미완성 영역). 이번 변경으로 같은 이름의 그립 변형 2개가 한 로그에 저장되는
+  경우가 새로 생기므로, 그 로그를 캘린더에서 편집할 때 React key 중복 경고 및 "이미 있는
+  종목" 오판(중복 추가 차단)이 발생할 수 있다. 사용자 요청 범위(기록탭 세션 + 내 루틴)에는
+  포함되지 않아 이번 패치에서는 손대지 않았다 — 필요하면 별도 요청으로 진행.
+- **기존 저장 데이터 호환**: 사용자 확인에 따라 마이그레이션하지 않음. 그립옵션 종목이
+  과거에 그립 없이 저장돼 있었다면 계속 그립 없는 단일 항목으로 남는다.
+
 [2026-08-07] 종목 펼치면 인풋 안 뜨는 버그 근본수정(⑯)
 - **증상**: NOTE탭에서 종목을 "시작"으로 펼쳤을 때 세트 입력 행(SetRow)이 하나도 안 뜨고
   "세트완료" 버튼만 보이는 상태가 접었다 다시 펼쳐도 계속 유지되는 영구적 버그.

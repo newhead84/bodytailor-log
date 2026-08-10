@@ -1188,6 +1188,8 @@ export const EXERCISE_META = {
       stabilizer: [],
       antagonist: ["삼두근"],
     },
+    // [2026-08-10 신규] 바벨컬과 동일하게 그립 선택 필요(사용자 확인).
+    gripOptions: ["언더핸드", "오버핸드"],
   },
   "덤벨컬": {
     aliases: ["덤컬"],

@@ -21,6 +21,7 @@ import { estimateCaloriesV2 } from '../utils/calories'
 import { getSuggestedNext } from '../utils/routineSuggestion'
 import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate, updateUserProfile } from '../storage'
 import { todayStr } from '../utils/date'
+import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 import { pickSetEncouragement } from '../utils/setEncouragements'
 
 const REST_OPTIONS = [
@@ -51,6 +52,27 @@ function truncatePartLabel(name) {
   const atoms = name.split('&')
   if (atoms.length <= 2) return name
   return `${atoms.slice(0, 2).join('&')}..`
+}
+
+// [2026-08-10 신규] 종목 추가 피커에서, 그립옵션이 있는 종목(랫풀다운 등)은 그립별로 별도
+// Chip을 만들어 노출한다. 이렇게 하면 같은 종목을 그립을 다르게 해서 여러 번 추가할 수 있다
+// (예: "랫풀다운 (와이드)"와 "랫풀다운 (내로우)"를 둘 다 추가). 그립이 없는 종목은 기존과
+// 동일하게 이름 그대로 후보 1개다. isTaken(key)는 "이미 추가되어(숨김 제외) 더 이상 후보로
+// 보여줄 필요가 없는지"를 판별하는 콜백이다.
+function expandGripCandidates(baseNames, isTaken) {
+  const candidates = []
+  baseNames.forEach((n) => {
+    const gripOptions = getGripOptions(n)
+    if (gripOptions) {
+      gripOptions.forEach((g) => {
+        const key = makeExerciseKey(n, g)
+        if (!isTaken(key)) candidates.push({ key, label: `${n} (${g})`, guideName: n })
+      })
+    } else if (!isTaken(n)) {
+      candidates.push({ key: n, label: n, guideName: n })
+    }
+  })
+  return candidates
 }
 
 function formatClock(totalSeconds) {
@@ -109,11 +131,14 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const [selectedPartName, setSelectedPartName] = useState(null)
 
   const [expandedExercise, setExpandedExercise] = useState(null)
-  const [records, setRecords] = useState({}) // { [exerciseName]: [{weight, reps, saved}] }
-  // [2026-08-05 신규] 그립 옵션이 있는 종목(EXERCISE_META.gripOptions, 8종목)에서 선택한 그립.
-  // 세트마다가 아니라 종목을 펼 때 1회 선택(한 세션 안에서 그립을 계속 바꾸는 경우는 드묾).
-  const [selectedGrips, setSelectedGrips] = useState({}) // { [exerciseName]: gripString }
-  const [lastRecords, setLastRecords] = useState({}) // { [exerciseName]: {sets, date} }
+  // [2026-08-10 변경] records/completedExercises/partOrder/freeExercises/hiddenToday 등은
+  // "종목명" 대신 makeExerciseKey(이름, 그립)로 만든 합성키를 사용한다. 그립이 없는 종목은
+  // 지금까지와 동일하게 순수 이름 문자열이 그대로 키가 된다(하위 호환). 그립이 있는 종목
+  // (랫풀다운 등)은 "이름::그립" 형태라 같은 종목을 그립을 다르게 해서 여러 개 동시에
+  // 추가할 수 있다. 그립은 추가 시점(피커에서 그립별로 별도 Chip)에 고정되며, 기존처럼
+  // 카드를 펼친 채로 그립을 바꾸는 UI는 제거했다(그립 자체가 인스턴스 식별자가 됐으므로).
+  const [records, setRecords] = useState({}) // { [exerciseKey]: [{weight, reps, saved}] }
+  const [lastRecords, setLastRecords] = useState({}) // { [exerciseKey]: {sets, date} }
   const [restSeconds, setRestSeconds] = useState(90)
   const [restKey, setRestKey] = useState(0)
   const [restActive, setRestActive] = useState(false)
@@ -472,11 +497,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setAddingExercise(false)
   }
 
-  async function openExercise(name) {
+  async function openExercise(key) {
     autoResumeIfPaused()
-    setExpandedExercise(expandedExercise === name ? null : name)
+    setExpandedExercise(expandedExercise === key ? null : key)
+    const name = parseExerciseKey(key).name // 라이브러리 조회·직전기록 조회는 실제 종목명 기준
 
-    let last = lastRecords[name]
+    let last = lastRecords[key]
     if (last === undefined) {
       // [2026-08-06 수정] 직전 기록 조회가 실패(네트워크 오류 등)하면 여기서 함수가
       // 중단되어 아래 setRecords(세트 초기화)까지 도달하지 못했다. 그 결과 카드는
@@ -488,7 +514,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         console.error('직전 기록 조회 실패:', name, err)
         last = null
       }
-      setLastRecords((r) => ({ ...r, [name]: last }))
+      setLastRecords((r) => ({ ...r, [key]: last }))
     }
 
     // 아직 이 종목에 값을 입력한 적이 없으면, 직전 기록의 마지막 세트 값을
@@ -502,12 +528,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     try {
       const inputType = getExerciseInputType(name)
       setRecords((r) => {
-        if (r[name]?.length > 0) return r
+        if (r[key]?.length > 0) return r
         const lastSet = last?.sets?.[last.sets.length - 1]
         if (inputType === 'cardio') {
           return {
             ...r,
-            [name]: [
+            [key]: [
               {
                 weight: '0',
                 reps: '0',
@@ -521,33 +547,18 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         if (inputType === 'reps') {
           return {
             ...r,
-            [name]: [{ weight: '0', reps: lastSet ? String(lastSet.reps) : '' }],
+            [key]: [{ weight: '0', reps: lastSet ? String(lastSet.reps) : '' }],
           }
         }
         return {
           ...r,
-          [name]: [{ weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
+          [key]: [{ weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
         }
       })
     } catch (err) {
       console.error('세트 초기화 실패, 기본값으로 폴백:', name, err)
-      setRecords((r) => (r[name]?.length > 0 ? r : { ...r, [name]: [{ weight: '', reps: '' }] }))
+      setRecords((r) => (r[key]?.length > 0 ? r : { ...r, [key]: [{ weight: '', reps: '' }] }))
     }
-
-    // [2026-08-05 신규] 그립 옵션이 있는 종목이면 기본값을 정해둔다: 직전 기록에 저장된
-    // 그립이 있으면 그걸 이어서 쓰고, 없으면 첫 번째 옵션을 기본으로 선택해둔다.
-    try {
-      const gripOptions = getGripOptions(name)
-      if (gripOptions) {
-        setSelectedGrips((g) => (g[name] ? g : { ...g, [name]: last?.grip && gripOptions.includes(last.grip) ? last.grip : gripOptions[0] }))
-      }
-    } catch (err) {
-      console.error('그립 옵션 설정 실패:', name, err)
-    }
-  }
-
-  function selectGrip(name, grip) {
-    setSelectedGrips((g) => ({ ...g, [name]: grip }))
   }
 
   function updateSet(name, idx, field, value) {
@@ -574,9 +585,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 그대로 저장할지만 확인하던 기존 로직에 더해, [2026-07-30 신규] 무게/횟수(또는 유산소 시간)가
   // 0이면 "0으로 완료"는 의미가 없으므로 저장 대신 그 세트를 삭제할지 확인한다(⑬) — 중량이나
   // 수치가 0으로 완료된 세트가 그대로 DB에 남는 문제를 막는다.
-  async function trySaveSet(name, idx) {
-    const set = records[name]?.[idx]
-    const inputType = getExerciseInputType(name)
+  async function trySaveSet(key, idx) {
+    const set = records[key]?.[idx]
+    const inputType = getExerciseInputType(parseExerciseKey(key).name)
     const isEmpty =
       !set ||
       (inputType === 'cardio' ? set.durationMin === '' : inputType === 'reps' ? set.reps === '' : set.weight === '' || set.reps === '')
@@ -589,12 +600,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         : Number(set.weight) === 0 || Number(set.reps) === 0)
     if (isZero) {
       if (await confirm('값이 0으로 입력되어 있어요. 이 세트를 삭제할까요?')) {
-        removeSet(name, idx)
+        removeSet(key, idx)
       }
       return
     }
     if (isEmpty && !(await confirm('값이 비어 있어요. 그대로 저장할까요?'))) return
-    saveSetAndStartRest(name, idx)
+    saveSetAndStartRest(key, idx)
   }
 
   // 세트 저장과 동시에: 휴게타이머 시작 + 다음 세트를 자동으로 생성(직전 값 프리필)
@@ -623,7 +634,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 내 루틴 파트에서 종목을 완전히 삭제(다음 세션에도 다시 나타나지 않음). Firestore에 즉시 반영.
   async function removeExerciseFromRoutine(name) {
     if (!selectedTemplate || !selectedPart) return
-    if (!(await confirm(`"${name}"을(를) 이 파트에서 완전히 삭제할까요? 이후 세션에서도 보이지 않습니다.`))) return
+    if (!(await confirm(`"${exerciseKeyLabel(name)}"을(를) 이 파트에서 완전히 삭제할까요? 이후 세션에서도 보이지 않습니다.`))) return
     const nextExercises = partOrder.filter((n) => n !== name)
     setPartOrder(nextExercises)
     setRecords((r) => {
@@ -739,8 +750,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   const totalVolume = useMemo(() => {
     let sum = 0
-    Object.entries(records).forEach(([name, sets]) => {
-      const inputType = getExerciseInputType(name)
+    Object.entries(records).forEach(([key, sets]) => {
+      const inputType = getExerciseInputType(parseExerciseKey(key).name)
       if (inputType !== 'sets') return // 유산소/횟수전용 종목은 볼륨 계산에서 제외
       const parsed = sets.filter((s) => s.weight !== '' && s.reps !== '').map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
       sum += calcVolume(parsed)
@@ -748,8 +759,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     return sum
   }, [records])
 
-  const hasAnyRecord = Object.entries(records).some(([name, sets]) => {
-    const inputType = getExerciseInputType(name)
+  const hasAnyRecord = Object.entries(records).some(([key, sets]) => {
+    const inputType = getExerciseInputType(parseExerciseKey(key).name)
     if (inputType === 'cardio') return sets.some((s) => s.durationMin !== '')
     if (inputType === 'reps') return sets.some((s) => s.reps !== '')
     return sets.some((s) => s.weight !== '' && s.reps !== '')
@@ -766,7 +777,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   async function handleFinishWorkout() {
     setSaving(true)
     const exercises = Object.entries(records)
-      .map(([name, sets]) => {
+      .map(([key, sets]) => {
+        // [2026-08-10 변경] key는 합성키("이름" 또는 "이름::그립")이므로 저장 직전에
+        // 실제 종목명과 그립으로 분해한다. 그립이 다른 두 인스턴스를 동시에 추가했다면
+        // 여기서 각각 별도의 exercises[] 항목으로 저장되어(이름은 같고 grip만 다름)
+        // 완전히 별개 종목처럼 다뤄진다(사용자 확인).
+        const { name, grip } = parseExerciseKey(key)
         const inputType = getExerciseInputType(name)
         let validSets
         if (inputType === 'cardio') {
@@ -786,8 +802,6 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             .filter((s) => s.weight !== '' && s.reps !== '')
             .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
         }
-        const gripOptions = getGripOptions(name)
-        const grip = gripOptions ? selectedGrips[name] || gripOptions[0] : null
         return { name, part: getExerciseAtom(name) || '', inputType, sets: validSets, ...(grip ? { grip } : {}) }
       })
       .filter((e) => e.sets.length > 0)
@@ -834,7 +848,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // [2026-08-02 신규] "자유 추가 운동"으로 오늘 기록한 종목은 어떤 루틴 파트에도 속하지
     // 않아, 완료 팝업에서 바로 "내 루틴에 반영"할 수 있게 필요한 정보를 미리 담아둔다(⑫).
     // '내 루틴 운동' 세션은 종목 추가 시점에 이미 addExerciseToRoutine으로 즉시 반영되므로 대상 없음.
-    const pendingRoutineAdd = sessionType === 'extra' ? exercises.map((e) => ({ name: e.name, atom: e.part })) : null
+    const pendingRoutineAdd = sessionType === 'extra' ? exercises.map((e) => ({ name: e.name, atom: e.part, grip: e.grip || null })) : null
     const templateForAdd = sessionType === 'extra' ? selectedTemplate : null
 
     localStorage.removeItem(draftKey(uid))
@@ -863,15 +877,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // (사용자 확인: 오늘 뺀 종목을 자동으로 제거하지는 않음 — 추가만.)
   async function handleAddTodayToRoutine(pendingList, template) {
     if (!template || !pendingList?.length) return { addedCount: 0 }
-    const existingNames = new Set(template.parts.flatMap((p) => p.exercises))
-    const toAdd = pendingList.filter((e) => e.name && !existingNames.has(e.name))
+    const existingKeys = new Set(template.parts.flatMap((p) => p.exercises))
+    const toAdd = pendingList
+      .map((e) => ({ ...e, key: makeExerciseKey(e.name, e.grip) }))
+      .filter((e) => e.name && !existingKeys.has(e.key))
     if (toAdd.length === 0) return { addedCount: 0 }
     const nextParts = template.parts.map((p) => ({ ...p, exercises: [...p.exercises] }))
     let addedCount = 0
     toAdd.forEach((e) => {
       const targetPart = nextParts.find((p) => getAtomsForPartName(p.name).includes(e.atom))
-      if (targetPart && !targetPart.exercises.includes(e.name)) {
-        targetPart.exercises.push(e.name)
+      if (targetPart && !targetPart.exercises.includes(e.key)) {
+        targetPart.exercises.push(e.key)
         addedCount++
       }
     })
@@ -1104,8 +1120,6 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                     onHideToday={() => hideExerciseToday(name)}
                     onRemoveFromRoutine={() => removeExerciseFromRoutine(name)}
                     customExercises={customExercises}
-                    selectedGrip={selectedGrips[name]}
-                    onSelectGrip={(g) => selectGrip(name, g)}
                   />
                 </SortableExerciseItem>
               ))}
@@ -1133,8 +1147,6 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                   isExtra
                   onRemoveExtra={() => removeFreeExercise(name)}
                   customExercises={customExercises}
-                  selectedGrip={selectedGrips[name]}
-                  onSelectGrip={(g) => selectGrip(name, g)}
                 />
               ))}
             </div>
@@ -1168,25 +1180,27 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 {getAtomsForPartName(selectedPart?.name).map((atom) => {
                   // [2026-08-05 수정] partOrder에 있어도 오늘 임시 숨김(hiddenToday) 상태인 종목은
                   // "이미 추가된 종목"이 아니라 "다시 꺼낼 수 있는 후보"로 노출해야 한다.
-                  const names = [...getExercisesForPart(atom), ...getCustomExercisesForPart(customExercises, atom)].filter(
-                    (n) => !partOrder.includes(n) || hiddenToday.includes(n)
+                  // [2026-08-10 변경] 그립옵션이 있는 종목은 그립별로 후보를 펼친다.
+                  const candidates = expandGripCandidates(
+                    [...getExercisesForPart(atom), ...getCustomExercisesForPart(customExercises, atom)],
+                    (key) => partOrder.includes(key) && !hiddenToday.includes(key)
                   )
-                  if (names.length === 0) return null
+                  if (candidates.length === 0) return null
                   return (
                     <div key={atom} style={{ marginBottom: 10 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)', marginBottom: 6 }}>{atom}</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {names.map((n) => (
-                          <React.Fragment key={n}>
+                        {candidates.map((c) => (
+                          <React.Fragment key={c.key}>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <Chip onClick={() => addExerciseToRoutine(n)}>{n}</Chip>
+                              <Chip onClick={() => addExerciseToRoutine(c.key)}>{c.label}</Chip>
                               <ExerciseGuideInfoButton
-                                name={n}
-                                open={pickerGuideName === n}
-                                onToggle={() => setPickerGuideName((prev) => (prev === n ? null : n))}
+                                name={c.guideName}
+                                open={pickerGuideName === c.key}
+                                onToggle={() => setPickerGuideName((prev) => (prev === c.key ? null : c.key))}
                               />
                             </div>
-                            {pickerGuideName === n && <ExerciseGuidePanel name={n} />}
+                            {pickerGuideName === c.key && <ExerciseGuidePanel name={c.guideName} />}
                           </React.Fragment>
                         ))}
                       </div>
@@ -1220,21 +1234,22 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 위에서 부위를 고르면({freeCategory} 선택 중) 그 부위 종목 중에서 골라 오늘 세션에 추가할 수 있어요.
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                {[...getExercisesForPart(freeCategory), ...getCustomExercisesForPart(customExercises, freeCategory)]
-                  .filter((n) => !freeExercises.includes(n))
-                  .map((n) => (
-                    <React.Fragment key={n}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <Chip onClick={() => addFreeExercise(n)}>{n}</Chip>
-                        <ExerciseGuideInfoButton
-                          name={n}
-                          open={freePickerGuideName === n}
-                          onToggle={() => setFreePickerGuideName((prev) => (prev === n ? null : n))}
-                        />
-                      </div>
-                      {freePickerGuideName === n && <ExerciseGuidePanel name={n} />}
-                    </React.Fragment>
-                  ))}
+                {expandGripCandidates(
+                  [...getExercisesForPart(freeCategory), ...getCustomExercisesForPart(customExercises, freeCategory)],
+                  (key) => freeExercises.includes(key)
+                ).map((c) => (
+                  <React.Fragment key={c.key}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <Chip onClick={() => addFreeExercise(c.key)}>{c.label}</Chip>
+                      <ExerciseGuideInfoButton
+                        name={c.guideName}
+                        open={freePickerGuideName === c.key}
+                        onToggle={() => setFreePickerGuideName((prev) => (prev === c.key ? null : c.key))}
+                      />
+                    </div>
+                    {freePickerGuideName === c.key && <ExerciseGuidePanel name={c.guideName} />}
+                  </React.Fragment>
+                ))}
               </div>
               <button onClick={() => setAddingFreeExercise(false)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
                 취소
@@ -1505,13 +1520,14 @@ function ExerciseCard({
   isExtra,
   onRemoveExtra,
   customExercises,
-  selectedGrip,
-  onSelectGrip,
 }) {
-  const color = getExerciseColorWithCustom(name, customExercises)
-  const inputType = getExerciseInputType(name)
-  const weightStep = getWeightStep(name)
-  const gripOptions = getGripOptions(name)
+  // [2026-08-10 변경] name prop은 이제 합성키("이름" 또는 "이름::그립")다. 라이브러리 조회는
+  // 실제 종목명(exName) 기준으로 하고, 화면 제목은 그립이 있으면 "이름 (그립)"으로 보여준다.
+  // 그립은 추가 시점에 key에 고정되므로 더 이상 카드 안에서 바꿀 수 있는 칩 UI는 없다.
+  const { name: exName, grip: fixedGrip } = parseExerciseKey(name)
+  const color = getExerciseColorWithCustom(exName, customExercises)
+  const inputType = getExerciseInputType(exName)
+  const weightStep = getWeightStep(exName)
   // [2026-08-06 복원] 종목명을 롱프레스하면 동작 가이드 이미지+설명+팁을 볼 수 있던 기능이
   // 2026-08-02에 이미지 유료 DB 문제로 전면 삭제됐었는데, 무료 이미지+설명 데이터가 갖춰져
   // 다시 붙였다.
@@ -1577,7 +1593,7 @@ function ExerciseCard({
             ...guideProps.style,
           }}
         >
-          {name}
+          {fixedGrip ? `${exName} (${fixedGrip})` : exName}
         </span>
         {isDone ? (
           <button
@@ -1646,35 +1662,12 @@ function ExerciseCard({
 
       {guideOpen && (
         <div style={{ padding: '0 10px 10px' }}>
-          <ExerciseGuidePanel name={name} />
+          <ExerciseGuidePanel name={exName} />
         </div>
       )}
 
       {expanded && (
         <div style={{ padding: '0 16px 16px' }}>
-          {/* [2026-08-05 신규] 그립 통합 8종목(EXERCISE_META.gripOptions)에서만 노출되는
-              그립 선택 칩. 세트마다가 아니라 종목당 1회 선택하며, 선택값은 세트완료 시
-              workoutLogs.exercises[].grip으로 함께 저장된다. */}
-          {gripOptions && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '0 0 10px' }}>
-              {gripOptions.map((g) => (
-                <button
-                  key={g}
-                  onClick={() => onSelectGrip?.(g)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 999,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    background: selectedGrip === g ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',
-                    color: selectedGrip === g ? 'var(--color-on-gold-button)' : 'var(--color-label-neutral)',
-                  }}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          )}
           {lastRecord && (
             <div
               className="record-notation text-keep-all h-scroll"

@@ -8,6 +8,8 @@
 // 옮기고 클라이언트의 leaderboard 쓰기 권한은 막는 방향으로 전환을 권장한다.
 // (firestore.rules에도 동일한 안내 주석을 남겨둠)
 
+import { makeExerciseKey } from './exerciseKey'
+
 export function computeAttendanceScore(sessionsThisWeek, targetSessionsPerWeek = 3) {
   if (targetSessionsPerWeek <= 0) return 0
   return Math.min(100, Math.round((sessionsThisWeek / targetSessionsPerWeek) * 100))
@@ -48,7 +50,7 @@ export function computeOverloadScore(currentByExercise, previousByExercise) {
 // 범위(호출부에서 통계 조회 범위로 제한)를 그대로 따른다.
 // sortedLogs: date 오름차순 정렬된 workoutLogs 배열, periodStart: 'YYYY-MM-DD'
 export function computeOverloadByOccurrence(sortedLogs, periodStart) {
-  const lastSeen = {} // exerciseName -> { topWeight, totalVolume } (직전 수행 값, 전체 최고기록 아님)
+  const lastSeen = {} // exerciseKey(이름::그립) -> { topWeight, totalVolume } (직전 수행 값, 전체 최고기록 아님)
   const occurrences = []
 
   sortedLogs.forEach((log) => {
@@ -56,16 +58,19 @@ export function computeOverloadByOccurrence(sortedLogs, periodStart) {
       if (!ex.sets || ex.sets.length === 0) return
       const topWeight = Math.max(...ex.sets.map((s) => s.weight || 0), 0)
       const totalVolume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
-      const prev = lastSeen[ex.name]
+      // [2026-08-10 변경] 그립이 다르면 완전히 별개 종목처럼 집계한다(사용자 확인) — 이름만으로
+      // 묶으면 그립이 다른 두 수행을 같은 종목의 연속 수행으로 오인해 향상 여부가 왜곡된다.
+      const key = makeExerciseKey(ex.name, ex.grip)
+      const prev = lastSeen[key]
 
       if (log.date >= periodStart) {
         const isNew = !prev
         const improved = !isNew && (topWeight > prev.topWeight || totalVolume > prev.totalVolume)
-        occurrences.push({ date: log.date, name: ex.name, improved, isNew })
+        occurrences.push({ date: log.date, name: ex.name, grip: ex.grip || null, improved, isNew })
       }
 
       // 다음 회차와의 비교를 위해 "직전 수행" 값을 이번 수행으로 갱신한다.
-      lastSeen[ex.name] = { topWeight, totalVolume }
+      lastSeen[key] = { topWeight, totalVolume }
     })
   })
 
@@ -89,7 +94,7 @@ export function computeOverloadByOccurrence(sortedLogs, periodStart) {
 // getInputType은 exerciseLibrary.js의 getExerciseInputType을 호출부에서 주입한다
 // (scoring.js가 exerciseLibrary.js에 직접 의존하지 않도록 분리).
 export function computeOverloadByOccurrenceForDisplay(sortedLogs, periodStart, getInputType) {
-  const lastSeen = {} // exerciseName -> 직전 수행의 비교 지표(타입별로 다른 필드 구성)
+  const lastSeen = {} // exerciseKey(이름::그립) -> 직전 수행의 비교 지표(타입별로 다른 필드 구성)
   const occurrences = []
 
   function extractMetric(ex, inputType) {
@@ -119,15 +124,17 @@ export function computeOverloadByOccurrenceForDisplay(sortedLogs, periodStart, g
       const inputType = getInputType(ex.name)
       const cur = extractMetric(ex, inputType)
       if (!cur) return
-      const prev = lastSeen[ex.name]
+      // [2026-08-10 변경] 그립이 다르면 완전히 별개 종목처럼 집계한다(사용자 확인).
+      const key = makeExerciseKey(ex.name, ex.grip)
+      const prev = lastSeen[key]
 
       if (log.date >= periodStart) {
         const isNew = !prev
         const improved = !isNew && isImproved(cur, prev)
-        occurrences.push({ date: log.date, name: ex.name, improved, isNew, inputType })
+        occurrences.push({ date: log.date, name: ex.name, grip: ex.grip || null, improved, isNew, inputType })
       }
 
-      lastSeen[ex.name] = cur
+      lastSeen[key] = cur
     })
   })
 

@@ -1,11 +1,12 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-07] 종목 펼치면 인풋(SetRow) 안 뜨는 영구적 버그 근본수정(⑯).
- *            `openExercise()`의 세트 초기화 가드가 `records[종목명]` 존재 여부만 봐서, 빈
- *            배열이 한 번 들어가면 이후 다시 펼쳐도 계속 빈 채로 고정되던 문제. 가드를
- *            "세트가 1개 이상 있을 때만" 스킵하도록 좁히고, 초기화/그립옵션 설정 블록을
- *            각각 try/catch로 감싸 중간에 에러가 나도 기본 세트는 반드시 채워지게 방어.
- *            (`WorkoutInput.jsx`, `openExercise`)
+ * 최신 변경: [2026-08-10] 그립옵션 종목(랫풀다운 등) 2개 이상 동시 추가 지원 + 이지바컬
+ *            그립옵션 추가. 종목 식별자를 "이름::그립" 합성키(신규 `utils/exerciseKey.js`)로
+ *            바꿔, 그립이 다르면 기록탭 세션/MY탭 "내 루틴"에 동시에 여러 개 추가할 수 있고
+ *            리포트·랭킹 집계에서도 완전히 별개 종목으로 취급된다. 그립은 추가 시점에
+ *            고정되며 카드 안에서 바꾸던 칩 UI는 제거.
+ *            (`WorkoutInput.jsx`, `RoutineSetup.jsx`, `ReportTab.jsx`, `utils/scoring.js`,
+ *            `utils/exerciseLibrary.js`, `utils/exerciseKey.js`)
  *            이전 변경들은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */

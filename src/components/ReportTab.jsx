@@ -21,6 +21,7 @@ import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, BODY_PART_ATO
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 import { toLocalDateStr } from '../utils/date'
 import { estimateCardioSetKcal } from '../utils/calories'
+import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
 // 눈에 잘 띄지 않던 '통계' 서브탭을 하나의 '리포트' 탭으로 통합했다. 여기에 추가로
@@ -427,23 +428,26 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   }, [overloadProgress])
 
   // ── 제일 많이 한 운동 (신규) ──
+  // [2026-08-10 변경] 그립이 다르면 완전히 별개 종목처럼 집계한다(사용자 확인).
   const mostFrequentExercises = useMemo(() => {
     const counts = {}
     logs.forEach((log) => {
       log.exercises?.forEach((ex) => {
-        counts[ex.name] = (counts[ex.name] || 0) + 1
+        const key = makeExerciseKey(ex.name, ex.grip)
+        counts[key] = (counts[key] || 0) + 1
       })
     })
     return Object.entries(counts)
-      .map(([name, count]) => ({ name, count }))
+      .map(([key, count]) => ({ key, name: exerciseKeyLabel(key), count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
   }, [logs])
 
   // [2026-07-31 신규] 선택된 부위에서 다른 유저들이 즐겨찾는 운동 Top5 + 내 제일 많이 한 운동과의
   // 비교(⑨). "내 것과 일치" 표시는 mostFrequentExercises(전체 부위, 위에서 이미 계산됨)에
-  // 이름이 포함되는지로 판단한다.
-  const myFrequentNameSet = useMemo(() => new Set(mostFrequentExercises.map((e) => e.name)), [mostFrequentExercises])
+  // 이름이 포함되는지로 판단한다. 인기운동 집계(popularTop)는 그립 구분 없이 종목명 기준이므로,
+  // 비교도 그립을 뺀 실제 종목명(base name) 기준으로 맞춘다.
+  const myFrequentNameSet = useMemo(() => new Set(mostFrequentExercises.map((e) => parseExerciseKey(e.key).name)), [mostFrequentExercises])
   const popularTop = useMemo(() => {
     const entry = popularityByAtom.find((r) => r.atom === selectedPopAtom)
     if (!entry) return []
@@ -458,16 +462,17 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   //   - sets(중량형): 최고 중량(kg)
   //   - reps(맨몸/횟수전용): 총 횟수(회)
   //   - cardio(유산소): 총 운동시간(분)
-  const selectedExerciseInputType = selectedExercise ? getExerciseInputType(selectedExercise) : 'sets'
+  const selectedExerciseInputType = selectedExercise ? getExerciseInputType(parseExerciseKey(selectedExercise).name) : 'sets'
   const trendMetricLabel =
     selectedExerciseInputType === 'cardio' ? '총 운동시간(분)' : selectedExerciseInputType === 'reps' ? '총 횟수(회)' : '최고 중량(kg)'
   const exerciseTrend = useMemo(() => {
     if (!selectedExercise) return []
-    const inputType = getExerciseInputType(selectedExercise)
+    const { name: exName } = parseExerciseKey(selectedExercise)
+    const inputType = getExerciseInputType(exName)
     return logs
-      .filter((log) => log.exercises?.some((e) => e.name === selectedExercise))
+      .filter((log) => log.exercises?.some((e) => makeExerciseKey(e.name, e.grip) === selectedExercise))
       .map((log) => {
-        const ex = log.exercises.find((e) => e.name === selectedExercise)
+        const ex = log.exercises.find((e) => makeExerciseKey(e.name, e.grip) === selectedExercise)
         if (inputType === 'cardio') {
           const totalDurationMin = ex.sets.reduce((s, st) => s + (Number(st.durationMin) || 0), 0)
           return { date: log.date.slice(5), value: totalDurationMin }
@@ -678,11 +683,13 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                       <div style={{ fontSize: 12, fontWeight: 700, color: getPartColor(atom), marginBottom: 6 }}>{atom}</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {occurrences.map((o, i) => {
-                          const isSelected = selectedExercise === o.name
+                          const oKey = makeExerciseKey(o.name, o.grip)
+                          const oLabel = exerciseKeyLabel(oKey)
+                          const isSelected = selectedExercise === oKey
                           return (
-                            <div key={`${o.name}-${o.date}-${i}`}>
+                            <div key={`${oKey}-${o.date}-${i}`}>
                               <button
-                                onClick={() => setSelectedExercise(isSelected ? null : o.name)}
+                                onClick={() => setSelectedExercise(isSelected ? null : oKey)}
                                 style={{
                                   width: '100%',
                                   display: 'flex',
@@ -694,7 +701,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                                 }}
                               >
                                 <span className="text-keep-all">
-                                  {o.name}{' '}
+                                  {oLabel}{' '}
                                   <span style={{ color: 'var(--color-label-neutral)', fontSize: 11 }}>
                                     ({o.date.slice(5).replace('-', '/')})
                                   </span>
@@ -738,7 +745,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {mostFrequentExercises.map((item, i) => (
-                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span className="text-keep-all" style={{ fontSize: 14 }}>
                       <span style={{ color: 'var(--color-label-neutral)', marginRight: 8 }}>{i + 1}</span>
                       {item.name}

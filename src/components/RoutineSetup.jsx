@@ -8,7 +8,9 @@ import {
   getCustomExercisesForPart,
   getAtomsForPartName,
   getPartColor,
+  getGripOptions,
 } from '../utils/exerciseLibrary'
+import { makeExerciseKey, parseExerciseKey } from '../utils/exerciseKey'
 import ExerciseGuideToggle from './ExerciseGuideToggle'
 
 // [2026-07-28 개편] 고정 5분할(무분할~5분할) 프리셋 선택 화면을 없애고,
@@ -67,7 +69,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
         prev.map((p, i) =>
           i !== idx
             ? p
-            : { name, atoms: draftAtoms, exercises: p.exercises.filter((ex) => stillAvailable.includes(ex)) }
+            : { name, atoms: draftAtoms, exercises: p.exercises.filter((ex) => stillAvailable.includes(parseExerciseKey(ex).name)) }
         )
       )
     }
@@ -263,19 +265,35 @@ function PartEditor({ part, customExercises, onToggle, onRemovePart, onEditAtoms
               {atom}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, rowGap: 10 }}>
-              {names.map((name) => (
-                <ExerciseGuideToggle key={name} name={name}>
-                  {(guideProps) => (
-                    <Chip
-                      active={part.exercises.includes(name)}
-                      onClick={() => onToggle(name)}
-                      {...guideProps}
-                    >
-                      {name}
-                    </Chip>
-                  )}
-                </ExerciseGuideToggle>
-              ))}
+              {names.flatMap((name) => {
+                const gripOptions = getGripOptions(name)
+                if (!gripOptions) {
+                  return [
+                    <ExerciseGuideToggle key={name} name={name}>
+                      {(guideProps) => (
+                        <Chip active={part.exercises.includes(name)} onClick={() => onToggle(name)} {...guideProps}>
+                          {name}
+                        </Chip>
+                      )}
+                    </ExerciseGuideToggle>,
+                  ]
+                }
+                // [2026-08-10 신규] 그립옵션이 있는 종목(랫풀다운 등)은 그립별로 별도 Chip을
+                // 만들어, 같은 종목을 그립 다르게 해서 여러 개 동시에 "내 루틴"에 등록할 수
+                // 있게 한다(사용자 확인).
+                return gripOptions.map((g) => {
+                  const key = makeExerciseKey(name, g)
+                  return (
+                    <ExerciseGuideToggle key={key} name={name}>
+                      {(guideProps) => (
+                        <Chip active={part.exercises.includes(key)} onClick={() => onToggle(key)} {...guideProps}>
+                          {name} ({g})
+                        </Chip>
+                      )}
+                    </ExerciseGuideToggle>
+                  )
+                })
+              })}
             </div>
           </div>
         )
