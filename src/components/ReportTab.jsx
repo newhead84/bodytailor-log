@@ -17,7 +17,7 @@ import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom } from '../storage'
 import { getTierByXp } from '../utils/tier'
 import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeOverloadByOccurrenceForDisplay, computeFinalScore } from '../utils/scoring'
-import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
+import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, getBodyweightVolumeFactor, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 import { toLocalDateStr } from '../utils/date'
 import { estimateCardioSetKcal } from '../utils/calories'
@@ -263,6 +263,13 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   //   - cardio(유산소): 세트별 소모 칼로리(estimateCardioSetKcal, calories.js MET 로직 재사용)
   //   - reps(맨몸/횟수전용): 체중(온보딩 weightKg, 없으면 70kg 근사) × 총 횟수
   // score는 세 지표를 그대로 합산한 값으로, 부위 간 상대 비교(정규화)에만 쓴다(아래 bodyPartRadar).
+  // [2026-08-12 변경] 코어가 지나치게 높게, 유산소는 거의 안 오르는 것처럼 보인다는 피드백(⑱).
+  // reps 방식이 "체중 × 횟수"를 그대로 곱해, 실제로는 몸통/다리 일부 질량만 움직이는 코어
+  // 종목(플랭크·크런치류)도 풀업·푸시업처럼 전신 체중을 다 드는 것으로 계산돼 과대평가됐다.
+  // getBodyweightVolumeFactor()로 코어 종목에 한해 체중 보정계수(등척성 홀드 40%, 굴곡/회전
+  // 30%)를 곱하도록 수정. 풀업/푸시업/딥스 등 실제 전신체중형 종목(코어가 아닌 부위)은
+  // 보정 없이 기존과 동일하다. 유산소가 잘 안 보이는 문제는 아래 bodyPartRadar의 정규화
+  // 방식(제곱근 스케일)으로 별도 완화한다.
   // [2026-08-06 (2) 신규] "가슴/등 운동 시 이두·삼두·어깨도 나름 개입되는 점을 감안해서
   // 표시했으면 함"(사용자 확인) — EXERCISE_META의 muscleRoles.synergist를 getSynergistAtoms로
   // 부위(atom)로 변환해, 주동근이 아닌 부위에도 해당 세트 활동량의 30%를 secondaryScore로
@@ -292,7 +299,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           primaryValue = kcal
         } else if (inputType === 'reps') {
           const totalReps = ex.sets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
-          const bwVolume = weightKg * totalReps
+          const bwVolume = weightKg * getBodyweightVolumeFactor(ex.name) * totalReps
           primary.bwVolume += bwVolume
           primary.score += bwVolume
           primaryValue = bwVolume
@@ -386,13 +393,17 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   // score(위 cumulativePartStats)를 "그중 최댓값을 100으로 놓은 상대 점수(%)"로 정규화해서
   // 그린다. 원래 값(볼륨/kcal/체중볼륨)은 축 라벨 아래 상세 텍스트(BodyPartAxisTick)에 그대로
   // 남겨서 실제 수치가 궁금할 때 확인할 수 있게 했다.
+  // [2026-08-12 변경] score/maxScore 선형 비율로는, 절대값이 아주 큰 부위(과거의 코어처럼)가
+  // 있으면 나머지 부위가 실제로 수행한 만큼도 눈에 안 보일 정도로 눌린다(유산소가 거의
+  // 0%로 보이던 문제, ⑱). 제곱근 스케일(√score/√maxScore)로 바꿔, 부위 간 상대적인 크고
+  // 작음의 순서는 유지하면서도 가장 큰 값이 작은 값을 과도하게 눌러버리지 않도록 완화한다.
   const bodyPartRadar = useMemo(() => {
-    const maxScore = Math.max(0, ...presentBodyParts.map((atom) => cumulativePartStats[atom]?.score || 0))
+    const sqrtScore = (atom) => Math.sqrt(Math.max(0, cumulativePartStats[atom]?.score || 0))
+    const maxSqrtScore = Math.max(0, ...presentBodyParts.map((atom) => sqrtScore(atom)))
     return presentBodyParts.map((atom) => {
-      const score = cumulativePartStats[atom]?.score || 0
       return {
         part: atom,
-        활동점수: maxScore > 0 ? Math.round((score / maxScore) * 100) : 0,
+        활동점수: maxSqrtScore > 0 ? Math.round((sqrtScore(atom) / maxSqrtScore) * 100) : 0,
       }
     })
   }, [presentBodyParts, cumulativePartStats])

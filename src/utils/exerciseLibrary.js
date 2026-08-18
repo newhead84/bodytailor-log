@@ -2434,6 +2434,29 @@ export function getMuscleRoles(name) {
   return EXERCISE_META[name]?.muscleRoles || null
 }
 
+// [2026-08-12 신규] 종목명 → 동작 패턴(pattern 필드: isometric/flexion/rotation 등).
+// 리포트 탭의 코어 체중볼륨 보정계수 산정(getBodyweightVolumeFactor)에 사용된다.
+export function getExerciseMovementPattern(name) {
+  return EXERCISE_META[name]?.pattern || null
+}
+
+// [2026-08-12 신규] "체중 × 횟수(reps)" 방식으로 볼륨을 재는 맨몸 종목 중, 실제로 전신
+// 체중에 가까운 하중이 걸리는 종목(풀업/친업/딥스/푸시업/피스톨스쿼트 등)과 몸통 일부
+// 질량만 움직이는 코어 종목(플랭크/크런치류)은 부하 특성이 다르다는 트레이너 관점 피드백에
+// 따라, 코어(atom) 종목에 한해 체중 보정계수를 적용한다.
+//   - isometric(플랭크/사이드플랭크/앱롤아웃/팔로프프레스/데드버그/백플랭크): 몸통 전체를
+//     정적으로 지지하므로 체중의 40%
+//   - flexion/rotation(크런치/디클라인싯업/러시안트위스트/캡틴스체어레그레이즈/
+//     행잉레그레이즈/미들플랭크로테이션): 상체·다리 일부만 동적으로 움직이므로 체중의 30%
+// 코어가 아닌 다른 부위의 맨몸 종목(풀업/푸시업/딥스/피스톨스쿼트 등)은 실제로 전신
+// 체중에 가까운 하중이 실리므로 기존과 동일하게 보정 없음(1.0)을 유지한다.
+export function getBodyweightVolumeFactor(name) {
+  const atom = getExerciseAtom(name)
+  if (atom !== '코어') return 1
+  const pattern = getExerciseMovementPattern(name)
+  return pattern === 'isometric' ? 0.4 : 0.3
+}
+
 // [2026-08-06 신규] 리포트 탭 레이더차트에 "가슴/등 운동 시 이두·삼두·어깨도 보조적으로
 // 개입" 반영(사용자 확인)을 위해, muscleRoles.synergist에 적힌 근육명(예: "삼두근-장두")을
 // 8개 원자 부위(가슴/등/어깨/이두/삼두/하체/코어/유산소) 중 하나로 매핑한다. 서브리전

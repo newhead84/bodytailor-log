@@ -1446,6 +1446,12 @@ function WorkoutCompleteModal({ xpEarned, pendingRoutineAdd, templateForAdd, onA
 // 재계산되도록 막는다.
 // [2026-07-29 추가 수정] 위 컴포넌트 상단 rootRef/layoutEnabled 설명 참고 — 탭이 다시 보이게 된
 // 직후 한 프레임만 layoutEnabled=false로 내려와 layout 자체를 잠깐 끈다(드롭 애니메이션 방지).
+// [2026-08-12 수정] transition을 별도로 지정하지 않으면 framer-motion 기본 스프링(반동 있는
+// 물리값)이 그대로 적용되어, 드래그 중 다른 카드들이 자리를 옮길 때마다 실시간으로 통통
+// 튀는 것처럼 보였다(⑰). 스프링 대신 짧은 tween으로 바꿔 반동 없이 부드럽게 위치만
+// 이동하도록 고정한다.
+const REORDER_TRANSITION = { type: 'tween', duration: 0.15, ease: 'easeOut' }
+
 function SortableExerciseItem({ name, orderKey, onDragEnd, layoutEnabled = true, children }) {
   const dragControls = useDragControls()
   return (
@@ -1456,6 +1462,7 @@ function SortableExerciseItem({ name, orderKey, onDragEnd, layoutEnabled = true,
       onDragEnd={onDragEnd}
       layout={layoutEnabled ? 'position' : false}
       layoutDependency={orderKey}
+      transition={REORDER_TRANSITION}
       style={{ listStyle: 'none' }}
     >
       {React.cloneElement(children, { dragControls })}
