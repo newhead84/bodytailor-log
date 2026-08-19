@@ -531,6 +531,23 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         if (r[key]?.length > 0) return r
         const lastSet = last?.sets?.[last.sets.length - 1]
         if (inputType === 'cardio') {
+          // [2026-08-18 신규] 스텝밀은 경사 개념이 없는 기구라 경사%(incline) 대신
+          // 스텝수(steps, 누적 걸음/계단 수)를 기록한다. 속도(speedKmh)는 스텝밀의 경우
+          // km/h 단위가 아니라 기구 표시 레벨(단위 없는 숫자)을 그대로 입력하는 용도로 재사용한다.
+          if (name === '스텝밀') {
+            return {
+              ...r,
+              [key]: [
+                {
+                  weight: '0',
+                  reps: '0',
+                  steps: lastSet?.steps != null ? String(lastSet.steps) : '',
+                  speedKmh: lastSet?.speedKmh != null ? String(lastSet.speedKmh) : '',
+                  durationMin: lastSet?.durationMin != null ? String(lastSet.durationMin) : '',
+                },
+              ],
+            }
+          }
           return {
             ...r,
             [key]: [
@@ -786,15 +803,27 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         const inputType = getExerciseInputType(name)
         let validSets
         if (inputType === 'cardio') {
-          validSets = sets
-            .filter((s) => s.durationMin !== '')
-            .map((s) => ({
-              weight: 0,
-              reps: 0,
-              incline: Number(s.incline) || 0,
-              speedKmh: Number(s.speedKmh) || 0,
-              durationMin: Number(s.durationMin) || 0,
-            }))
+          // [2026-08-18] 스텝밀은 incline 대신 steps(스텝수)를 저장한다.
+          validSets =
+            name === '스텝밀'
+              ? sets
+                  .filter((s) => s.durationMin !== '')
+                  .map((s) => ({
+                    weight: 0,
+                    reps: 0,
+                    steps: Number(s.steps) || 0,
+                    speedKmh: Number(s.speedKmh) || 0,
+                    durationMin: Number(s.durationMin) || 0,
+                  }))
+              : sets
+                  .filter((s) => s.durationMin !== '')
+                  .map((s) => ({
+                    weight: 0,
+                    reps: 0,
+                    incline: Number(s.incline) || 0,
+                    speedKmh: Number(s.speedKmh) || 0,
+                    durationMin: Number(s.durationMin) || 0,
+                  }))
         } else if (inputType === 'reps') {
           validSets = sets.filter((s) => s.reps !== '').map((s) => ({ weight: 0, reps: Number(s.reps) }))
         } else {
@@ -1683,7 +1712,9 @@ function ExerciseCard({
               <span style={{ flexShrink: 0 }}>직전({lastRecord.date}):</span>
               <span>
                 {inputType === 'cardio'
-                  ? lastRecord.sets.map((s) => `경사${s.incline || 0}%·시속${s.speedKmh || 0}km/h·${s.durationMin || 0}분`).join(' / ')
+                  ? exName === '스텝밀'
+                    ? lastRecord.sets.map((s) => `${s.steps || 0}스텝·레벨${s.speedKmh || 0}·${s.durationMin || 0}분`).join(' / ')
+                    : lastRecord.sets.map((s) => `경사${s.incline || 0}%·시속${s.speedKmh || 0}km/h·${s.durationMin || 0}분`).join(' / ')
                   : inputType === 'reps'
                   ? lastRecord.sets.map((s) => `${s.reps}회`).join('/')
                   : lastRecord.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
@@ -1695,6 +1726,7 @@ function ExerciseCard({
               key={idx}
               set={set}
               inputType={inputType}
+              exName={exName}
               weightStep={weightStep}
               onWeightChange={(v) => onWeightChange(idx, v)}
               onRepsChange={(v) => onRepsChange(idx, v)}
@@ -1718,8 +1750,11 @@ function ExerciseCard({
 // 옆의 저장/복사 버튼과 세로 정렬이 어긋난다는 피드백을 받았다. 라벨 줄 없이도 각 인풋의
 // placeholder(중량은 "kg", 횟수는 "회" 등)로 이미 단위를 구분할 수 있어, 모든 세트가
 // 동일하게 Stepper(placeholder만 사용)를 쓰도록 통일했다.
-function SetRow({ set, inputType, weightStep, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
+function SetRow({ set, inputType, exName, weightStep, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
   const isCardio = inputType === 'cardio'
+  // [2026-08-18 신규] 스텝밀은 경사(incline) 대신 스텝수(steps)를 입력한다. 속도는 km/h가 아닌
+  // 기구 표시 레벨(단위 없는 숫자)이라 스테퍼 증가폭을 1로 좁힌다(다른 카디오 종목은 0.5 유지).
+  const isStepmill = isCardio && exName === '스텝밀'
 
   const buttons = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: isCardio ? 0 : 'auto', flexShrink: 0 }}>
@@ -1742,6 +1777,19 @@ function SetRow({ set, inputType, weightStep, onWeightChange, onRepsChange, onFi
   // 계속 겹쳐 보인다는 신고가 반복됐다. 근본 원인은 "폭이 좁다"가 아니라 "한 줄에 들어가기엔
   // 절대적으로 항목이 너무 많다"는 구조 문제였다. cardio 종목만 스텝퍼 줄과 버튼 줄을 아예
   // 분리된 두 줄로 나눠서, 두 영역이 서로 폭을 다툴 일 자체를 없앴다(가로 스크롤 불필요).
+  if (isStepmill) {
+    return (
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <Stepper value={set.steps} onChange={(v) => onFieldChange('steps', v)} step={1} placeholder="스텝수" width={52} />
+          <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={1} placeholder="레벨" width={54} />
+          <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" width={48} />
+        </div>
+        {buttons}
+      </div>
+    )
+  }
+
   if (isCardio) {
     return (
       <div style={{ marginBottom: 8 }}>

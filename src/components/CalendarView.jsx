@@ -120,8 +120,12 @@ function HMLabel({ seconds, unitSize = 7 }) {
 
 // 종목의 입력 방식(inputType)에 맞는 빈 세트 하나를 만든다(4.3/9.10 스펙: 유산소는 경사/속도/시간,
 // 자체중량 종목은 횟수만, 그 외는 무게x횟수).
-function makeEmptySet(inputType) {
-  if (inputType === 'cardio') return { incline: '', speedKmh: '', durationMin: '' }
+// [2026-08-18 수정] 스텝밀은 경사(incline) 대신 스텝수(steps)를 기록하므로 종목명을 함께 받아 분기한다.
+function makeEmptySet(inputType, exerciseName) {
+  if (inputType === 'cardio') {
+    if (exerciseName === '스텝밀') return { steps: '', speedKmh: '', durationMin: '' }
+    return { incline: '', speedKmh: '', durationMin: '' }
+  }
   if (inputType === 'reps') return { reps: '' }
   return { weight: '', reps: '' }
 }
@@ -131,6 +135,9 @@ function makeEmptySet(inputType) {
 // 과거(이 변경 이전)에 저장된 기록은 inputType이 없으므로 기존 "무게x횟수" 표기를 그대로 유지한다.
 function formatExerciseSets(ex) {
   if (ex.inputType === 'cardio') {
+    if (ex.name === '스텝밀') {
+      return ex.sets.map((s) => `${s.steps || 0}스텝·레벨${s.speedKmh || 0}·${s.durationMin || 0}분`).join(' / ')
+    }
     return ex.sets
       .map((s) => `경사${s.incline || 0}%·시속${s.speedKmh || 0}km/h·${s.durationMin || 0}분`)
       .join(' / ')
@@ -256,7 +263,31 @@ function EditLogForm({
                   paddingBottom: 2,
                 }}
               >
-                {ex.inputType === 'cardio' ? (
+                {ex.inputType === 'cardio' && ex.name === '스텝밀' ? (
+                  <>
+                    <input
+                      type="number"
+                      value={s.steps}
+                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'steps', e.target.value)}
+                      style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>스텝 ·</span>
+                    <input
+                      type="number"
+                      value={s.speedKmh}
+                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'speedKmh', e.target.value)}
+                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>레벨 ·</span>
+                    <input
+                      type="number"
+                      value={s.durationMin}
+                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'durationMin', e.target.value)}
+                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>분</span>
+                  </>
+                ) : ex.inputType === 'cardio' ? (
                   <>
                     <input
                       type="number"
@@ -694,7 +725,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       exercises: prev.exercises.map((ex, i) => {
         if (i !== exIdx) return ex
         const lastSet = ex.sets[ex.sets.length - 1]
-        const nextSet = lastSet ? { ...lastSet } : makeEmptySet(ex.inputType)
+        const nextSet = lastSet ? { ...lastSet } : makeEmptySet(ex.inputType, ex.name)
         return { ...ex, sets: [...ex.sets, nextSet] }
       }),
     }))
@@ -716,7 +747,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     setEditDraft((prev) => {
       if (prev.exercises.some((ex) => ex.name === name)) return prev
       const inputType = getExerciseInputType(name)
-      return { ...prev, exercises: [...prev.exercises, { name, inputType, sets: [makeEmptySet(inputType)] }] }
+      return { ...prev, exercises: [...prev.exercises, { name, inputType, sets: [makeEmptySet(inputType, name)] }] }
     })
     setAddingExercise(false)
   }
@@ -728,6 +759,13 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       inputType: ex.inputType,
       sets: ex.sets.map((s) => {
         if (ex.inputType === 'cardio') {
+          if (ex.name === '스텝밀') {
+            return {
+              steps: Number(s.steps) || 0,
+              speedKmh: Number(s.speedKmh) || 0,
+              durationMin: Number(s.durationMin) || 0,
+            }
+          }
           return {
             incline: Number(s.incline) || 0,
             speedKmh: Number(s.speedKmh) || 0,
