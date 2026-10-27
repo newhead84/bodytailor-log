@@ -37,7 +37,7 @@ export default function LoginScreen() {
           style={{
             width: 64,
             height: 64,
-            borderRadius: 18,
+            borderRadius: 'var(--radius-lg)',
             overflow: 'hidden',
             margin: '0 auto 18px',
           }}

@@ -72,7 +72,7 @@ export default function InstallBanner() {
         borderBottom: '1px solid var(--color-line)',
       }}
     >
-      <img src="/icon-192.png" alt="" width={28} height={28} style={{ borderRadius: 6, flexShrink: 0 }} />
+      <img src="/icon-192.png" alt="" width={28} height={28} style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
       <p
         className="text-keep-all"
         style={{ flex: 1, margin: 0, fontSize: 12.5, color: 'var(--color-label-normal)' }}
@@ -86,7 +86,7 @@ export default function InstallBanner() {
           alignItems: 'center',
           gap: 4,
           padding: '6px 10px',
-          borderRadius: 8,
+          borderRadius: 'var(--radius-sm)',
           fontSize: 12.5,
           fontWeight: 700,
           background: 'var(--color-gold-500)',

@@ -14,14 +14,16 @@ import {
   PolarRadiusAxis,
 } from 'recharts'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
-import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom } from '../storage'
+import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom, getEffectiveSeasonXp } from '../storage'
 import { getTierByXp } from '../utils/tier'
-import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeOverloadByOccurrenceForDisplay, computeFinalScore } from '../utils/scoring'
+import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeOverloadByOccurrenceForDisplay, computeFinalScore, computeStreakBonus } from '../utils/scoring'
 import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, getBodyweightVolumeFactor, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 import { toLocalDateStr } from '../utils/date'
 import { estimateCardioSetKcal } from '../utils/calories'
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
+import { workingSetsOf, bestE1rmOfSets } from '../utils/strength'
+import { MuscleSetsCard, CardioCard, RecoveryCard, PrCard, BoneHealthCard, startOfWeekStr } from './InsightCards'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
 // 눈에 잘 띄지 않던 '통계' 서브탭을 하나의 '리포트' 탭으로 통합했다. 여기에 추가로
@@ -36,7 +38,7 @@ const CHART_TOOLTIP_STYLE = {
   contentStyle: {
     background: 'var(--color-bg-elevated)',
     border: '1px solid var(--color-line)',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-sm)',
     fontSize: 12,
   },
   labelStyle: { color: 'var(--color-label-strong)', fontWeight: 700, marginBottom: 4 },
@@ -223,13 +225,24 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     const attendanceScore = computeAttendanceScore(thisWeekLogs.length, targetSessionsPerWeek)
     const volumeScore = computeVolumeScore(thisWeekVolume, baselineAvgVolume)
     const overloadScore = computeOverloadByOccurrence(overloadRangeLogs, fmt(weekStart)).score
-    const finalScore = computeFinalScore({ attendanceScore, volumeScore, overloadScore })
+    // [2026-10-27 리뉴얼 W3] 연속 출석 주 보너스 연결(4주 연속마다 +5점, 최대 +20). 이번 주 포함,
+    // 기록(과거 입력 제외)이 1회 이상 있는 주가 끊기지 않고 이어진 주 수.
+    const weeksWithSession = new Set(overloadRangeLogs.map((l) => startOfWeekStr(new Date(l.date + 'T00:00:00'))))
+    let streakWeeks = 0
+    for (let k = 0; k > -13; k--) {
+      if (weeksWithSession.has(startOfWeekStr(new Date(), k))) streakWeeks += 1
+      else if (k === 0) continue // 이번 주는 아직 진행 중이라 비어 있어도 연속이 끊기지 않음
+      else break
+    }
+    const streakBonus = computeStreakBonus(streakWeeks)
+    const finalScore = computeFinalScore({ attendanceScore, volumeScore, overloadScore, streakBonus })
 
     await upsertLeaderboardEntry('all', period, uid, {
       nickname: userDoc?.nickname || '회원',
       attendanceScore,
       volumeScore,
       overloadScore,
+      streakBonus,
       finalScore,
     })
     await loadRanking()
@@ -291,6 +304,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
         if (!atom) return
         const primary = ensure(atom)
         const inputType = getExerciseInputType(ex.name)
+        const wsets = workingSetsOf(ex) // [2026-10-27] 웜업 세트 제외
         let primaryValue = 0
         if (inputType === 'cardio') {
           const kcal = ex.sets.reduce((s, st) => s + estimateCardioSetKcal(ex.name, st, weightKg), 0)
@@ -298,18 +312,18 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           primary.score += kcal
           primaryValue = kcal
         } else if (inputType === 'reps') {
-          const totalReps = ex.sets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
+          const totalReps = wsets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
           const bwVolume = weightKg * getBodyweightVolumeFactor(ex.name) * totalReps
           primary.bwVolume += bwVolume
           primary.score += bwVolume
           primaryValue = bwVolume
         } else {
-          const volume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
+          const volume = wsets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
           primary.volume += volume
           primary.score += volume
           primaryValue = volume
         }
-        primary.sets += ex.sets.length
+        primary.sets += inputType === 'cardio' ? ex.sets.length : wsets.length
 
         // 보조근(synergist) 부위 가산
         if (inputType !== 'cardio' && primaryValue > 0) {
@@ -475,7 +489,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   //   - cardio(유산소): 총 운동시간(분)
   const selectedExerciseInputType = selectedExercise ? getExerciseInputType(parseExerciseKey(selectedExercise).name) : 'sets'
   const trendMetricLabel =
-    selectedExerciseInputType === 'cardio' ? '총 운동시간(분)' : selectedExerciseInputType === 'reps' ? '총 횟수(회)' : '최고 중량(kg)'
+    selectedExerciseInputType === 'cardio' ? '총 운동시간(분)' : selectedExerciseInputType === 'reps' ? '총 횟수(회)' : '추정 1RM(kg)'
   const exerciseTrend = useMemo(() => {
     if (!selectedExercise) return []
     const { name: exName } = parseExerciseKey(selectedExercise)
@@ -489,12 +503,15 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           return { date: log.date.slice(5), value: totalDurationMin }
         }
         if (inputType === 'reps') {
-          const totalReps = ex.sets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
+          const totalReps = workingSetsOf(ex).reduce((s, st) => s + (Number(st.reps) || 0), 0)
           return { date: log.date.slice(5), value: totalReps }
         }
-        const topWeight = Math.max(...ex.sets.map((s) => s.weight || 0), 0)
-        return { date: log.date.slice(5), value: topWeight }
+        // [2026-10-27] 중량형은 최고 중량 대신 추정 1RM(Epley, 12회 이하 본세트)으로 — 무게·횟수 향상을 함께 반영.
+        // 12회 초과만 한 날은 추정치가 없어 그래프에서 제외(다른 지표와 섞지 않음).
+        const best = bestE1rmOfSets(ex.sets)
+        return best ? { date: log.date.slice(5), value: best } : null
       })
+      .filter(Boolean)
   }, [logs, selectedExercise])
 
   // [2026-07-29 개편] 사용자가 혼자뿐인 초기 단계에서는 전체 랭킹 목록이 큰 의미가 없다는
@@ -536,7 +553,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
       </SectionTitle>
 
       {showRefreshInfo && (
-        <p className="text-keep-all" style={{ margin: '-6px 0 12px', fontSize: 12, color: 'var(--color-label-neutral)', background: 'var(--color-bg-elevated)', borderRadius: 10, padding: '10px 12px' }}>
+        <p className="text-keep-all" style={{ margin: '-6px 0 12px', fontSize: 12, color: 'var(--color-label-neutral)', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
           점수는 운동을 완료하면 자동으로 갱신돼요. 이 버튼은 운동완료 후 세트를 수정하는 등 변경사항이
           생겨 즉시 다시 계산하고 싶을 때만 눌러주세요.
         </p>
@@ -553,7 +570,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           {(() => {
             // [2026-10-27 W0 버그수정] 랭킹 점수×40 근사값이 아니라 MY탭과 같은 시즌 XP 기준으로 티어를 표시한다
             // (이전에는 두 화면의 티어가 서로 달랐다).
-            const tier = getTierByXp(userDoc?.seasonXp || 0)
+            const tier = getTierByXp(getEffectiveSeasonXp(userDoc))
             return (
               <Card
                 onClick={onShowTierInfo}
@@ -610,6 +627,13 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
               이번주 {weeklyAttendance.thisWeekLabel} · 지난주 {weeklyAttendance.lastWeekLabel} 대비 {weeklyAttendanceDays.lastWeek}일
             </p>
           </Card>
+
+          {/* [2026-10-27 리뉴얼 W2] 근거 기반 인사이트: 근육별 주간 세트·유산소·정체/디로드·PR·골밀도 */}
+          <MuscleSetsCard logs={logs} />
+          <PrCard prs={userDoc?.prs} />
+          <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} />
+          <CardioCard logs={logs} />
+          {(userDoc?.onboarding?.goals || []).includes('근력강화·골밀도증진') && <BoneHealthCard logs={logs} />}
 
           {/* 부위별 운동 추이 (누적 레이더 차트) */}
           {/* [2026-08-05 변경] 기존에 별도 섹션이던 "누적 볼륨(부위별)" 가로 막대 차트를
@@ -709,7 +733,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                                   justifyContent: 'space-between',
                                   fontSize: 13,
                                   padding: '6px 8px',
-                                  borderRadius: 8,
+                                  borderRadius: 'var(--radius-sm)',
                                   background: isSelected ? 'var(--color-bg-elevated)' : 'transparent',
                                 }}
                               >
@@ -801,7 +825,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                             fontSize: 10,
                             fontWeight: 700,
                             padding: '2px 6px',
-                            borderRadius: 6,
+                            borderRadius: 'var(--radius-sm)',
                             background: 'var(--color-primary-bg)',
                             color: 'var(--color-primary-strong)',
                             flexShrink: 0,

@@ -9,6 +9,7 @@
 // (firestore.rules에도 동일한 안내 주석을 남겨둠)
 
 import { makeExerciseKey } from './exerciseKey'
+import { workingSetsOf } from './strength'
 
 export function computeAttendanceScore(sessionsThisWeek, targetSessionsPerWeek = 3) {
   if (targetSessionsPerWeek <= 0) return 0
@@ -55,9 +56,11 @@ export function computeOverloadByOccurrence(sortedLogs, periodStart) {
 
   sortedLogs.forEach((log) => {
     log.exercises?.forEach((ex) => {
-      if (!ex.sets || ex.sets.length === 0) return
-      const topWeight = Math.max(...ex.sets.map((s) => s.weight || 0), 0)
-      const totalVolume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
+      // [2026-10-27] 웜업 세트는 과부하 판정에서 제외
+      const wsets = workingSetsOf(ex)
+      if (wsets.length === 0) return
+      const topWeight = Math.max(...wsets.map((s) => s.weight || 0), 0)
+      const totalVolume = wsets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
       // [2026-08-10 변경] 그립이 다르면 완전히 별개 종목처럼 집계한다(사용자 확인) — 이름만으로
       // 묶으면 그립이 다른 두 수행을 같은 종목의 연속 수행으로 오인해 향상 여부가 왜곡된다.
       const key = makeExerciseKey(ex.name, ex.grip)
@@ -98,17 +101,18 @@ export function computeOverloadByOccurrenceForDisplay(sortedLogs, periodStart, g
   const occurrences = []
 
   function extractMetric(ex, inputType) {
-    if (!ex.sets || ex.sets.length === 0) return null
+    const sets = workingSetsOf(ex) // [2026-10-27] 웜업 제외
+    if (sets.length === 0) return null
     if (inputType === 'cardio') {
-      const totalDurationMin = ex.sets.reduce((s, st) => s + (Number(st.durationMin) || 0), 0)
+      const totalDurationMin = sets.reduce((s, st) => s + (Number(st.durationMin) || 0), 0)
       return { kind: 'cardio', primary: totalDurationMin }
     }
     if (inputType === 'reps') {
-      const totalReps = ex.sets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
+      const totalReps = sets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
       return { kind: 'reps', primary: totalReps }
     }
-    const topWeight = Math.max(...ex.sets.map((s) => s.weight || 0), 0)
-    const totalVolume = ex.sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
+    const topWeight = Math.max(...sets.map((s) => s.weight || 0), 0)
+    const totalVolume = sets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
     return { kind: 'sets', topWeight, totalVolume }
   }
 

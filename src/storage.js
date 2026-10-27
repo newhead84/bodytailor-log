@@ -22,8 +22,11 @@ import {
   increment,
   arrayUnion,
   arrayRemove,
+  FieldPath,
 } from 'firebase/firestore'
 import { getExerciseAtom, normalizeExerciseNames } from './utils/exerciseLibrary'
+import { mergePrsFromExercises, computePrsFromLogs } from './utils/strength'
+import { getSeasonPeriod } from './utils/season'
 
 // ───────────── exercisePopularity/{atom} — 부위별 "다른 유저 즐겨찾는 운동" 공개 집계 ─────────────
 // [2026-07-31 신규] 개인정보 없이 "부위(atom) → 종목명 → 수행 횟수"만 담는 공개 집계 문서.
@@ -185,6 +188,12 @@ export async function updateUserProfile(uid, partial) {
   await updateDoc(doc(db, 'users', uid), partial)
 }
 
+// [2026-10-27 신규] 종목별 설정(목표 반복·휴식) 한 종목만 갱신 — 종목키에 특수문자가 있어도 안전하게 FieldPath 사용,
+// 다른 종목 설정을 덮어쓰지 않는다. 오프라인이면 로컬 대기열에 넣고 진행.
+export function updateExerciseSetting(uid, key, setting) {
+  return settleOrTimeout(updateDoc(doc(db, 'users', uid), new FieldPath('exerciseSettings', key), setting))
+}
+
 // [2026-07-30 신규, 2026-08-01 3종으로 확장] MY탭 "화면 테마" 선택 저장. 'dark' | 'beige' | 'light'
 export async function setThemePreference(uid, theme) {
   await updateDoc(doc(db, 'users', uid), { themePreference: theme })
@@ -344,32 +353,85 @@ export async function addWorkoutLog(uid, logData, logId = null) {
   // 집계는 부가 기능이라 실패해도 기록 저장 자체에 영향 없게 별도로 처리(await하되 throw 안 함).
   incrementExercisePopularity(logData.exercises)
 
-  // [2026-07-30 신규] 캘린더에서 과거 날짜에 새로 추가한 기록(isBackfilled)은 볼륨/캘린더/통계에는
-  // 반영하되, XP·티어·랭킹 점수에는 반영하지 않는다("과거 기록은 점수에만 미반영" 요청).
-  if (logData.isBackfilled) {
-    return { id: ref.id, xpEarned: 0 }
+  // [2026-10-27 리뉴얼] 개인 기록(PR, users/{uid}.prs)과 시즌 XP 분기 초기화를 같은 쓰기에서 처리한다.
+  const userRef = doc(db, 'users', uid)
+  let u = {}
+  let readOk = false
+  try {
+    const snap = await Promise.race([getDoc(userRef), new Promise((resolve) => setTimeout(() => resolve(null), 3000))])
+    if (snap?.exists?.()) {
+      u = snap.data()
+      readOk = true
+    }
+  } catch (err) {
+    u = {}
+  }
+  const updates = {}
+  let newRecords = []
+  // 사용자 문서를 못 읽었으면(오프라인·지연) PR·시즌 키는 건드리지 않고 XP 증가만 반영한다
+  // (잘못된 시즌 키로 확정되거나 PR이 빈 값 기준으로 덮이는 것 방지).
+  if (readOk && u.prs) {
+    const merged = mergePrsFromExercises(u.prs, logData.exercises, logData.date)
+    updates.prs = merged.prs
+    newRecords = merged.newRecords
   }
 
-  const xpEarned = computeSessionXp(logData)
-  await settleOrTimeout(
-    updateDoc(doc(db, 'users', uid), {
-      seasonXp: increment(xpEarned),
-      lifetimeXp: increment(xpEarned),
-    })
-  )
+  // [2026-07-30 신규] 캘린더에서 과거 날짜에 새로 추가한 기록(isBackfilled)은 볼륨/캘린더/통계에는
+  // 반영하되, XP·티어·랭킹 점수에는 반영하지 않는다("과거 기록은 점수에만 미반영" 요청).
+  // (PR은 실제 수행 기록이므로 반영한다.)
+  let xpEarned = 0
+  if (!logData.isBackfilled) {
+    xpEarned = computeSessionXp(logData)
+    updates.lifetimeXp = increment(xpEarned)
+    // 시즌 XP는 분기(시즌)마다 0부터 다시 쌓는다. 누적 XP(lifetimeXp)는 유지.
+    // seasonKey가 없던 기존 계정은 이번 시즌으로 표시만 하고 초기화하지 않는다(갑작스러운 등급 하락 방지).
+    const season = getSeasonPeriod()
+    if (!readOk) {
+      updates.seasonXp = increment(xpEarned)
+    } else if (u.seasonKey && u.seasonKey !== season) {
+      updates.seasonXp = xpEarned
+      updates.seasonKey = season
+    } else {
+      updates.seasonXp = increment(xpEarned)
+      if (!u.seasonKey) updates.seasonKey = season
+    }
+  }
+  if (Object.keys(updates).length > 0) {
+    await settleOrTimeout(updateDoc(userRef, updates))
+  }
 
-  return { id: ref.id, xpEarned }
+  return { id: ref.id, xpEarned, newRecords }
+}
+
+// [2026-10-27 신규] 개인 기록(PR) 맵이 없는 계정은 전체 기록에서 한 번 계산해 저장한다.
+// 기록을 수정/삭제했을 때도 다시 계산한다(PR이 지워진 기록에 남지 않도록).
+export async function rebuildPersonalRecords(uid) {
+  const snap = await getDocs(collection(db, 'workoutLogs', uid, 'logs'))
+  const prs = computePrsFromLogs(snap.docs.map((d) => d.data()))
+  await settleOrTimeout(updateDoc(doc(db, 'users', uid), { prs }))
+  // 화면(App.jsx)이 사용자 문서를 다시 불러오도록 알림 — 삭제된 기록의 PR이 남아 보이지 않게
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('bt-prs-updated'))
+  return prs
+}
+
+// 시즌이 바뀌었는데 아직 운동 기록이 없어 seasonXp가 지난 시즌 값으로 남아 있으면 화면에서는 0으로 본다.
+export function getEffectiveSeasonXp(userDoc) {
+  if (!userDoc) return 0
+  if (userDoc.seasonKey && userDoc.seasonKey !== getSeasonPeriod()) return 0
+  return userDoc.seasonXp || 0
 }
 
 export async function updateWorkoutLog(uid, logId, partial) {
   invalidateRecentLogsCache()
   await updateDoc(doc(db, 'workoutLogs', uid, 'logs', logId), partial)
+  rebuildPersonalRecords(uid).catch(() => {})
 }
 
 // [2026-07-28] 홈탭 캘린더에서 기록 삭제 기능 추가를 위해 신규 작성.
 export async function deleteWorkoutLog(uid, logId) {
   invalidateRecentLogsCache()
   await deleteDoc(doc(db, 'workoutLogs', uid, 'logs', logId))
+  rebuildPersonalRecords(uid).catch(() => {})
 }
 
 export async function getWorkoutLogsInRange(uid, fromDateStr, toDateStr) {
@@ -381,6 +443,12 @@ export async function getWorkoutLogsInRange(uid, fromDateStr, toDateStr) {
     orderBy('date', 'asc')
   )
   const snap = await getDocs(q)
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+
+// [2026-10-27 신규] 전체 운동 기록(CSV 내보내기용), 날짜 오름차순
+export async function getAllWorkoutLogs(uid) {
+  const snap = await getDocs(query(collection(db, 'workoutLogs', uid, 'logs'), orderBy('date', 'asc')))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 }
 

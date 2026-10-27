@@ -49,7 +49,7 @@ function daySummary(logs) {
         const minutes = (ex.sets || []).reduce((sum, s) => sum + (s.durationMin || 0), 0)
         atomCounts[atom] = (atomCounts[atom] || 0) + minutes
       } else {
-        atomCounts[atom] = (atomCounts[atom] || 0) + (ex.sets?.length || 0)
+        atomCounts[atom] = (atomCounts[atom] || 0) + (ex.sets || []).filter((s) => s.type !== 'warmup').length
       }
     })
   })
@@ -143,9 +143,9 @@ function formatExerciseSets(ex) {
       .join(' / ')
   }
   if (ex.inputType === 'reps') {
-    return ex.sets.map((s) => `${s.reps}회`).join('/')
+    return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${s.reps}회`).join('/')
   }
-  return ex.sets.map((s) => `${s.weight}x${s.reps}`).join('/')
+  return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${s.weight}x${s.reps}`).join('/')
 }
 
 // [2026-07-31 신규] 날짜 상세 카드의 "복붙" 버튼용: 날짜 + 종목별 기록 + 하단 요약(웜업/본운동
@@ -223,7 +223,7 @@ function EditLogForm({
             type="date"
             value={editDraft?.date || ''}
             onChange={(e) => onUpdateDate(e.target.value)}
-            style={{ padding: '8px 10px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 14 }}
+            style={{ padding: '8px 10px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 14 }}
           />
           {onCopyToDate && (
             <button
@@ -234,7 +234,7 @@ function EditLogForm({
                 fontWeight: 600,
                 color: justCopied ? 'var(--color-success)' : 'var(--color-primary-strong)',
                 border: '1px solid var(--color-line)',
-                borderRadius: 8,
+                borderRadius: 'var(--radius-sm)',
                 padding: '8px 10px',
                 opacity: !hasExercises || copyingToDate ? 0.5 : 1,
               }}
@@ -269,21 +269,21 @@ function EditLogForm({
                       type="number"
                       value={s.steps}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'steps', e.target.value)}
-                      style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                      style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>스텝 ·</span>
                     <input
                       type="number"
                       value={s.speedKmh}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'speedKmh', e.target.value)}
-                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>레벨 ·</span>
                     <input
                       type="number"
                       value={s.durationMin}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'durationMin', e.target.value)}
-                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>분</span>
                   </>
@@ -293,21 +293,21 @@ function EditLogForm({
                       type="number"
                       value={s.incline}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'incline', e.target.value)}
-                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>% ·</span>
                     <input
                       type="number"
                       value={s.speedKmh}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'speedKmh', e.target.value)}
-                      style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                      style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>km/h ·</span>
                     <input
                       type="number"
                       value={s.durationMin}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'durationMin', e.target.value)}
-                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>분</span>
                   </>
@@ -317,7 +317,7 @@ function EditLogForm({
                       type="number"
                       value={s.reps}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
-                      style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                      style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
                   </>
@@ -327,14 +327,14 @@ function EditLogForm({
                       type="number"
                       value={s.weight}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'weight', e.target.value)}
-                      style={{ width: 64, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                      style={{ width: 64, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>kg ×</span>
                     <input
                       type="number"
                       value={s.reps}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
-                      style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 13 }}
+                      style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
                   </>
@@ -382,7 +382,7 @@ function EditLogForm({
             width: '100%',
             marginBottom: 10,
             padding: '10px',
-            borderRadius: 10,
+            borderRadius: 'var(--radius-md)',
             border: '1px dashed var(--color-line)',
             color: 'var(--color-label-neutral)',
             fontSize: 13,
@@ -396,7 +396,7 @@ function EditLogForm({
           style={{
             marginBottom: 10,
             padding: 12,
-            borderRadius: 10,
+            borderRadius: 'var(--radius-md)',
             background: 'var(--color-bg-elevated)',
           }}
         >
@@ -680,6 +680,9 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       exercises: log.exercises.map((ex) => ({
         name: ex.name,
         inputType: ex.inputType || getExerciseInputType(ex.name),
+        // [2026-10-27] 수정 후 저장 시 그립·부위가 사라지지 않도록 보존
+        ...(ex.part ? { part: ex.part } : {}),
+        ...(ex.grip ? { grip: ex.grip } : {}),
         sets: ex.sets.map((s) => ({ ...s })),
       })),
     })
@@ -754,9 +757,17 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
 
   // saveEdit/saveNewLog가 공통으로 쓰는 정리 로직(입력값 숫자 변환 + 총 볼륨 계산)을 분리했다.
   function buildCleanedPayload(draft) {
+    // [2026-10-27 버그수정] 과거 기록을 수정하면 grip(그립)·part가 빠져 저장되던 문제 수정 +
+    // 세트 종류(type)·RIR을 그대로 보존(필드가 있을 때만).
+    const keepMeta = (s) => ({
+      ...(s.type && s.type !== 'working' ? { type: s.type } : {}),
+      ...(s.rir !== undefined && s.rir !== null && s.rir !== '' ? { rir: Number(s.rir) } : {}),
+    })
     const cleanedExercises = draft.exercises.map((ex) => ({
       name: ex.name,
       inputType: ex.inputType,
+      ...(ex.part ? { part: ex.part } : {}),
+      ...(ex.grip ? { grip: ex.grip } : {}),
       sets: ex.sets.map((s) => {
         if (ex.inputType === 'cardio') {
           if (ex.name === '스텝밀') {
@@ -773,14 +784,14 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
           }
         }
         if (ex.inputType === 'reps') {
-          return { reps: parseInt(s.reps, 10) || 0 }
+          return { reps: parseInt(s.reps, 10) || 0, ...keepMeta(s) }
         }
-        return { weight: Number(s.weight) || 0, reps: parseInt(s.reps, 10) || 0 }
+        return { weight: Number(s.weight) || 0, reps: parseInt(s.reps, 10) || 0, ...keepMeta(s) }
       }),
     }))
     // 유산소/횟수전용 종목은 무게 개념이 없어 볼륨 계산에서 제외한다(운동기록 입력 화면과 동일 규칙).
     const totalVolume = cleanedExercises.reduce(
-      (sum, ex) => sum + (ex.inputType === 'sets' || !ex.inputType ? calcVolume(ex.sets) : 0),
+      (sum, ex) => sum + (ex.inputType === 'sets' || !ex.inputType ? calcVolume(ex.sets.filter((s) => s.type !== 'warmup')) : 0),
       0
     )
     return { cleanedExercises, totalVolume }
@@ -902,6 +913,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       exercises: log.exercises.map((ex) => ({
         name: ex.name,
         inputType: ex.inputType || getExerciseInputType(ex.name),
+        ...(ex.part ? { part: ex.part } : {}),
+        ...(ex.grip ? { grip: ex.grip } : {}),
         sets: ex.sets.map((s) => ({ ...s })),
       })),
     })
@@ -1021,7 +1034,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
               style={{
                 minHeight: 44,
                 boxSizing: 'border-box',
-                borderRadius: 10,
+                borderRadius: 'var(--radius-md)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'stretch',
@@ -1213,21 +1226,21 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                       <button
                         onClick={() => handleCopyLog(log)}
                         aria-label="복사"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, color: copiedLogId === log.id ? 'var(--color-success)' : 'var(--color-primary-strong)' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-sm)', color: copiedLogId === log.id ? 'var(--color-success)' : 'var(--color-primary-strong)' }}
                       >
                         <Copy size={16} strokeWidth={1.8} />
                       </button>
                       <button
                         onClick={() => startEdit(log)}
                         aria-label="수정"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, color: 'var(--color-primary-strong)' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-sm)', color: 'var(--color-primary-strong)' }}
                       >
                         <Pencil size={16} strokeWidth={1.8} />
                       </button>
                       <button
                         onClick={() => handleDeleteLog(log)}
                         aria-label="삭제"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, color: 'var(--color-label-neutral)' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-sm)', color: 'var(--color-label-neutral)' }}
                       >
                         <Trash2 size={16} strokeWidth={1.8} />
                       </button>
@@ -1310,7 +1323,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                   style={{
                     flex: 1,
                     padding: '12px',
-                    borderRadius: 10,
+                    borderRadius: 'var(--radius-md)',
                     border: '1px dashed var(--color-line)',
                     color: 'var(--color-label-neutral)',
                     fontSize: 13,
@@ -1331,7 +1344,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                       alignItems: 'center',
                       gap: 4,
                       padding: '12px 14px',
-                      borderRadius: 10,
+                      borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--color-gold-700, var(--color-primary-strong))',
                       color: 'var(--color-primary-strong)',
                       fontSize: 13,

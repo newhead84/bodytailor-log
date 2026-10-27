@@ -2624,10 +2624,32 @@ export const SPLIT_TEMPLATE_PRESETS = [
 ]
 
 // 프리셋(SPLIT_TEMPLATE_PRESETS의 한 항목) → 저장 가능한 template.parts 배열로 변환.
+// [2026-10-27 리뉴얼] 분할 템플릿으로 루틴을 만들면 부위의 라이브러리 종목 전체(하체만 28종)가
+// 한 파트에 쏟아져 들어가 실제로 쓰기 어려웠다. 트레이너 관점의 기본 구성(다관절 우선 +
+// 고립 보완, 부위당 1~3종목)으로 시작하고, 나머지는 "종목 추가"로 넣게 한다.
+// 이미 만든 루틴에는 영향 없음(새로 만드는 루틴에만 적용).
+const PRESET_STARTER_EXERCISES = {
+  가슴: ['플랫바벨프레스', '인클라인덤벨프레스', '케이블크로스오버'],
+  등: ['랫풀다운', '바벨로우', '시티드케이블로우'],
+  하체: ['백스쿼트', '루마니안데드리프트', '레그프레스', '시티드레그컬'],
+  어깨: ['덤벨숄더프레스', '덤벨사이드레터럴레이즈', '케이블페이스풀'],
+  이두: ['바벨컬', '덤벨해머컬'],
+  삼두: ['케이블푸시다운', '오버헤드케이블익스텐션'],
+  코어: ['행잉레그레이즈'],
+  유산소: ['인클라인워킹'],
+}
 export function buildTemplatePartsFromPreset(preset) {
   return preset.parts.map((atoms) => {
     const name = buildPartName(atoms)
-    return { name, atoms, exercises: getExercisesForPart(name) }
+    const exercises = []
+    atoms.forEach((atom) => {
+      const available = getExercisesForPart(atom)
+      const starters = (PRESET_STARTER_EXERCISES[atom] || []).filter((n) => available.includes(n))
+      ;(starters.length > 0 ? starters : available.slice(0, 2)).forEach((n) => {
+        if (!exercises.includes(n)) exercises.push(n)
+      })
+    })
+    return { name, atoms, exercises }
   })
 }
 

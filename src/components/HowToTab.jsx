@@ -177,11 +177,11 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
         )}
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: `${color}22`, color }}>
+        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: `${color}22`, color }}>
           {atom}
         </span>
         {gripOptions && (
-          <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
+          <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
             그립 {gripOptions.length}종
           </span>
         )}
@@ -212,7 +212,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
           <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>그립 옵션</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {gripOptions.map((g) => (
-              <span key={g} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 999, background: 'var(--color-bg-elevated)' }}>
+              <span key={g} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)' }}>
                 {g}
               </span>
             ))}
@@ -354,7 +354,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
           alignItems: 'center',
           gap: 8,
           background: 'var(--color-bg-elevated)',
-          borderRadius: 12,
+          borderRadius: 'var(--radius-md)',
           padding: '10px 14px',
           marginBottom: 14,
         }}

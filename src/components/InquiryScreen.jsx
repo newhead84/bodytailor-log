@@ -57,7 +57,7 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
             width: '100%',
             resize: 'vertical',
             border: '1px solid var(--color-line)',
-            borderRadius: 8,
+            borderRadius: 'var(--radius-sm)',
             padding: 10,
             fontSize: 14,
             fontFamily: 'inherit',
@@ -89,7 +89,7 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
                     fontSize: 11,
                     fontWeight: 700,
                     padding: '2px 8px',
-                    borderRadius: 6,
+                    borderRadius: 'var(--radius-sm)',
                     background: q.status === '답변완료' ? 'var(--color-primary-bg)' : 'var(--color-bg-elevated)',
                     color: q.status === '답변완료' ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)',
                   }}
@@ -106,7 +106,7 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
                   style={{
                     marginTop: 6,
                     padding: 10,
-                    borderRadius: 8,
+                    borderRadius: 'var(--radius-sm)',
                     background: 'var(--color-bg-elevated)',
                     fontSize: 13,
                     color: 'var(--color-label-normal)',

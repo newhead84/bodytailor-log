@@ -147,7 +147,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
           value={title}
           onChange={(e) => setTitle(e.target.value.slice(0, 20))}
           placeholder="예: 월수금 루틴"
-          style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
+          style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14 }}
         />
       </div>
 
@@ -182,7 +182,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
           style={{
             width: '100%',
             padding: '14px',
-            borderRadius: 12,
+            borderRadius: 'var(--radius-md)',
             border: '1px dashed var(--color-line)',
             color: 'var(--color-label-neutral)',
             fontSize: 14,
@@ -338,7 +338,7 @@ function PartOrderRow({ name }) {
           alignItems: 'center',
           gap: 8,
           padding: '10px 12px',
-          borderRadius: 10,
+          borderRadius: 'var(--radius-md)',
           border: '1px solid var(--color-line)',
           background: 'var(--color-bg-elevated)',
         }}

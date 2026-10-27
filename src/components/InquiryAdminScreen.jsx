@@ -33,7 +33,7 @@ function InquiryRow({ q, onReplied }) {
             fontSize: 11,
             fontWeight: 700,
             padding: '2px 8px',
-            borderRadius: 6,
+            borderRadius: 'var(--radius-sm)',
             background: isAnswered ? 'var(--color-primary-bg)' : 'var(--color-bg-elevated)',
             color: isAnswered ? 'var(--color-primary-strong)' : 'var(--color-danger)',
           }}
@@ -54,7 +54,7 @@ function InquiryRow({ q, onReplied }) {
           width: '100%',
           resize: 'vertical',
           border: '1px solid var(--color-line)',
-          borderRadius: 8,
+          borderRadius: 'var(--radius-sm)',
           padding: 10,
           fontSize: 13,
           fontFamily: 'inherit',

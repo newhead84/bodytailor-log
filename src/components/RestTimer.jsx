@@ -208,7 +208,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
         // danger 배경과는 별개 톤).
         background: overtime ? 'var(--color-danger, #E5484D)' : 'var(--color-rest-bg)',
         color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)',
-        borderRadius: 16,
+        borderRadius: 'var(--radius-lg)',
         padding: '12px 16px',
         display: 'flex',
         alignItems: 'center',

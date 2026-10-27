@@ -3,6 +3,16 @@ import { Sparkles } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm } from './ui'
 import RestTimer from './RestTimer'
+import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, nextSetType, nextRir } from './SetEditors'
+import {
+  suggestNextSet,
+  getRepRange,
+  getDefaultRestSec,
+  buildWarmupRamp,
+  usesBarbellPlates,
+  e1rm,
+  bestE1rmOfSets,
+} from '../utils/strength'
 import { useExerciseGuidePress, ExerciseGuidePanel } from './ExerciseGuideToggle'
 import logoMarkTransparent from '../assets/logo-mark-transparent.png'
 import {
@@ -18,7 +28,7 @@ import {
 } from '../utils/exerciseLibrary'
 import { estimateCaloriesV2 } from '../utils/calories'
 import { getSuggestedNext } from '../utils/routineSuggestion'
-import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate, updateUserProfile, saveActiveSession, getActiveSession, clearActiveSession } from '../storage'
+import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate, updateUserProfile, updateExerciseSetting, saveActiveSession, getActiveSession, clearActiveSession } from '../storage'
 import {
   buildExercisesFromRecords,
   computeVolumeFromRecords,
@@ -38,6 +48,8 @@ const REST_OPTIONS = [
   { label: '1분', value: 60 },
   { label: '1분30초', value: 90 },
   { label: '2분', value: 120 },
+  // [2026-10-27 리뉴얼] 다관절 고중량용 3분(Singer et al. 2024: 휴식이 길수록 근비대에 유리)
+  { label: '3분', value: 180 },
 ]
 
 // 자유 추가 운동에서는 루틴(내 루틴)에 얽매이지 않고 코어·유산소를 포함한
@@ -157,6 +169,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     guideHintDismissed,
     onProfileUpdated,
     onAutoFinalized,
+    personalRecords,
+    exerciseSettings,
+    logMode,
   },
   ref
 ) {
@@ -199,6 +214,20 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 팝업(⑨). 처음엔 세트 하나 저장할 때마다 떴는데, 너무 잦다는 피드백으로 종목 완료 시점
   // 1회로 옮겼다. 문구는 매번 랜덤(직전과 중복 방지).
   const [setToast, setSetToast] = useState(null)
+  // [2026-10-27] 토스트 여러 개가 서로를 일찍 지우지 않도록 표시 중인 토스트를 식별자로 관리
+  const toastIdRef = useRef(0)
+  function showToast(text, ms) {
+    const id = ++toastIdRef.current
+    setSetToast(text)
+    setTimeout(() => {
+      if (toastIdRef.current === id) setSetToast(null)
+    }, ms)
+  }
+  // [2026-10-27 리뉴얼 W1] 종목별 휴식(설정 시)·세션 중 최고 e1RM(PR 감지용)
+  const [activeRestSec, setActiveRestSec] = useState(null)
+  const sessionBestRef = useRef({})
+  // [2026-10-27 리뉴얼 W3] 슈퍼세트: { [종목키]: 짝 종목키 } (양방향). 짝 종목 세트까지 하고 나서 휴식 시작.
+  const [supersets, setSupersets] = useState({})
   const [saving, setSaving] = useState(false)
   // [2026-07-28] 운동완료 축하 팝업(획득 XP 표시). null이면 미노출.
   const [celebration, setCelebration] = useState(null) // { xpEarned } | null
@@ -355,6 +384,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setPausedAccumMs(draft.pausedAccumMs || 0)
     setFreeExercises(draft.freeExercises || [])
     setFreeCategory(draft.freeCategory || EXTRA_CATEGORIES[0])
+    setSupersets(draft.supersets || {})
   }
 
   // 세션 상태를 초기(idle)로 되돌린다(운동 완료·취소·자동 저장 공통).
@@ -372,6 +402,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setAddingFreeExercise(false)
     setExpandedExercise(null)
     setRestActive(false)
+    setSupersets({})
+    sessionBestRef.current = {}
     completionOrderRef.current = []
   }
 
@@ -523,6 +555,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       pausedAccumMs,
       freeExercises,
       freeCategory,
+      supersets,
       updatedAt: Date.now(),
     }
     latestDraftRef.current = draft
@@ -557,6 +590,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     pausedAccumMs,
     freeExercises,
     freeCategory,
+    supersets,
   ])
 
   // [2026-07-30] 세션 진행 단계가 바뀔 때마다 상위(App.jsx → HomeTab)에 알려
@@ -593,6 +627,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setAddingExercise(false)
     setAddingFreeExercise(false)
     setExpandedExercise(null)
+    setSupersets({})
+    sessionBestRef.current = {}
     completionOrderRef.current = []
     if (uid) {
       removeLocalDraftKeys(uid)
@@ -769,7 +805,14 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         }
         return {
           ...r,
-          [key]: [{ auto: true, weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
+          // [2026-10-27 리뉴얼 W1] 이중 진행 추천이 있으면 추천 무게·횟수로, 없으면 직전 마지막 세트로 프리필
+          [key]: [
+            (() => {
+              const sug = suggestNextSet(name, last, settingFor(key))
+              if (sug) return { auto: true, weight: String(sug.weight), reps: String(sug.reps) }
+              return { auto: true, weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }
+            })(),
+          ],
         }
       })
     } catch (err) {
@@ -790,13 +833,99 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function copyLastSet(name, idx) {
     setRecords((r) => {
       const sets = r[name]
-      const { saved, savedAt, auto, ...base } = sets[idx]
-      return { ...r, [name]: [...sets, { ...base }] }
+      const { saved, savedAt, auto, rir, ...base } = sets[idx] || {}
+      return { ...r, [name]: [...sets, { ...base, ...(base.type === 'warmup' ? { type: 'working' } : {}) }] }
     })
   }
 
   function removeSet(name, idx) {
     setRecords((r) => ({ ...r, [name]: r[name].filter((_, i) => i !== idx) }))
+  }
+
+  // ───────── [2026-10-27 리뉴얼 W1] 세트 종류·RIR·증량 추천·웜업·종목 설정 ─────────
+  // [2026-10-27] 종목 설정은 저장 응답을 기다리지 않고 즉시 반영(연속 탭·오프라인에서도 값이 유실되지 않게)
+  const [settingsOverride, setSettingsOverride] = useState({})
+  function settingFor(key) {
+    return settingsOverride[key] || exerciseSettings?.[key] || null
+  }
+  function suggestionFor(key) {
+    return suggestNextSet(parseExerciseKey(key).name, lastRecords[key], settingFor(key))
+  }
+  function patchSet(key, idx, patch) {
+    autoResumeIfPaused()
+    setRecords((r) => ({
+      ...r,
+      [key]: (r[key] || []).map((st, i) => (i === idx ? { ...st, ...patch, auto: false } : st)),
+    }))
+  }
+  function cycleSetType(key, idx) {
+    const cur = records[key]?.[idx]
+    patchSet(key, idx, { type: nextSetType(cur?.type) })
+  }
+  function cycleSetRir(key, idx) {
+    const cur = records[key]?.[idx]
+    patchSet(key, idx, { rir: nextRir(cur?.rir) })
+  }
+  // 추천 무게·횟수를 아직 저장 안 한 첫 본세트 행에 적용
+  function applySuggestion(key) {
+    const sug = suggestionFor(key)
+    if (!sug) return
+    const sets = records[key] || []
+    let idx = sets.findIndex((st) => !st.saved && st.type !== 'warmup')
+    if (idx === -1) {
+      setRecords((r) => ({ ...r, [key]: [...(r[key] || []), { weight: String(sug.weight), reps: String(sug.reps) }] }))
+      return
+    }
+    patchSet(key, idx, { weight: String(sug.weight), reps: String(sug.reps) })
+  }
+  // 본세트 무게 기준 웜업 램프(40·60·80%)를 맨 앞에 추가(아직 저장한 세트가 없을 때만 노출)
+  function addWarmupRamp(key) {
+    const { name } = parseExerciseKey(key)
+    const sets = records[key] || []
+    const firstWorking = sets.find((st) => st.type !== 'warmup')
+    const workW = Number(firstWorking?.weight) || Number(suggestionFor(key)?.weight) || 0
+    const ramp = buildWarmupRamp(workW, name)
+    if (ramp.length === 0) {
+      confirm('본세트 무게를 먼저 입력하면 웜업 세트를 만들어 드려요.', { okLabel: '확인', cancelLabel: '닫기' })
+      return
+    }
+    setRecords((r) => ({
+      ...r,
+      [key]: [
+        ...ramp.map((w) => ({ type: 'warmup', weight: String(w.weight), reps: String(w.reps) })),
+        ...(r[key] || []).filter((st) => st.type !== 'warmup'),
+      ],
+    }))
+  }
+  async function saveExerciseSetting(key, setting) {
+    setSettingsOverride((prev) => ({ ...prev, [key]: setting }))
+    try {
+      await updateExerciseSetting(uid, key, setting)
+      onProfileUpdated?.()
+    } catch (err) {
+      console.error('종목 설정 저장 실패:', err)
+    }
+  }
+
+  function cardExt(key) {
+    const { name } = parseExerciseKey(key)
+    const setting = settingFor(key)
+    const sessionBest = bestE1rmOfSets((records[key] || []).filter((st) => st.saved))
+    return {
+      logMode: logMode || 'list',
+      suggestion: suggestionFor(key),
+      bestE1rm: Math.max(personalRecords?.[key]?.e1rm || 0, sessionBest),
+      repRange: getRepRange(name, setting),
+      restSec: setting?.restSec || null,
+      defaultRestSec: getDefaultRestSec(name),
+      onCycleType: (idx) => cycleSetType(key, idx),
+      onCycleRir: (idx) => cycleSetRir(key, idx),
+      onApplySuggestion: () => applySuggestion(key),
+      onAddWarmups: () => addWarmupRamp(key),
+      onSettingChange: (next) => saveExerciseSetting(key, next),
+      supersetPartner: supersets[key] || null,
+      onToggleSuperset: visibleExercises.length > 1 ? () => toggleSuperset(key) : null,
+    }
   }
 
   // 체크(V) 버튼으로 세트를 저장하기 전에 값을 확인한다. 값이 비어있으면(아예 입력을 안 한 경우)
@@ -828,22 +957,85 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   // 세트 저장과 동시에: 휴게타이머 시작 + 다음 세트를 자동으로 생성(직전 값 프리필)
   function saveSetAndStartRest(name, idx) {
+    // [2026-10-27 리뉴얼 W1] 신기록(추정 1RM) 감지 — 웜업 제외, 12회 이하 본세트만. 처음 하는 종목은 축하 생략.
+    const savedSet = records[name]?.[idx]
+    // 이미 저장된 세트를 (포커스형에서 골라) 수정 후 다시 저장: 값만 확정하고 휴식·슈퍼세트 이동은 하지 않는다
+    if (savedSet?.saved) {
+      setRecords((r) => ({ ...r, [name]: r[name].map((st, i) => (i === idx ? { ...st, savedAt: Date.now() } : st)) }))
+      return
+    }
+    if (savedSet && savedSet.type !== 'warmup' && getExerciseInputType(parseExerciseKey(name).name) === 'sets') {
+      const v = e1rm(savedSet.weight, savedSet.reps)
+      const prevBest = Math.max(personalRecords?.[name]?.e1rm || 0, sessionBestRef.current[name] || 0)
+      if (v > 0 && personalRecords?.[name]?.e1rm && v > prevBest) {
+        showToast(`신기록! 추정 1RM ${v}kg (+${Math.round((v - prevBest) * 10) / 10})`, 2600)
+      }
+      if (v > (sessionBestRef.current[name] || 0)) sessionBestRef.current[name] = v
+    }
+    // 종목별 휴식 설정이 있으면 그 시간으로, 없으면 상단 공통 휴식 시간으로
+    setActiveRestSec(settingFor(name)?.restSec || null)
     setRecords((r) => {
       // [2026-10-27] savedAt: 마지막 활동 시각(방치 세션 판단·자동 저장 시 운동시간 계산)용.
       // 자동 생성되는 다음 세트 행은 auto:true — 손대지도 체크하지도 않으면 기록에서 제외된다.
       const sets = r[name].map((s, i) => (i === idx ? { ...s, saved: true, auto: false, savedAt: Date.now() } : s))
-      const { saved, savedAt, auto, ...base } = sets[idx]
+      const { saved, savedAt, auto, rir, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]
-      const nextSets = hasNext ? sets : [...sets, { ...base, auto: true }]
+      // 웜업 세트를 저장한 뒤 자동으로 생기는 다음 행은 본세트로 시작
+      const nextBase = base.type === 'warmup' ? { ...base, type: 'working' } : base
+      const nextSets = hasNext ? sets : [...sets, { ...nextBase, auto: true }]
       return { ...r, [name]: nextSets }
     })
+    // [2026-10-27 리뉴얼 W3] 슈퍼세트: 짝 종목의 저장 세트 수가 이 종목보다 적으면 휴식 없이 짝 종목으로 이동
+    const partner = supersets[name]
+    if (partner && savedSet?.type !== 'warmup' && visibleExercises.includes(partner) && !completedExercises[partner]) {
+      // 웜업 세트는 번갈아 하기 대상이 아니다(각 종목 웜업은 따로) — 본세트 수만 비교
+      const workingSaved = (key) => (records[key] || []).filter((st) => st.saved && st.type !== 'warmup').length
+      const mySaved = workingSaved(name) + 1
+      const partnerSaved = workingSaved(partner)
+      if (partnerSaved < mySaved) {
+        if (expandedExercise !== partner) openExercise(partner)
+        return
+      }
+    }
     setRestKey((k) => k + 1)
     setRestActive(true)
+  }
+
+  // 숨기기·삭제·완료된 종목은 슈퍼세트 짝에서 해제
+  function unpairSuperset(key) {
+    setSupersets((prev) => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[next[key]]
+      delete next[key]
+      return next
+    })
+  }
+
+  function toggleSuperset(key) {
+    setSupersets((prev) => {
+      const next = { ...prev }
+      const cur = next[key]
+      if (cur) {
+        delete next[cur]
+        delete next[key]
+        return next
+      }
+      const order = visibleExercises
+      const i = order.indexOf(key)
+      const free = (k) => !next[k] && !completedExercises[k]
+      const partner = order.slice(i + 1).find(free) || order.slice(0, i).reverse().find(free)
+      if (!partner) return prev
+      next[key] = partner
+      next[partner] = key
+      return next
+    })
   }
 
   // "삭제": 루틴(파트) 자체는 그대로 두고, 오늘 세션 화면에서만 숨긴다 (다음에 다시 보임)
   function hideExerciseToday(name) {
     setHiddenToday((prev) => [...prev, name])
+    unpairSuperset(name)
     setRecords((r) => {
       const { [name]: _omit, ...rest } = r
       return rest
@@ -857,6 +1049,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     if (!(await confirm(`"${exerciseKeyLabel(name)}"을(를) 이 파트에서 완전히 삭제할까요? 이후 세션에서도 보이지 않습니다.`))) return
     const nextExercises = partOrder.filter((n) => n !== name)
     setPartOrder(nextExercises)
+    unpairSuperset(name)
     setRecords((r) => {
       const { [name]: _omit, ...rest } = r
       return rest
@@ -938,6 +1131,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   function removeFreeExercise(name) {
     setFreeExercises((prev) => prev.filter((n) => n !== name))
+    unpairSuperset(name)
     setRecords((r) => {
       const { [name]: _omit, ...rest } = r
       return rest
@@ -954,6 +1148,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 피드백으로, 종목 하나를 통째로 "세트완료" 처리하는 이 시점으로 옮겼다.
   function completeExercise(name) {
     setCompletedExercises((c) => ({ ...c, [name]: true }))
+    unpairSuperset(name)
     // [2026-10-27] 체크한 세트가 있는 종목을 "세트완료"하면, 그 뒤에 자동으로 생겨 있던 빈 다음 세트 행
     // (손대지 않은 auto 행)은 수행하지 않은 것이므로 정리한다.
     setRecords((r) => {
@@ -965,8 +1160,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     if (!completionOrderRef.current.includes(name)) {
       completionOrderRef.current = [...completionOrderRef.current, name]
     }
-    setSetToast(pickSetEncouragement())
-    setTimeout(() => setSetToast((cur) => (cur ? null : cur)), 1600)
+    showToast(pickSetEncouragement(), 1600)
   }
 
   function toggleUncompleteExercise(name) {
@@ -1088,6 +1282,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setPausedAccumMs(0)
     setFreeExercises([])
     setHiddenToday([])
+    setSupersets({})
+    sessionBestRef.current = {}
     // [2026-07-30 신규] 운동 완료 시 "+ 종목 추가" 패널을 열어둔 채로 끝내면(취소를 누르지
     // 않고 완료) 다음 세션 시작 시에도 그 패널이 열린 채로 보이던 버그(⑫) 수정.
     setAddingExercise(false)
@@ -1166,9 +1362,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             left: '50%',
             zIndex: 50,
             padding: '10px 18px',
-            borderRadius: 999,
-            background: 'var(--color-primary-normal)',
-            color: 'var(--color-on-gold-button)',
+            borderRadius: 'var(--radius-pill)',
+            background: 'var(--color-fill-strong)',
+            color: 'var(--color-on-fill)',
             fontSize: 13,
             fontWeight: 700,
             whiteSpace: 'nowrap',
@@ -1347,6 +1543,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                     onHideToday={() => hideExerciseToday(name)}
                     onRemoveFromRoutine={() => removeExerciseFromRoutine(name)}
                     customExercises={customExercises}
+                    ext={cardExt(name)}
                   />
                 </SortableExerciseItem>
               ))}
@@ -1374,6 +1571,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                   isExtra
                   onRemoveExtra={() => removeFreeExercise(name)}
                   customExercises={customExercises}
+                  ext={cardExt(name)}
                 />
               ))}
             </div>
@@ -1388,7 +1586,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                   width: '100%',
                   marginTop: 10,
                   padding: '12px',
-                  borderRadius: 12,
+                  borderRadius: 'var(--radius-md)',
                   border: '1px dashed var(--color-line)',
                   color: 'var(--color-label-neutral)',
                   fontSize: 14,
@@ -1446,7 +1644,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 width: '100%',
                 marginTop: 10,
                 padding: '12px',
-                borderRadius: 12,
+                borderRadius: 'var(--radius-md)',
                 border: '1px dashed var(--color-line)',
                 color: 'var(--color-label-neutral)',
                 fontSize: 14,
@@ -1488,7 +1686,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
       {restActive && (
         <RestTimer
-          seconds={restSeconds}
+          seconds={activeRestSec || restSeconds}
           resetKey={restKey}
           notificationEnabled={restNotificationEnabled}
           wakeLockEnabled={restWakeLockEnabled}
@@ -1590,7 +1788,7 @@ function WorkoutCompleteModal({ xpEarned, pendingRoutineAdd, templateForAdd, onA
         className="bt-celebrate-pop"
         style={{
           background: 'var(--color-bg-elevated)',
-          borderRadius: 20,
+          borderRadius: 'var(--radius-lg)',
           padding: '32px 24px',
           textAlign: 'center',
           maxWidth: 320,
@@ -1625,7 +1823,7 @@ function WorkoutCompleteModal({ xpEarned, pendingRoutineAdd, templateForAdd, onA
             style={{
               display: 'inline-block',
               padding: '8px 16px',
-              borderRadius: 999,
+              borderRadius: 'var(--radius-pill)',
               background: 'var(--color-primary-bg)',
               color: 'var(--color-primary-strong)',
               fontWeight: 800,
@@ -1754,25 +1952,32 @@ function ExerciseCard({
   isExtra,
   onRemoveExtra,
   customExercises,
+  ext = {},
 }) {
-  // [2026-08-10 변경] name prop은 이제 합성키("이름" 또는 "이름::그립")다. 라이브러리 조회는
+  // [2026-08-10 변경] name prop은 합성키("이름" 또는 "이름::그립")다. 라이브러리 조회는
   // 실제 종목명(exName) 기준으로 하고, 화면 제목은 그립이 있으면 "이름 (그립)"으로 보여준다.
-  // 그립은 추가 시점에 key에 고정되므로 더 이상 카드 안에서 바꿀 수 있는 칩 UI는 없다.
   const { name: exName, grip: fixedGrip } = parseExerciseKey(name)
   const color = getExerciseColorWithCustom(exName, customExercises)
   const inputType = getExerciseInputType(exName)
   const weightStep = getWeightStep(exName)
-  // [2026-08-06 복원] 종목명을 롱프레스하면 동작 가이드 이미지+설명+팁을 볼 수 있던 기능이
-  // 2026-08-02에 이미지 유료 DB 문제로 전면 삭제됐었는데, 무료 이미지+설명 데이터가 갖춰져
-  // 다시 붙였다.
-  // [2026-08-06 (2)] 닫히는 방법이 짧은 재탭뿐이라 사용자가 닫는 법을 못 찾는다는 피드백으로,
-  // (1)짧은 재탭 (2)다시 롱프레스 (3)"시작/접기" 버튼 클릭 (4)카드 바깥 탭 4가지 모두로
-  // 닫히게 확장했다. (4)를 위해 카드 컨테이너에 ref를 달아 훅에 넘긴다.
+  // [2026-08-06] 종목명 롱프레스 → 동작 가이드(짧은 재탭/다시 롱프레스/시작·접기/카드 바깥 탭으로 닫힘)
   const cardRef = useRef(null)
   const { open: guideOpen, guideProps, close: closeGuide } = useExerciseGuidePress(cardRef)
+  // [2026-10-27 리뉴얼 W1] 원판 계산·종목 설정 패널, 포커스형 선택 세트
+  const [showPlates, setShowPlates] = useState(false)
+  const [showSetting, setShowSetting] = useState(false)
+  const [focusIdx, setFocusIdx] = useState(null)
+  const { suggestion, bestE1rm, logMode, repRange, restSec, defaultRestSec } = ext
+  const isStrength = inputType === 'sets'
+  const useFocus = logMode === 'focus' && (inputType === 'sets' || inputType === 'reps')
+  const workingIndexOf = (i) => sets.slice(0, i + 1).filter((st) => st.type !== 'warmup').length
+  const activeIdx = Math.max(0, sets.findIndex((st) => !st.saved))
+  const activeWeight = Number(sets[focusIdx ?? activeIdx]?.weight) || Number(suggestion?.weight) || 0
+  const hasSaved = sets.some((st) => st.saved)
+  const fmtKg = (n) => (Number.isInteger(n) ? n : Number(n).toFixed(1))
 
   return (
-    <Card ref={cardRef} style={{ padding: 0, borderLeft: `4px solid ${color}` }}>
+    <Card ref={cardRef} style={{ padding: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 10px 6px', gap: 6 }}>
         {draggable && (
           <div
@@ -1786,60 +1991,83 @@ function ExerciseCard({
               alignItems: 'center',
               justifyContent: 'center',
               color: 'var(--color-label-neutral)',
-              fontSize: 18,
               touchAction: 'none',
               cursor: 'grab',
             }}
           >
-            ⠿
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" /><circle cx="9" cy="12" r="1.6" />
+              <circle cx="15" cy="12" r="1.6" /><circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
+            </svg>
           </div>
         )}
-        {isDone && (
+        {isDone ? (
           <button
             title="완료 취소(다시 수정)"
+            aria-label="완료 취소"
             onClick={onToggleUncomplete}
             style={{
               flexShrink: 0,
               width: 22,
               height: 22,
               borderRadius: '50%',
-              // [2026-08-02 변경] 완료 체크가 "시작" 버튼과 같은 골드 톤이라 구분이 잘 안 된다는
-              // 피드백(⑮)으로, 완료 표시는 --color-success(초록)로 확실히 다르게 구분한다.
               background: 'var(--color-success)',
               color: '#ffffff',
-              fontSize: 13,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            ✓
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12l5 5L19 7" />
+            </svg>
           </button>
+        ) : (
+          // [2026-10-27] 좌측 굵은 색 띠(카드 왼쪽 보더) 대신 작은 부위 색 점으로 표시
+          <span aria-hidden="true" style={{ flexShrink: 0, width: 8, height: 8, borderRadius: '50%', background: color, margin: '0 4px' }} />
         )}
-        <span
-          {...guideProps}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            fontWeight: 700,
-            fontSize: 15,
-            color: isDone ? 'var(--color-label-neutral)' : 'var(--color-label-strong)',
-            ...guideProps.style,
-          }}
-        >
-          {fixedGrip ? `${exName} (${fixedGrip})` : exName}
-        </span>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span
+            {...guideProps}
+            style={{
+              fontWeight: 700,
+              fontSize: 15,
+              color: isDone ? 'var(--color-label-neutral)' : 'var(--color-label-strong)',
+              ...guideProps.style,
+            }}
+          >
+            {fixedGrip ? `${exName} (${fixedGrip})` : exName}
+          </span>
+          {ext.supersetPartner && (
+            <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-info)', fontWeight: 700 }}>
+              ⇄ 슈퍼세트 {exerciseKeyLabel(ext.supersetPartner)}
+            </span>
+          )}
+          {isStrength && (bestE1rm > 0 || suggestion?.kind === 'increase') && (
+            <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', display: 'flex', gap: 6 }}>
+              {bestE1rm > 0 && (
+                <span>
+                  추정 1RM <span className="bt-num">{fmtKg(bestE1rm)}</span>kg
+                </span>
+              )}
+              {suggestion?.kind === 'increase' && !isDone && (
+                <span style={{ color: 'var(--color-primary-normal)', fontWeight: 700 }}>▲ 증량 추천</span>
+              )}
+            </span>
+          )}
+        </div>
         {isDone ? (
           <button
             title={expanded ? '접기' : '펼쳐서 보기'}
+            aria-label={expanded ? '접기' : '펼쳐서 보기'}
             onClick={() => {
               closeGuide()
               onOpen()
             }}
             style={{
               flexShrink: 0,
-              width: 28,
-              height: 28,
+              width: 32,
+              height: 32,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1847,7 +2075,7 @@ function ExerciseCard({
               transform: expanded ? 'rotate(180deg)' : 'none',
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
               <path d="M1 3l5 6 5-6z" fill="currentColor" />
             </svg>
           </button>
@@ -1860,12 +2088,12 @@ function ExerciseCard({
             style={{
               flexShrink: 0,
               padding: '8px 12px',
-              borderRadius: 8,
+              borderRadius: 'var(--radius-sm)',
               fontSize: 13,
               fontWeight: 700,
               whiteSpace: 'nowrap',
-              background: expanded ? 'var(--color-bg-elevated)' : 'var(--color-primary-normal)',
-              color: expanded ? 'var(--color-label-neutral)' : 'var(--color-on-gold-button)',
+              background: expanded ? 'var(--color-bg-elevated)' : 'var(--color-fill-strong)',
+              color: expanded ? 'var(--color-label-neutral)' : 'var(--color-on-fill)',
             }}
           >
             {expanded ? '접기' : '시작'}
@@ -1877,11 +2105,7 @@ function ExerciseCard({
           </IconButton>
         ) : (
           <>
-            {/* [2026-08-04 변경] "오늘만 숨기기"(임시)와 "완전히 삭제"(영구, 아래) 아이콘이
-                둘 다 X자 모양이라 구분이 안 돼, 사용자가 임시 숨김을 삭제로 착각해 누르고
-                "삭제했는데 종목추가 목록에 다시 안 뜬다"고 느끼는 원인이 됐다(② 재확인 결과).
-                두 기능은 스펙상(4.2/8.4) 임시 숨김·영구 삭제로 별개 유지가 맞으므로, 동작은
-                그대로 두고 아이콘만 눈에 잘 띄게 구분한다 — 숨기기는 eye-off 아이콘으로 교체. */}
+            {/* [2026-08-04] 숨기기(임시, eye-off)·완전 삭제(영구, 휴지통) 아이콘 구분 */}
             <IconButton title="오늘만 목록에서 숨기기 (내일 다시 보임)" onClick={onHideToday} muted>
               <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
               <circle cx="12" cy="12" r="3" />
@@ -1901,45 +2125,181 @@ function ExerciseCard({
       )}
 
       {expanded && (
-        <div style={{ padding: '0 16px 16px' }}>
+        <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lastRecord && (
             <div
               className="record-notation text-keep-all h-scroll"
-              style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '0 0 10px', display: 'flex', gap: 4 }}
+              style={{ fontSize: 12, color: 'var(--color-label-neutral)', display: 'flex', gap: 4 }}
             >
               <span style={{ flexShrink: 0 }}>직전({lastRecord.date}):</span>
               <span>
                 {inputType === 'cardio'
                   ? exName === '스텝밀'
-                    ? lastRecord.sets.map((s) => `${s.steps || 0}스텝·레벨${s.speedKmh || 0}·${s.durationMin || 0}분`).join(' / ')
-                    : lastRecord.sets.map((s) => `경사${s.incline || 0}%·시속${s.speedKmh || 0}km/h·${s.durationMin || 0}분`).join(' / ')
+                    ? lastRecord.sets.map((st) => `${st.steps || 0}스텝·레벨${st.speedKmh || 0}·${st.durationMin || 0}분`).join(' / ')
+                    : lastRecord.sets.map((st) => `경사${st.incline || 0}%·시속${st.speedKmh || 0}km/h·${st.durationMin || 0}분`).join(' / ')
                   : inputType === 'reps'
-                  ? lastRecord.sets.map((s) => `${s.reps}회`).join('/')
-                  : lastRecord.sets.map((s) => `${s.weight}x${s.reps}`).join('/')}
+                  ? lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.reps}회`).join('/')
+                  : lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.weight}x${st.reps}`).join('/')}
               </span>
             </div>
           )}
-          {sets.map((set, idx) => (
-            <SetRow
-              key={idx}
-              set={set}
-              inputType={inputType}
-              exName={exName}
-              weightStep={weightStep}
-              onWeightChange={(v) => onWeightChange(idx, v)}
-              onRepsChange={(v) => onRepsChange(idx, v)}
-              onFieldChange={(field, v) => onFieldChange(idx, field, v)}
-              onSave={() => onSaveSet(idx)}
-              onCopy={() => onCopySet(idx)}
-              onRemove={sets.length > 1 ? () => onRemoveSet(idx) : null}
+
+          {/* [2026-10-27 리뉴얼 W1] 이중 진행 기반 다음 세트 추천 */}
+          {isStrength && suggestion && !isDone && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-line)',
+                background: 'var(--color-primary-bg)',
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+                  {suggestion.kind === 'increase' ? '▲ ' : ''}추천{' '}
+                  <span className="bt-num">{fmtKg(suggestion.weight)}</span>kg × <span className="bt-num">{suggestion.reps}</span>회
+                </span>
+                <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>
+                  {suggestion.reason}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={ext.onApplySuggestion}
+                style={{ flexShrink: 0, height: 34, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line-strong)', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-strong)' }}
+              >
+                적용
+              </button>
+            </div>
+          )}
+
+          {isStrength && !isDone && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {!hasSaved && (
+                <ToolChip onClick={ext.onAddWarmups} title="본세트 무게 기준 40·60·80% 웜업 세트 추가">
+                  웜업 세트
+                </ToolChip>
+              )}
+              {usesBarbellPlates(exName) && (
+                <ToolChip active={showPlates} onClick={() => setShowPlates((v) => !v)} title="바벨 원판 계산">
+                  원판
+                </ToolChip>
+              )}
+              {ext.onToggleSuperset && (
+                <ToolChip active={!!ext.supersetPartner} onClick={ext.onToggleSuperset} title="다음 종목과 번갈아 하기(짝 종목까지 하고 휴식)">
+                  {ext.supersetPartner ? '슈퍼세트 해제' : '슈퍼세트'}
+                </ToolChip>
+              )}
+              <ToolChip active={showSetting} onClick={() => setShowSetting((v) => !v)} title="목표 반복·휴식 설정">
+                목표 <span className="bt-num">{repRange?.[0]}–{repRange?.[1]}</span>회
+                {restSec ? (
+                  <>
+                    {' '}· 휴식 <span className="bt-num">{Math.floor(restSec / 60)}:{String(restSec % 60).padStart(2, '0')}</span>
+                  </>
+                ) : null}
+              </ToolChip>
+            </div>
+          )}
+          {showPlates && <PlatePanel weight={activeWeight} onClose={() => setShowPlates(false)} />}
+          {showSetting && repRange && (
+            <ExerciseSettingEditor
+              repRange={repRange}
+              restSec={restSec ?? null}
+              defaultRestSec={defaultRestSec || 90}
+              onChange={ext.onSettingChange}
+              onClose={() => setShowSetting(false)}
             />
-          ))}
-          <Button full variant="secondary" style={{ marginTop: 6 }} onClick={onComplete}>
-            세트완료
+          )}
+
+          {useFocus ? (
+            <FocusSetPanel
+              sets={sets}
+              inputType={inputType}
+              weightStep={weightStep}
+              focusIdx={focusIdx}
+              onSelect={(i) => setFocusIdx(i)}
+              onField={(i, field, v) => onFieldChange(i, field, v)}
+              onSave={(i) => {
+                setFocusIdx(null)
+                onSaveSet(i)
+              }}
+              onCycleType={ext.onCycleType}
+              onAddSet={() => onCopySet(sets.length - 1)}
+              workingIndexOf={workingIndexOf}
+            />
+          ) : (
+            <div>
+              {sets.map((set, idx) => (
+                <SetRow
+                  key={idx}
+                  set={set}
+                  inputType={inputType}
+                  exName={exName}
+                  weightStep={weightStep}
+                  setIndex={workingIndexOf(idx)}
+                  onCycleType={() => ext.onCycleType?.(idx)}
+                  onCycleRir={() => ext.onCycleRir?.(idx)}
+                  onWeightChange={(v) => onWeightChange(idx, v)}
+                  onRepsChange={(v) => onRepsChange(idx, v)}
+                  onFieldChange={(field, v) => onFieldChange(idx, field, v)}
+                  onSave={() => onSaveSet(idx)}
+                  onCopy={() => onCopySet(idx)}
+                  onRemove={sets.length > 1 ? () => onRemoveSet(idx) : null}
+                />
+              ))}
+              {inputType !== 'cardio' && sets.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onCopySet(sets.length - 1)}
+                  style={{
+                    width: '100%',
+                    height: 40,
+                    marginTop: 2,
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px dashed var(--color-line-strong)',
+                    color: 'var(--color-label-normal)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  + 세트 추가
+                </button>
+              )}
+            </div>
+          )}
+          {/* [2026-10-27] 세트 저장(V/세트 완료)과 헷갈리지 않도록 "종목 완료"로 명칭 변경 */}
+          <Button full variant="secondary" onClick={onComplete}>
+            이 종목 완료
           </Button>
         </div>
       )}
     </Card>
+  )
+}
+
+function ToolChip({ children, onClick, active, title }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      style={{
+        height: 32,
+        padding: '0 10px',
+        borderRadius: 'var(--radius-pill)',
+        border: active ? '1px solid var(--color-label-strong)' : '1px solid var(--color-line)',
+        background: active ? 'var(--color-bg-elevated)' : 'transparent',
+        color: 'var(--color-label-normal)',
+        fontSize: 12.5,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -1948,7 +2308,7 @@ function ExerciseCard({
 // 옆의 저장/복사 버튼과 세로 정렬이 어긋난다는 피드백을 받았다. 라벨 줄 없이도 각 인풋의
 // placeholder(중량은 "kg", 횟수는 "회" 등)로 이미 단위를 구분할 수 있어, 모든 세트가
 // 동일하게 Stepper(placeholder만 사용)를 쓰도록 통일했다.
-function SetRow({ set, inputType, exName, weightStep, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
+function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onCycleRir, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
   const isCardio = inputType === 'cardio'
   // [2026-08-18 신규] 스텝밀은 경사(incline) 대신 스텝수(steps)를 입력한다. 속도는 km/h가 아닌
   // 기구 표시 레벨(단위 없는 숫자)이라 스테퍼 증가폭을 1로 좁힌다(다른 카디오 종목은 0.5 유지).
@@ -2001,20 +2361,34 @@ function SetRow({ set, inputType, exName, weightStep, onWeightChange, onRepsChan
     )
   }
 
+  // [2026-10-27 리뉴얼 W1] 세트 종류 칩(탭: 본→웜업→드롭→실패) + 무게×횟수 + RIR + 저장/삭제.
+  // 세트 추가(직전 값 복사)는 행마다 두지 않고 목록 아래 "+ 세트 추가" 버튼 하나로 모았다(폭 확보).
+  const done = !!set.saved
   return (
-    <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+    <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 5, marginBottom: 8, opacity: set.auto && !done ? 0.85 : 1 }}>
+      <SetTypeBadge type={set.type} index={setIndex} onClick={onCycleType} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 }}>
         {inputType === 'reps' ? (
-          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={44} />
+          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={48} />
         ) : (
           <>
-            <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder="kg" width={44} />
+            <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder="kg" width={58} />
             <span style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }}>×</span>
-            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={32} />
+            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={34} />
           </>
         )}
       </div>
-      {buttons}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexShrink: 0 }}>
+        <RirChip rir={set.rir} onClick={onCycleRir} />
+        <IconButton title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'}>
+          <path d="M5 12l5 5L19 7" />
+        </IconButton>
+        {onRemove && (
+          <IconButton title="세트 삭제" onClick={onRemove} muted>
+            <path d="M7 7l10 10M17 7L7 17" />
+          </IconButton>
+        )}
+      </div>
     </div>
   )
 }
@@ -2022,9 +2396,12 @@ function SetRow({ set, inputType, exName, weightStep, onWeightChange, onRepsChan
 function IconButton({ children, onClick, title, muted, disabled, tone }) {
   // [2026-08-02 변경] 세트 저장 체크 아이콘도 "시작" 버튼과 같은 골드 배경이라 대비가
   // 약하다는 피드백으로, 브라운(--color-on-gold) 대신 베이지 토큰(--color-on-gold-button)을 쓴다.
+  // [2026-10-27] 저장 전(save)=채움 버튼, 저장 후(done)=초록 체크로 상태를 분명히 구분
   const toneStyle =
-    tone === 'save' || tone === 'done'
-      ? { background: 'var(--color-primary-normal)', border: 'none', stroke: 'var(--color-on-gold-button)' }
+    tone === 'done'
+      ? { background: 'var(--color-success)', border: 'none', stroke: '#ffffff' }
+      : tone === 'save'
+      ? { background: 'var(--color-fill-strong)', border: 'none', stroke: 'var(--color-on-fill)' }
       : { background: muted ? 'var(--color-bg-elevated)' : 'var(--color-primary-bg)', border: '1px solid var(--color-line)', stroke: muted ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }
   return (
     <button
@@ -2038,7 +2415,7 @@ function IconButton({ children, onClick, title, muted, disabled, tone }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 8,
+        borderRadius: 'var(--radius-sm)',
         border: toneStyle.border,
         background: toneStyle.background,
         opacity: disabled ? 0.55 : 1,
@@ -2054,10 +2431,11 @@ function IconButton({ children, onClick, title, muted, disabled, tone }) {
 // 회수 입력은 두 자리를 넘는 경우가 거의 없어 폭을 좁게(width) 지정할 수 있게 한다.
 function Stepper({ value, onChange, step, placeholder, width = 52 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-line)', borderRadius: 8, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
       <button
-        onClick={() => onChange(String(Math.max(0, (Number(value) || 0) - step)))}
-        style={{ padding: '8px 6px', fontSize: 16, color: 'var(--color-label-normal)' }}
+        onClick={() => onChange(String(Math.max(0, Math.round(((Number(value) || 0) - step) * 100) / 100)))}
+        aria-label="줄이기"
+        style={{ padding: '8px 5px', fontSize: 16, color: 'var(--color-label-normal)' }}
       >
         −
       </button>
@@ -2068,11 +2446,12 @@ function Stepper({ value, onChange, step, placeholder, width = 52 }) {
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="record-notation"
-        style={{ width, boxSizing: 'border-box', padding: '0 2px', textAlign: 'center', border: 'none', fontSize: 15, fontWeight: 700 }}
+        style={{ width, boxSizing: 'border-box', padding: '0 2px', textAlign: 'center', border: 'none', background: 'transparent', color: 'var(--color-label-strong)', fontSize: 'calc(15px * var(--num-scale))', fontWeight: 700 }}
       />
       <button
-        onClick={() => onChange(String((Number(value) || 0) + step))}
-        style={{ padding: '8px 6px', fontSize: 16, color: 'var(--color-label-normal)' }}
+        onClick={() => onChange(String(Math.round(((Number(value) || 0) + step) * 100) / 100))}
+        aria-label="늘리기"
+        style={{ padding: '8px 5px', fontSize: 16, color: 'var(--color-label-normal)' }}
       >
         +
       </button>

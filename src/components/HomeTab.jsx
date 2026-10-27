@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Dumbbell, Moon, ClipboardCheck } from 'lucide-react'
 import { Card, Button, useConfirm } from './ui'
-import { getRecentWorkoutLogs } from '../storage'
+import { getRecentWorkoutLogs, getWorkoutLogsInRange } from '../storage'
+import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
+import { suggestNextSet, workingSetsOf } from '../utils/strength'
+import { makeExerciseKey, parseExerciseKey } from '../utils/exerciseKey'
 import CalendarView from './CalendarView'
 import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
 import { getSuggestedNext } from '../utils/routineSuggestion'
@@ -83,9 +86,41 @@ export default function HomeTab({
     }
   }, [])
 
+  // [2026-10-27 리뉴얼 W2] 이번 주 기록(주간 요약·근육별 세트)
+  const [weekLogs, setWeekLogs] = useState([])
+  useEffect(() => {
+    let cancelled = false
+    getWorkoutLogsInRange(uid, startOfWeekStr(), today)
+      .then((logs) => !cancelled && setWeekLogs(logs))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [uid, logsVersion, today])
+  const weekStats = useMemo(() => {
+    const sessions = new Set(weekLogs.map((l) => l.date)).size
+    let sets = 0
+    weekLogs.forEach((l) => (l.exercises || []).forEach((e) => (sets += workingSetsOf(e).length)))
+    const volume = weekLogs.reduce((v, l) => v + (l.totalVolume || 0), 0)
+    return { sessions, sets, volume }
+  }, [weekLogs])
+
   const todayLogs = useMemo(() => recentLogs.filter((l) => l.date === today), [recentLogs, today])
   const doneToday = todayLogs.length > 0
   const suggested = useMemo(() => getSuggestedNext(routineTemplates, recentLogs), [routineTemplates, recentLogs])
+  // 오늘 차례 파트의 종목 중 이중 진행 기준 "증량 추천" 종목
+  const increaseList = useMemo(() => {
+    if (!suggested?.part?.exercises) return []
+    const out = []
+    suggested.part.exercises.forEach((key) => {
+      const { name, grip } = parseExerciseKey(key)
+      const log = recentLogs.find((l) => (l.exercises || []).some((e) => makeExerciseKey(e.name, e.grip) === makeExerciseKey(name, grip)))
+      const ex = log?.exercises.find((e) => makeExerciseKey(e.name, e.grip) === makeExerciseKey(name, grip))
+      const sug = ex ? suggestNextSet(name, ex, userDoc?.exerciseSettings?.[key]) : null
+      if (sug?.kind === 'increase') out.push({ key, name, weight: sug.weight })
+    })
+    return out
+  }, [suggested, recentLogs, userDoc?.exerciseSettings])
 
   return (
     <div style={{ padding: '20px 20px 100px' }}>
@@ -151,6 +186,16 @@ export default function HomeTab({
             차례예요.
           </p>
         )}
+        {suggested && !doneToday && increaseList.length > 0 && (
+          <p className="text-keep-all" style={{ margin: '-4px 0 12px', fontSize: 12.5, color: 'var(--color-label-normal)' }}>
+            ▲ 증량 추천 {increaseList.length}종목 ·{' '}
+            {increaseList
+              .slice(0, 3)
+              .map((x) => `${x.name} ${x.weight}kg`)
+              .join(', ')}
+            {increaseList.length > 3 ? ' 외' : ''}
+          </p>
+        )}
 
         {isWorkoutInProgress ? (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -176,6 +221,34 @@ export default function HomeTab({
           </div>
         )}
       </Card>
+
+      {/* [2026-10-27 리뉴얼 W2] 이번 주 요약 + 근육별 세트(상위 5) + 최근 PR */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          borderTop: '1px solid var(--color-line)',
+          borderBottom: '1px solid var(--color-line)',
+          padding: '14px 0',
+          marginBottom: 20,
+        }}
+      >
+        {[
+          { v: weekStats.sessions, unit: '회', label: '이번 주 운동' },
+          { v: weekStats.sets, unit: '세트', label: '본세트' },
+          { v: weekStats.volume >= 1000 ? Math.round(weekStats.volume / 100) / 10 : weekStats.volume, unit: weekStats.volume >= 1000 ? 't' : 'kg', label: '총 볼륨' },
+        ].map((it, i) => (
+          <div key={it.label} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: i ? 14 : 2, borderLeft: i ? '1px solid var(--color-line)' : 'none' }}>
+            <span className="bt-num" style={{ fontSize: 'calc(26px * var(--num-scale))', lineHeight: 1.1 }}>
+              {it.v}
+              <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{it.unit}</span>
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{it.label}</span>
+          </div>
+        ))}
+      </div>
+      {weekLogs.length > 0 && <MuscleSetsCard logs={weekLogs} compact title="이번 주 근육별 세트" />}
+      <PrCard prs={userDoc?.prs} limit={2} title="최근 PR" />
 
       <div style={{ margin: '0 -20px 4px' }}>
         <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} onLogsChanged={onLogsChanged} />

@@ -47,7 +47,7 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
         left: 0,
         right: 0,
         zIndex: 60,
-        background: isPaused ? 'var(--color-bg-elevated)' : 'var(--color-primary-normal)',
+        background: isPaused ? 'var(--color-bg-elevated)' : 'var(--color-fill-strong)',
         borderBottom: '1px solid var(--color-line)',
         transition: 'background 0.2s ease',
       }}
@@ -62,7 +62,7 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           alignItems: 'center',
           justifyContent: 'center',
           gap: 8,
-          color: isPaused ? 'var(--color-label-neutral)' : 'var(--color-on-gold-button)',
+          color: isPaused ? 'var(--color-label-neutral)' : 'var(--color-on-fill)',
           fontSize: 13,
           fontWeight: 700,
         }}
@@ -89,7 +89,7 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
             style={{
               width: 26,
               height: 26,
-              borderRadius: 6,
+              borderRadius: 'var(--radius-sm)',
               fontSize: 14,
               fontWeight: 700,
               color: 'var(--color-label-normal)',
@@ -106,7 +106,7 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
             style={{
               width: 26,
               height: 26,
-              borderRadius: 6,
+              borderRadius: 'var(--radius-sm)',
               fontSize: 14,
               fontWeight: 700,
               color: 'var(--color-label-normal)',
@@ -122,7 +122,7 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
             onClick={onReset}
             style={{
               padding: '6px 10px',
-              borderRadius: 8,
+              borderRadius: 'var(--radius-sm)',
               fontSize: 12,
               fontWeight: 700,
               whiteSpace: 'nowrap',
@@ -138,12 +138,12 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
             onClick={onTogglePause}
             style={{
               padding: '6px 12px',
-              borderRadius: 8,
+              borderRadius: 'var(--radius-sm)',
               fontSize: 13,
               fontWeight: 700,
               whiteSpace: 'nowrap',
-              background: isPaused ? 'var(--color-primary-normal)' : 'var(--color-bg-card)',
-              color: isPaused ? 'var(--color-on-gold)' : 'var(--color-label-normal)',
+              background: isPaused ? 'var(--color-fill-strong)' : 'var(--color-bg-card)',
+              color: isPaused ? 'var(--color-on-fill)' : 'var(--color-label-normal)',
               border: isPaused ? 'none' : '1px solid var(--color-line)',
               flexShrink: 0,
             }}
@@ -154,7 +154,7 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
             onClick={onPress}
             style={{
               padding: '6px 12px',
-              borderRadius: 8,
+              borderRadius: 'var(--radius-sm)',
               fontSize: 13,
               fontWeight: 700,
               whiteSpace: 'nowrap',

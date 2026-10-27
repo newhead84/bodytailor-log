@@ -121,7 +121,7 @@ export default function ExerciseGuideImage({ name }) {
               style={{
                 flex: 1,
                 padding: '6px 0',
-                borderRadius: 8,
+                borderRadius: 'var(--radius-sm)',
                 fontSize: 12,
                 fontWeight: 700,
                 background: idx === activeIdx ? 'var(--color-primary-normal)' : 'var(--color-bg-elevated)',

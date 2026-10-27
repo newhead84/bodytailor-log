@@ -114,7 +114,7 @@ export default function Onboarding({ onComplete, previewMode = false, onClose })
             style={{
               margin: '-4px 0 16px',
               padding: '8px 12px',
-              borderRadius: 10,
+              borderRadius: 'var(--radius-md)',
               background: 'var(--color-primary-bg)',
               color: 'var(--color-primary-strong)',
               fontSize: 12,
@@ -131,7 +131,7 @@ export default function Onboarding({ onComplete, previewMode = false, onClose })
             style={{
               margin: '0 0 16px',
               padding: '12px 14px',
-              borderRadius: 10,
+              borderRadius: 'var(--radius-md)',
               background: 'var(--color-bg-elevated)',
               border: '1px dashed var(--color-line)',
             }}
@@ -233,7 +233,7 @@ export default function Onboarding({ onComplete, previewMode = false, onClose })
                       onKeyDown={(e) => e.key === 'Enter' && addCustomGoal()}
                       placeholder="목표를 직접 입력해 주세요"
                       className="text-keep-all"
-                      style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
+                      style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14 }}
                     />
                     <Button variant="secondary" onClick={addCustomGoal}>
                       추가
@@ -285,7 +285,7 @@ function OptionRow({ label, selected, onClick, flex }) {
         flex: flex ? 1 : undefined,
         textAlign: 'left',
         padding: '16px 18px',
-        borderRadius: 12,
+        borderRadius: 'var(--radius-md)',
         border: selected ? '2px solid var(--color-primary-normal)' : '1px solid var(--color-line)',
         background: selected ? 'var(--color-primary-bg)' : 'var(--color-bg-card)',
         color: selected ? 'var(--color-primary-strong)' : 'var(--color-label-strong)',
@@ -310,7 +310,7 @@ function BigNumberField({ unit, value, onChange }) {
         justifyContent: 'center',
         gap: 8,
         padding: '28px 20px',
-        borderRadius: 16,
+        borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--color-line)',
         background: 'var(--color-bg-card)',
       }}

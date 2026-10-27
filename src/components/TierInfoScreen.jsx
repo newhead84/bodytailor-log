@@ -76,7 +76,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
                   <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', width: 108, flexShrink: 0 }}>
                     {row.label}
                   </span>
-                  <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
                     <div
                       style={{
                         width: `${Math.max(0, Math.min(100, row.value || 0))}%`,
@@ -123,7 +123,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '8px 10px',
-                  borderRadius: 10,
+                  borderRadius: 'var(--radius-md)',
                   background: isCurrent ? 'var(--color-primary-bg)' : 'transparent',
                 }}
               >
@@ -150,6 +150,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
             <li>볼륨 보너스: 총 볼륨 50마다 +1XP (최대 100XP)</li>
             <li>운동시간 보너스: 2분마다 +1XP (최대 30XP)</li>
             <li>세션당 최소 10XP는 보장돼요</li>
+            <li>웜업 세트는 볼륨·XP 계산에서 빠져요(본세트만 반영)</li>
           </ul>
         </div>
       </Card>

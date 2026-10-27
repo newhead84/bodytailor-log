@@ -133,7 +133,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
               style={{
                 width: '100%',
                 padding: '12px',
-                borderRadius: 10,
+                borderRadius: 'var(--radius-md)',
                 border: '1px dashed var(--color-line)',
                 color: 'var(--color-label-neutral)',
                 fontSize: 13,
@@ -156,7 +156,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
                     style={{
                       textAlign: 'left',
                       padding: '12px 14px',
-                      borderRadius: 10,
+                      borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--color-line)',
                       opacity: addingTemplateKey && addingTemplateKey !== preset.key ? 0.5 : 1,
                     }}

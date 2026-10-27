@@ -13,6 +13,14 @@ export const STALE_SESSION_MS = 3 * 60 * 60 * 1000
 // 세트 저장(V) 직후 앱이 자동으로 만들어 둔 "다음 세트" 행(auto)은, 사용자가 손대지도 저장하지도
 // 않았다면 실제로 수행한 세트가 아니다. 이런 행은 기록·볼륨에서 제외한다.
 // (이전에는 마지막 세트를 저장하면 생기는 복사 행까지 1세트로 저장돼 세트 수·볼륨이 부풀었다.)
+// [2026-10-27 리뉴얼 W1] 세트 종류(본세트 외에만 저장)·RIR(입력했을 때만) — 기존 기록과 하위 호환(필드 추가만)
+function setMeta(s) {
+  const meta = {}
+  if (s.type && s.type !== 'working') meta.type = s.type
+  if (s.rir !== null && s.rir !== undefined && s.rir !== '') meta.rir = Number(s.rir)
+  return meta
+}
+
 export function isCountableSet(s) {
   return !!s && !(s.auto && !s.saved)
 }
@@ -63,11 +71,11 @@ export function buildExercisesFromRecords(records, { includeUnchecked = false } 
                   durationMin: Number(s.durationMin) || 0,
                 }))
       } else if (inputType === 'reps') {
-        validSets = sets.filter((s) => s.reps !== '').map((s) => ({ weight: 0, reps: Number(s.reps) }))
+        validSets = sets.filter((s) => s.reps !== '').map((s) => ({ weight: 0, reps: Number(s.reps), ...setMeta(s) }))
       } else {
         validSets = sets
           .filter((s) => s.weight !== '' && s.reps !== '')
-          .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
+          .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps), ...setMeta(s) }))
       }
       return { name, part: getExerciseAtom(name) || '', inputType, sets: validSets, ...(grip ? { grip } : {}) }
     })
@@ -82,6 +90,7 @@ export function computeVolumeFromRecords(records, { includeUnchecked = false } =
     if (inputType !== 'sets') return
     const parsed = (sets || [])
       .filter((st) => includeUnchecked || isCountableSet(st))
+      .filter((st) => st.type !== 'warmup') // 웜업 세트는 볼륨에서 제외
       .filter((s) => s.weight !== '' && s.reps !== '')
       .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
     sum += calcVolume(parsed)

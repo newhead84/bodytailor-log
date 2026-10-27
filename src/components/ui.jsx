@@ -10,7 +10,7 @@ export function Button({ children, onClick, variant = 'primary', disabled, style
     justifyContent: 'center',
     gap: 6,
     padding: '13px 20px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-md)',
     fontSize: 15,
     fontWeight: 600,
     width: full ? '100%' : undefined,
@@ -46,10 +46,11 @@ export const Card = React.forwardRef(function Card({ children, style, onClick, .
       ref={ref}
       onClick={onClick}
       style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-line)',
-        borderRadius: 'var(--radius-md)',
-        boxShadow: 'var(--shadow-card)',
+        // [2026-10-27] 디자인 스타일(A/B/C)별 카드 표현 토큰(designStyles.css)
+        background: 'var(--card-bg)',
+        border: 'var(--card-border)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--card-shadow)',
         padding: 16,
         cursor: onClick ? 'pointer' : 'default',
         ...style,
@@ -64,7 +65,7 @@ export const Card = React.forwardRef(function Card({ children, style, onClick, .
 export function SectionTitle({ children, action }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 2px 10px' }}>
-      <h2 style={{ fontSize: 'var(--fs-headline2)', lineHeight: 'var(--lh-headline2)', fontWeight: 700, margin: 0, color: 'var(--color-label-strong)' }}>
+      <h2 style={{ fontSize: 'var(--fs-headline2)', lineHeight: 'var(--lh-headline2)', fontWeight: 'var(--heading-weight)', margin: 0, color: 'var(--color-label-strong)' }}>
         {children}
       </h2>
       {action}
@@ -200,7 +201,7 @@ export function TierBadge({ label, tierKey, size = 'md' }) {
         alignItems: 'center',
         gap: 6,
         padding: '4px 10px',
-        borderRadius: 999,
+        borderRadius: 'var(--radius-pill)',
         fontSize: sizes[size],
         fontWeight: 700,
         background: 'var(--color-primary-bg)',
@@ -325,7 +326,7 @@ export function Chip({ children, active, onClick, style, ...rest }) {
       onClick={onClick}
       style={{
         padding: '8px 14px',
-        borderRadius: 999,
+        borderRadius: 'var(--radius-pill)',
         fontSize: 14,
         fontWeight: 600,
         border: active ? '1px solid var(--color-primary-normal)' : '1px solid var(--color-line)',

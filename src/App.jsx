@@ -1,14 +1,14 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-27] "운동 완료" 미입력 기록 누락 방지 — 진행 세션 서버 백업, 마지막 세트 후
- *            3시간 방치 세션 자동 저장(홈 배너: 확인/되돌리기), 체크 안 한 자동 프리필 세트 제외.
- *            같은 날 W0(보안 규칙·버그·오프라인·코드 분할)도 반영. 상세는 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-27] 전면 리뉴얼 W1~W3 — 디자인 스타일 A/B/C×3테마, 리스트/포커스 기록 방식,
+ *            세트 종류·RIR·증량 추천·PR·웜업/원판·슈퍼세트, 근육별 주간 세트·디로드·유산소·골밀도 인사이트,
+ *            연속 출석 보너스·시즌 XP 초기화, CSV 내보내기. 같은 날 W0·미완료 자동 저장 포함. CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
 import React, { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { watchAuthState } from './firebase'
-import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLog } from './storage'
+import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLog, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
 
 import LoginScreen from './components/LoginScreen'
 import Onboarding from './components/Onboarding'
@@ -186,6 +186,9 @@ export default function App() {
   useEffect(() => {
     const theme = userDoc?.onboardingCompleted ? userDoc.themePreference || 'beige' : 'dark'
     document.documentElement.setAttribute('data-theme', theme)
+    // [2026-10-27 신규] 디자인 스타일 A/B/C(designStyles.css). 미선택 계정은 A.
+    const style = userDoc?.onboardingCompleted ? userDoc.stylePreference || 'a' : 'a'
+    document.documentElement.setAttribute('data-style', style)
     // [2026-07-30] 노티바(브라우저 주소창 틴트/상태표시줄) 색상이 테마와 무관하게 골드로
     // 고정돼 있던 문제 수정: index.html의 theme-color 메타 태그를 라이트=블루/다크=골드로
     // 동적 갱신한다. 단, manifest.json의 theme_color는 정적 파일이라 "홈 화면에 추가"로
@@ -194,10 +197,22 @@ export default function App() {
     if (metaThemeColor) {
       // [2026-08-01 수정] 베이지블랙은 더 이상 다크와 같은 쨍한 골드를 쓰지 않고, 앱
       // 아이콘의 짙은 회색(버튼 배경과 동일 톤, --color-fill-strong)을 노티바/상태표시줄에 사용한다.
-      const color = theme === 'light' ? '#3182F6' : theme === 'beige' ? '#3A3A3A' : '#FFC94D'
+      // [2026-10-27] 스타일×테마 9종이 되면서 고정 색 대신 현재 배경색(--color-bg)을 그대로 쓴다.
+      const color = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim() || '#0B0B0C'
       metaThemeColor.setAttribute('content', color)
     }
-  }, [userDoc?.onboardingCompleted, userDoc?.themePreference])
+  }, [userDoc?.onboardingCompleted, userDoc?.themePreference, userDoc?.stylePreference])
+
+  // [2026-10-27 신규] 개인 기록(PR) 맵이 없는 계정은 최초 1회 전체 기록으로 계산해 저장한다.
+  const prsBuildRef = useRef(false)
+  useEffect(() => {
+    if (!authUser?.uid || !userDoc?.onboardingCompleted || userDoc.prs || prsBuildRef.current) return
+    prsBuildRef.current = true
+    rebuildPersonalRecords(authUser.uid)
+      .then(() => refreshUserDoc())
+      .catch((err) => console.error('PR 계산 실패:', err))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.prs])
 
   const autoNoticeKey = authUser?.uid ? `bt-auto-finalized-${authUser.uid}` : null
   useEffect(() => {
@@ -242,6 +257,13 @@ export default function App() {
   }, [authUser])
 
   // 운동기록 저장 직후 호출: 유저문서(XP/티어) 갱신 + 홈탭/캘린더 재조회 트리거를 함께 처리.
+  // [2026-10-27] 기록 수정/삭제 후 PR 재계산이 끝나면 사용자 문서를 다시 불러온다
+  useEffect(() => {
+    const onPrs = () => refreshUserDoc()
+    window.addEventListener('bt-prs-updated', onPrs)
+    return () => window.removeEventListener('bt-prs-updated', onPrs)
+  }, [refreshUserDoc])
+
   const handleLogSaved = useCallback(() => {
     refreshUserDoc()
     setLogsVersion((v) => v + 1)
@@ -325,7 +347,7 @@ export default function App() {
 
   // MY탭 등급 카드를 탭하면 티어 체계/XP 설명을 별도 전체 화면으로 보여준다.
   if (showTierInfo) {
-    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TierInfoScreen uid={authUser.uid} xp={userDoc.seasonXp || 0} onClose={closeTierInfo} /></Suspense>
+    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TierInfoScreen uid={authUser.uid} xp={getEffectiveSeasonXp(userDoc)} onClose={closeTierInfo} /></Suspense>
   }
 
   if (showInquiries) {
@@ -435,6 +457,9 @@ export default function App() {
           guideHintDismissed={!!userDoc.exerciseGuideHintDismissed}
           onProfileUpdated={refreshUserDoc}
           onAutoFinalized={handleAutoFinalized}
+          personalRecords={userDoc.prs || null}
+          exerciseSettings={userDoc.exerciseSettings || null}
+          logMode={userDoc.logMode || 'list'}
         />
       </div>
       <div ref={reportScrollRef} style={tabWrapperStyle('report')}>

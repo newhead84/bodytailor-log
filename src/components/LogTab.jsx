@@ -24,6 +24,9 @@ const LogTab = forwardRef(function LogTab(
     guideHintDismissed,
     onProfileUpdated,
     onAutoFinalized,
+    personalRecords,
+    exerciseSettings,
+    logMode,
   },
   ref
 ) {
@@ -45,6 +48,9 @@ const LogTab = forwardRef(function LogTab(
       guideHintDismissed={guideHintDismissed}
       onProfileUpdated={onProfileUpdated}
       onAutoFinalized={onAutoFinalized}
+      personalRecords={personalRecords}
+      exerciseSettings={exerciseSettings}
+      logMode={logMode}
     />
   )
 })

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm } from './ui'
-import { updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
+import { getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
+import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS, getExercisesForPart } from '../utils/exerciseLibrary'
@@ -11,6 +12,11 @@ import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
 
 const GENDERS = ['남성', '여성']
 const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
+const STYLE_OPTIONS = [
+  { id: 'a', label: 'A', desc: '에디토리얼' },
+  { id: 'b', label: 'B', desc: '인스트루먼트' },
+  { id: 'c', label: 'C', desc: '택타일 웜' },
+]
 
 // [2026-07-28 개편] '내 루틴'(자주 하는 운동 즐겨찾기) 섹션을 제거하고,
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
@@ -51,7 +57,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     goals: userDoc?.onboarding?.goals || [],
   }))
 
-  const xp = userDoc?.seasonXp || 0
+  const xp = getEffectiveSeasonXp(userDoc)
   const tier = getTierByXp(xp)
   const nextTier = getNextTier(xp)
   const tierProgress = getTierProgress(xp)
@@ -165,6 +171,34 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
 
   // [2026-07-30 신규] MY탭 "화면 테마" 선택 저장. onProfileUpdated()로 App.jsx의 userDoc을
   // 다시 불러오면, App.jsx의 data-theme effect가 반응해 즉시 전체 화면에 반영된다.
+  // [2026-10-27 신규] 디자인 스타일(A/B/C)·기록 방식(리스트/포커스) 선택 저장
+  const [stylePreference, setStylePreferenceState] = useState(userDoc?.stylePreference || 'a')
+  const [logMode, setLogModeState] = useState(userDoc?.logMode || 'list')
+  async function selectStyle(style) {
+    setStylePreferenceState(style)
+    await updateUserProfile(uid, { stylePreference: style })
+    await onProfileUpdated?.()
+  }
+  async function selectLogMode(mode) {
+    setLogModeState(mode)
+    await updateUserProfile(uid, { logMode: mode })
+    await onProfileUpdated?.()
+  }
+
+  const [exporting, setExporting] = useState(false)
+  async function handleExportCsv() {
+    setExporting(true)
+    try {
+      const logs = await getAllWorkoutLogs(uid)
+      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      downloadText(`bodytailor-log-${stamp}.csv`, logsToCsv(logs))
+    } catch (err) {
+      console.error('CSV 내보내기 실패:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   async function selectTheme(theme) {
     setThemePreferenceState(theme)
     await setThemePreference(uid, theme)
@@ -330,7 +364,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                 value={profileForm.nickname}
                 onChange={(e) => updateProfileForm('nickname', e.target.value)}
                 placeholder="닉네임"
-                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14, boxSizing: 'border-box' }}
               />
             </div>
             <div style={{ marginBottom: 12 }}>
@@ -376,7 +410,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                     onKeyDown={(e) => e.key === 'Enter' && addCustomGoal()}
                     placeholder="목표를 직접 입력해 주세요"
                     className="text-keep-all"
-                    style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
+                    style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14 }}
                   />
                   <Button variant="secondary" onClick={addCustomGoal}>
                     추가
@@ -436,7 +470,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               style={{
                 width: '100%',
                 padding: '12px',
-                borderRadius: 10,
+                borderRadius: 'var(--radius-md)',
                 border: '1px dashed var(--color-line)',
                 color: 'var(--color-label-neutral)',
                 fontSize: 13,
@@ -464,7 +498,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                     style={{
                       textAlign: 'left',
                       padding: '12px 14px',
-                      borderRadius: 10,
+                      borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--color-line)',
                       opacity: addingTemplateKey && addingTemplateKey !== preset.key ? 0.5 : 1,
                     }}
@@ -521,7 +555,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                     alignItems: 'center',
                     gap: 6,
                     padding: '6px 10px',
-                    borderRadius: 999,
+                    borderRadius: 'var(--radius-pill)',
                     border: isNowOfficial ? '1px solid var(--color-primary-normal)' : '1px solid var(--color-line)',
                     background: 'var(--color-bg-card)',
                     fontSize: 13,
@@ -534,7 +568,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                         fontSize: 10,
                         fontWeight: 700,
                         padding: '2px 6px',
-                        borderRadius: 999,
+                        borderRadius: 'var(--radius-pill)',
                         background: 'var(--color-primary-bg)',
                         color: 'var(--color-primary-strong)',
                       }}
@@ -570,7 +604,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               if (e.key === 'Enter') handleAddCustomExercise()
             }}
             placeholder={`${customExercisePart} 운동명 입력`}
-            style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 10, fontSize: 14 }}
+            style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14 }}
           />
           <Button
             variant="secondary"
@@ -627,18 +661,47 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </div>
       </Card>
 
-      <SectionTitle>화면 테마</SectionTitle>
-      <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Chip active={themePreference === 'dark'} onClick={() => selectTheme('dark')} style={{ flex: 1, justifyContent: 'center' }}>
-            블랙골드
-          </Chip>
-          <Chip active={themePreference === 'beige'} onClick={() => selectTheme('beige')} style={{ flex: 1, justifyContent: 'center' }}>
-            베이지블랙
-          </Chip>
-          <Chip active={themePreference === 'light'} onClick={() => selectTheme('light')} style={{ flex: 1, justifyContent: 'center' }}>
-            화이트블루
-          </Chip>
+      {/* [2026-10-27 리뉴얼] 디자인 스타일 A/B/C × 테마 3종. 실사용 비교 후 하나로 확정 예정(사용자 확인). */}
+      <SectionTitle>디자인</SectionTitle>
+      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>스타일</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+            {STYLE_OPTIONS.map((opt) => (
+              <Chip key={opt.id} active={stylePreference === opt.id} onClick={() => selectStyle(opt.id)} style={{ justifyContent: 'center', display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 6px', whiteSpace: 'normal' }}>
+                <span style={{ fontWeight: 800 }}>{opt.label}</span>
+                <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-label-neutral)' }}>{opt.desc}</span>
+              </Chip>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>테마</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Chip active={themePreference === 'dark'} onClick={() => selectTheme('dark')} style={{ flex: 1, justifyContent: 'center' }}>
+              다크
+            </Chip>
+            <Chip active={themePreference === 'beige'} onClick={() => selectTheme('beige')} style={{ flex: 1, justifyContent: 'center' }}>
+              베이지
+            </Chip>
+            <Chip active={themePreference === 'light'} onClick={() => selectTheme('light')} style={{ flex: 1, justifyContent: 'center' }}>
+              라이트
+            </Chip>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>기록 방식</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Chip active={logMode === 'list'} onClick={() => selectLogMode('list')} style={{ flex: 1, justifyContent: 'center' }}>
+              리스트형
+            </Chip>
+            <Chip active={logMode === 'focus'} onClick={() => selectLogMode('focus')} style={{ flex: 1, justifyContent: 'center' }}>
+              포커스형
+            </Chip>
+          </div>
+          <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            {logMode === 'focus' ? '한 번에 한 세트만 크게 보여주고, 큰 버튼으로 입력해요.' : '모든 세트를 표로 한눈에 보며 입력해요.'}
+          </span>
         </div>
       </Card>
 
@@ -680,6 +743,17 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </>
       )}
 
+      {/* [2026-10-27 리뉴얼 W2] 내 기록 내보내기(CSV) — 데이터는 언제든 내 것 */}
+      <SectionTitle>데이터</SectionTitle>
+      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-normal)' }}>
+          지금까지의 모든 운동 기록을 세트 단위 CSV 파일로 받아요. 엑셀·구글 시트에서 바로 열 수 있어요.
+        </p>
+        <Button variant="secondary" full disabled={exporting} onClick={handleExportCsv}>
+          {exporting ? '만드는 중…' : '운동 기록 내보내기 (CSV)'}
+        </Button>
+      </Card>
+
       <Button variant="ghost" full onClick={logout}>
         로그아웃
       </Button>
@@ -697,7 +771,7 @@ function NumberField({ label, unit, value, onChange }) {
           alignItems: 'center',
           gap: 4,
           border: '1px solid var(--color-line)',
-          borderRadius: 8,
+          borderRadius: 'var(--radius-sm)',
           padding: '8px 10px',
         }}
       >
