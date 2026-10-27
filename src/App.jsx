@@ -1,32 +1,31 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-08-18] 스텝밀 기록 방식 변경. 경사 개념이 없는 기구 특성에 맞춰
- *            경사%(incline) 필드를 스텝수(steps) 필드로 교체하고, 속도 필드는 km/h
- *            라벨 대신 단위없는 "레벨"로 표기(스테퍼 증가폭도 1로 축소). 스텝밀에만
- *            적용되며 다른 유산소 종목은 기존 경사/속도(km/h)/시간 그대로 유지.
- *            (`WorkoutInput.jsx`, `CalendarView.jsx`)
- *            이전 변경([2026-08-12] 리포트 탭 코어 과대평가/유산소 저평가 수정 등)은
- *            CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-27] "운동 완료" 미입력 기록 누락 방지 — 진행 세션 서버 백업, 마지막 세트 후
+ *            3시간 방치 세션 자동 저장(홈 배너: 확인/되돌리기), 체크 안 한 자동 프리필 세트 제외.
+ *            같은 날 W0(보안 규칙·버그·오프라인·코드 분할)도 반영. 상세는 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { watchAuthState } from './firebase'
-import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile } from './storage'
+import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLog } from './storage'
 
 import LoginScreen from './components/LoginScreen'
 import Onboarding from './components/Onboarding'
 import RoutineManager from './components/RoutineManager'
 import BottomNav from './components/BottomNav'
 import HomeTab from './components/HomeTab'
-import HowToTab from './components/HowToTab'
 import LogTab from './components/LogTab'
-import ReportTab from './components/ReportTab'
-import TierInfoScreen from './components/TierInfoScreen'
-import InquiryScreen from './components/InquiryScreen'
-import InquiryAdminScreen from './components/InquiryAdminScreen'
 import MyPageTab from './components/MyPageTab'
 import SplashScreen from './components/SplashScreen'
+import InstallBanner from './components/InstallBanner'
+// [2026-10-27 W0] 초기 번들 경량화: 첫 화면(홈/기록)에 필요 없는 화면은 지연 로드한다.
+// 리포트 탭은 recharts(대용량)를 포함하므로 별도 청크로 분리된다.
+const HowToTab = lazy(() => import('./components/HowToTab'))
+const ReportTab = lazy(() => import('./components/ReportTab'))
+const TierInfoScreen = lazy(() => import('./components/TierInfoScreen'))
+const InquiryScreen = lazy(() => import('./components/InquiryScreen'))
+const InquiryAdminScreen = lazy(() => import('./components/InquiryAdminScreen'))
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen } from './hooks/useBackableScreen'
 
@@ -75,6 +74,9 @@ export default function App() {
   // 자체적으로는 다시 불러오지 않던 버그 수정. 기록 저장 시마다 이 값을 올려서 하위 컴포넌트의
   // 데이터 로딩 useEffect가 다시 실행되도록 만든다(재진입 없이 즉시 반영).
   const [logsVersion, setLogsVersion] = useState(0)
+  // [2026-10-27 신규] "오늘 운동 완료"를 누르지 않아 자동 저장된 세션 안내(홈 배너). 새로고침해도
+  // 확인/되돌리기 전까지 남도록 localStorage에 보관한다(계정별 키).
+  const [autoNotice, setAutoNotice] = useState(null)
   // [2026-07-30 신규] 홈탭 "운동중" 상태 표시 + 취소 버튼용: 기록탭(WorkoutInput)의 세션
   // 진행 단계('idle'|'warmup'|'main')를 구독하고, ref로 취소 동작을 호출할 수 있게 한다.
   const [workoutPhase, setWorkoutPhase] = useState('idle')
@@ -197,6 +199,42 @@ export default function App() {
     }
   }, [userDoc?.onboardingCompleted, userDoc?.themePreference])
 
+  const autoNoticeKey = authUser?.uid ? `bt-auto-finalized-${authUser.uid}` : null
+  useEffect(() => {
+    if (!autoNoticeKey) return
+    try {
+      const raw = localStorage.getItem(autoNoticeKey)
+      setAutoNotice(raw ? JSON.parse(raw) : null)
+    } catch (e) {
+      setAutoNotice(null)
+    }
+  }, [autoNoticeKey])
+  const handleAutoFinalized = useCallback(
+    (notice) => {
+      setAutoNotice(notice)
+      try {
+        if (autoNoticeKey) localStorage.setItem(autoNoticeKey, JSON.stringify(notice))
+      } catch (e) {
+        // 무시
+      }
+    },
+    [autoNoticeKey]
+  )
+  const dismissAutoNotice = useCallback(() => {
+    setAutoNotice(null)
+    try {
+      if (autoNoticeKey) localStorage.removeItem(autoNoticeKey)
+    } catch (e) {
+      // 무시
+    }
+  }, [autoNoticeKey])
+  const undoAutoNotice = useCallback(async () => {
+    if (!autoNotice?.logId || !authUser?.uid) return
+    await deleteWorkoutLog(authUser.uid, autoNotice.logId)
+    dismissAutoNotice()
+    setLogsVersion((v) => v + 1)
+  }, [autoNotice, authUser, dismissAutoNotice])
+
   const refreshUserDoc = useCallback(async () => {
     if (!authUser) return
     const doc = await getUserDoc(authUser.uid)
@@ -287,15 +325,15 @@ export default function App() {
 
   // MY탭 등급 카드를 탭하면 티어 체계/XP 설명을 별도 전체 화면으로 보여준다.
   if (showTierInfo) {
-    return <TierInfoScreen uid={authUser.uid} xp={userDoc.seasonXp || 0} onClose={closeTierInfo} />
+    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TierInfoScreen uid={authUser.uid} xp={userDoc.seasonXp || 0} onClose={closeTierInfo} /></Suspense>
   }
 
   if (showInquiries) {
-    return <InquiryScreen uid={authUser.uid} nickname={userDoc.nickname} onClose={closeInquiries} />
+    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><InquiryScreen uid={authUser.uid} nickname={userDoc.nickname} onClose={closeInquiries} /></Suspense>
   }
 
   if (showInquiryAdmin) {
-    return <InquiryAdminScreen onClose={closeInquiryAdmin} />
+    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><InquiryAdminScreen onClose={closeInquiryAdmin} /></Suspense>
   }
 
   // MY탭 "온보딩 화면 미리보기"(관리자 전용 QA). previewMode이므로 완료해도 실제 계정의
@@ -362,17 +400,22 @@ export default function App() {
           onGoToLog={() => setActiveTab('log')}
           onCancelWorkout={handleCancelWorkout}
           onLogsChanged={handleLogSaved}
+          autoNotice={autoNotice}
+          onDismissAutoNotice={dismissAutoNotice}
+          onUndoAutoNotice={undoAutoNotice}
         />
       </div>
       <div ref={howtoScrollRef} style={tabWrapperStyle('howto')}>
-        <HowToTab
-          uid={authUser.uid}
-          userDoc={userDoc}
-          routineTemplates={routineTemplates}
-          onProfileUpdated={refreshUserDoc}
-          onRoutineUpdated={refreshRoutineTemplates}
-          scrollContainerRef={howtoScrollRef}
-        />
+        <Suspense fallback={null}>
+          <HowToTab
+            uid={authUser.uid}
+            userDoc={userDoc}
+            routineTemplates={routineTemplates}
+            onProfileUpdated={refreshUserDoc}
+            onRoutineUpdated={refreshRoutineTemplates}
+            scrollContainerRef={howtoScrollRef}
+          />
+        </Suspense>
       </div>
       <div ref={logScrollRef} style={tabWrapperStyle('log')}>
         <LogTab
@@ -391,17 +434,20 @@ export default function App() {
           onGoToRoutineSetup={() => setManagingRoutines(true)}
           guideHintDismissed={!!userDoc.exerciseGuideHintDismissed}
           onProfileUpdated={refreshUserDoc}
+          onAutoFinalized={handleAutoFinalized}
         />
       </div>
       <div ref={reportScrollRef} style={tabWrapperStyle('report')}>
-        <ReportTab
-          uid={authUser.uid}
-          userDoc={userDoc}
-          targetSessionsPerWeek={targetSessionsPerWeek}
-          logsVersion={logsVersion}
-          onShowTierInfo={() => setShowTierInfo(true)}
-          isActive={activeTab === 'report'}
-        />
+        <Suspense fallback={null}>
+          <ReportTab
+            uid={authUser.uid}
+            userDoc={userDoc}
+            targetSessionsPerWeek={targetSessionsPerWeek}
+            logsVersion={logsVersion}
+            onShowTierInfo={() => setShowTierInfo(true)}
+            isActive={activeTab === 'report'}
+          />
+        </Suspense>
       </div>
       <div ref={myScrollRef} style={tabWrapperStyle('my')}>
         <MyPageTab
@@ -419,6 +465,8 @@ export default function App() {
         />
       </div>
       <BottomNav active={activeTab} onChange={handleTabPress} />
+      {/* [2026-10-27 W0] 연결이 끊겨 있던 설치 유도 배너(v9 스펙 PWA 항목) 재연결 */}
+      <InstallBanner />
     </div>
   )
 }

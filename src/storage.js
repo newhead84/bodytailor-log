@@ -41,11 +41,15 @@ async function incrementExercisePopularity(exercises) {
   })
   await Promise.all(
     Object.entries(byAtom).map(([atom, counts]) => {
-      const updates = {}
+      // [2026-10-27 W0 버그수정] setDoc(merge)은 'counts.이름' 같은 점(.) 표기를 경로가 아니라
+      // 글자 그대로의 최상위 필드명으로 저장한다. 그래서 그동안 counts 맵이 채워지지 않고
+      // 'counts.벤치프레스' 같은 최상위 필드가 쌓여 "다른 유저 즐겨찾는 운동"이 비어 보였다.
+      // 중첩 객체로 넘겨야 counts 맵 안의 키로 병합된다.
+      const nested = {}
       Object.entries(counts).forEach(([name, n]) => {
-        updates[`counts.${name}`] = increment(n)
+        nested[name] = increment(n)
       })
-      return setDoc(doc(db, 'exercisePopularity', atom), updates, { merge: true }).catch(() => {})
+      return setDoc(doc(db, 'exercisePopularity', atom), { counts: nested }, { merge: true }).catch(() => {})
     })
   )
 }
@@ -56,7 +60,17 @@ export async function getExercisePopularityByAtom(atoms) {
   const results = await Promise.all(
     atoms.map(async (atom) => {
       const snap = await getDoc(doc(db, 'exercisePopularity', atom))
-      return { atom, counts: snap.exists() ? snap.data().counts || {} : {} }
+      if (!snap.exists()) return { atom, counts: {} }
+      const data = snap.data()
+      // [2026-10-27 W0] 버그 수정 이전에 'counts.이름' 최상위 필드로 저장된 과거 집계도 합산한다.
+      const counts = { ...(data.counts || {}) }
+      Object.entries(data).forEach(([k, v]) => {
+        if (k.startsWith('counts.') && typeof v === 'number') {
+          const name = k.slice('counts.'.length)
+          counts[name] = (counts[name] || 0) + v
+        }
+      })
+      return { atom, counts }
     })
   )
   return results
@@ -104,6 +118,13 @@ export async function replyToInquiry(inquiryId, reply) {
     status: '답변완료',
     repliedAt: serverTimestamp(),
   })
+}
+
+// [2026-10-27 W0] 오프라인 대기열 쓰기용: 서버 확인을 최대 ms만큼만 기다린다. 그 안에 실패하면
+// throw, 시간이 지나면 로컬에 대기 중인 것으로 보고 통과(연결 복구 시 자동 동기화).
+function settleOrTimeout(promise, ms = 4000) {
+  promise.catch((err) => console.error('Firestore 쓰기 실패:', err))
+  return Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms))])
 }
 
 // ───────────────────────── users/{uid} ─────────────────────────
@@ -288,19 +309,37 @@ function computeSessionXp({ totalVolume, scoreWeight, totalDurationSec }) {
   return Math.max(10, Math.round(base + volumeBonus + durationBonus))
 }
 
-export async function addWorkoutLog(uid, logData) {
+export async function addWorkoutLog(uid, logData, logId = null) {
   // logData: { date, exercises: [{name, part, sets:[{weight,reps}], grip?}], totalVolume,
   //            totalDurationSec, caloriesKcal, routineTemplateId, partName, sessionType, scoreWeight,
   //            isBackfilled }
   // [2026-08-05 신규] exercises[].grip: 그립 통합 8종목(EXERCISE_META.gripOptions)에서 사용자가
   // 기록 시 선택한 그립 문자열(예: '와이드'). 그립 옵션이 없는 종목은 필드 자체가 없다(옵셔널).
   const col = collection(db, 'workoutLogs', uid, 'logs')
-  const ref = await addDoc(col, {
-    sessionType: 'cycle',
-    scoreWeight: 1.0,
-    ...logData,
-    createdAt: serverTimestamp(),
-  })
+  // [2026-10-27 W0] 오프라인 대응: 오프라인 캐시가 켜진 상태에서 addDoc/updateDoc의 Promise는
+  // 서버 응답이 올 때까지 끝나지 않아, 신호가 끊기면 "운동 완료"가 무한 저장 중으로 멈춘다.
+  // 문서 ID를 로컬에서 먼저 만들고, 쓰기는 로컬 대기열에 넣은 뒤 일정 시간만 기다린다
+  // (연결되면 Firestore가 자동으로 서버에 반영). 권한 거부 등 즉시 실패는 그대로 throw된다.
+  // [2026-10-27 신규] logId(세션 시작 시각 기반 고정 ID)가 주어지면 그 ID로 저장한다. 같은 세션이
+  // 이미 저장돼 있으면(다른 기기/탭에서 먼저 완료·자동 저장) 중복 기록과 XP 이중 지급을 막는다.
+  const ref = logId ? doc(col, logId) : doc(col)
+  if (logId) {
+    try {
+      const existing = await getDoc(ref)
+      if (existing.exists()) return { id: ref.id, xpEarned: 0, duplicate: true }
+    } catch (err) {
+      // 오프라인이라 확인이 안 되면 그대로 진행(같은 ID라 문서가 중복 생성되지는 않음)
+    }
+  }
+  await settleOrTimeout(
+    setDoc(ref, {
+      sessionType: 'cycle',
+      scoreWeight: 1.0,
+      ...logData,
+      createdAt: serverTimestamp(),
+    })
+  )
+  invalidateRecentLogsCache()
 
   // 집계는 부가 기능이라 실패해도 기록 저장 자체에 영향 없게 별도로 처리(await하되 throw 안 함).
   incrementExercisePopularity(logData.exercises)
@@ -312,20 +351,24 @@ export async function addWorkoutLog(uid, logData) {
   }
 
   const xpEarned = computeSessionXp(logData)
-  await updateDoc(doc(db, 'users', uid), {
-    seasonXp: increment(xpEarned),
-    lifetimeXp: increment(xpEarned),
-  })
+  await settleOrTimeout(
+    updateDoc(doc(db, 'users', uid), {
+      seasonXp: increment(xpEarned),
+      lifetimeXp: increment(xpEarned),
+    })
+  )
 
   return { id: ref.id, xpEarned }
 }
 
 export async function updateWorkoutLog(uid, logId, partial) {
+  invalidateRecentLogsCache()
   await updateDoc(doc(db, 'workoutLogs', uid, 'logs', logId), partial)
 }
 
 // [2026-07-28] 홈탭 캘린더에서 기록 삭제 기능 추가를 위해 신규 작성.
 export async function deleteWorkoutLog(uid, logId) {
+  invalidateRecentLogsCache()
   await deleteDoc(doc(db, 'workoutLogs', uid, 'logs', logId))
 }
 
@@ -348,14 +391,69 @@ export async function getRecentWorkoutLogs(uid, count = 10) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 }
 
+// [2026-10-27 W0] 종목을 펼칠 때마다 최근 30개 로그를 매번 다시 읽던 것을(Firestore 읽기 낭비·지연)
+// 세션 캐시로 묶는다. 기록 저장/수정/삭제 시 무효화된다.
+let recentLogsCache = null // { uid, count, at, promise }
+const RECENT_LOGS_CACHE_MS = 5 * 60 * 1000
+function invalidateRecentLogsCache() {
+  recentLogsCache = null
+}
+function getRecentWorkoutLogsCached(uid, count) {
+  const now = Date.now()
+  if (
+    recentLogsCache &&
+    recentLogsCache.uid === uid &&
+    recentLogsCache.count >= count &&
+    now - recentLogsCache.at < RECENT_LOGS_CACHE_MS
+  ) {
+    return recentLogsCache.promise
+  }
+  const promise = getRecentWorkoutLogs(uid, count).catch((err) => {
+    recentLogsCache = null
+    throw err
+  })
+  recentLogsCache = { uid, count, at: now, promise }
+  return promise
+}
+
 // 직전 기록 자동 프리필용: 특정 종목의 가장 최근 세트 기록 조회
-export async function getLastRecordForExercise(uid, exerciseName, count = 30) {
-  const recent = await getRecentWorkoutLogs(uid, count)
+// [2026-10-27 W0 버그수정] 그립까지 일치하는 기록만 찾는다(이전에는 이름만 비교해, 와이드 그립
+// 랫풀다운을 열면 내로우 그립 기록이 프리필될 수 있었다). grip을 넘기지 않으면(그립 없는 종목)
+// 그립 필드가 없는 기록만 매칭된다.
+export async function getLastRecordForExercise(uid, exerciseName, grip = null, count = 30) {
+  const recent = await getRecentWorkoutLogsCached(uid, count)
   for (const log of recent) {
-    const found = (log.exercises || []).find((e) => e.name === exerciseName)
+    const found = (log.exercises || []).find((e) => e.name === exerciseName && (e.grip || null) === (grip || null))
     if (found) return { date: log.date, ...found }
   }
   return null
+}
+
+// ───────────── activeSessions/{uid} — 진행 중 운동 세션 서버 백업 ─────────────
+// [2026-10-27 신규] "오늘 운동 완료"를 누르지 않고 다음날이 되면 기록이 사라지던 문제 대응.
+// 진행 중 세션(draft)을 기기 localStorage뿐 아니라 서버에도 보관해, 브라우저 데이터 삭제·기기 변경
+// 후에도 남게 하고, 방치된 세션은 다음 접속 시 자동으로 운동기록으로 저장한다(WorkoutInput.jsx).
+export function saveActiveSession(uid, draft) {
+  return settleOrTimeout(
+    setDoc(doc(db, 'activeSessions', uid), { draft: JSON.stringify(draft), updatedAt: draft.updatedAt || Date.now() })
+  ).catch((err) => console.error('진행 세션 백업 실패:', err))
+}
+
+export async function getActiveSession(uid) {
+  try {
+    const snap = await Promise.race([
+      getDoc(doc(db, 'activeSessions', uid)),
+      new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+    ])
+    if (!snap || !snap.exists()) return null
+    return JSON.parse(snap.data().draft || 'null')
+  } catch (err) {
+    return null
+  }
+}
+
+export function clearActiveSession(uid) {
+  return settleOrTimeout(deleteDoc(doc(db, 'activeSessions', uid))).catch(() => {})
 }
 
 // ───────────── leaderboard/{group}/{period}/{uid} ─────────────

@@ -249,9 +249,10 @@ const ConfirmContext = React.createContext(null)
 export function ConfirmProvider({ children }) {
   const [state, setState] = React.useState(null) // { message, resolve }
 
-  const confirm = React.useCallback((message) => {
+  // [2026-10-27] 선택적으로 버튼 문구를 바꿀 수 있다: confirm(msg, { okLabel, cancelLabel })
+  const confirm = React.useCallback((message, options = {}) => {
     return new Promise((resolve) => {
-      setState({ message, resolve })
+      setState({ message, resolve, okLabel: options.okLabel, cancelLabel: options.cancelLabel })
     })
   }, [])
 
@@ -299,10 +300,10 @@ export function ConfirmProvider({ children }) {
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               <Button variant="ghost" full onClick={() => respond(false)}>
-                취소
+                {state.cancelLabel || '취소'}
               </Button>
               <Button variant="primary" full onClick={() => respond(true)}>
-                확인
+                {state.okLabel || '확인'}
               </Button>
             </div>
           </div>

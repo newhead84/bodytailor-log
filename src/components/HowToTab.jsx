@@ -6,6 +6,7 @@
 // 근육역할/그립옵션/설명/비교 데이터는 모두 utils/exerciseLibrary.js에 이미 반영돼 있음
 // (EXERCISE_DB_DESIGN_v2_1_통합본.md 143개 기준, 2026-08-05 세션에서 선반영).
 import React, { useEffect, useMemo, useState } from 'react'
+import { HOWTO_ONBOARDING_TEXT } from '../utils/howtoText'
 import { Search, ChevronRight, X } from 'lucide-react'
 import { Card, SectionTitle, Chip, Button, EmptyState } from './ui'
 import {
@@ -36,10 +37,7 @@ const MUSCLE_ROLE_LABELS = [
 // users/{uid}.howtoOnboardingDismissed=true로 저장되어 실제 계정에서는 다시 볼 방법이
 // 없는데, MY탭 관리자용 "온보딩 화면 미리보기"(Onboarding.jsx previewMode)에서도 같은
 // 문구를 그대로 재사용해 관리자가 언제든 확인할 수 있게 한다.
-export const HOWTO_ONBOARDING_TEXT = {
-  title: 'HOWTO 탭 사용법',
-  body: '부위를 골라 운동을 살펴보고, 설명과 비슷한 운동 비교를 확인해보세요. 마음에 드는 종목은 "내 루틴에 추가" 버튼 한 번으로 바로 NOTE 탭에서 쓸 수 있게 담을 수 있어요.',
-}
+// [2026-10-27 W0] 문구 상수는 utils/howtoText.js로 이동(HowToTab 지연 로드 청크 분리를 위해).
 
 function OnboardingBanner({ uid, onDismissed }) {
   const [dismissing, setDismissing] = useState(false)

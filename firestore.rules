@@ -10,14 +10,56 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == '관리자'
     }
 
-    // users/{uid} — 본인 문서만 읽기/쓰기
+    // [2026-10-27 W0 보안강화] 본인이 자기 문서에서 권한/등급 필드를 직접 바꾸는 것을 막는다.
+    // 이전에는 본인 문서 전체 쓰기를 허용해 role:'관리자'를 스스로 넣으면 isAdmin()을 통과하는
+    // 권한 상승이 가능했다. role/roleRequestStatus/tier/lifetimeBadges/trainerProfile은
+    // 콘솔(관리자) 또는 추후 서버 로직에서만 변경한다.
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function lockedUserKeys() {
+      return ['role', 'roleRequestStatus', 'tier', 'lifetimeBadges', 'trainerProfile'];
+    }
+    // 세션 1회 XP 상한(storage.js computeSessionXp 최대 180) — 여유분 포함 200
+    function xpDeltaOk(field) {
+      return !(field in request.resource.data) ||
+        (request.resource.data[field] is number &&
+         request.resource.data[field] - resource.data.get(field, 0) >= 0 &&
+         request.resource.data[field] - resource.data.get(field, 0) <= 200);
+    }
+    // 시즌이 바뀐 첫 저장에서는 seasonXp가 새 시즌 값(0~200)으로 리셋될 수 있다.
+    function seasonXpOk() {
+      return xpDeltaOk('seasonXp') ||
+        (request.resource.data.get('seasonKey', null) != resource.data.get('seasonKey', null) &&
+         request.resource.data.seasonXp is number &&
+         request.resource.data.seasonXp >= 0 && request.resource.data.seasonXp <= 200);
+    }
+
+    // users/{uid} — 본인 문서만 읽기/쓰기(권한 필드·XP 증가폭 제한)
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) &&
+        request.resource.data.get('role', '일반회원') == '일반회원' &&
+        request.resource.data.get('roleRequestStatus', 'none') == 'none' &&
+        request.resource.data.get('seasonXp', 0) == 0 &&
+        request.resource.data.get('lifetimeXp', 0) == 0;
+      allow update: if isOwner(uid) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(lockedUserKeys()) &&
+        seasonXpOk() && xpDeltaOk('lifetimeXp');
+      allow delete: if false;
     }
 
     // routineTemplates/{uid}/templates/{templateId} — 본인 소유 서브컬렉션
     match /routineTemplates/{uid}/templates/{templateId} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // [2026-10-27 신규] activeSessions/{uid} — 진행 중 운동 세션 서버 백업(본인만, 크기 제한)
+    match /activeSessions/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) &&
+        request.resource.data.keys().hasOnly(['draft', 'updatedAt']) &&
+        request.resource.data.draft is string && request.resource.data.draft.size() < 200000;
     }
 
     // workoutLogs/{uid}/logs/{logId} — 본인 소유 서브컬렉션
@@ -29,9 +71,22 @@ service cloud.firestore {
     // 랭킹은 로그인한 모든 사용자가 열람 가능(전체 랭킹 노출 목적),
     // 쓰기는 본인 문서만 허용. 부정 점수 조작 방지가 중요해지면
     // 이 쓰기 권한은 Cloud Functions 전용으로 옮기고 클라이언트 쓰기를 막는 것을 권장.
+    // [2026-10-27 W0] 필드 화이트리스트 + 점수 범위(0~200) 검증. 완전한 조작 방지는 서버 계산이
+    // 필요하지만(무료 플랜 유지 결정), 비정상 값(예: 99999점) 기록은 규칙에서 거부한다.
+    function scoreOk(k) {
+      return !(k in request.resource.data) ||
+        (request.resource.data[k] is number && request.resource.data[k] >= 0 && request.resource.data[k] <= 200);
+    }
     match /leaderboard/{group}/{period}/{uid} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow write: if isOwner(uid) &&
+        request.resource.data.keys().hasOnly(['nickname', 'baseScore', 'attendanceScore', 'volumeScore',
+          'overloadScore', 'streakBonus', 'programComplianceBonus', 'finalScore', 'updatedAt']) &&
+        (!('nickname' in request.resource.data) ||
+          (request.resource.data.nickname is string && request.resource.data.nickname.size() <= 30)) &&
+        scoreOk('baseScore') && scoreOk('attendanceScore') && scoreOk('volumeScore') &&
+        scoreOk('overloadScore') && scoreOk('streakBonus') && scoreOk('programComplianceBonus') &&
+        scoreOk('finalScore');
     }
 
     // exercisePopularity/{atom} — 개인정보 없는 부위별 종목 수행 횟수 공개 집계(⑨).
@@ -39,16 +94,25 @@ service cloud.firestore {
     // 쓰기(카운트 증가)도 로그인 사용자면 가능 — 개인 식별 정보가 없는 집계 수치라
     // leaderboard처럼 본인 uid로 제한할 필요가 없다. 악의적 대량 조작 우려가 커지면
     // Cloud Functions 전용 쓰기로 옮기는 것을 권장(leaderboard와 동일한 원칙).
+    // [2026-10-27 W0] counts 맵 외 필드 쓰기 금지 + 한 번에 바뀌는 종목 수 제한, 삭제 금지.
     match /exercisePopularity/{atom} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.keys().hasOnly(['counts']) &&
+        request.resource.data.counts is map && request.resource.data.counts.size() <= 30;
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['counts']) &&
+        request.resource.data.counts.diff(resource.data.get('counts', {})).affectedKeys().size() <= 30 &&
+        request.resource.data.counts.diff(resource.data.get('counts', {})).removedKeys().size() == 0;
+      allow delete: if false;
     }
 
     // inquiries/{inquiryId} — MY탭 1:1 문의(⑩). 본인은 작성 + 본인 문의만 열람 가능.
     // 관리자(role === '관리자')는 전체 열람 + 답변(reply/status) 수정 가능. uid/content는
     // 작성자 본인도 수정 불가(문의 내용 위변조 방지, 답변만 관리자가 갱신).
     match /inquiries/{inquiryId} {
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid &&
+        request.resource.data.content is string && request.resource.data.content.size() <= 2000 &&
+        request.resource.data.status == '대기' && request.resource.data.reply == '';
       allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
       allow update: if isAdmin();
       allow delete: if false;

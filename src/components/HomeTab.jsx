@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Dumbbell, Moon } from 'lucide-react'
-import { Card, Button } from './ui'
+import { Dumbbell, Moon, ClipboardCheck } from 'lucide-react'
+import { Card, Button, useConfirm } from './ui'
 import { getRecentWorkoutLogs } from '../storage'
 import CalendarView from './CalendarView'
 import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
@@ -15,7 +15,30 @@ function summarizePartsOfLog(log) {
   return atoms.join('·')
 }
 
-export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, workoutPhase, onGoToLog, onCancelWorkout, onLogsChanged }) {
+export default function HomeTab({
+  uid,
+  userDoc,
+  routineTemplates,
+  logsVersion,
+  workoutPhase,
+  onGoToLog,
+  onCancelWorkout,
+  onLogsChanged,
+  autoNotice,
+  onDismissAutoNotice,
+  onUndoAutoNotice,
+}) {
+  const confirm = useConfirm()
+  const [undoing, setUndoing] = useState(false)
+  async function handleUndoAutoNotice() {
+    if (!(await confirm('자동 저장된 이 운동 기록을 삭제할까요?', { okLabel: '삭제', cancelLabel: '유지' }))) return
+    setUndoing(true)
+    try {
+      await onUndoAutoNotice?.()
+    } finally {
+      setUndoing(false)
+    }
+  }
   // [2026-07-30 신규] 기록탭에서 웜업/본운동이 시작되면("오늘 운동 기록하러 가기" 또는
   // "한 세트 더?"를 통해 진입한 경우 모두 포함) 홈탭 카드가 "운동중" 상태로 바뀐다.
   const isWorkoutInProgress = workoutPhase === 'warmup' || workoutPhase === 'main'
@@ -84,6 +107,35 @@ export default function HomeTab({ uid, userDoc, routineTemplates, logsVersion, w
       >
         {quote}
       </p>
+
+      {/* [2026-10-27 신규] "오늘 운동 완료"를 누르지 않고 방치된 세션을 자동 저장했을 때의 안내 */}
+      {autoNotice && (
+        <Card style={{ marginBottom: 12, border: '1px solid var(--color-primary-normal)' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+            <ClipboardCheck size={20} strokeWidth={1.8} style={{ color: 'var(--color-primary-normal)', flexShrink: 0, marginTop: 1 }} />
+            <div className="text-keep-all" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+                완료하지 않은 운동을 자동으로 저장했어요
+              </span>
+              <span style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
+                {autoNotice.date} · {autoNotice.exerciseCount}종목
+                {autoNotice.totalVolume > 0 ? ` · ${Number(autoNotice.totalVolume).toLocaleString()}kg` : ''}
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                체크(V)한 세트만 저장됐어요. 아래 캘린더에서 수정할 수 있어요.
+              </span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button full style={{ flex: 1 }} onClick={onDismissAutoNotice}>
+              확인
+            </Button>
+            <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} disabled={undoing} onClick={handleUndoAutoNotice}>
+              {undoing ? '삭제 중…' : '되돌리기'}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Card style={{ marginBottom: 20 }}>
         <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--color-label-normal)' }}>

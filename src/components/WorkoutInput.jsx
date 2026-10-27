@@ -6,7 +6,6 @@ import RestTimer from './RestTimer'
 import { useExerciseGuidePress, ExerciseGuidePanel } from './ExerciseGuideToggle'
 import logoMarkTransparent from '../assets/logo-mark-transparent.png'
 import {
-  calcVolume,
   getExercisesForPart,
   getCustomExercisesForPart,
   getAtomsForPartName,
@@ -19,8 +18,19 @@ import {
 } from '../utils/exerciseLibrary'
 import { estimateCaloriesV2 } from '../utils/calories'
 import { getSuggestedNext } from '../utils/routineSuggestion'
-import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate, updateUserProfile } from '../storage'
-import { todayStr } from '../utils/date'
+import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate, updateUserProfile, saveActiveSession, getActiveSession, clearActiveSession } from '../storage'
+import {
+  buildExercisesFromRecords,
+  computeVolumeFromRecords,
+  computeActiveDurationSec,
+  countUncheckedAutoSets,
+  getLastActivityAt,
+  isSessionActive,
+  isSessionStale,
+  sessionDateStr,
+  sessionLogId,
+} from '../utils/sessionPayload'
+import { todayStr, toLocalDateStr } from '../utils/date'
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 import { pickSetEncouragement } from '../utils/setEncouragements'
 
@@ -36,6 +46,48 @@ const EXTRA_CATEGORIES = BODY_PART_ATOMS
 
 function draftKey(uid) {
   return `bodytailor-draft-${uid}-${todayStr()}`
+}
+
+// [2026-10-27] draft 키는 날짜별(bodytailor-draft-{uid}-{YYYY-MM-DD})이라, "오늘 운동 완료"를 누르지
+// 않고 날이 바뀌면 전날 기록을 찾지 못해 통째로 누락됐다(실사용 다발 피드백). 날짜와 상관없이
+// 이 계정의 draft 키를 모두 훑어, 진행 중 세션이 있으면 가장 최근 것을 고른다. 나머지 키는 정리한다.
+function draftKeyPrefix(uid) {
+  return `bodytailor-draft-${uid}-`
+}
+function readLocalDrafts(uid) {
+  const prefix = draftKeyPrefix(uid)
+  const found = []
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k || !k.startsWith(prefix)) continue
+      try {
+        found.push({ key: k, draft: JSON.parse(localStorage.getItem(k)) })
+      } catch (e) {
+        found.push({ key: k, draft: null }) // 손상된 draft는 정리 대상
+      }
+    }
+  } catch (e) {
+    // localStorage 접근 불가 환경
+  }
+  const active = found
+    .filter((f) => isSessionActive(f.draft))
+    .sort((a, b) => (b.draft.updatedAt || b.draft.sessionStartAt || 0) - (a.draft.updatedAt || a.draft.sessionStartAt || 0))
+  const todayEntry = found.find((f) => f.key === draftKey(uid))
+  const chosen = active[0] || todayEntry || null
+  return { chosen, all: found }
+}
+function removeLocalDraftKeys(uid, exceptKey = null) {
+  const { all } = readLocalDrafts(uid)
+  all.forEach((f) => {
+    if (f.key !== exceptKey) {
+      try {
+        localStorage.removeItem(f.key)
+      } catch (e) {
+        // 무시
+      }
+    }
+  })
 }
 
 // [2026-07-28] 휴식시간 설정(1분/1분30초/2분)이 앱을 나갔다 들어오면 90초로 초기화되던
@@ -104,6 +156,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     onGoToRoutineSetup,
     guideHintDismissed,
     onProfileUpdated,
+    onAutoFinalized,
   },
   ref
 ) {
@@ -280,6 +333,118 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }, [templates, suggestionLogsLoaded, suggestionLogs])
 
   // 임시 저장 불러오기 (이어쓰기)
+  // ───────── [2026-10-27 신규] 진행 중 세션 보존·미완료 세션 자동 저장 ─────────
+  // draftLoadedRef: 최초 복원이 끝나기 전에 빈 초기 상태가 서버 백업을 지우지 않도록 막는다.
+  const draftLoadedRef = useRef(false)
+  const restoredForUidRef = useRef(null)
+  const latestDraftRef = useRef(null) // 가시성 복귀 시 방치 여부 판단용 최신 draft
+  const remoteSyncTimerRef = useRef(null)
+  const remoteHasSessionRef = useRef(false)
+
+  function applyDraft(draft) {
+    setRecords(draft.records || {})
+    setSessionType(draft.sessionType || 'routine')
+    if (draft.selectedTemplateId) setSelectedTemplateId(draft.selectedTemplateId)
+    if (draft.selectedPartName) setSelectedPartName(draft.selectedPartName)
+    setHiddenToday(draft.hiddenToday || [])
+    setCompletedExercises(draft.completedExercises || {})
+    setSessionPhase(draft.sessionPhase || 'idle')
+    setSessionStartAt(draft.sessionStartAt || null)
+    setWarmupActualSec(draft.warmupActualSec ?? null)
+    setPauseStartedAt(draft.pauseStartedAt || null)
+    setPausedAccumMs(draft.pausedAccumMs || 0)
+    setFreeExercises(draft.freeExercises || [])
+    setFreeCategory(draft.freeCategory || EXTRA_CATEGORIES[0])
+  }
+
+  // 세션 상태를 초기(idle)로 되돌린다(운동 완료·취소·자동 저장 공통).
+  function resetSessionState() {
+    setRecords({})
+    setCompletedExercises({})
+    setSessionPhase('idle')
+    setSessionStartAt(null)
+    setWarmupActualSec(null)
+    setPauseStartedAt(null)
+    setPausedAccumMs(0)
+    setFreeExercises([])
+    setHiddenToday([])
+    setAddingExercise(false)
+    setAddingFreeExercise(false)
+    setExpandedExercise(null)
+    setRestActive(false)
+    completionOrderRef.current = []
+  }
+
+  // 방치된 세션(마지막 활동 후 3시간 경과)을 운동기록으로 저장한다. 날짜는 시작한 날, 운동시간은
+  // 시작~마지막 세트(일시정지 제외). 체크(V)도 수정도 안 한 자동 프리필 행은 제외한다.
+  // 저장할 세트가 하나도 없으면 아무것도 저장하지 않는다(빈 세션은 그냥 정리).
+  async function autoFinalizeDraft(draft) {
+    const exercises = buildExercisesFromRecords(draft.records)
+    if (exercises.length === 0) return null
+    const endAt = getLastActivityAt(draft)
+    const totalDurationSec = computeActiveDurationSec(draft, endAt)
+    const totalVolume = computeVolumeFromRecords(draft.records)
+    const caloriesKcal = estimateCaloriesV2(weightKg, exercises, totalDurationSec)
+    const isRoutine = draft.sessionType !== 'extra'
+    const date = sessionDateStr(draft)
+    const res = await addWorkoutLog(
+      uid,
+      {
+        date,
+        exercises,
+        totalVolume,
+        totalDurationSec,
+        caloriesKcal,
+        warmupActualSec: draft.warmupActualSec ?? null,
+        routineTemplateId: isRoutine ? draft.selectedTemplateId || null : null,
+        partName: isRoutine ? draft.selectedPartName || null : null,
+        sessionType: isRoutine ? 'cycle' : 'extra',
+        scoreWeight: isRoutine ? 1.0 : 0.7,
+        autoFinalized: true,
+      },
+      sessionLogId(draft)
+    )
+    if (res.duplicate) return null
+    const notice = { logId: res.id, date, exerciseCount: exercises.length, totalVolume, xpEarned: res.xpEarned, at: Date.now() }
+    onAutoFinalized?.(notice)
+    onSaved?.()
+    return notice
+  }
+
+  // 앱이 켜진 채 방치됐다가(화면 꺼짐·백그라운드) 돌아온 경우에도 같은 규칙으로 자동 저장한다.
+  useEffect(() => {
+    if (!uid) return
+    let running = false
+    async function checkStale() {
+      const d = latestDraftRef.current
+      if (running || !draftLoadedRef.current || !isSessionStale(d)) return
+      running = true
+      try {
+        await autoFinalizeDraft(d)
+        resetSessionState()
+        removeLocalDraftKeys(uid)
+        clearActiveSession(uid)
+        remoteHasSessionRef.current = false
+      } catch (err) {
+        console.error('미완료 세션 자동 저장 실패:', err)
+      } finally {
+        running = false
+      }
+    }
+    function onVisible() {
+      if (document.visibilityState === 'visible') checkStale()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', checkStale)
+    const t = setInterval(checkStale, 5 * 60 * 1000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', checkStale)
+      clearInterval(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid])
+
   useEffect(() => {
     if (!uid) return
     try {
@@ -291,27 +456,45 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     } catch (e) {
       // 무시
     }
-    try {
-      const raw = localStorage.getItem(draftKey(uid))
-      if (raw) {
-        const draft = JSON.parse(raw)
-        setRecords(draft.records || {})
-        setSessionType(draft.sessionType || 'routine')
-        if (draft.selectedTemplateId) setSelectedTemplateId(draft.selectedTemplateId)
-        if (draft.selectedPartName) setSelectedPartName(draft.selectedPartName)
-        setHiddenToday(draft.hiddenToday || [])
-        setCompletedExercises(draft.completedExercises || {})
-        setSessionPhase(draft.sessionPhase || 'idle')
-        setSessionStartAt(draft.sessionStartAt || null)
-        setWarmupActualSec(draft.warmupActualSec ?? null)
-        setPauseStartedAt(draft.pauseStartedAt || null)
-        setPausedAccumMs(draft.pausedAccumMs || 0)
-        setFreeExercises(draft.freeExercises || [])
-        setFreeCategory(draft.freeCategory || EXTRA_CATEGORIES[0])
-      }
-    } catch (e) {
-      // 손상된 draft는 무시
+    // [2026-10-27] 진행 중 세션 복원 + 방치된 세션 자동 저장. 로컬 draft를 먼저 동기적으로 확인하고
+    // (화면 깜빡임 방지), 서버 백업(activeSessions)은 비동기로 확인한다.
+    // 계정당 한 번만 실행(StrictMode 이중 실행·재마운트 시 이미 복원한 상태를 빈 draft로 덮어쓰지 않도록)
+    if (restoredForUidRef.current === uid) return
+    restoredForUidRef.current = uid
+    const { chosen } = readLocalDrafts(uid)
+    const localDraft = chosen?.draft || null
+    const localStale = isSessionActive(localDraft) && isSessionStale(localDraft)
+    if (localStale) {
+      // 방치된 세션: 메모리에 잡아둔 뒤 로컬 키는 즉시 정리(아래에서 자동 저장)
+      removeLocalDraftKeys(uid)
+    } else if (localDraft) {
+      applyDraft(localDraft)
+      removeLocalDraftKeys(uid, chosen.key === draftKey(uid) ? chosen.key : null)
     }
+    draftLoadedRef.current = true
+    ;(async () => {
+      try {
+        if (localStale) {
+          await autoFinalizeDraft(localDraft)
+          clearActiveSession(uid)
+        }
+        // 다른 기기에서 시작했거나 이 기기의 브라우저 데이터가 지워진 경우: 서버 백업 확인
+        const remote = await getActiveSession(uid)
+        if (isSessionActive(remote) && remote.sessionStartAt !== localDraft?.sessionStartAt) {
+          if (isSessionStale(remote)) {
+            await autoFinalizeDraft(remote)
+            clearActiveSession(uid)
+          } else if (!isSessionActive(latestDraftRef.current)) {
+            // 이 기기에 진행 중 세션이 없을 때만 서버 백업으로 이어쓰기
+            applyDraft(remote)
+          }
+        } else if (isSessionActive(remote)) {
+          remoteHasSessionRef.current = true
+        }
+      } catch (err) {
+        console.error('진행 세션 복원/자동 저장 실패:', err)
+      }
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid])
 
@@ -322,26 +505,43 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }, [uid, restSeconds])
 
   // 변경될 때마다 임시 저장
+  // [2026-10-27] updatedAt(마지막 변경 시각)을 함께 저장하고, 진행 중 세션이면 서버(activeSessions)에도
+  // 2.5초 디바운스로 백업한다. 세션이 끝나 idle이 되면 서버 백업을 지운다.
   useEffect(() => {
     if (!uid) return
-    localStorage.setItem(
-      draftKey(uid),
-      JSON.stringify({
-        records,
-        sessionType,
-        selectedTemplateId,
-        selectedPartName,
-        hiddenToday,
-        completedExercises,
-        sessionPhase,
-        sessionStartAt,
-        warmupActualSec,
-        pauseStartedAt,
-        pausedAccumMs,
-        freeExercises,
-        freeCategory,
-      })
-    )
+    const draft = {
+      records,
+      sessionType,
+      selectedTemplateId,
+      selectedPartName,
+      hiddenToday,
+      completedExercises,
+      sessionPhase,
+      sessionStartAt,
+      warmupActualSec,
+      pauseStartedAt,
+      pausedAccumMs,
+      freeExercises,
+      freeCategory,
+      updatedAt: Date.now(),
+    }
+    latestDraftRef.current = draft
+    if (!draftLoadedRef.current) return
+    try {
+      localStorage.setItem(draftKey(uid), JSON.stringify(draft))
+    } catch (e) {
+      // 저장 공간 부족 등은 무시(서버 백업이 남음)
+    }
+    if (remoteSyncTimerRef.current) clearTimeout(remoteSyncTimerRef.current)
+    if (isSessionActive(draft)) {
+      remoteSyncTimerRef.current = setTimeout(() => {
+        saveActiveSession(uid, draft)
+        remoteHasSessionRef.current = true
+      }, 2500)
+    } else if (remoteHasSessionRef.current) {
+      remoteHasSessionRef.current = false
+      clearActiveSession(uid)
+    }
   }, [
     uid,
     records,
@@ -395,11 +595,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setExpandedExercise(null)
     completionOrderRef.current = []
     if (uid) {
-      try {
-        localStorage.removeItem(draftKey(uid))
-      } catch (e) {
-        // 무시
-      }
+      removeLocalDraftKeys(uid)
+      clearActiveSession(uid)
+      remoteHasSessionRef.current = false
     }
   }
 
@@ -509,7 +707,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       // 펼쳐지지만 인풋(스테퍼)이 아예 생기지 않는 증상이 발생했다. 조회 실패 시에도
       // last를 null로 폴백해 세트 초기화가 항상 진행되도록 방어한다.
       try {
-        last = await getLastRecordForExercise(uid, name)
+        last = await getLastRecordForExercise(uid, name, parseExerciseKey(key).grip)
       } catch (err) {
         console.error('직전 기록 조회 실패:', name, err)
         last = null
@@ -539,6 +737,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
               ...r,
               [key]: [
                 {
+                  auto: true,
                   weight: '0',
                   reps: '0',
                   steps: lastSet?.steps != null ? String(lastSet.steps) : '',
@@ -552,6 +751,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             ...r,
             [key]: [
               {
+                auto: true,
                 weight: '0',
                 reps: '0',
                 incline: lastSet?.incline != null ? String(lastSet.incline) : '',
@@ -564,12 +764,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         if (inputType === 'reps') {
           return {
             ...r,
-            [key]: [{ weight: '0', reps: lastSet ? String(lastSet.reps) : '' }],
+            [key]: [{ auto: true, weight: '0', reps: lastSet ? String(lastSet.reps) : '' }],
           }
         }
         return {
           ...r,
-          [key]: [{ weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
+          [key]: [{ auto: true, weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }],
         }
       })
     } catch (err) {
@@ -582,14 +782,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     autoResumeIfPaused()
     setRecords((r) => ({
       ...r,
-      [name]: r[name].map((s, i) => (i === idx ? { ...s, [field]: value } : s)),
+      // 사용자가 값을 직접 고친 행은 자동 프리필 행이 아니므로 기록 대상(auto 해제)
+      [name]: r[name].map((s, i) => (i === idx ? { ...s, [field]: value, auto: false } : s)),
     }))
   }
 
   function copyLastSet(name, idx) {
     setRecords((r) => {
       const sets = r[name]
-      const { saved, ...base } = sets[idx]
+      const { saved, savedAt, auto, ...base } = sets[idx]
       return { ...r, [name]: [...sets, { ...base }] }
     })
   }
@@ -628,10 +829,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 세트 저장과 동시에: 휴게타이머 시작 + 다음 세트를 자동으로 생성(직전 값 프리필)
   function saveSetAndStartRest(name, idx) {
     setRecords((r) => {
-      const sets = r[name].map((s, i) => (i === idx ? { ...s, saved: true } : s))
-      const { saved, ...base } = sets[idx]
+      // [2026-10-27] savedAt: 마지막 활동 시각(방치 세션 판단·자동 저장 시 운동시간 계산)용.
+      // 자동 생성되는 다음 세트 행은 auto:true — 손대지도 체크하지도 않으면 기록에서 제외된다.
+      const sets = r[name].map((s, i) => (i === idx ? { ...s, saved: true, auto: false, savedAt: Date.now() } : s))
+      const { saved, savedAt, auto, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]
-      const nextSets = hasNext ? sets : [...sets, { ...base }]
+      const nextSets = hasNext ? sets : [...sets, { ...base, auto: true }]
       return { ...r, [name]: nextSets }
     })
     setRestKey((k) => k + 1)
@@ -751,6 +954,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 피드백으로, 종목 하나를 통째로 "세트완료" 처리하는 이 시점으로 옮겼다.
   function completeExercise(name) {
     setCompletedExercises((c) => ({ ...c, [name]: true }))
+    // [2026-10-27] 체크한 세트가 있는 종목을 "세트완료"하면, 그 뒤에 자동으로 생겨 있던 빈 다음 세트 행
+    // (손대지 않은 auto 행)은 수행하지 않은 것이므로 정리한다.
+    setRecords((r) => {
+      const sets = r[name]
+      if (!sets || !sets.some((st) => st.saved)) return r
+      return { ...r, [name]: sets.filter((st) => !(st.auto && !st.saved)) }
+    })
     setExpandedExercise((cur) => (cur === name ? null : cur))
     if (!completionOrderRef.current.includes(name)) {
       completionOrderRef.current = [...completionOrderRef.current, name]
@@ -765,16 +975,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     completionOrderRef.current = completionOrderRef.current.filter((n) => n !== name)
   }
 
-  const totalVolume = useMemo(() => {
-    let sum = 0
-    Object.entries(records).forEach(([key, sets]) => {
-      const inputType = getExerciseInputType(parseExerciseKey(key).name)
-      if (inputType !== 'sets') return // 유산소/횟수전용 종목은 볼륨 계산에서 제외
-      const parsed = sets.filter((s) => s.weight !== '' && s.reps !== '').map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
-      sum += calcVolume(parsed)
-    })
-    return sum
-  }, [records])
+  // [2026-10-27] 체크(V)했거나 직접 입력·수정한 세트만 볼륨에 반영(열어보기만 한 프리필 행 제외)
+  const totalVolume = useMemo(() => computeVolumeFromRecords(records), [records])
 
   const hasAnyRecord = Object.entries(records).some(([key, sets]) => {
     const inputType = getExerciseInputType(parseExerciseKey(key).name)
@@ -792,50 +994,28 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     : 0
 
   async function handleFinishWorkout() {
+    // [2026-10-27] 체크(V)도 수정도 안 한 자동 프리필 행(직전 기록 복사·세트 저장 후 생긴 다음 행)이
+    // 있으면 포함 여부를 묻는다. 이전에는 이런 행이 무조건 저장돼 실제로 안 한 세트가 기록되곤 했다.
+    const unchecked = countUncheckedAutoSets(records)
+    let includeUnchecked = false
+    if (unchecked > 0) {
+      includeUnchecked = await confirm(
+        `체크(V)하지 않은 세트가 ${unchecked}개 있어요. 실제로 한 세트라면 함께 저장하고, 아니면 체크한 세트만 저장할게요.`,
+        { okLabel: '함께 저장', cancelLabel: '체크한 세트만' }
+      )
+    }
     setSaving(true)
-    const exercises = Object.entries(records)
-      .map(([key, sets]) => {
-        // [2026-08-10 변경] key는 합성키("이름" 또는 "이름::그립")이므로 저장 직전에
-        // 실제 종목명과 그립으로 분해한다. 그립이 다른 두 인스턴스를 동시에 추가했다면
-        // 여기서 각각 별도의 exercises[] 항목으로 저장되어(이름은 같고 grip만 다름)
-        // 완전히 별개 종목처럼 다뤄진다(사용자 확인).
-        const { name, grip } = parseExerciseKey(key)
-        const inputType = getExerciseInputType(name)
-        let validSets
-        if (inputType === 'cardio') {
-          // [2026-08-18] 스텝밀은 incline 대신 steps(스텝수)를 저장한다.
-          validSets =
-            name === '스텝밀'
-              ? sets
-                  .filter((s) => s.durationMin !== '')
-                  .map((s) => ({
-                    weight: 0,
-                    reps: 0,
-                    steps: Number(s.steps) || 0,
-                    speedKmh: Number(s.speedKmh) || 0,
-                    durationMin: Number(s.durationMin) || 0,
-                  }))
-              : sets
-                  .filter((s) => s.durationMin !== '')
-                  .map((s) => ({
-                    weight: 0,
-                    reps: 0,
-                    incline: Number(s.incline) || 0,
-                    speedKmh: Number(s.speedKmh) || 0,
-                    durationMin: Number(s.durationMin) || 0,
-                  }))
-        } else if (inputType === 'reps') {
-          validSets = sets.filter((s) => s.reps !== '').map((s) => ({ weight: 0, reps: Number(s.reps) }))
-        } else {
-          validSets = sets
-            .filter((s) => s.weight !== '' && s.reps !== '')
-            .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
-        }
-        return { name, part: getExerciseAtom(name) || '', inputType, sets: validSets, ...(grip ? { grip } : {}) }
-      })
-      .filter((e) => e.sets.length > 0)
+    const exercises = buildExercisesFromRecords(records, { includeUnchecked })
+    const finishVolume = computeVolumeFromRecords(records, { includeUnchecked })
+    if (exercises.length === 0) {
+      setSaving(false)
+      await confirm('저장할 세트가 없어요. 세트를 체크(V)한 뒤 다시 완료해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+      return
+    }
 
-    const totalDurationSec = sessionStartAt ? Math.round((Date.now() - sessionStartAt) / 1000) : null
+    // [2026-10-27 W0 버그수정] 저장되는 총 운동시간에서 일시정지 시간을 뺀다(화면 표시값과 일치).
+    // 이전에는 일시정지 시간까지 포함돼 칼로리·XP 시간보너스가 실제보다 크게 계산됐다.
+    const totalDurationSec = computeActiveDurationSec({ sessionStartAt, pausedAccumMs, pauseStartedAt }, Date.now())
 
     // [2026-08-04 개편] 기존 "유산소 종목이 절반 이상이면 통째로 MET 7.0" 방식(이분법) 대신,
     // 종목별로 정확한 칼로리를 계산한다. 트레드밀/인클라인워킹은 실측 속도·경사로 ACSM
@@ -843,18 +1023,34 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // 세트 수 비중으로 가중평균한다(utils/calories.js 참고).
     const caloriesKcal = estimateCaloriesV2(weightKg, exercises, totalDurationSec)
 
-    const { xpEarned } = await addWorkoutLog(uid, {
-      date: todayStr(),
-      exercises,
-      totalVolume,
+    let xpEarned = 0
+    try {
+      const res = await addWorkoutLog(
+        uid,
+        {
+          // [2026-10-27 W0] 자정을 넘겨 끝낸 운동도 시작한 날짜로 기록한다.
+          date: sessionStartAt ? toLocalDateStr(new Date(sessionStartAt)) : todayStr(),
+          exercises,
+          totalVolume: finishVolume,
       totalDurationSec,
       caloriesKcal,
       warmupActualSec,
       routineTemplateId: sessionType === 'routine' ? selectedTemplate?.id || null : null,
       partName: sessionType === 'routine' ? selectedPart?.name || null : null,
-      sessionType: sessionType === 'routine' ? 'cycle' : 'extra',
-      scoreWeight: sessionType === 'extra' ? 0.7 : 1.0,
-    })
+          sessionType: sessionType === 'routine' ? 'cycle' : 'extra',
+          scoreWeight: sessionType === 'extra' ? 0.7 : 1.0,
+        },
+        // [2026-10-27] 세션 시작 시각 기반 고정 ID — 자동 저장과 겹쳐도 기록이 하나만 생긴다.
+        sessionLogId({ sessionStartAt })
+      )
+      xpEarned = res.xpEarned
+    } catch (err) {
+      // 저장 실패 시 무한 "저장 중"에 갇히지 않게 한다. draft(로컬+서버 백업)는 그대로 남아 있다.
+      console.error('운동 기록 저장 실패:', err)
+      setSaving(false)
+      await confirm('기록 저장에 실패했어요. 입력한 내용은 그대로 남아 있으니 잠시 후 다시 시도해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+      return
+    }
 
     // [2026-08-01 수정] 이전에는 완료 체크한 순서를 '내 루틴' 종목 순서에 자동/조용히
     // 반영했는데(④), 그러다 보니 사용자가 의도치 않게 루틴 순서가 바뀌었다고 느끼거나(10, 11번
@@ -880,7 +1076,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const pendingRoutineAdd = sessionType === 'extra' ? exercises.map((e) => ({ name: e.name, atom: e.part, grip: e.grip || null })) : null
     const templateForAdd = sessionType === 'extra' ? selectedTemplate : null
 
-    localStorage.removeItem(draftKey(uid))
+    removeLocalDraftKeys(uid)
+    clearActiveSession(uid)
+    remoteHasSessionRef.current = false
     setRecords({})
     setCompletedExercises({})
     setSessionPhase('idle')

@@ -23,6 +23,7 @@ const LogTab = forwardRef(function LogTab(
     onGoToRoutineSetup,
     guideHintDismissed,
     onProfileUpdated,
+    onAutoFinalized,
   },
   ref
 ) {
@@ -43,6 +44,7 @@ const LogTab = forwardRef(function LogTab(
       onGoToRoutineSetup={onGoToRoutineSetup}
       guideHintDismissed={guideHintDismissed}
       onProfileUpdated={onProfileUpdated}
+      onAutoFinalized={onAutoFinalized}
     />
   )
 })

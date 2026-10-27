@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button, Chip, BackButton } from './ui'
-import { HOWTO_ONBOARDING_TEXT } from './HowToTab'
+import { HOWTO_ONBOARDING_TEXT } from '../utils/howtoText'
 
 const GENDERS = ['남성', '여성']
 const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']

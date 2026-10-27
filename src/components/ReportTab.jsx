@@ -551,7 +551,9 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
       ) : (
         <div style={{ marginBottom: 20 }}>
           {(() => {
-            const tier = getTierByXp(myEntry.finalScore * 40) // 점수를 임시로 XP 스케일에 대응 (v1 근사)
+            // [2026-10-27 W0 버그수정] 랭킹 점수×40 근사값이 아니라 MY탭과 같은 시즌 XP 기준으로 티어를 표시한다
+            // (이전에는 두 화면의 티어가 서로 달랐다).
+            const tier = getTierByXp(userDoc?.seasonXp || 0)
             return (
               <Card
                 onClick={onShowTierInfo}
