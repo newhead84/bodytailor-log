@@ -2125,7 +2125,7 @@ function ExerciseCard({
       )}
 
       {expanded && (
-        <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="bt-enter" style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lastRecord && (
             <div
               className="record-notation text-keep-all h-scroll"
@@ -2147,6 +2147,7 @@ function ExerciseCard({
           {/* [2026-10-27 리뉴얼 W1] 이중 진행 기반 다음 세트 추천 */}
           {isStrength && suggestion && !isDone && (
             <div
+              className="bt-enter"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -2364,8 +2365,14 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
   // [2026-10-27 리뉴얼 W1] 세트 종류 칩(탭: 본→웜업→드롭→실패) + 무게×횟수 + RIR + 저장/삭제.
   // 세트 추가(직전 값 복사)는 행마다 두지 않고 목록 아래 "+ 세트 추가" 버튼 하나로 모았다(폭 확보).
   const done = !!set.saved
+  const justSaved = done && set.savedAt && Date.now() - set.savedAt < 1200
   return (
-    <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 5, marginBottom: 8, opacity: set.auto && !done ? 0.85 : 1 }}>
+    <div
+      className="bt-row-in"
+      style={{ position: 'relative', display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 5, marginBottom: 8, opacity: set.auto && !done ? 0.85 : 1 }}
+    >
+      {/* [2026-10-27 모션] 방금 저장한 세트만 잠깐 초록 하이라이트(카드를 다시 펼칠 때는 재생하지 않음) */}
+      {justSaved && <span key={set.savedAt} aria-hidden="true" className="bt-saved-flash" style={{ position: 'absolute', inset: '-3px -4px', pointerEvents: 'none' }} />}
       <SetTypeBadge type={set.type} index={setIndex} onClick={onCycleType} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 }}>
         {inputType === 'reps' ? (
@@ -2380,7 +2387,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexShrink: 0 }}>
         <RirChip rir={set.rir} onClick={onCycleRir} />
-        <IconButton title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'}>
+        <IconButton title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-check-pop' : ''}>
           <path d="M5 12l5 5L19 7" />
         </IconButton>
         {onRemove && (
@@ -2393,7 +2400,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
   )
 }
 
-function IconButton({ children, onClick, title, muted, disabled, tone }) {
+function IconButton({ children, onClick, title, muted, disabled, tone, className }) {
   // [2026-08-02 변경] 세트 저장 체크 아이콘도 "시작" 버튼과 같은 골드 배경이라 대비가
   // 약하다는 피드백으로, 브라운(--color-on-gold) 대신 베이지 토큰(--color-on-gold-button)을 쓴다.
   // [2026-10-27] 저장 전(save)=채움 버튼, 저장 후(done)=초록 체크로 상태를 분명히 구분
@@ -2408,6 +2415,7 @@ function IconButton({ children, onClick, title, muted, disabled, tone }) {
       onClick={onClick}
       title={title}
       disabled={disabled}
+      className={className}
       style={{
         flexShrink: 0,
         width: 32,

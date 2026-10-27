@@ -278,7 +278,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </span>
         </div>
         <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
-          <div style={{ width: `${tierProgress * 100}%`, height: '100%', background: 'var(--color-primary-normal)' }} />
+          <div className="bt-bar" style={{ width: `${tierProgress * 100}%`, height: '100%', background: 'var(--color-primary-normal)' }} />
         </div>
         {nextTier && (
           <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '8px 0 0' }}>

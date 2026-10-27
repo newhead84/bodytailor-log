@@ -200,7 +200,8 @@ export function FocusSetPanel({ sets, inputType, weightStep, onField, onSave, on
           모든 세트를 기록했어요. 더 하려면 + 로 세트를 추가하세요.
         </p>
       ) : (
-        <>
+        // [2026-10-27 모션] 다음 세트로 넘어갈 때 입력 영역이 살짝 떠오르며 바뀜
+        <div key={idx} className="bt-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <button
               type="button"
@@ -263,7 +264,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, onField, onSave, on
           >
             세트 완료
           </button>
-        </>
+        </div>
       )}
     </div>
   )

@@ -5,6 +5,7 @@ import { getRecentWorkoutLogs, getWorkoutLogsInRange } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
 import { suggestNextSet, workingSetsOf } from '../utils/strength'
 import { makeExerciseKey, parseExerciseKey } from '../utils/exerciseKey'
+import { CountUp } from '../hooks/useCountUp'
 import CalendarView from './CalendarView'
 import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
 import { getSuggestedNext } from '../utils/routineSuggestion'
@@ -145,7 +146,7 @@ export default function HomeTab({
 
       {/* [2026-10-27 신규] "오늘 운동 완료"를 누르지 않고 방치된 세션을 자동 저장했을 때의 안내 */}
       {autoNotice && (
-        <Card style={{ marginBottom: 12, border: '1px solid var(--color-primary-normal)' }}>
+        <Card className="bt-slide-down" style={{ marginBottom: 12, border: '1px solid var(--color-primary-normal)' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
             <ClipboardCheck size={20} strokeWidth={1.8} style={{ color: 'var(--color-primary-normal)', flexShrink: 0, marginTop: 1 }} />
             <div className="text-keep-all" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -234,13 +235,13 @@ export default function HomeTab({
         }}
       >
         {[
-          { v: weekStats.sessions, unit: '회', label: '이번 주 운동' },
-          { v: weekStats.sets, unit: '세트', label: '본세트' },
-          { v: weekStats.volume >= 1000 ? Math.round(weekStats.volume / 100) / 10 : weekStats.volume, unit: weekStats.volume >= 1000 ? 't' : 'kg', label: '총 볼륨' },
+          { v: weekStats.sessions, unit: '회', label: '이번 주 운동', d: 0 },
+          { v: weekStats.sets, unit: '세트', label: '본세트', d: 0 },
+          { v: weekStats.volume >= 1000 ? Math.round(weekStats.volume / 100) / 10 : weekStats.volume, unit: weekStats.volume >= 1000 ? 't' : 'kg', label: '총 볼륨', d: weekStats.volume >= 1000 ? 1 : 0 },
         ].map((it, i) => (
           <div key={it.label} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: i ? 14 : 2, borderLeft: i ? '1px solid var(--color-line)' : 'none' }}>
             <span className="bt-num" style={{ fontSize: 'calc(26px * var(--num-scale))', lineHeight: 1.1 }}>
-              {it.v}
+              <CountUp value={it.v} decimals={it.d} />
               <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{it.unit}</span>
             </span>
             <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{it.label}</span>

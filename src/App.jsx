@@ -1,8 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-27] 전면 리뉴얼 W1~W3 — 디자인 스타일 A/B/C×3테마, 리스트/포커스 기록 방식,
- *            세트 종류·RIR·증량 추천·PR·웜업/원판·슈퍼세트, 근육별 주간 세트·디로드·유산소·골밀도 인사이트,
- *            연속 출석 보너스·시즌 XP 초기화, CSV 내보내기. 같은 날 W0·미완료 자동 저장 포함. CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-28] 앱 전반 모션(버튼 누름·탭 첫 진입 순차 등장·숫자 카운트업·막대 차오름·세트 저장
+ *            하이라이트·휴식 진행 막대·팝업 등장), 동작 줄이기 설정 시 제거. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -38,6 +37,11 @@ export default function App() {
   const [userDoc, setUserDoc] = useState(null)
   const [routineTemplates, setRoutineTemplates] = useState(undefined) // undefined: 로딩중, []: 없음
   const [activeTab, setActiveTab] = useState('home')
+  // [2026-10-27 리뉴얼 모션] 처음 열어본 탭에만 섹션 순차 등장 효과(.bt-reveal)를 한 번 준다.
+  const [revealedTabs, setRevealedTabs] = useState(() => new Set(['home']))
+  useEffect(() => {
+    setRevealedTabs((prev) => (prev.has(activeTab) ? prev : new Set([...prev, activeTab])))
+  }, [activeTab])
   // [2026-07-29 재수정] 기록탭 진입 시 종목 리스트가 "떨어지는" 애니메이션 버그의 근본 원인은
   // 4탭을 display:none↔block으로 전환하던 방식이었다(display:none은 레이아웃에서 완전히
   // 제거되므로, 다시 block이 되는 순간 framer-motion이 진짜 위치 이동이 일어난 것으로 착각함).
@@ -412,7 +416,7 @@ export default function App() {
         expanded={timerBarExpanded}
         onToggleExpanded={() => setTimerBarExpanded((v) => !v)}
       />
-      <div ref={homeScrollRef} style={tabWrapperStyle('home')}>
+      <div ref={homeScrollRef} style={tabWrapperStyle('home')} className={revealedTabs.has('home') ? 'bt-reveal' : ''}>
         <HomeTab
           uid={authUser.uid}
           userDoc={userDoc}
@@ -427,7 +431,7 @@ export default function App() {
           onUndoAutoNotice={undoAutoNotice}
         />
       </div>
-      <div ref={howtoScrollRef} style={tabWrapperStyle('howto')}>
+      <div ref={howtoScrollRef} style={tabWrapperStyle('howto')} className={revealedTabs.has('howto') ? 'bt-reveal' : ''}>
         <Suspense fallback={null}>
           <HowToTab
             uid={authUser.uid}
@@ -462,7 +466,7 @@ export default function App() {
           logMode={userDoc.logMode || 'list'}
         />
       </div>
-      <div ref={reportScrollRef} style={tabWrapperStyle('report')}>
+      <div ref={reportScrollRef} style={tabWrapperStyle('report')} className={revealedTabs.has('report') ? 'bt-reveal' : ''}>
         <Suspense fallback={null}>
           <ReportTab
             uid={authUser.uid}
@@ -474,7 +478,7 @@ export default function App() {
           />
         </Suspense>
       </div>
-      <div ref={myScrollRef} style={tabWrapperStyle('my')}>
+      <div ref={myScrollRef} style={tabWrapperStyle('my')} className={revealedTabs.has('my') ? 'bt-reveal' : ''}>
         <MyPageTab
           uid={authUser.uid}
           userDoc={userDoc}

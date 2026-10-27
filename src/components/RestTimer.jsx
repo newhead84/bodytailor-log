@@ -195,10 +195,14 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   const mm = String(Math.floor(displaySec / 60)).padStart(2, '0')
   const ss = String(displaySec % 60).padStart(2, '0')
 
+  // [2026-10-27 리뉴얼 모션] 남은 시간 진행 막대(부드럽게 줄어듦) + 아래에서 올라오는 등장
+  const progress = seconds > 0 ? Math.max(0, Math.min(1, remaining / seconds)) : 0
   return (
     <div
+      className="bt-slide-up"
       style={{
         position: 'fixed',
+        overflow: 'hidden',
         left: 16,
         right: 16,
         bottom: 'calc(var(--bottom-nav-height) + var(--safe-bottom) + 78px)',
@@ -226,6 +230,20 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
       <button onClick={handleDismiss} style={{ color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)', fontSize: 13, opacity: 0.9, padding: '4px 8px' }}>
         {overtime ? '닫기' : '건너뛰기'}
       </button>
+      {!overtime && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: 0,
+            bottom: 0,
+            height: 3,
+            width: `${progress * 100}%`,
+            background: 'var(--color-primary-normal)',
+            transition: 'width 1s linear',
+          }}
+        />
+      )}
     </div>
   )
 }

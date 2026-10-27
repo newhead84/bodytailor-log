@@ -2,6 +2,18 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-28] 앱 전반 모션 추가(과하지 않게, 0.15~0.35초·반동 없음) | designStyles.css, hooks/useCountUp.js(신규), App.jsx, ui.jsx, HomeTab.jsx, ReportTab.jsx, InsightCards.jsx, MyPageTab.jsx, WorkoutInput.jsx, SetEditors.jsx, RestTimer.jsx
+- 모든 버튼 누름 반응(0.97배), 색 전환 부드럽게.
+- 홈/가이드/리포트/MY 탭을 처음 열 때 섹션 순차 등장(App.jsx .bt-reveal, 탭당 1회). 기록 탭은 고정 위치 요소가 많아 제외.
+- 숫자 카운트업(홈 이번 주 횟수·세트·볼륨, 출석률, 유산소 분), 막대 차오름(근육별 세트·유산소·티어 XP).
+- 기록: 종목 카드 펼침·증량 추천 배너 떠오름, 세트 행 슬라이드 등장, 방금 저장한 세트 초록 하이라이트 + 체크 팝(다시 펼칠 때는 재생 안 함),
+  포커스형 다음 세트 전환 효과, 휴식 타이머 아래에서 등장 + 남은 시간 진행 막대(부드럽게 감소).
+- 확인 팝업 배경 페이드 + 살짝 확대 등장, 자동 저장 안내 배너 위에서 내려옴.
+- "동작 줄이기"(prefers-reduced-motion) 사용자는 모든 애니메이션 제거(스타일 최하단).
+- 유지: 탭 숨김 visibility 방식, 종목 드래그 재정렬(Reorder) 설정, 캘린더 월 슬라이드.
+- 계획 대비 변경: 탭 전환 시 "살짝 올라오는" 움직임은 넣지 않음 — 탭 컨테이너에 transform을 주면 그 안의 고정 위치 요소
+  (하단 완료 바·휴식 타이머·팝업)가 전환 중 제자리를 벗어나므로 기존 페이드만 유지.
+
 [2026-10-27] 전면 리뉴얼 W1~W3 — 디자인 A/B/C·기록 고도화·인사이트·점수 | designStyles.css(신규), SetEditors.jsx(신규), InsightCards.jsx(신규), utils/strength.js(신규), utils/exportCsv.js(신규), WorkoutInput.jsx, ReportTab.jsx, HomeTab.jsx, MyPageTab.jsx, CalendarView.jsx, App.jsx, storage.js, ui.jsx, GlobalTimerBar.jsx, scoring.js, sessionPayload.js, exerciseLibrary.js, index.html, main.jsx, 전 컴포넌트 borderRadius 토큰화
 - **디자인(사용자 확정: 앱 안 A/B/C 전환 후 실사용 비교)**: MY탭 "디자인"에서 스타일 A 에디토리얼(헤어라인·컨덴스드 숫자)
   / B 인스트루먼트(각진 표·모노 숫자) / C 택타일 웜(둥근 타일·둥근 숫자) × 테마 다크/베이지/라이트 9종. html[data-style]

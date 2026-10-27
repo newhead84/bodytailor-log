@@ -269,6 +269,7 @@ export function ConfirmProvider({ children }) {
         <div
           role="dialog"
           aria-modal="true"
+          className="bt-fade-in"
           style={{
             position: 'fixed',
             inset: 0,
@@ -283,6 +284,7 @@ export function ConfirmProvider({ children }) {
         >
           <div
             onClick={(e) => e.stopPropagation()}
+            className="bt-pop-in"
             style={{
               width: '100%',
               maxWidth: 320,

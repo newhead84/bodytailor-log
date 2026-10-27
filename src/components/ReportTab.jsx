@@ -23,6 +23,7 @@ import { toLocalDateStr } from '../utils/date'
 import { estimateCardioSetKcal } from '../utils/calories'
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 import { workingSetsOf, bestE1rmOfSets } from '../utils/strength'
+import { CountUp } from '../hooks/useCountUp'
 import { MuscleSetsCard, CardioCard, RecoveryCard, PrCard, BoneHealthCard, startOfWeekStr } from './InsightCards'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
@@ -613,7 +614,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           <SectionTitle>이번 주 출석률</SectionTitle>
           <Card style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-primary-normal)' }}>{attendanceRate}%</span>
+              <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-primary-normal)' }}><CountUp value={attendanceRate} />%</span>
               <span className="record-notation" style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
                 {weeklyAttendanceDays.thisWeek} / 7일
               </span>

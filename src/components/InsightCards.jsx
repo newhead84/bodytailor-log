@@ -7,6 +7,7 @@
 //  - BoneHealthCard: "근력강화·골밀도증진" 목표 사용자용 주간 체크(주 2–3회, 고중량 다관절 세트)
 import React, { useMemo, useState } from 'react'
 import { Card, SectionTitle, Chip } from './ui'
+import { CountUp } from '../hooks/useCountUp'
 import { BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
 import { exerciseKeyLabel } from '../utils/exerciseKey'
 import { toLocalDateStr } from '../utils/date'
@@ -87,7 +88,7 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
                       borderRight: '1px dashed var(--color-line-strong)',
                     }}
                   />
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 'var(--radius-pill)', background: getPartColor(atom) }} />
+                  <div className="bt-bar" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 'var(--radius-pill)', background: getPartColor(atom) }} />
                 </div>
                 <span className="bt-num" style={{ fontSize: 14, textAlign: 'right' }}>
                   {fmt1(v)}
@@ -124,12 +125,12 @@ export function CardioCard({ logs }) {
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
           <span className="bt-num" style={{ fontSize: 'calc(28px * var(--num-scale))' }}>
-            {Math.round(minutes)}
+            <CountUp value={Math.round(minutes)} />
           </span>
           <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>/ {goal}분</span>
         </div>
         <div style={{ height: 8, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)' }}>
-          <div style={{ width: `${pct}%`, height: 8, borderRadius: 'var(--radius-pill)', background: 'var(--color-success)' }} />
+          <div className="bt-bar" style={{ width: `${pct}%`, height: 8, borderRadius: 'var(--radius-pill)', background: 'var(--color-success)' }} />
         </div>
         <p className="text-keep-all" style={{ margin: 0, fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
           대화가 가능한 중강도 유산소 주 150분이 건강 기준(WHO)이에요. 웨이트와 같이 해도 근육 성장에는 지장이 없고, 순발력이 중요하면 웨이트와 시간을
