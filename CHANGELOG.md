@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-28] 작업 지침을 저장소 루트 CLAUDE.md로 관리 시작(v10 스펙·커밋 5개 모아 1번 푸시·푸시는 요청 시에만) | CLAUDE.md(신규)
+
 [2026-10-28] 앱 전반 모션 추가(과하지 않게, 0.15~0.35초·반동 없음) | designStyles.css, hooks/useCountUp.js(신규), App.jsx, ui.jsx, HomeTab.jsx, ReportTab.jsx, InsightCards.jsx, MyPageTab.jsx, WorkoutInput.jsx, SetEditors.jsx, RestTimer.jsx
 - 모든 버튼 누름 반응(0.97배), 색 전환 부드럽게.
 - 홈/가이드/리포트/MY 탭을 처음 열 때 섹션 순차 등장(App.jsx .bt-reveal, 탭당 1회). 기록 탭은 고정 위치 요소가 많아 제외.
