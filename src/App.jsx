@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-28] 포커스형 기록 세트 삭제 추가(SetEditors.jsx FocusSetPanel, WorkoutInput.jsx).
- *            직전: 전 화면 리디자인(강조색 팔레트 5종 등). 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-28] 디자인 스타일 C 택타일 웜 고정(A/B 삭제), 강조색 탠저린·민트·폰트 원티드 산스·SUIT 삭제.
+ *            직전: 포커스형 기록 세트 삭제 추가. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -193,12 +193,11 @@ export default function App() {
   useEffect(() => {
     const theme = userDoc?.onboardingCompleted ? userDoc.themePreference || 'beige' : 'dark'
     document.documentElement.setAttribute('data-theme', theme)
-    // [2026-10-27 신규] 디자인 스타일 A/B/C(designStyles.css). 미선택 계정은 A.
-    const style = userDoc?.onboardingCompleted ? userDoc.stylePreference || 'a' : 'a'
-    document.documentElement.setAttribute('data-style', style)
-    // [2026-10-28 신규] 본문 폰트 5종(designStyles.css html[data-font]). 미선택·로그인/온보딩은 프리텐다드.
+    // [2026-10-28] 디자인 스타일은 C 택타일 웜으로 고정(A/B 삭제, 선택 없음). 저장된 stylePreference는 무시.
+    document.documentElement.setAttribute('data-style', 'c')
+    // [2026-10-28 신규] 본문 폰트 3종(designStyles.css html[data-font]). 미선택·로그인/온보딩은 프리텐다드.
     document.documentElement.setAttribute('data-font', userDoc?.onboardingCompleted ? normalizeFontId(userDoc.fontPreference) : 'pretendard')
-    // [2026-10-28 신규] 강조색 팔레트 5종. 미선택·로그인/온보딩은 브라스.
+    // [2026-10-28 신규] 강조색 팔레트 3종. 미선택·로그인/온보딩은 브라스.
     document.documentElement.setAttribute('data-accent', userDoc?.onboardingCompleted ? normalizeAccentId(userDoc.accentPreference) : 'brass')
     // [2026-07-30] 노티바(브라우저 주소창 틴트/상태표시줄) 색상이 테마와 무관하게 골드로
     // 고정돼 있던 문제 수정: index.html의 theme-color 메타 태그를 라이트=블루/다크=골드로
@@ -212,7 +211,7 @@ export default function App() {
       const color = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim() || '#0B0B0C'
       metaThemeColor.setAttribute('content', color)
     }
-  }, [userDoc?.onboardingCompleted, userDoc?.themePreference, userDoc?.stylePreference, userDoc?.fontPreference, userDoc?.accentPreference])
+  }, [userDoc?.onboardingCompleted, userDoc?.themePreference, userDoc?.fontPreference, userDoc?.accentPreference])
 
   // [2026-10-27 신규] 개인 기록(PR) 맵이 없는 계정은 최초 1회 전체 기록으로 계산해 저장한다.
   const prsBuildRef = useRef(false)

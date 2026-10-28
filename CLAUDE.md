@@ -63,12 +63,12 @@
 - AI 어드바이스/AI 모델 연동은 2026-07-27 전면 삭제(`connectedAiModels`·`aiAdvice` 없음). 재요청은 신규 기능으로 별도 설계. Phase2 식단의 사진 분석 AI도 옛 GPT/Gemini/Claude 선택 구조를 가정하지 말고 재설계.
 
 ## 5. 디자인 기준 (v10)
-- **스타일 A/B/C × 테마 다크/베이지/라이트**(9종) — `src/styles/designStyles.css`, `html[data-style][data-theme]`. MY탭 "디자인"에서 전환. 사용자가 실사용 비교 후 하나로 확정 예정 → 확정되면 나머지 토큰 제거 + 이 항목 갱신.
-  - A 에디토리얼 애슬레틱(헤어라인·Barlow Condensed 숫자) / B 인스트루먼트(각진 표·IBM Plex Mono 숫자) / C 택타일 웜(둥근 타일·Outfit 숫자)
-- 본문 폰트: 비교 중(프리텐다드/페이퍼로지/나눔스퀘어 네오/원티드 산스/SUIT) — `html[data-font]` → `--font-body`(designStyles.css), `users.fontPreference`, 미지정=Pretendard. MY "기록 화면 미리보기"(DesignPreviewScreen)에서 스타일·테마·폰트 동시 비교 후 확정 → 나머지 제거. 숫자는 `.bt-num` / `.record-notation`(스타일별 숫자 서체).
+- **스타일: C 택타일 웜 고정**(둥근 타일·따뜻한 무채색·Outfit 숫자, 2026-10-28 확정 — A/B 삭제, 선택 UI 없음). `html[data-style='c']`는 App.jsx가 항상 세팅, `users.stylePreference`는 무시.
+- **테마 다크/베이지/라이트 3종**(사용자 선택 유지) — `src/styles/designStyles.css`, `html[data-theme]`, `users.themePreference`. MY "디자인"에서 전환.
+- 본문 폰트 3종(프리텐다드 기본/페이퍼로지/나눔스퀘어 네오, 원티드 산스·SUIT 2026-10-28 삭제) — `html[data-font]` → `--font-body`, `users.fontPreference`. 없는 값은 `normalizeFontId()`가 프리텐다드로. MY "기록 화면 미리보기"(DesignPreviewScreen)에서 테마·강조색·폰트·기록 방식 비교. 숫자는 `.bt-num` / `.record-notation`(Outfit).
 - 큰 숫자 표시는 `CountUp`(hooks/useCountUp.js, 크기별 재생 시간 자동).
-- **강조색 팔레트 5종**(brass 기본/lime/cobalt/tangerine/mint) — `html[data-accent][data-theme]`(designStyles.css, 스타일 블록 뒤), `users.accentPreference`. 테마=바탕·글자, 팔레트=강조색. 팔레트 값을 바꾸면 대비 검사(글자 강조색 vs 스타일 3×테마 3 표면, 채움 위 글자) 4.5:1 이상 재확인.
-- 색은 CSS 변수 토큰만 사용(변수명 유지, 값만 교체). 채움 버튼·선택 칩은 `--color-fill-strong`/`--color-on-fill`(=강조색), 보조 버튼은 무채색. 큰 숫자는 무채색(`.bt-num`), 강조색은 화면당 1~2곳(주 버튼·선택·진행 막대·핵심 표시). 설명 문단은 `Disclosure`(ui.jsx)로 접기. 45종(스타일×테마×팔레트) 모두 텍스트 대비 4.5:1 이상 유지.
+- **강조색 팔레트 3종**(brass 기본/lime/cobalt, 탠저린·민트 2026-10-28 삭제) — `html[data-accent][data-theme]`(designStyles.css, 테마 블록 뒤), `users.accentPreference`. 없는 값은 `normalizeAccentId()`가 브라스로. 테마=바탕·글자, 팔레트=강조색. 팔레트 값을 바꾸면 대비 검사(글자 강조색 vs 테마 3 표면, 채움 위 글자) 4.5:1 이상 재확인.
+- 색은 CSS 변수 토큰만 사용(변수명 유지, 값만 교체). 채움 버튼·선택 칩은 `--color-fill-strong`/`--color-on-fill`(=강조색), 보조 버튼은 무채색. 큰 숫자는 무채색(`.bt-num`), 강조색은 화면당 1~2곳(주 버튼·선택·진행 막대·핵심 표시). 설명 문단은 `Disclosure`(ui.jsx)로 접기. 9종(테마×팔레트) 모두 텍스트 대비 4.5:1 이상 유지.
 - 모서리는 `--radius-sm/md/lg/pill` 토큰. 카드는 `--card-bg/--card-border/--card-shadow`.
 - 운동 부위 고정 팔레트(getPartColor), 아이콘은 lucide 라인 아이콘(이모지 금지). "AI 느낌" 요소(그라데이션 워시, 좌측 굵은 색 띠 카드 등) 지양.
 - 모션: 0.15~0.35초, 반동 없음, `prefers-reduced-motion`이면 제거. 공용 클래스: `bt-enter / bt-pop-in / bt-slide-up / bt-slide-down / bt-row-in / bt-bar / bt-reveal`, 숫자 카운트업 `hooks/useCountUp.js`.
@@ -90,7 +90,7 @@
 ### 7.2 화면(IA)
 - 하단 5탭: HOME / HOWTO / NOTE(기록, 입력 전용) / REPORT(랭킹+통계) / MY. 캘린더는 HOME.
 - 흐름: 온보딩(성별→나이→몸무게→키→운동 목표 복수선택: 근력강화·골밀도증진/체지방감소/기초체력증진, 레벨 질문 없음) → 루틴 설정 → 메인 탭. MY 프로필 수정도 같은 항목.
-- MY "등급" 카드 → TierInfoScreen. MY "디자인"(스타일·테마·기록 방식), "데이터"(CSV 내보내기).
+- MY "등급" 카드 → TierInfoScreen. MY "디자인"(테마·강조색·폰트·기록 방식), "데이터"(CSV 내보내기).
 - HOME 캘린더: 셀 높이 내용에 따라 자동 확장, 부위색 바 + 웜업/본운동 시간·kcal·총볼륨, 배지 글자 수에 따라 크기 조절(ellipsis 금지), 월 이동 화살표·스와이프. 일요일·공휴일=danger, 토요일=info(공휴일은 `api/holidays.js`가 data.go.kr 프록시).
 
 ### 7.3 기록(NOTE) 핵심 동작
@@ -136,8 +136,8 @@ leaderboard/{group}/{period}/{uid}
 
 // v10 추가분
 users/{uid}
-  stylePreference: 'a'|'b'|'c'      logMode: 'list'|'focus'      themePreference: 'dark'|'beige'|'light'
-  fontPreference: 'pretendard'|'paperlogy'|'nanumsquareneo'|'wanted'|'suit'      accentPreference: 'brass'|'lime'|'cobalt'|'tangerine'|'mint'
+  stylePreference(미사용, C 고정)      logMode: 'list'|'focus'      themePreference: 'dark'|'beige'|'light'
+  fontPreference: 'pretendard'|'paperlogy'|'nanumsquareneo'      accentPreference: 'brass'|'lime'|'cobalt'
   exerciseSettings: { [종목키]: { repMin, repMax, restSec } }
   prs: { [종목키]: { e1rm, weight, reps, date, topWeight, topWeightReps, topWeightDate } }
   seasonKey: 'season-YYYY-Q'
@@ -152,7 +152,7 @@ activeSessions/{uid}: { draft: JSON 문자열, updatedAt }
 ### 7.6 Phase1 잔여 과제
 - `WorkoutInput.jsx` 파일 분리(리팩터링)
 - 사이클 완료 판정 ↔ 기록 연결, 캘린더 과거 기록 편집 피커의 커스텀 운동 연결
-- 전 탭 리디자인(2단계) 완료 2026-10-28. 스타일 A/B/C·팔레트·폰트는 사용자가 실사용 후 확정하거나 앱에서 골라 쓰게 유지할지 결정 예정 → 등급 리뉴얼(3단계: Lv 숫자 + 단계명, 데이터 키 iron~legend 유지·표시명만 변경, 운동 완료 요약 카드·승급 연출·이름 붙은 성취 카드)
+- 전 탭 리디자인(2단계) 완료 2026-10-28, 스타일 C 확정·팔레트/폰트 3종으로 축소 2026-10-28 → 다음: 등급 리뉴얼(3단계: Lv 숫자 + 단계명, 데이터 키 iron~legend 유지·표시명만 변경, 운동 완료 요약 카드·승급 연출·이름 붙은 성취 카드)
 
 ### 7.7 로드맵
 - Phase1(MVP, 구현 완료·지속 개선): 온보딩 / 분할 루틴 / 기록 입력 / 캘린더 / 리포트(랭킹+통계+티어·시즌 XP) / MY / PWA.

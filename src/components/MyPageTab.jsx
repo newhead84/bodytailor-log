@@ -14,11 +14,6 @@ import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
 
 const GENDERS = ['남성', '여성']
 const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
-const STYLE_OPTIONS = [
-  { id: 'a', label: 'A', desc: '에디토리얼' },
-  { id: 'b', label: 'B', desc: '인스트루먼트' },
-  { id: 'c', label: 'C', desc: '택타일 웜' },
-]
 
 // [2026-07-28 개편] '내 루틴'(자주 하는 운동 즐겨찾기) 섹션을 제거하고,
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
@@ -173,17 +168,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
 
   // [2026-07-30 신규] MY탭 "화면 테마" 선택 저장. onProfileUpdated()로 App.jsx의 userDoc을
   // 다시 불러오면, App.jsx의 data-theme effect가 반응해 즉시 전체 화면에 반영된다.
-  // [2026-10-27 신규] 디자인 스타일(A/B/C)·기록 방식(리스트/포커스) 선택 저장
-  const [stylePreference, setStylePreferenceState] = useState(userDoc?.stylePreference || 'a')
+  // [2026-10-27 신규] 기록 방식(리스트/포커스) 선택 저장. [2026-10-28] 스타일은 C 고정이라 선택 제거.
   const [logMode, setLogModeState] = useState(userDoc?.logMode || 'list')
-  async function selectStyle(style) {
-    setStylePreferenceState(style)
-    await updateUserProfile(uid, { stylePreference: style })
-    await onProfileUpdated?.()
-  }
-  // [2026-10-28 신규] 본문 폰트 5종 선택 저장(users/{uid}.fontPreference)
+  // [2026-10-28 신규] 본문 폰트 3종 선택 저장(users/{uid}.fontPreference)
   const [fontPreference, setFontPreferenceState] = useState(normalizeFontId(userDoc?.fontPreference))
-  // [2026-10-28 신규] 강조색 팔레트 5종 선택 저장(users/{uid}.accentPreference)
+  // [2026-10-28 신규] 강조색 팔레트 3종 선택 저장(users/{uid}.accentPreference)
   const [accentPreference, setAccentPreferenceState] = useState(normalizeAccentId(userDoc?.accentPreference))
   async function selectAccent(accent) {
     setAccentPreferenceState(accent)
@@ -680,24 +669,13 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </div>
       </Card>
 
-      {/* [2026-10-27 리뉴얼] 디자인 스타일 A/B/C × 테마 3종. 실사용 비교 후 하나로 확정 예정(사용자 확인). */}
+      {/* [2026-10-28] 스타일 C 택타일 웜 고정(선택 없음). 테마 3종·강조색·폰트·기록 방식만 선택. */}
       <SectionTitle>디자인</SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* [2026-10-28 신규] 샘플 기록 화면에서 스타일·테마·폰트·기록 방식을 바로 비교 */}
+        {/* [2026-10-28 신규] 샘플 기록 화면에서 테마·강조색·폰트·기록 방식을 바로 비교 */}
         <Button full onClick={onShowDesignPreview}>
           기록 화면 미리보기
         </Button>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>스타일</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-            {STYLE_OPTIONS.map((opt) => (
-              <Chip key={opt.id} active={stylePreference === opt.id} onClick={() => selectStyle(opt.id)} style={{ justifyContent: 'center', display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 6px', whiteSpace: 'normal' }}>
-                <span style={{ fontWeight: 800 }}>{opt.label}</span>
-                <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.75 }}>{opt.desc}</span>
-              </Chip>
-            ))}
-          </div>
-        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>테마</span>
           <div style={{ display: 'flex', gap: 8 }}>

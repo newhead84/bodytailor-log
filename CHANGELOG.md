@@ -2,6 +2,11 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-28] 디자인 확정 — 스타일 C 택타일 웜 고정, 강조색·폰트 3종으로 축소 | designStyles.css, fonts.js, App.jsx, MyPageTab.jsx, DesignPreviewScreen.jsx, ui.jsx(주석), index.html, CLAUDE.md
+- 스타일 A 에디토리얼·B 인스트루먼트 토큰 삭제, C를 :root 기본으로. App.jsx·applyDesignAttrs가 data-style을 항상 'c'로 세팅(저장된 stylePreference 무시). MY·미리보기의 스타일 선택 칩 제거.
+- 숫자 서체 Barlow Condensed·IBM Plex Mono 로드 중단(index.html, Outfit만).
+- 강조색 탠저린·민트, 폰트 원티드 산스·SUIT 삭제. 이미 저장된 값은 normalizeAccentId/normalizeFontId가 브라스/프리텐다드로 표시(데이터 일괄 수정 없음). 테마 3종은 유지.
+
 [2026-10-28] 포커스형 기록 세트 삭제 추가 | SetEditors.jsx(FocusSetPanel), WorkoutInput.jsx(ExerciseCard)
 - 포커스형에서 추가한 세트를 지울 방법이 없던 문제: 선택 세트 줄 오른쪽에 "세트 삭제" 버튼(세트 2개 이상일 때만, 리스트형과 동일). 모든 세트 저장 후에도 칩을 골라 삭제 가능. 삭제 후 선택 해제.
 

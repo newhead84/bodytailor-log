@@ -48,7 +48,7 @@ export const Card = React.forwardRef(function Card({ children, style, onClick, .
       ref={ref}
       onClick={onClick}
       style={{
-        // [2026-10-27] 디자인 스타일(A/B/C)별 카드 표현 토큰(designStyles.css)
+        // [2026-10-27] 디자인 스타일 카드 표현 토큰(designStyles.css, 2026-10-28 C 고정)
         background: 'var(--card-bg)',
         border: 'var(--card-border)',
         borderRadius: 'var(--radius-lg)',

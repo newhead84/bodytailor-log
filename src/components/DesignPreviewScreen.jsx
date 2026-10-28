@@ -1,6 +1,7 @@
 // DesignPreviewScreen.jsx
 // [2026-10-28 신규] 기록 화면 미리보기 — 실제 운동 중에 스타일을 하나하나 바꿔 보기 어렵다는 피드백으로,
-// 샘플 데이터로 채운 기록(NOTE) 화면에서 스타일 A/B/C × 테마 × 본문 폰트 5종 × 기록 방식을 즉시 바꿔 비교한다.
+// 샘플 데이터로 채운 기록(NOTE) 화면에서 테마 × 강조색 × 본문 폰트 × 기록 방식을 즉시 바꿔 비교한다.
+// [2026-10-28] 스타일은 C 택타일 웜으로 고정(A/B 삭제) — 스타일 선택 칩 제거.
 //   - 종목 카드는 WorkoutInput.jsx의 실제 ExerciseCard, 상단 타이머 바(GlobalTimerBar)·휴식 타이머(RestTimer)도
 //     실제 컴포넌트를 그대로 써서 모양이 기록 화면과 같다. 하단 완료 바만 같은 마크업으로 재현.
 //   - 미리보기 중 바꾼 값은 html 속성에만 임시 반영. 닫으면 원래 값으로 되돌리고, "이 조합으로 적용"을 눌러야
@@ -17,11 +18,6 @@ import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, applyDesignAttrs } from '../utils/fonts'
 import { updateUserProfile } from '../storage'
 
-export const STYLE_OPTIONS = [
-  { id: 'a', label: 'A', desc: '에디토리얼' },
-  { id: 'b', label: 'B', desc: '인스트루먼트' },
-  { id: 'c', label: 'C', desc: '택타일 웜' },
-]
 const THEME_OPTIONS = [
   { id: 'dark', label: '다크' },
   { id: 'beige', label: '베이지' },
@@ -60,13 +56,12 @@ function updateThemeMetaColor() {
 
 export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }) {
   const initial = useRef({
-    style: userDoc?.stylePreference || 'a',
+    style: 'c',
     theme: userDoc?.themePreference || 'beige',
     font: normalizeFontId(userDoc?.fontPreference),
     accent: normalizeAccentId(userDoc?.accentPreference),
     logMode: userDoc?.logMode || 'list',
   }).current
-  const [style, setStyle] = useState(initial.style)
   const [theme, setTheme] = useState(initial.theme)
   const [font, setFont] = useState(initial.font)
   const [accent, setAccent] = useState(initial.accent)
@@ -76,9 +71,9 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
 
   // 선택이 바뀔 때마다 html 속성에 임시 반영
   useEffect(() => {
-    applyDesignAttrs({ style, theme, font, accent })
+    applyDesignAttrs({ style: 'c', theme, font, accent })
     updateThemeMetaColor()
-  }, [style, theme, font, accent])
+  }, [theme, font, accent])
 
   // 닫힐 때(적용 안 했으면) 원래 값으로 되돌림
   useEffect(() => {
@@ -125,7 +120,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
   async function handleApply() {
     setApplying(true)
     try {
-      await updateUserProfile(uid, { stylePreference: style, themePreference: theme, fontPreference: font, accentPreference: accent, logMode })
+      await updateUserProfile(uid, { themePreference: theme, fontPreference: font, accentPreference: accent, logMode })
       appliedRef.current = true
       await onApplied?.()
       onClose()
@@ -162,7 +157,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
     >
       <GlobalTimerBar timing={timing} onPress={() => {}} onTogglePause={() => {}} onReset={() => {}} onAdjust={() => {}} expanded={false} onToggleExpanded={() => {}} />
 
-      {/* 조작 영역(상단 고정): 닫기·적용 + 스타일 A/B/C 항상 노출, 테마·폰트·기록 방식은 펼쳐서 */}
+      {/* 조작 영역(상단 고정): 닫기·적용 + 강조색 항상 노출, 테마·폰트·기록 방식은 펼쳐서 */}
       <div
         style={{
           position: 'sticky',
@@ -184,15 +179,6 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
           <Button style={{ flexShrink: 0, height: 36, padding: '0 14px', fontSize: 13 }} disabled={applying} onClick={handleApply}>
             {applying ? '적용 중…' : '이 조합으로 적용'}
           </Button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, flex: 1 }}>
-            {STYLE_OPTIONS.map((o) => (
-              <Chip key={o.id} active={style === o.id} onClick={() => setStyle(o.id)} style={{ justifyContent: 'center', whiteSpace: 'nowrap', padding: '0 4px' }}>
-                {o.label} {o.desc}
-              </Chip>
-            ))}
-          </div>
         </div>
         {/* [2026-10-28] 강조색 팔레트 — 색 견본으로 항상 노출 */}
         <AccentSwatches value={accent} onPick={setAccent} />

@@ -1,44 +1,13 @@
 /* designStyles.css
-   [2026-10-27 신규] 전면 리뉴얼 — 디자인 스타일 A/B/C × 테마(다크/베이지/라이트) 9종 토큰.
-   tokens.css(기존 변수명) 위에 덮어쓰는 오버레이. html[data-style][data-theme] 두 속성만 바꾸면
-   전체 화면에 캐스케이드로 반영된다(App.jsx가 users/{uid}.stylePreference·themePreference로 세팅).
-     A 에디토리얼 애슬레틱: 헤어라인 구분·카드 최소화·큰 컨덴스드 숫자(Barlow Condensed)
-     B 인스트루먼트: 촘촘한 표·각진 모서리·모노 숫자(IBM Plex Mono)
+   [2026-10-27 신규] 전면 리뉴얼 디자인 토큰. [2026-10-28] 스타일을 C 택타일 웜으로 확정(A 에디토리얼·B 인스트루먼트 삭제).
+   tokens.css(기존 변수명) 위에 덮어쓰는 오버레이. html[data-theme](다크/베이지/라이트, users/{uid}.themePreference)만 바꾸면
+   전체 화면에 캐스케이드로 반영된다. data-style은 App.jsx가 항상 'c'로 고정한다(선택 없음).
      C 택타일 웜: 둥근 타일·따뜻한 무채색·둥근 숫자(Outfit)
-   사용자가 실사용으로 비교한 뒤 하나를 고르면 나머지 스타일 블록은 제거한다(사용자 확인 2026-10-27).
    구조 토큰: --radius-sm/md/lg/pill(인라인 borderRadius가 참조), --card-bg/--card-border/--card-shadow
    (ui.jsx Card), --font-num/--num-weight(.record-notation·숫자 표시), --heading-tracking. */
 
 /* ───────── 구조 토큰(스타일별, 테마 무관) ───────── */
 :root,
-html[data-style='a'] {
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-pill: 999px;
-  --card-bg: var(--color-bg);
-  --card-border: 1px solid var(--color-line);
-  --card-shadow: none;
-  --font-num: 'Barlow Condensed', var(--font-body, 'Pretendard'), sans-serif;
-  --num-weight: 700;
-  --num-scale: 1.18;
-  --heading-tracking: -0.02em;
-  --heading-weight: 800;
-}
-html[data-style='b'] {
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-pill: 6px;
-  --card-bg: var(--color-bg-card);
-  --card-border: 1px solid var(--color-line);
-  --card-shadow: none;
-  --font-num: 'IBM Plex Mono', ui-monospace, monospace;
-  --num-weight: 600;
-  --num-scale: 0.94;
-  --heading-tracking: 0;
-  --heading-weight: 700;
-}
 html[data-style='c'] {
   --radius-sm: 12px;
   --radius-md: 18px;
@@ -52,186 +21,6 @@ html[data-style='c'] {
   --num-scale: 1;
   --heading-tracking: -0.01em;
   --heading-weight: 800;
-}
-
-/* ───────── A · 에디토리얼 애슬레틱 ───────── */
-html[data-style='a'][data-theme='dark'],
-html[data-style='a']:not([data-theme]) {
-  --color-primary-normal: #ffc53d;
-  --color-primary-strong: #d9a21f;
-  --color-primary-heavy: #8a6608;
-  --color-primary-bg: #1e1b12;
-  --color-on-gold: #1a1400;
-  --color-on-gold-button: #1a1400;
-  --color-fill-strong: #ffc53d;
-  --color-on-fill: #1a1400;
-  --color-label-strong: #f4f2ee;
-  --color-label-normal: #c9c6bf;
-  --color-label-neutral: #9a978f;
-  --color-label-disable: #5a5852;
-  --color-bg: #0b0b0c;
-  --color-bg-elevated: #1b1b1e;
-  --color-bg-card: #131315;
-  --color-line: #242428;
-  --color-line-strong: #34343a;
-  --color-gold-100: #ffe08a;
-  --color-gold-500: #ffc53d;
-  --color-gold-700: #d9a21f;
-  --color-success: #2fbf71;
-  --color-danger: #ff6b5b;
-  --color-warning: #ffb547;
-  --color-info: #5ba8ff;
-  --color-rest-bg: #1f1b10;
-  --shadow-card: none;
-  --shadow-nav: none;
-}
-html[data-style='a'][data-theme='beige'] {
-  --color-primary-normal: #805a00;
-  --color-primary-strong: #6e4d00;
-  --color-primary-heavy: #4a3400;
-  --color-primary-bg: #eadfc9;
-  --color-on-gold: #1a1400;
-  --color-on-gold-button: #f2ece2;
-  --color-fill-strong: #17140f;
-  --color-on-fill: #f2ece2;
-  --color-label-strong: #17140f;
-  --color-label-normal: #4a443b;
-  --color-label-neutral: #696156;
-  --color-label-disable: #b9af9f;
-  --color-bg: #f2ece2;
-  --color-bg-elevated: #fffdf8;
-  --color-bg-card: #faf6ef;
-  --color-line: #ddd3c2;
-  --color-line-strong: #cbbda4;
-  --color-gold-100: #805a00;
-  --color-gold-500: #b07d00;
-  --color-gold-700: #6e4d00;
-  --color-success: #176f3c;
-  --color-danger: #aa3324;
-  --color-warning: #8a5000;
-  --color-info: #235ebe;
-  --color-rest-bg: #efe3c8;
-  --shadow-card: none;
-  --shadow-nav: none;
-}
-html[data-style='a'][data-theme='light'] {
-  --color-primary-normal: #8a5f00;
-  --color-primary-strong: #7a5500;
-  --color-primary-heavy: #4d3600;
-  --color-primary-bg: #f5efdf;
-  --color-on-gold: #1a1400;
-  --color-on-gold-button: #ffffff;
-  --color-fill-strong: #0e0e0e;
-  --color-on-fill: #ffffff;
-  --color-label-strong: #0e0e0e;
-  --color-label-normal: #3f3f3c;
-  --color-label-neutral: #6b6b66;
-  --color-label-disable: #b4b4af;
-  --color-bg: #ffffff;
-  --color-bg-elevated: #f6f6f4;
-  --color-bg-card: #ffffff;
-  --color-line: #e7e7e4;
-  --color-line-strong: #d6d6d2;
-  --color-gold-100: #8a5f00;
-  --color-gold-500: #c99100;
-  --color-gold-700: #7a5500;
-  --color-success: #187842;
-  --color-danger: #c33426;
-  --color-warning: #9c5a00;
-  --color-info: #235edf;
-  --color-rest-bg: #fbf3dd;
-  --shadow-card: none;
-  --shadow-nav: none;
-}
-
-/* ───────── B · 인스트루먼트 ───────── */
-html[data-style='b'][data-theme='dark'],
-html[data-style='b']:not([data-theme]) {
-  --color-primary-normal: #e9b949;
-  --color-primary-strong: #c99a2e;
-  --color-primary-heavy: #8a6608;
-  --color-primary-bg: #22201a;
-  --color-on-gold: #1c1500;
-  --color-on-gold-button: #1c1500;
-  --color-fill-strong: #e9b949;
-  --color-on-fill: #1c1500;
-  --color-label-strong: #e9e9e6;
-  --color-label-normal: #b9bbc0;
-  --color-label-neutral: #8e9096;
-  --color-label-disable: #55575c;
-  --color-bg: #111214;
-  --color-bg-elevated: #1e1f23;
-  --color-bg-card: #17181b;
-  --color-line: #26272b;
-  --color-line-strong: #34353a;
-  --color-gold-100: #f3d58a;
-  --color-gold-500: #e9b949;
-  --color-gold-700: #c99a2e;
-  --color-success: #4cc38a;
-  --color-danger: #f2705e;
-  --color-warning: #e9a23b;
-  --color-info: #6aa6ff;
-  --color-rest-bg: #1f1d16;
-  --shadow-card: none;
-  --shadow-nav: none;
-}
-html[data-style='b'][data-theme='beige'] {
-  --color-primary-normal: #7c5a00;
-  --color-primary-strong: #6b4d00;
-  --color-primary-heavy: #4a3400;
-  --color-primary-bg: #e6ddcb;
-  --color-on-gold: #1c1500;
-  --color-on-gold-button: #f7f4ee;
-  --color-fill-strong: #2b2925;
-  --color-on-fill: #f7f4ee;
-  --color-label-strong: #1d1b18;
-  --color-label-normal: #4b4740;
-  --color-label-neutral: #666057;
-  --color-label-disable: #ada597;
-  --color-bg: #eeeae2;
-  --color-bg-elevated: #fffdf9;
-  --color-bg-card: #f7f4ee;
-  --color-line: #dad3c6;
-  --color-line-strong: #c9bfae;
-  --color-gold-100: #7c5a00;
-  --color-gold-500: #a87a00;
-  --color-gold-700: #6b4d00;
-  --color-success: #1a6c3f;
-  --color-danger: #ab3626;
-  --color-warning: #885000;
-  --color-info: #295aae;
-  --color-rest-bg: #ebe1cb;
-  --shadow-card: none;
-  --shadow-nav: none;
-}
-html[data-style='b'][data-theme='light'] {
-  --color-primary-normal: #8c6200;
-  --color-primary-strong: #6e4e00;
-  --color-primary-heavy: #4a3400;
-  --color-primary-bg: #f4eedf;
-  --color-on-gold: #1c1500;
-  --color-on-gold-button: #ffffff;
-  --color-fill-strong: #18181b;
-  --color-on-fill: #ffffff;
-  --color-label-strong: #18181b;
-  --color-label-normal: #3f3f46;
-  --color-label-neutral: #66666e;
-  --color-label-disable: #a1a1aa;
-  --color-bg: #f6f6f7;
-  --color-bg-elevated: #fafafa;
-  --color-bg-card: #ffffff;
-  --color-line: #e4e4e7;
-  --color-line-strong: #d4d4d8;
-  --color-gold-100: #8c6200;
-  --color-gold-500: #c08a00;
-  --color-gold-700: #6e4e00;
-  --color-success: #147939;
-  --color-danger: #ba3526;
-  --color-warning: #985a00;
-  --color-info: #235edf;
-  --color-rest-bg: #f8f1de;
-  --shadow-card: none;
-  --shadow-nav: none;
 }
 
 /* ───────── C · 택타일 웜 ───────── */
@@ -324,11 +113,11 @@ html[data-style='c'][data-theme='light'] {
   --shadow-nav: none;
 }
 
-/* ───────── [2026-10-28 신규] 강조색 팔레트 5종 × 테마 3종 (html[data-accent][data-theme]) ─────────
-   테마(다크/베이지/라이트)는 바탕·글자, 팔레트는 강조색만 담당. 스타일 블록보다 뒤에 두어 강조 토큰을 덮어쓴다.
+/* ───────── [2026-10-28 신규] 강조색 팔레트 3종 × 테마 3종 (html[data-accent][data-theme]) ─────────
+   테마(다크/베이지/라이트)는 바탕·글자, 팔레트는 강조색만 담당. 테마 블록보다 뒤에 두어 강조 토큰을 덮어쓴다.
    --color-fill-strong/--color-on-fill = 채움 버튼·선택 칩(모든 테마에서 강조색 채움)
    --color-primary-normal/strong = 글자로 쓰는 강조색(모든 스타일·테마 표면 대비 4.5:1 이상 — 생성 스크립트로 검사)
-   lime 볼트 라임 / cobalt 코발트 / tangerine 탠저린 / mint 민트 / brass 브라스(기존 골드를 낮은 채도로, 기본값) */
+   lime 볼트 라임 / cobalt 코발트 / brass 브라스(기존 골드를 낮은 채도로, 기본값) */
 html[data-accent='lime'][data-theme='dark'] {
   --color-primary-normal: #c8f53c;
   --color-primary-strong: #c0f41f;
@@ -418,96 +207,6 @@ html[data-accent='cobalt'][data-theme='light'] {
   --color-gold-700: #2248c0;
   --color-rest-bg: #e6ebfd;
   --accent-swatch: #2f5cf0;
-}
-html[data-accent='tangerine'][data-theme='dark'] {
-  --color-primary-normal: #ff8a57;
-  --color-primary-strong: #ff7538;
-  --color-primary-heavy: #ab3300;
-  --color-primary-bg: #2d1810;
-  --color-fill-strong: #ff6a2b;
-  --color-on-fill: #1a0900;
-  --color-on-gold: #1a0900;
-  --color-on-gold-button: #1a0900;
-  --color-gold-100: #ff8a57;
-  --color-gold-500: #ff6a2b;
-  --color-gold-700: #ff7538;
-  --color-rest-bg: #23140f;
-  --accent-swatch: #ff6a2b;
-}
-html[data-accent='tangerine'][data-theme='beige'] {
-  --color-primary-normal: #b8400d;
-  --color-primary-strong: #a0380b;
-  --color-primary-heavy: #ab3300;
-  --color-primary-bg: #f3e8dd;
-  --color-fill-strong: #ff6a2b;
-  --color-on-fill: #1a0900;
-  --color-on-gold: #1a0900;
-  --color-on-gold-button: #1a0900;
-  --color-gold-100: #b8400d;
-  --color-gold-500: #ff6a2b;
-  --color-gold-700: #a0380b;
-  --color-rest-bg: #f4dccc;
-  --accent-swatch: #ff6a2b;
-}
-html[data-accent='tangerine'][data-theme='light'] {
-  --color-primary-normal: #b8400d;
-  --color-primary-strong: #a0380b;
-  --color-primary-heavy: #ab3300;
-  --color-primary-bg: #ffe7dd;
-  --color-fill-strong: #ff6a2b;
-  --color-on-fill: #1a0900;
-  --color-on-gold: #1a0900;
-  --color-on-gold-button: #1a0900;
-  --color-gold-100: #b8400d;
-  --color-gold-500: #ff6a2b;
-  --color-gold-700: #a0380b;
-  --color-rest-bg: #ffede6;
-  --accent-swatch: #ff6a2b;
-}
-html[data-accent='mint'][data-theme='dark'] {
-  --color-primary-normal: #4fe2b0;
-  --color-primary-strong: #35dea4;
-  --color-primary-heavy: #176d4f;
-  --color-primary-bg: #102720;
-  --color-fill-strong: #2fd49b;
-  --color-on-fill: #00261a;
-  --color-on-gold: #00261a;
-  --color-on-gold-button: #00261a;
-  --color-gold-100: #4fe2b0;
-  --color-gold-500: #2fd49b;
-  --color-gold-700: #35dea4;
-  --color-rest-bg: #0f1f1a;
-  --accent-swatch: #2fd49b;
-}
-html[data-accent='mint'][data-theme='beige'] {
-  --color-primary-normal: #0a7653;
-  --color-primary-strong: #085e42;
-  --color-primary-heavy: #176d4f;
-  --color-primary-bg: #e7ebde;
-  --color-fill-strong: #2fd49b;
-  --color-on-fill: #00261a;
-  --color-on-gold: #00261a;
-  --color-on-gold-button: #00261a;
-  --color-gold-100: #0a7653;
-  --color-gold-500: #2fd49b;
-  --color-gold-700: #085e42;
-  --color-rest-bg: #dbe9d9;
-  --accent-swatch: #2fd49b;
-}
-html[data-accent='mint'][data-theme='light'] {
-  --color-primary-normal: #0a7653;
-  --color-primary-strong: #085e42;
-  --color-primary-heavy: #176d4f;
-  --color-primary-bg: #def8ef;
-  --color-fill-strong: #2fd49b;
-  --color-on-fill: #00261a;
-  --color-on-gold: #00261a;
-  --color-on-gold-button: #00261a;
-  --color-gold-100: #0a7653;
-  --color-gold-500: #2fd49b;
-  --color-gold-700: #085e42;
-  --color-rest-bg: #e6faf3;
-  --accent-swatch: #2fd49b;
 }
 html[data-accent='brass'][data-theme='dark'] {
   --color-primary-normal: #dcbb6c;
@@ -722,10 +421,10 @@ button:active:not(:disabled) {
 .bt-reveal > div > *:nth-child(7) { animation-delay: 0.24s; }
 .bt-reveal > div > *:nth-child(n + 8) { animation-delay: 0.28s; }
 
-/* ───────── [2026-10-28 신규] 본문 폰트 5종 비교(html[data-font]) ─────────
+/* ───────── [2026-10-28 신규] 본문 폰트 3종(html[data-font], 원티드 산스·SUIT 2026-10-28 삭제) ─────────
    @font-face는 선언만으로는 내려받지 않고, 해당 폰트가 실제로 쓰일 때(data-font 선택 시)만 파일을 받는다.
    프리텐다드는 index.html에서 기본 로드. 폰트 확정 후 나머지 블록은 제거 예정.
-   라이선스: Pretendard·SUIT·Wanted Sans·NanumSquare Neo(OFL/네이버 글꼴 라이선스), Paperlogy(상업적 무료). */
+   라이선스: Pretendard·NanumSquare Neo(OFL/네이버 글꼴 라이선스), Paperlogy(상업적 무료). */
 @font-face {
   font-family: 'Paperlogy';
   src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2');
@@ -775,24 +474,8 @@ button:active:not(:disabled) {
   font-weight: 800;
   font-display: swap;
 }
-@font-face {
-  font-family: 'SUIT Variable';
-  src: url('https://cdn.jsdelivr.net/npm/@sun-typeface/suit@2.0.5/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2-variations'),
-    url('https://cdn.jsdelivr.net/npm/@sun-typeface/suit@2.0.5/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2');
-  font-weight: 100 900;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Wanted Sans Variable';
-  src: url('https://cdn.jsdelivr.net/npm/wanted-sans@1.0.3/fonts/webfonts/variable/complete/woff2/WantedSansVariable.woff2') format('woff2-variations'),
-    url('https://cdn.jsdelivr.net/npm/wanted-sans@1.0.3/fonts/webfonts/variable/complete/woff2/WantedSansVariable.woff2') format('woff2');
-  font-weight: 400 1000;
-  font-display: swap;
-}
 html[data-font='paperlogy'] { --font-body: 'Paperlogy', 'Pretendard', system-ui, sans-serif; }
 html[data-font='nanumsquareneo'] { --font-body: 'NanumSquare Neo', 'Pretendard', system-ui, sans-serif; }
-html[data-font='wanted'] { --font-body: 'Wanted Sans Variable', 'Pretendard', system-ui, sans-serif; }
-html[data-font='suit'] { --font-body: 'SUIT Variable', 'Pretendard', system-ui, sans-serif; }
 
 /* 접근성: "동작 줄이기" 설정 시 모든 애니메이션·전환 제거 (캐스케이드 우선순위를 위해 항상 최하단 유지) */
 @media (prefers-reduced-motion: reduce) {
