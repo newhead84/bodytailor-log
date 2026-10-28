@@ -245,7 +245,8 @@ export default function HomeTab({
           { v: Math.round(weekStats.volume), unit: 'kg', label: '총 볼륨', d: 0 },
         ].map((it, i) => (
           <div key={it.label} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: i ? 14 : 2, borderLeft: i ? '1px solid var(--color-line)' : 'none' }}>
-            <span className="bt-num" style={{ fontSize: `calc(${it.v >= 10000 ? 22 : 26}px * var(--num-scale))`, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+            {/* [2026-10-28] 320px 화면에서 52,000kg가 칸을 넘던 문제 → 화면 폭에 비례해 상한(min)까지만 */}
+            <span className="bt-num" style={{ fontSize: `calc(min(${it.v >= 10000 ? 22 : 26}px, ${it.v >= 10000 ? 5 : 6.6}vw) * var(--num-scale))`, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
               <CountUp value={it.v} decimals={it.d} />
               <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{it.unit}</span>
             </span>

@@ -1447,8 +1447,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       )}
 
       {/* 휴게시간 옵션 */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>휴식</span>
+      {/* [2026-10-28] 320px 등 좁은 화면에서 마지막 칩이 잘리지 않게 넘치면 다음 줄로 */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', flexShrink: 0 }}>휴식</span>
         {REST_OPTIONS.map((opt) => (
           <Chip key={opt.value} active={restSeconds === opt.value} onClick={() => setRestSeconds(opt.value)}>
             {opt.label}
@@ -2046,14 +2047,15 @@ export function ExerciseCard({
             </span>
           )}
           {isStrength && (bestE1rm > 0 || suggestion?.kind === 'increase') && (
-            <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', display: 'flex', gap: 6 }}>
+            // [2026-10-28] 좁은 화면에서 "추정 1RM / 80kg"처럼 단위 중간이 끊기지 않게 항목 단위로 줄바꿈
+            <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', display: 'flex', flexWrap: 'wrap', columnGap: 6, rowGap: 1 }}>
               {bestE1rm > 0 && (
-                <span>
+                <span style={{ whiteSpace: 'nowrap' }}>
                   추정 1RM <span className="bt-num">{fmtKg(bestE1rm)}</span>kg
                 </span>
               )}
               {suggestion?.kind === 'increase' && !isDone && (
-                <span style={{ color: 'var(--color-primary-normal)', fontWeight: 700 }}>▲ 증량 추천</span>
+                <span style={{ color: 'var(--color-primary-normal)', fontWeight: 700, whiteSpace: 'nowrap' }}>▲ 증량 추천</span>
               )}
             </span>
           )}
@@ -2346,9 +2348,9 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
     return (
       <div style={{ marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <Stepper value={set.steps} onChange={(v) => onFieldChange('steps', v)} step={1} placeholder="스텝수" width={52} />
-          <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={1} placeholder="레벨" width={54} />
-          <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" width={48} />
+          <Stepper value={set.steps} onChange={(v) => onFieldChange('steps', v)} step={1} placeholder="스텝수" fluid />
+          <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={1} placeholder="레벨" fluid />
+          <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" fluid />
         </div>
         {buttons}
       </div>
@@ -2359,9 +2361,9 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
     return (
       <div style={{ marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <Stepper value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} placeholder="경사%" width={52} />
-          <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} placeholder="km/h" width={54} />
-          <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" width={48} />
+          <Stepper value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} placeholder="경사%" fluid />
+          <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} placeholder="km/h" fluid />
+          <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" fluid />
         </div>
         {buttons}
       </div>
@@ -2375,23 +2377,26 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
   return (
     <div
       className="bt-row-in"
-      style={{ position: 'relative', display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 5, marginBottom: 8, opacity: set.auto && !done ? 0.85 : 1 }}
+      // [2026-10-28] 숫자 칸은 최소 폭(무게 44·횟수 24px)을 지키고, 그래도 한 줄에 안 들어가는 좁은 화면이면
+      // RIR·저장·삭제 묶음이 다음 줄 오른쪽으로 내려간다(겹치거나 숫자가 잘리는 대신).
+      style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 6, marginBottom: 8, opacity: set.auto && !done ? 0.85 : 1 }}
     >
       {/* [2026-10-27 모션] 방금 저장한 세트만 잠깐 초록 하이라이트(카드를 다시 펼칠 때는 재생하지 않음) */}
       {justSaved && <span key={set.savedAt} aria-hidden="true" className="bt-saved-flash" style={{ position: 'absolute', inset: '-3px -4px', pointerEvents: 'none' }} />}
       <SetTypeBadge type={set.type} index={setIndex} onClick={onCycleType} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 }}>
+      {/* [2026-10-28] RIR 겹침 수정: 스테퍼 묶음이 남은 폭을 차지하고(flex 1) 스테퍼도 함께 줄어든다(최소 폭까지만). 무게 칸이 조금 더 넓게(grow 1.4) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3, flex: '1 1 0' }}>
         {inputType === 'reps' ? (
-          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={48} />
+          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" fluid minInput={28} />
         ) : (
           <>
-            <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder="kg" width={58} />
+            <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder="kg" fluid grow={1.4} minInput={44} />
             <span style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }}>×</span>
-            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" width={34} />
+            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" fluid minInput={24} />
           </>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 'auto', flexShrink: 0 }}>
         <RirChip rir={set.rir} onClick={onCycleRir} />
         <IconButton title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-check-pop' : ''}>
           <path d="M5 12l5 5L19 7" />
@@ -2443,13 +2448,15 @@ function IconButton({ children, onClick, title, muted, disabled, tone, className
 }
 
 // 회수 입력은 두 자리를 넘는 경우가 거의 없어 폭을 좁게(width) 지정할 수 있게 한다.
-function Stepper({ value, onChange, step, placeholder, width = 52 }) {
+// [2026-10-28] fluid: 고정 폭 대신 남은 폭에 맞춰 줄어드는 모드(세트 행). 고정 폭이면 좁은 화면·넓은 숫자 서체(Outfit)에서
+// 스테퍼가 줄어들지 못해 옆의 RIR 칩 밑으로 파고드는 겹침이 생겼다. width는 fluid일 때 flex-basis로 쓴다.
+function Stepper({ value, onChange, step, placeholder, width = 52, fluid = false, grow = 1, minInput = 24 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', ...(fluid ? { flex: `${grow} 1 0`, minWidth: 0 } : { flexShrink: 0 }) }}>
       <button
         onClick={() => onChange(String(Math.max(0, Math.round(((Number(value) || 0) - step) * 100) / 100)))}
         aria-label="줄이기"
-        style={{ padding: '8px 5px', fontSize: 16, color: 'var(--color-label-normal)' }}
+        style={{ padding: fluid ? '8px clamp(2px, calc(1.4vw - 2px), 5px)' : '8px 5px', fontSize: 16, color: 'var(--color-label-normal)' }}
       >
         −
       </button>
@@ -2460,12 +2467,12 @@ function Stepper({ value, onChange, step, placeholder, width = 52 }) {
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="record-notation"
-        style={{ width, boxSizing: 'border-box', padding: '0 2px', textAlign: 'center', border: 'none', background: 'transparent', color: 'var(--color-label-strong)', fontSize: 'calc(15px * var(--num-scale))', fontWeight: 700 }}
+        style={{ ...(fluid ? { flex: '1 1 0', width: 0, minWidth: minInput } : { width }), boxSizing: 'border-box', padding: '0 2px', textAlign: 'center', border: 'none', background: 'transparent', color: 'var(--color-label-strong)', fontSize: 'calc(15px * var(--num-scale))', fontWeight: 700 }}
       />
       <button
         onClick={() => onChange(String(Math.round(((Number(value) || 0) + step) * 100) / 100))}
         aria-label="늘리기"
-        style={{ padding: '8px 5px', fontSize: 16, color: 'var(--color-label-normal)' }}
+        style={{ padding: fluid ? '8px clamp(2px, calc(1.4vw - 2px), 5px)' : '8px 5px', fontSize: 16, color: 'var(--color-label-normal)' }}
       >
         +
       </button>

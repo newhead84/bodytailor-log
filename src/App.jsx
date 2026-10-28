@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-28] 디자인 스타일 C 택타일 웜 고정(A/B 삭제), 강조색 탠저린·민트·폰트 원티드 산스·SUIT 삭제.
- *            직전: 포커스형 기록 세트 삭제 추가. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-28] 세트 행 RIR 겹침 등 좁은 화면 겹침·넘침 수정(WorkoutInput.jsx Stepper/SetRow, HomeTab.jsx).
+ *            직전: 디자인 스타일 C 고정, 강조색·폰트 3종으로 축소. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 

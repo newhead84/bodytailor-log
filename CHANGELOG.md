@@ -2,6 +2,13 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-28] 세트 행 RIR 겹침 등 좁은 화면 겹침·넘침 수정 | WorkoutInput.jsx(Stepper, SetRow, ExerciseCard 머리줄, 휴식 칩 줄), HomeTab.jsx(주간 요약 숫자)
+- 원인: 세트 행의 무게·횟수 스테퍼가 고정 폭(flexShrink 0)이라 공간이 모자라도 줄지 않고 RIR 칩 밑으로 파고듦(Outfit 숫자 서체가 넓어 411px 폰에서도 발생).
+- Stepper fluid 모드: 남은 폭에 맞춰 줄고(무게 1.4 : 횟수 1), 숫자 칸 최소 폭(무게 44·횟수 24px) 보장, ± 버튼 좌우 여백을 화면 폭 비례(2~5px)로. 유산소 행 스테퍼도 같은 방식.
+- 그래도 한 줄에 안 들어가는 좁은 화면(약 350px 미만)은 RIR·저장·삭제 묶음이 다음 줄 오른쪽으로 내려감. 360px 이상은 한 줄 유지(목업 측정).
+- 종목 카드 머리줄 "추정 1RM 80kg"·"증량 추천"을 항목 단위로 줄바꿈, 휴식 칩 줄 넘치면 줄바꿈, HOME 주간 요약 큰 숫자 화면 폭 비례 상한.
+- 검증: 목업 Firebase로 앱을 띄워 320·340·360·375·393·412px × 기본/넓은 숫자 서체에서 겹침·넘침 자동 검사 + 화면 캡처 확인(HOME·HOWTO·NOTE 리스트/포커스·유산소·REPORT·MY·미리보기).
+
 [2026-10-28] 디자인 확정 — 스타일 C 택타일 웜 고정, 강조색·폰트 3종으로 축소 | designStyles.css, fonts.js, App.jsx, MyPageTab.jsx, DesignPreviewScreen.jsx, ui.jsx(주석), index.html, CLAUDE.md
 - 스타일 A 에디토리얼·B 인스트루먼트 토큰 삭제, C를 :root 기본으로. App.jsx·applyDesignAttrs가 data-style을 항상 'c'로 세팅(저장된 stylePreference 무시). MY·미리보기의 스타일 선택 칩 제거.
 - 숫자 서체 Barlow Condensed·IBM Plex Mono 로드 중단(index.html, Outfit만).
