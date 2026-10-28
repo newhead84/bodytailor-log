@@ -26,7 +26,9 @@
 - **전달 방식**: 수정 파일을 연결된 로컬 폴더에 저장소 상대 경로 그대로 **덮어쓰기(overlay)** 한다(폴더 삭제 금지). 폴더 연결이 안 된 경우에만 `bodytailor-log-patch-YYYYMMDD.zip`(node_modules·dist·.git 제외)으로 전달.
 - 변경 파일 목록과 파일별 변경 요약을 대화창에 함께 안내한다.
 - **커밋/푸시 기준**:
-  - 사용자가 요청하면 Claude가 연결된 로컬 폴더에서 직접 `git add`/`commit`/`push`한다(작성자 MOON, 여러 `-m`). 인증은 `.git/push-auth`(fine-grained 토큰, Contents 쓰기) + `credential.helper store --file=.git/push-auth`. 토큰 값은 출력·로그에 절대 노출하지 않는다.
+  - 수정 완료 후 Claude가 연결된 로컬 폴더에서 직접 `git add`/`commit`까지 한다(작성자 MOON, 여러 `-m`). **푸시는 바로 하지 않는다.**
+  - 푸시할 때마다 Vercel 배포가 1회 생기므로(배포 한도) 커밋을 모아 두었다가 사용자가 "푸시해"라고 할 때만 `git push`한다. 작업 끝에 아직 푸시 안 된 커밋 수를 알려준다.
+  - 인증은 `.git/push-auth`(fine-grained 토큰, Contents 쓰기) + `credential.helper store --file=.git/push-auth`. 토큰 값은 출력·로그에 절대 노출하지 않는다.
   - 폴더 연결이 끊겼거나 푸시가 실패하면 기존처럼 PowerShell 블록(`cd` 줄 없음, 여러 `-m`, heredoc 금지)으로 안내한다.
   - git이 잠금 파일을 지워야 하므로 세션마다 폴더 삭제 권한 승인이 필요할 수 있다.
 - push 거부 시 `git pull --rebase` 후 재푸시. `--force`는 최후의 수단.
