@@ -2,6 +2,9 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-28] 포커스형 기록 세트 삭제 추가 | SetEditors.jsx(FocusSetPanel), WorkoutInput.jsx(ExerciseCard)
+- 포커스형에서 추가한 세트를 지울 방법이 없던 문제: 선택 세트 줄 오른쪽에 "세트 삭제" 버튼(세트 2개 이상일 때만, 리스트형과 동일). 모든 세트 저장 후에도 칩을 골라 삭제 가능. 삭제 후 선택 해제.
+
 [2026-10-28] 전 화면 리디자인 2단계 — 강조색 팔레트 5종 + HOME/REPORT/MY/등급/HOWTO/로그인/온보딩/스플래시 | designStyles.css, tokens.css, ui.jsx, utils/fonts.js, App.jsx, index.html, DesignPreviewScreen.jsx, MyPageTab.jsx, HomeTab.jsx, InsightCards.jsx, ReportTab.jsx, TierInfoScreen.jsx, HowToTab.jsx, ExerciseGuideToggle.jsx, LoginScreen.jsx, Onboarding.jsx, SplashScreen.jsx, utils/setEncouragements.js
 - 강조색 팔레트 5종(브라스=기본·볼트 라임·코발트·탠저린·민트): html[data-accent][data-theme] 토큰, users/{uid}.accentPreference(필드 추가, 미지정=브라스).
   테마는 바탕·글자, 팔레트는 강조색만 담당. 채움 버튼·선택 칩은 모든 테마에서 강조색 채움. 글자 강조색은 스타일 3×테마 3 모든 표면에서 4.5:1 이상(생성 스크립트 검사),

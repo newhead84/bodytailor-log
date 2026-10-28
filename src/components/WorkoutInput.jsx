@@ -2231,6 +2231,10 @@ export function ExerciseCard({
               }}
               onCycleType={ext.onCycleType}
               onAddSet={() => onCopySet(sets.length - 1)}
+              onRemoveSet={(i) => {
+                setFocusIdx(null)
+                onRemoveSet(i)
+              }}
               workingIndexOf={workingIndexOf}
             />
           ) : (

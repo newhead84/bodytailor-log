@@ -146,17 +146,29 @@ function BigValue({ caption, value, onChange, children }) {
 }
 
 // 포커스형: sets(중량형)·reps(횟수형) 종목에서 "지금 할 세트" 하나를 크게 보여준다.
-export function FocusSetPanel({ sets, inputType, weightStep, onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, workingIndexOf }) {
+export function FocusSetPanel({ sets, inputType, weightStep, onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, onRemoveSet, workingIndexOf }) {
   const idx = focusIdx != null && sets[focusIdx] ? focusIdx : Math.max(0, sets.findIndex((s) => !s.saved))
   const cur = sets[idx] || {}
   const isReps = inputType === 'reps'
   const step = (v, d, min = 0) => String(Math.max(min, Math.round(((Number(v) || 0) + d) * 100) / 100))
   const allSaved = sets.length > 0 && sets.every((s) => s.saved)
+  // [2026-10-28] 포커스형 세트 삭제: 세트가 2개 이상일 때만 노출(리스트형과 동일). 모두 저장한 뒤에도 칩을 골라 삭제 가능
+  const picked = allSaved && focusIdx != null && !!sets[focusIdx]
+  const canRemove = !!onRemoveSet && sets.length > 1
+  const removeBtn = canRemove && (
+    <button
+      type="button"
+      onClick={() => onRemoveSet(idx)}
+      style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-label-neutral)', padding: '6px 0' }}
+    >
+      세트 삭제
+    </button>
+  )
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
         {sets.map((s, i) => {
-          const active = i === idx && !allSaved
+          const active = i === idx && (!allSaved || picked)
           const t = s.type || 'working'
           return (
             <button
@@ -196,9 +208,19 @@ export function FocusSetPanel({ sets, inputType, weightStep, onField, onSave, on
       </div>
 
       {allSaved ? (
-        <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)', textAlign: 'center' }}>
-          모든 세트를 기록했어요. 더 하려면 + 로 세트를 추가하세요.
-        </p>
+        <>
+          <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)', textAlign: 'center' }}>
+            모든 세트를 기록했어요. 더 하려면 + 로 세트를 추가하세요.
+          </p>
+          {picked && canRemove && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+                {(cur.type || 'working') === 'working' ? `${workingIndexOf(idx)}세트` : SET_TYPE_LABEL[cur.type]} 선택됨
+              </span>
+              {removeBtn}
+            </div>
+          )}
+        </>
       ) : (
         // [2026-10-27 모션] 다음 세트로 넘어갈 때 입력 영역이 살짝 떠오르며 바뀜
         <div key={idx} className="bt-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -211,6 +233,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, onField, onSave, on
               {(cur.type || 'working') === 'working' ? `${workingIndexOf(idx)}세트` : SET_TYPE_LABEL[cur.type]}
               <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)' }}> · 종류 변경</span>
             </button>
+            {removeBtn}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             {!isReps && (

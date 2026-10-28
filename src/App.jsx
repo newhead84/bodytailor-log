@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-28] 전 화면 리디자인(강조색 팔레트 5종·무채색 보조 버튼·선택=강조색 채움·설명 접기·이모지 제거,
- *            HOME/REPORT/MY/등급/HOWTO/로그인/온보딩/스플래시). 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-28] 포커스형 기록 세트 삭제 추가(SetEditors.jsx FocusSetPanel, WorkoutInput.jsx).
+ *            직전: 전 화면 리디자인(강조색 팔레트 5종 등). 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
