@@ -2,14 +2,16 @@
 
 > 이 파일은 저장소 루트에 두고 Claude가 작업 시작 시 항상 먼저 읽는 작업 지침이다.
 > claude.ai 프로젝트 지침과 내용이 다르면 **이 파일이 최신 기준**이다. 규칙이 바뀌면 이 파일을 갱신하고 커밋한다.
-> 최종 갱신: 2026-10-28 (Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
+> 최종 갱신: 2026-10-28 (옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
 
 ---
 
 ## 0. 역할
 - 개인 프로덕트 오너 + 코딩 전문가 + 헬스(근거 기반 트레이닝) 전문가 관점으로 BodyTailor Log의 유지보수·고도화를 돕는다.
 - 배포: https://bodytailor-log.vercel.app/ (Vercel) · 저장소: github.com/newhead84/bodytailor-log
-- 로컬 경로(Windows): `C:\Users\KSA\Downloads\bodytailor-log` · 터미널: PowerShell
+- 로컬 경로(Windows): `C:\Users\KSA\Downloads\bodytailor-log` · 터미널: PowerShell · Git 계정 newhead84
+- 스택: Vite + React + Firebase(Auth·Firestore) PWA. lucide-react(아이콘), framer-motion(Reorder 드래그), recharts(리포트, `React.lazy`).
+- 주요 위치: `src/App.jsx`(앱 셸·라우팅) / `src/components/*`(탭·화면, 기록은 `WorkoutInput.jsx`·`SetEditors.jsx`) / `src/storage.js`(Firestore 래퍼) / `src/firebase.js`(연결) / `src/utils/*`(계산: scoring·tier·season·strength·exerciseLibrary·date) / `src/styles/designStyles.css`(토큰) / `api/holidays.js`(Vercel 서버리스, 공휴일 프록시) / `firestore.rules`. 데이터 구조 변경이면 storage.js·rules, 인증 이슈면 firebase.js까지 확인.
 
 ## 1. 작업 원칙
 1. **착수 전 이해 확인(필수)**: 새 요청은 코드 수정 전에 ①무엇을 바꾸는지 ②영향 화면/파일 ③모호한 부분의 해석(가정)을 요약해 제시하고, 명시적 확인 후 착수한다.
@@ -18,9 +20,11 @@
    - 예외: 오탈자처럼 해석 여지가 없는 극히 단순한 수정은 바로 진행.
 2. **여러 방향으로 해석되는 UI/UX 요청**은 선택형 질문 1개로 방향을 먼저 확정한다. 방향을 바꿀 때는 이전 구현을 완전히 되돌린 뒤 재작업.
 3. **소스 확인**: 연결된 로컬 폴더(또는 `git clone https://github.com/newhead84/bodytailor-log.git`)에서 grep/view로 실제 위치를 먼저 확인한다. GitHub URL web_fetch로 소스를 보지 않는다.
-4. **최소 범위 수정**: 요청과 무관한 코드는 건드리지 않는다. 편집본 vs 원본(pristine) 2-클론 diff로 "의도한 줄만" 바뀌었는지 확인한다.
+4. **최소 범위 수정**: 요청과 무관한 코드는 건드리지 않는다. 편집본 vs 원본(pristine) 2-클론 diff(로컬 폴더 연결 시 `git diff`)로 "의도한 줄만" 바뀌었는지 확인한다.
 5. **.env 값·개인 운동/신체 데이터**를 로그·출력에 노출하지 않는다.
-6. **스펙과 어긋나는 요청**(역할 체계·데이터 모델·Phase 구분)은 임의로 바꾸지 않고 먼저 확인한다. Phase1 범위를 벗어나면 우선순위를 확인한다.
+6. **스펙과 어긋나는 요청**(역할 체계·데이터 모델·Phase 구분)은 임의로 바꾸지 않고 먼저 확인한다. Phase1 범위를 벗어나면 우선순위를 확인한다. 새 기능은 먼저 Phase(7.7)를 판단한다.
+7. **작업 중 추가 요청/정정**은 그 부분만 다시 요약→확인하고, 이미 확인받아 진행 중인 부분은 되돌리지 않는다.
+8. **지침 갱신**: 설계 스펙·디자인 기준의 새 버전 문서가 생기면 다음 작업 전에 이 파일을 먼저 갱신한다. 삭제·변경된 사안은 다른 섹션(보안·로드맵 등)에 남은 언급까지 찾아 지운다. 옛 문서는 참고용으로만 두고 인용하지 않는다.
 
 ## 2. 결과물 전달 · Git
 - **전달 방식**: 수정 파일을 연결된 로컬 폴더에 저장소 상대 경로 그대로 **덮어쓰기(overlay)** 한다(폴더 삭제 금지). 폴더 연결이 안 된 경우에만 `bodytailor-log-patch-YYYYMMDD.zip`(node_modules·dist·.git 제외)으로 전달.
@@ -52,9 +56,11 @@
 - `firestore.rules`: 본인 uid만 읽기/쓰기. `users`의 `role/roleRequestStatus/tier/lifetimeBadges/trainerProfile`은 클라이언트 수정 불가, XP는 1회 증가 0~200(시즌 전환 시 리셋 허용), `leaderboard`는 필드 화이트리스트+점수 0~200, `exercisePopularity`는 counts 맵만, `activeSessions/{uid}`는 본인만.
 - 규칙 파일을 바꾸면 **코드 배포 후 Firebase 콘솔에서 규칙 게시**가 필요함을 안내한다(로컬 에뮬레이터 없음).
 - `.env`는 .gitignore 포함·이력 노출 여부 확인. 실질 보안은 Rules + 승인된 도메인(Authorized domains).
+- Google 로그인: Firebase Authentication → 승인된 도메인에 배포 주소가 등록돼 있는지 확인.
+- 배포 순서가 중요한 작업(예: 인증 방식 변경 → 배포·검증 → 규칙 강화)은 단계 순서를 먼저 확인받고 진행.
 - 외부 API 키(공휴일 `HOLIDAY_API_KEY`)는 Vercel 환경변수로만, 키 없어도 앱이 정상 동작해야 한다.
 - 랭킹 점수는 무료 플랜 유지 결정으로 클라이언트 계산 + 규칙 검증(Cloud Functions 미도입).
-- AI 어드바이스/AI 모델 연동은 2026-07-27 전면 삭제. 재요청은 신규 기능으로 별도 설계.
+- AI 어드바이스/AI 모델 연동은 2026-07-27 전면 삭제(`connectedAiModels`·`aiAdvice` 없음). 재요청은 신규 기능으로 별도 설계. Phase2 식단의 사진 분석 AI도 옛 GPT/Gemini/Claude 선택 구조를 가정하지 말고 재설계.
 
 ## 5. 디자인 기준 (v10)
 - **스타일 A/B/C × 테마 다크/베이지/라이트**(9종) — `src/styles/designStyles.css`, `html[data-style][data-theme]`. MY탭 "디자인"에서 전환. 사용자가 실사용 비교 후 하나로 확정 예정 → 확정되면 나머지 토큰 제거 + 이 항목 갱신.
@@ -78,14 +84,21 @@
 
 ### 7.1 컨셉 · 권한
 - 개인 운동 기록 + 점진적 과부하 추적 + 랭킹/티어 동기부여(+ Phase2 트레이너 연동).
-- 권한 4단계(관리자/일반회원/VIP(PT회원)/트레이너) — v9와 동일. 트레이너 연동·관리자 승인·식단은 Phase2(미착수).
+- 권한 4단계(관리자 승인 체계): 관리자(등급 승인·시스템 관리) / 일반회원(가입 기본, 신체정보 비공개, 랭킹 일반그룹) / VIP·PT회원(관리자 승인, 신체정보 트레이너 공유, 트레이너 1:1, 랭킹 PT그룹) / 트레이너(관리자 승인, 회원 관리·피드백·프로그램, 랭킹 미참여). 승격: 직접 신청→승인, 또는 관리자가 명단(엑셀 표준양식) 대조 후 부여.
+- 트레이너-회원 연동(Phase2): 트레이너 프로필 → VIP 탐색·요청 → 승인/거절. 활성 트레이너 1명, 변경 이력 유지, 변경 시 프로그램 유지·권한 승계, 해제는 양쪽 가능·기록 유지.
 
 ### 7.2 화면(IA)
 - 하단 5탭: HOME / HOWTO / NOTE(기록, 입력 전용) / REPORT(랭킹+통계) / MY. 캘린더는 HOME.
+- 흐름: 온보딩(성별→나이→몸무게→키→운동 목표 복수선택: 근력강화·골밀도증진/체지방감소/기초체력증진, 레벨 질문 없음) → 루틴 설정 → 메인 탭. MY 프로필 수정도 같은 항목.
 - MY "등급" 카드 → TierInfoScreen. MY "디자인"(스타일·테마·기록 방식), "데이터"(CSV 내보내기).
+- HOME 캘린더: 셀 높이 내용에 따라 자동 확장, 부위색 바 + 웜업/본운동 시간·kcal·총볼륨, 배지 글자 수에 따라 크기 조절(ellipsis 금지), 월 이동 화살표·스와이프. 일요일·공휴일=danger, 토요일=info(공휴일은 `api/holidays.js`가 data.go.kr 프록시).
 
 ### 7.3 기록(NOTE) 핵심 동작
 - 루틴(내 루틴 템플릿, 최대 5개) / 자유 추가 운동(0.7배 가중치). 분할 템플릿 신규 생성 시 부위별 기본 1~4종목으로 시작.
+  - 분할 5종(무분할/2/3/4/5분할). 내 루틴 운동은 flat 리스트 순서대로, 임시 숨김·영구 삭제·드래그 재정렬(좌측 핸들만).
+  - 자유 추가는 라이브러리 선택만(자유 텍스트 입력 없음, 코어·유산소 포함). 라이브러리는 원자 부위(가슴/등/어깨/이두/삼두/하체/코어/유산소), 복합 부위는 `getExercisesForPart()`로 해석.
+  - 사이클 완료 기준 = 모든 파트 최소 1회, 주간 실제 수행 횟수 추적.
+- "편하게 기록" 원칙: 최근/자주 쓰는 운동 우선, 직전 기록 프리필, 세트 복사, 스테퍼 입력, 최소 탭.
 - 웜업(경과 타이머) → 본운동, 일시정지/재개, 상단 공통 타이머 바.
 - 기록 방식: 리스트형(세트 표) / 포커스형(한 세트씩 큰 입력).
 - 세트: 종류(본세트/웜업 W/드롭 D/실패 F — 번호 칩 탭), RIR(선택), 세트 저장(V) → 휴식 자동 시작(1분/1분30초/2분/3분, 종목별 휴식 설정 우선).
@@ -94,14 +107,34 @@
 - 자동 프리필 행(auto)은 체크(V)·수정하지 않으면 기록에서 제외. 완료 시 포함 여부 확인.
 - **미완료 세션 보호**: 진행 세션을 localStorage + `activeSessions/{uid}`에 백업. 마지막 세트 후 3시간 방치 시 자동 저장(시작 날짜 기준, 일시정지 제외 시간) → 홈 배너(확인/되돌리기). 기록 ID는 `session-{시작ms}`로 고정(중복 방지).
 - 웜업 세트는 볼륨·XP·과부하·근육별 세트·PR에서 제외.
+- 휴식 종료 알림(최초 사용 시 권한 요청) + 알림음 선택(`restSoundId`). 소셜 알림 옵트인은 전체 on/off만(Phase2).
+- PWA: 서비스워커(패스스루) + 설치 유도 배너.
 
 ### 7.4 리포트 · 홈 인사이트
 - 근육별 주간 세트(직접 1·보조 0.5, 주 10–20 권장 밴드), 최근 PR, 정체 종목(최근 3회 e1RM 정체)·디로드 제안(6주 연속 고강도), 유산소 주간 분/150분, 골밀도 목표 체크(목표 선택자), 종목 추이는 추정 1RM.
 - 랭킹 점수: 출석 40%·볼륨 30%·과부하 30% + 연속 출석 보너스(4주마다 +5, 최대 +20). 운동 완료 시 자동 갱신.
-- 시즌 XP: 분기마다 초기화(`seasonKey`), 누적 XP(`lifetimeXp`) 유지. 티어는 시즌 XP 기준.
+- 시즌 XP: 분기마다 초기화(`seasonKey`), 누적 XP(`lifetimeXp`) 유지. 티어는 시즌 XP 기준(세션당 기본 50XP, 자유운동 0.7배, 볼륨·시간 보너스). 티어 키 iron/bronze/silver/gold/platinum/diamond/legend.
+- 랭킹 그룹: Phase1은 전체(`all`)만, PT그룹/일반그룹 분리·프로그램 준수율 보너스는 Phase2. 화면 이름은 REPORT지만 `leaderboard` 컬렉션 구조 유지.
 
-### 7.5 데이터 모델 추가분 (v10, 모두 필드 추가 — 기존 데이터 호환)
+### 7.5 데이터 모델 (v9 기본 + v10 추가분, 추가분은 모두 필드 추가 — 기존 데이터 호환)
 ```
+// v9 기본
+users/{uid}
+  role, roleRequestStatus, nickname, profile: { name, phone, gymMemberNo }
+  onboarding: { gender, age, weightKg, heightCm, goals: [] }      // level 없음
+  physicalInfoSharedWithTrainer, restTimerNotificationPermission, restSoundId, socialNotificationOptIn
+  seasonXp, lifetimeXp, lifetimeBadges: [], tier, trainerProfile: { bio, specialty }
+routineTemplates/{uid}/templates/{id}
+  splitType, splitParts: [{ name, exercises }], favoriteExercises: [{ exerciseId, part, order }]
+  cycleCount, lastCycleCompletedAt, weeklyFrequencyLog: [{ weekStart, completedDays }]
+workoutLogs/{uid}/logs/{logId}
+  date, exercises, totalVolume, linkedProgramId, routineTemplateId, cycleIndex
+  sessionType: 'cycle'|'extra', scoreWeight: 1.0|0.7
+leaderboard/{group}/{period}/{uid}
+  baseScore, attendanceScore, volumeScore, overloadScore, streakBonus, programComplianceBonus, finalScore, nickname
+// Phase2(미착수): gymRoster, roleRequests, connections, programs, feedback, messages, diet(aiProvider는 재검토)
+
+// v10 추가분
 users/{uid}
   stylePreference: 'a'|'b'|'c'      logMode: 'list'|'focus'      themePreference: 'dark'|'beige'|'light'
   fontPreference: 'pretendard'|'paperlogy'|'nanumsquareneo'|'wanted'|'suit'      accentPreference: 'brass'|'lime'|'cobalt'|'tangerine'|'mint'
@@ -120,6 +153,11 @@ activeSessions/{uid}: { draft: JSON 문자열, updatedAt }
 - `WorkoutInput.jsx` 파일 분리(리팩터링)
 - 사이클 완료 판정 ↔ 기록 연결, 캘린더 과거 기록 편집 피커의 커스텀 운동 연결
 - 전 탭 리디자인(2단계) 완료 2026-10-28. 스타일 A/B/C·팔레트·폰트는 사용자가 실사용 후 확정하거나 앱에서 골라 쓰게 유지할지 결정 예정 → 등급 리뉴얼(3단계: Lv 숫자 + 단계명, 데이터 키 iron~legend 유지·표시명만 변경, 운동 완료 요약 카드·승급 연출·이름 붙은 성취 카드)
+
+### 7.7 로드맵
+- Phase1(MVP, 구현 완료·지속 개선): 온보딩 / 분할 루틴 / 기록 입력 / 캘린더 / 리포트(랭킹+통계+티어·시즌 XP) / MY / PWA.
+- Phase2(미착수): 관리자 등급 승인(명단 엑셀 업로드) / 트레이너-회원 연동·트레이너 기능 / 랭킹 그룹 세분화+준수율 보너스 / 식단(AI 연동 재설계).
+- Phase3(후보): 기존 운동기록 일괄 업로드 / 알림 세분화.
 
 ## 8. 알려진 이슈 / 환경 특이사항
 - 공공데이터포털 API는 서비스키 필수.
