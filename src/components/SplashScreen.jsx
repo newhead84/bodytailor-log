@@ -36,7 +36,10 @@ export default function SplashScreen() {
       />
       <div style={{ textAlign: 'center' }}>
         <div style={{ color: '#2A2118', fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>BodyTailor Log</div>
-        <div style={{ color: 'rgba(42,33,24,0.65)', fontSize: 13, marginTop: 4 }}>불러오는 중…</div>
+        {/* [2026-10-28 리디자인] "불러오는 중…" 문구 → 얇은 진행 막대 */}
+        <div aria-label="불러오는 중" role="progressbar" style={{ width: 96, height: 2, margin: '14px auto 0', borderRadius: 2, background: 'rgba(42,33,24,0.12)', overflow: 'hidden' }}>
+          <div style={{ width: '40%', height: '100%', borderRadius: 2, background: '#2A2118', animation: 'bt-splash-bar 1.1s ease-in-out infinite' }} />
+        </div>
       </div>
     </div>
   )

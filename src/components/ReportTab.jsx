@@ -13,7 +13,7 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
 } from 'recharts'
-import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState } from './ui'
+import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState, Disclosure } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom, getEffectiveSeasonXp } from '../storage'
 import { getTierByXp } from '../utils/tier'
 import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeOverloadByOccurrenceForDisplay, computeFinalScore, computeStreakBonus } from '../utils/scoring'
@@ -544,7 +544,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
             >
               ?
             </button>
-            <Button variant="secondary" onClick={handleRefreshMyScore} disabled={refreshing}>
+            <Button variant="secondary" style={{ padding: '8px 12px', fontSize: 13 }} onClick={handleRefreshMyScore} disabled={refreshing}>
               {refreshing ? '갱신 중…' : '점수 다시 계산'}
             </Button>
           </div>
@@ -579,11 +579,14 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  border: '2px solid var(--color-primary-normal)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ width: 24, textAlign: 'center', fontWeight: 800, color: 'var(--color-label-neutral)' }}>{myRank}</span>
+                {/* [2026-10-28 리디자인] 강조 테두리 대신 큰 순위 숫자로 위계 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span className="bt-num" style={{ fontSize: 'calc(30px * var(--num-scale))', lineHeight: 1, minWidth: 28 }}>
+                    {myRank}
+                    <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginLeft: 1 }}>위</span>
+                  </span>
                   {/* [2026-08-01] 닉네임+티어가 세로 2줄이던 걸 한 줄로 통합(티어 뱃지 오른쪽에 닉네임) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <TierBadge label={tier.label} tierKey={tier.key} size="sm" />
@@ -591,8 +594,9 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span className="record-notation" style={{ fontWeight: 800, fontSize: 16, display: 'block' }}>
+                  <span className="bt-num" style={{ fontSize: 'calc(20px * var(--num-scale))', display: 'block' }}>
                     <CountUp value={myEntry.finalScore} />
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 2 }}>점</span>
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--color-label-neutral)' }}>세부 보기 ›</span>
                 </div>
@@ -614,19 +618,18 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           <SectionTitle>이번 주 출석률</SectionTitle>
           <Card style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-primary-normal)' }}><CountUp value={attendanceRate} />%</span>
+              <span className="bt-num" style={{ fontSize: 'calc(30px * var(--num-scale))' }}><CountUp value={attendanceRate} />%</span>
               <span className="record-notation" style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
                 {weeklyAttendanceDays.thisWeek} / 7일
               </span>
             </div>
-            <p className="text-keep-all" style={{ fontSize: 11, color: 'var(--color-label-neutral)', margin: '4px 0 0' }}>
-              이번 주 7일 중 운동을 완료한 날짜 수 기준이에요 (루틴 분할과 무관)
-            </p>
+
             {/* [2026-08-02 신규] "이번 주"의 실제 날짜 범위(⑬)를 함께 표기해, 월말/월초처럼
                 주 경계가 헷갈리는 시점에도 어떤 기준으로 계산된 값인지 명확히 알 수 있게 한다. */}
             <p className="record-notation" style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--color-label-neutral)' }}>
               이번주 {weeklyAttendance.thisWeekLabel} · 지난주 {weeklyAttendance.lastWeekLabel} 대비 {weeklyAttendanceDays.lastWeek}일
             </p>
+            <Disclosure style={{ marginTop: 4 }}>이번 주 7일 중 운동을 완료한 날짜 수 기준이에요 (루틴 분할과 무관)</Disclosure>
           </Card>
 
           {/* [2026-10-27 리뉴얼 W2] 근거 기반 인사이트: 근육별 주간 세트·유산소·정체/디로드·PR·골밀도 */}
@@ -672,18 +675,18 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                   <Radar
                     name="활동 점수"
                     dataKey="활동점수"
-                    stroke="var(--color-primary-normal)"
-                    fill="var(--color-primary-normal)"
-                    fillOpacity={0.45}
+                    stroke="var(--color-fill-strong)"
+                    fill="var(--color-fill-strong)"
+                    fillOpacity={0.28}
                   />
                   <Tooltip {...CHART_TOOLTIP_STYLE} formatter={(value) => [`${value}%`, '상대 활동 점수']} />
                 </RadarChart>
               </ResponsiveContainer>
             )}
           </Card>
-          <p className="text-keep-all" style={{ margin: '-14px 0 20px', fontSize: 11, color: 'var(--color-label-neutral)' }}>
+          <Disclosure style={{ margin: '-12px 0 20px' }}>
             부위마다 단위가 달라(근력=볼륨, 유산소=kcal, 맨몸=체중볼륨) 가장 활발한 부위를 100으로 놓은 상대 점수예요. 실제 수치는 축 라벨 아래에 함께 표시돼요.
-          </p>
+          </Disclosure>
 
           {/* 점진적 과부하 진행상황 */}
           {/* [2026-08-04 변경] 종목명을 부위 구분 없이 나열하던 것을, 부위별로 묶어서 보여주고
@@ -707,7 +710,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
             ) : (
               <>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
-                  <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-primary-normal)' }}>{overloadProgress.score}%</span>
+                  <span className="bt-num" style={{ fontSize: 'calc(30px * var(--num-scale))' }}><CountUp value={overloadProgress.score} />%</span>
                   <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
                     직전 수행 대비 향상된 회차 비율(중량·볼륨/횟수/시간)
                   </span>
@@ -788,7 +791,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                       <span style={{ color: 'var(--color-label-neutral)', marginRight: 8 }}>{i + 1}</span>
                       {item.name}
                     </span>
-                    <span className="record-notation" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
+                    <span className="bt-num" style={{ fontSize: 14, color: 'var(--color-label-normal)' }}>
                       {item.count}회
                     </span>
                   </div>
@@ -836,7 +839,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                         </span>
                       )}
                     </span>
-                    <span className="record-notation" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
+                    <span className="bt-num" style={{ fontSize: 14, color: 'var(--color-label-normal)' }}>
                       {item.count}회
                     </span>
                   </div>

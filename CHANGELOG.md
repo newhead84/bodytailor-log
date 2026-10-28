@@ -2,6 +2,20 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-28] 전 화면 리디자인 2단계 — 강조색 팔레트 5종 + HOME/REPORT/MY/등급/HOWTO/로그인/온보딩/스플래시 | designStyles.css, tokens.css, ui.jsx, utils/fonts.js, App.jsx, index.html, DesignPreviewScreen.jsx, MyPageTab.jsx, HomeTab.jsx, InsightCards.jsx, ReportTab.jsx, TierInfoScreen.jsx, HowToTab.jsx, ExerciseGuideToggle.jsx, LoginScreen.jsx, Onboarding.jsx, SplashScreen.jsx, utils/setEncouragements.js
+- 강조색 팔레트 5종(브라스=기본·볼트 라임·코발트·탠저린·민트): html[data-accent][data-theme] 토큰, users/{uid}.accentPreference(필드 추가, 미지정=브라스).
+  테마는 바탕·글자, 팔레트는 강조색만 담당. 채움 버튼·선택 칩은 모든 테마에서 강조색 채움. 글자 강조색은 스타일 3×테마 3 모든 표면에서 4.5:1 이상(생성 스크립트 검사),
+  채움 위 글자도 4.5:1 이상. 미리보기 화면·MY 디자인에 색 견본 선택 추가. 로그인/온보딩은 브라스 고정.
+- 공용 부품(ui.jsx): 보조 버튼 = 골드 틴트 배경+골드 글자 → 무채색(헤어라인), 칩 선택 = 강조색 채움/미선택 = 투명+헤어라인, 등급 배지 배경 무채색,
+  설명 문단 접기용 Disclosure("기준 보기") 신규, 강조색 견본 AccentSwatches 신규.
+- HOME: 날짜 오버라인 + 큰 인사말, "오늘" 블록을 카드 대신 헤드라인(오늘 차례)+증량 추천 칩+버튼으로, 월 요약을 주간 요약과 같은 헤어라인 숫자 줄로.
+- REPORT: 내 랭킹 카드 강조 테두리 제거·큰 순위 숫자, 출석률·과부하 % 무채색 큰 숫자(카운트업), 레이더 강조색 채움, 설명문 모두 "기준 보기"로 접음, 횟수 숫자 무채색.
+- 인사이트 카드(홈·리포트 공용): 설명문 접기, 막대 6px, 유산소 막대 강조색.
+- MY: 프로필을 맨 위·등급을 그 아래로, XP 큰 숫자·얇은 강조색 막대, 버튼 크기 축소. 등급 화면: 순위 무채색 큰 숫자, 점수 막대 강조색.
+- HOWTO: 안내 카드 무채색+정보 아이콘, 종목 목록을 종목별 카드 → 한 목록+헤어라인 구분, 팁 이모지 → 전구 라인 아이콘(기록 중 가이드 패널 동일).
+- 로그인: 큰 헤드라인 중심 구성(상단 로고·하단 버튼). 온보딩: 선택지 = 강조색 채움, 진행 막대 강조색. 스플래시: "불러오는 중…" → 얇은 진행 막대. 세트 응원 문구 이모지 제거.
+- 변경 없음: 기록(NOTE) 화면 구조, 데이터·기능, 탭 숨김(visibility) 방식, 드래그 재정렬 설정, firestore.rules(users 필드 화이트리스트 없음 — accentPreference 쓰기 허용됨).
+
 [2026-10-28] 기록 화면 미리보기 + 본문 폰트 5종 비교, 큰 숫자 카운트업 확장, 운동 GIF 소스 삭제 → YouTube 영상 링크 | DesignPreviewScreen.jsx(신규), ExerciseVideoLink.jsx(신규), utils/fonts.js(신규), App.jsx, MyPageTab.jsx, WorkoutInput.jsx, HomeTab.jsx, HowToTab.jsx, ExerciseGuideToggle.jsx, ReportTab.jsx, TierInfoScreen.jsx, hooks/useCountUp.js, designStyles.css, tokens.css, exerciseLibrary.js(주석), ExerciseGuideImage.jsx·utils/exerciseImageApi.js·utils/exerciseImageMap.js(삭제)
 - 기록 화면 미리보기(MY → 디자인 → "기록 화면 미리보기"): 샘플 기록으로 실제 종목 카드(WorkoutInput ExerciseCard export)·상단 타이머 바·휴식 타이머·하단 완료 바를
   그대로 보여주고 스타일 A/B/C·테마·폰트·기록 방식을 즉시 전환. 닫으면 원래대로 복귀, "이 조합으로 적용" 때만 users/{uid}에 저장.

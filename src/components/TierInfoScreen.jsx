@@ -60,8 +60,10 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 14 }}>
-              <span className="record-notation" style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-primary-normal)' }}>
-                {myRank}위
+              {/* [2026-10-28 리디자인] 순위는 무채색 큰 숫자 */}
+              <span className="bt-num" style={{ fontSize: 'calc(32px * var(--num-scale))', lineHeight: 1 }}>
+                {myRank}
+                <span style={{ fontSize: 14, color: 'var(--color-label-neutral)', marginLeft: 2 }}>위</span>
               </span>
               <span className="record-notation" style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
                 최종점수 {myEntry.finalScore}점
@@ -77,12 +79,14 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
                   <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', width: 108, flexShrink: 0 }}>
                     {row.label}
                   </span>
-                  <div style={{ flex: 1, height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)', overflow: 'hidden' }}>
                     <div
+                      className="bt-bar"
                       style={{
                         width: `${Math.max(0, Math.min(100, row.value || 0))}%`,
                         height: '100%',
-                        background: 'var(--color-primary-normal)',
+                        borderRadius: 'var(--radius-pill)',
+                        background: 'var(--color-fill-strong)',
                       }}
                     />
                   </div>
@@ -125,7 +129,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
                   justifyContent: 'space-between',
                   padding: '8px 10px',
                   borderRadius: 'var(--radius-md)',
-                  background: isCurrent ? 'var(--color-primary-bg)' : 'transparent',
+                  background: isCurrent ? 'var(--color-bg-elevated)' : 'transparent',
                 }}
               >
                 <TierBadge label={t.label} tierKey={t.key} size="sm" />

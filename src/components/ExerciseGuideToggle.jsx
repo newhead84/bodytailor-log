@@ -31,6 +31,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Card } from './ui'
 import { getExerciseDescription, getExerciseAtom, getPartColor } from '../utils/exerciseLibrary'
 import ExerciseVideoLink from './ExerciseVideoLink'
+import { Lightbulb } from 'lucide-react'
 
 const LONG_PRESS_MS = 500
 
@@ -165,9 +166,11 @@ export function ExerciseGuidePanel({ name }) {
           {desc.tip && (
             <p
               className="text-keep-all"
-              style={{ margin: 0, fontSize: 11.5, lineHeight: 1.5, color: 'var(--color-primary-normal)' }}
+              style={{ margin: 0, fontSize: 11.5, lineHeight: 1.5, color: 'var(--color-label-normal)', display: 'flex', gap: 6 }}
             >
-              💡 {desc.tip}
+              {/* [2026-10-28 리디자인] 이모지 → 라인 아이콘 */}
+              <Lightbulb size={14} strokeWidth={1.8} style={{ color: 'var(--color-primary-normal)', flexShrink: 0, marginTop: 1 }} />
+              <span>{desc.tip}</span>
             </p>
           )}
         </div>

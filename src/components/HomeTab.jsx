@@ -57,6 +57,11 @@ export default function HomeTab({
   // [2026-07-29 신규] 앱 진입(마운트) 시마다 응원/습관/자기계발 문구 중 하나를 랜덤으로 뽑는다.
   // (직전 노출 문구와는 연달아 겹치지 않도록 utils/quotes.js에서 처리)
   const [quote] = useState(() => pickRandomQuote())
+  // [2026-10-28 리디자인] 상단 날짜 오버라인(로컬 기준) 예: 10월 28일 수요일
+  const [todayLabel] = useState(() => {
+    const d = new Date()
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일`
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -125,17 +130,18 @@ export default function HomeTab({
 
   return (
     <div style={{ padding: '20px 20px 100px' }}>
-      {/* [2026-07-29] 인사말을 "안녕하세요! OOO님!" / 랜덤 문구 2줄로 분리.
-          문구 줄은 색상 대비를 높이고, 문구 뱅크(quotes.js) 길이가 제각각이라도
-          항상 1줄을 넘지 않도록 nowrap + ellipsis로 안전하게 자른다. */}
-      <p className="text-keep-all" style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-label-strong)', margin: '0 0 2px' }}>
-        안녕하세요! {userDoc?.nickname || '회원'}님!
+      {/* [2026-10-28 리디자인] 날짜 오버라인 + 큰 인사말 + 문구(1줄). 카드 없이 타이포 위계로 구성 */}
+      <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.02em', color: 'var(--color-label-neutral)', margin: '0 0 6px' }}>
+        {todayLabel}
+      </p>
+      <p className="text-keep-all" style={{ fontSize: 22, lineHeight: 1.3, fontWeight: 'var(--heading-weight)', letterSpacing: 'var(--heading-tracking)', color: 'var(--color-label-strong)', margin: '0 0 4px' }}>
+        {userDoc?.nickname || '회원'}님, 안녕하세요
       </p>
       <p
         style={{
           fontSize: 13,
-          color: 'var(--color-label-normal)',
-          margin: '0 0 4px',
+          color: 'var(--color-label-neutral)',
+          margin: '0 0 20px',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -146,7 +152,7 @@ export default function HomeTab({
 
       {/* [2026-10-27 신규] "오늘 운동 완료"를 누르지 않고 방치된 세션을 자동 저장했을 때의 안내 */}
       {autoNotice && (
-        <Card className="bt-slide-down" style={{ marginBottom: 12, border: '1px solid var(--color-primary-normal)' }}>
+        <Card className="bt-slide-down" style={{ marginBottom: 16, border: '1px solid var(--color-line-strong)' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
             <ClipboardCheck size={20} strokeWidth={1.8} style={{ color: 'var(--color-primary-normal)', flexShrink: 0, marginTop: 1 }} />
             <div className="text-keep-all" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -173,29 +179,27 @@ export default function HomeTab({
         </Card>
       )}
 
-      <Card style={{ marginBottom: 20 }}>
-        <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--color-label-normal)' }}>
-          {recentLogs[0]
-            ? `최근 기록: ${recentLogs[0].date}${
-                summarizePartsOfLog(recentLogs[0]) ? ` · ${summarizePartsOfLog(recentLogs[0])}` : ''
-              }`
-            : '아직 기록이 없어요. 첫 세트를 시작해 볼까요?'}
+      {/* [2026-10-28 리디자인] "오늘" 블록 — 카드 대신 큰 헤드라인(오늘 차례) + 보조 정보 + 버튼 */}
+      <section style={{ marginBottom: 24 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', margin: '0 0 4px' }}>오늘</p>
+        <p className="text-keep-all" style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-label-strong)', margin: '0 0 4px' }}>
+          {doneToday ? '오늘 운동을 마쳤어요' : suggested ? `${suggested.template.title} · ${suggested.part.name} 차례` : recentLogs[0] ? '오늘 운동을 시작해 볼까요?' : '첫 세트를 시작해 볼까요?'}
         </p>
-        {suggested && !doneToday && (
-          <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-            오늘은 <b style={{ color: 'var(--color-primary-strong)' }}>{suggested.template.title} · {suggested.part.name}</b>{' '}
-            차례예요.
-          </p>
-        )}
+        <p className="text-keep-all" style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
+          {recentLogs[0]
+            ? `최근 기록 ${recentLogs[0].date}${summarizePartsOfLog(recentLogs[0]) ? ` · ${summarizePartsOfLog(recentLogs[0])}` : ''}`
+            : '아직 기록이 없어요.'}
+        </p>
         {suggested && !doneToday && increaseList.length > 0 && (
-          <p className="text-keep-all" style={{ margin: '-4px 0 12px', fontSize: 12.5, color: 'var(--color-label-normal)' }}>
-            ▲ 증량 추천 {increaseList.length}종목 ·{' '}
-            {increaseList
-              .slice(0, 3)
-              .map((x) => `${x.name} ${x.weight}kg`)
-              .join(', ')}
-            {increaseList.length > 3 ? ' 외' : ''}
-          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, margin: '-4px 0 14px' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)' }}>증량 추천</span>
+            {increaseList.slice(0, 3).map((x) => (
+              <span key={x.key} className="text-keep-all" style={{ fontSize: 12, padding: '4px 9px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', color: 'var(--color-label-normal)' }}>
+                {x.name} <span className="bt-num">{x.weight}</span>kg
+              </span>
+            ))}
+            {increaseList.length > 3 && <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>외 {increaseList.length - 3}</span>}
+          </div>
         )}
 
         {isWorkoutInProgress ? (
@@ -221,7 +225,7 @@ export default function HomeTab({
             </Button>
           </div>
         )}
-      </Card>
+      </section>
 
       {/* [2026-10-27 리뉴얼 W2] 이번 주 요약 + 근육별 세트(상위 5) + 최근 PR */}
       <div
@@ -256,31 +260,24 @@ export default function HomeTab({
         <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} onLogsChanged={onLogsChanged} />
       </div>
 
+      {/* [2026-10-28 리디자인] 월 요약 — 카드 대신 주간 요약과 같은 헤어라인 스트립, 숫자는 무채색 */}
       {monthSummary && (
-        <Card style={{ marginBottom: 20 }}>
-          {/* [2026-07-29 수정] ①숫자와 라벨 상하 순서를 반전(라벨이 위, 숫자가 아래)
-              ②운동일수 색상을 칙칙한 --color-primary-strong(#B8860B, 아이언 티어용으로 의도적으로
-              남겨둔 톤) 대신, 디자인가이드 v2.1의 비비드 골드 --color-primary-normal(#FFC94D)로 교체 */}
-          <div className="text-keep-all" style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
-            <div>
-              <div style={{ fontSize: 12, lineHeight: '14px', color: 'var(--color-label-neutral)', marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                <Dumbbell size={13} strokeWidth={1.75} /> {monthSummary.month + 1}월 운동
-              </div>
-              <div className="record-notation" style={{ fontSize: 20, lineHeight: '20px', fontWeight: 800, color: 'var(--color-primary-normal)' }}>
-                {monthSummary.workoutDays}일
-              </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', borderTop: '1px solid var(--color-line)', borderBottom: '1px solid var(--color-line)', padding: '14px 0', marginBottom: 20 }}>
+          {[
+            { icon: Dumbbell, label: `${monthSummary.month + 1}월 운동`, v: monthSummary.workoutDays },
+            { icon: Moon, label: `${monthSummary.month + 1}월 휴식`, v: monthSummary.restDays },
+          ].map((it, i) => (
+            <div key={it.label} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: i ? 14 : 2, borderLeft: i ? '1px solid var(--color-line)' : 'none' }}>
+              <span className="bt-num" style={{ fontSize: 'calc(24px * var(--num-scale))', lineHeight: 1.1 }}>
+                <CountUp value={it.v} />
+                <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginLeft: 2 }}>일</span>
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <it.icon size={13} strokeWidth={1.75} /> {it.label}
+              </span>
             </div>
-            <div style={{ width: 1, background: 'var(--color-line)' }} />
-            <div>
-              <div style={{ fontSize: 12, lineHeight: '14px', color: 'var(--color-label-neutral)', marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                <Moon size={13} strokeWidth={1.75} /> {monthSummary.month + 1}월 휴식
-              </div>
-              <div className="record-notation" style={{ fontSize: 20, lineHeight: '20px', fontWeight: 800, color: 'var(--color-label-strong)' }}>
-                {monthSummary.restDays}일
-              </div>
-            </div>
-          </div>
-        </Card>
+          ))}
+        </div>
       )}
     </div>
   )

@@ -324,6 +324,237 @@ html[data-style='c'][data-theme='light'] {
   --shadow-nav: none;
 }
 
+/* ───────── [2026-10-28 신규] 강조색 팔레트 5종 × 테마 3종 (html[data-accent][data-theme]) ─────────
+   테마(다크/베이지/라이트)는 바탕·글자, 팔레트는 강조색만 담당. 스타일 블록보다 뒤에 두어 강조 토큰을 덮어쓴다.
+   --color-fill-strong/--color-on-fill = 채움 버튼·선택 칩(모든 테마에서 강조색 채움)
+   --color-primary-normal/strong = 글자로 쓰는 강조색(모든 스타일·테마 표면 대비 4.5:1 이상 — 생성 스크립트로 검사)
+   lime 볼트 라임 / cobalt 코발트 / tangerine 탠저린 / mint 민트 / brass 브라스(기존 골드를 낮은 채도로, 기본값) */
+html[data-accent='lime'][data-theme='dark'] {
+  --color-primary-normal: #c8f53c;
+  --color-primary-strong: #c0f41f;
+  --color-primary-heavy: #82a909;
+  --color-primary-bg: #252c13;
+  --color-fill-strong: #c8f53c;
+  --color-on-fill: #11170a;
+  --color-on-gold: #11170a;
+  --color-on-gold-button: #11170a;
+  --color-gold-100: #c8f53c;
+  --color-gold-500: #c8f53c;
+  --color-gold-700: #c0f41f;
+  --color-rest-bg: #1e2211;
+  --accent-swatch: #c8f53c;
+}
+html[data-accent='lime'][data-theme='beige'] {
+  --color-primary-normal: #4c6600;
+  --color-primary-strong: #394d00;
+  --color-primary-heavy: #82a909;
+  --color-primary-bg: #ebedc7;
+  --color-fill-strong: #c8f53c;
+  --color-on-fill: #11170a;
+  --color-on-gold: #11170a;
+  --color-on-gold-button: #11170a;
+  --color-gold-100: #4c6600;
+  --color-gold-500: #c8f53c;
+  --color-gold-700: #394d00;
+  --color-rest-bg: #ededce;
+  --accent-swatch: #c8f53c;
+}
+html[data-accent='lime'][data-theme='light'] {
+  --color-primary-normal: #4c6600;
+  --color-primary-strong: #394d00;
+  --color-primary-heavy: #82a909;
+  --color-primary-bg: #f6fde0;
+  --color-fill-strong: #c8f53c;
+  --color-on-fill: #11170a;
+  --color-on-gold: #11170a;
+  --color-on-gold-button: #11170a;
+  --color-gold-100: #4c6600;
+  --color-gold-500: #c8f53c;
+  --color-gold-700: #394d00;
+  --color-rest-bg: #f8fee8;
+  --accent-swatch: #c8f53c;
+}
+html[data-accent='cobalt'][data-theme='dark'] {
+  --color-primary-normal: #86a6ff;
+  --color-primary-strong: #678fff;
+  --color-primary-heavy: #0b2b95;
+  --color-primary-bg: #10162c;
+  --color-fill-strong: #2f5cf0;
+  --color-on-fill: #ffffff;
+  --color-on-gold: #ffffff;
+  --color-on-gold-button: #ffffff;
+  --color-gold-100: #86a6ff;
+  --color-gold-500: #2f5cf0;
+  --color-gold-700: #678fff;
+  --color-rest-bg: #0f1323;
+  --accent-swatch: #2f5cf0;
+}
+html[data-accent='cobalt'][data-theme='beige'] {
+  --color-primary-normal: #2650d6;
+  --color-primary-strong: #2248c0;
+  --color-primary-heavy: #0b2b95;
+  --color-primary-bg: #dcdce3;
+  --color-fill-strong: #2f5cf0;
+  --color-on-fill: #ffffff;
+  --color-on-gold: #ffffff;
+  --color-on-gold-button: #ffffff;
+  --color-gold-100: #2650d6;
+  --color-gold-500: #2f5cf0;
+  --color-gold-700: #2248c0;
+  --color-rest-bg: #dbdbe4;
+  --accent-swatch: #2f5cf0;
+}
+html[data-accent='cobalt'][data-theme='light'] {
+  --color-primary-normal: #2650d6;
+  --color-primary-strong: #2248c0;
+  --color-primary-heavy: #0b2b95;
+  --color-primary-bg: #dee5fd;
+  --color-fill-strong: #2f5cf0;
+  --color-on-fill: #ffffff;
+  --color-on-gold: #ffffff;
+  --color-on-gold-button: #ffffff;
+  --color-gold-100: #2650d6;
+  --color-gold-500: #2f5cf0;
+  --color-gold-700: #2248c0;
+  --color-rest-bg: #e6ebfd;
+  --accent-swatch: #2f5cf0;
+}
+html[data-accent='tangerine'][data-theme='dark'] {
+  --color-primary-normal: #ff8a57;
+  --color-primary-strong: #ff7538;
+  --color-primary-heavy: #ab3300;
+  --color-primary-bg: #2d1810;
+  --color-fill-strong: #ff6a2b;
+  --color-on-fill: #1a0900;
+  --color-on-gold: #1a0900;
+  --color-on-gold-button: #1a0900;
+  --color-gold-100: #ff8a57;
+  --color-gold-500: #ff6a2b;
+  --color-gold-700: #ff7538;
+  --color-rest-bg: #23140f;
+  --accent-swatch: #ff6a2b;
+}
+html[data-accent='tangerine'][data-theme='beige'] {
+  --color-primary-normal: #b8400d;
+  --color-primary-strong: #a0380b;
+  --color-primary-heavy: #ab3300;
+  --color-primary-bg: #f3e8dd;
+  --color-fill-strong: #ff6a2b;
+  --color-on-fill: #1a0900;
+  --color-on-gold: #1a0900;
+  --color-on-gold-button: #1a0900;
+  --color-gold-100: #b8400d;
+  --color-gold-500: #ff6a2b;
+  --color-gold-700: #a0380b;
+  --color-rest-bg: #f4dccc;
+  --accent-swatch: #ff6a2b;
+}
+html[data-accent='tangerine'][data-theme='light'] {
+  --color-primary-normal: #b8400d;
+  --color-primary-strong: #a0380b;
+  --color-primary-heavy: #ab3300;
+  --color-primary-bg: #ffe7dd;
+  --color-fill-strong: #ff6a2b;
+  --color-on-fill: #1a0900;
+  --color-on-gold: #1a0900;
+  --color-on-gold-button: #1a0900;
+  --color-gold-100: #b8400d;
+  --color-gold-500: #ff6a2b;
+  --color-gold-700: #a0380b;
+  --color-rest-bg: #ffede6;
+  --accent-swatch: #ff6a2b;
+}
+html[data-accent='mint'][data-theme='dark'] {
+  --color-primary-normal: #4fe2b0;
+  --color-primary-strong: #35dea4;
+  --color-primary-heavy: #176d4f;
+  --color-primary-bg: #102720;
+  --color-fill-strong: #2fd49b;
+  --color-on-fill: #00261a;
+  --color-on-gold: #00261a;
+  --color-on-gold-button: #00261a;
+  --color-gold-100: #4fe2b0;
+  --color-gold-500: #2fd49b;
+  --color-gold-700: #35dea4;
+  --color-rest-bg: #0f1f1a;
+  --accent-swatch: #2fd49b;
+}
+html[data-accent='mint'][data-theme='beige'] {
+  --color-primary-normal: #0a7653;
+  --color-primary-strong: #085e42;
+  --color-primary-heavy: #176d4f;
+  --color-primary-bg: #e7ebde;
+  --color-fill-strong: #2fd49b;
+  --color-on-fill: #00261a;
+  --color-on-gold: #00261a;
+  --color-on-gold-button: #00261a;
+  --color-gold-100: #0a7653;
+  --color-gold-500: #2fd49b;
+  --color-gold-700: #085e42;
+  --color-rest-bg: #dbe9d9;
+  --accent-swatch: #2fd49b;
+}
+html[data-accent='mint'][data-theme='light'] {
+  --color-primary-normal: #0a7653;
+  --color-primary-strong: #085e42;
+  --color-primary-heavy: #176d4f;
+  --color-primary-bg: #def8ef;
+  --color-fill-strong: #2fd49b;
+  --color-on-fill: #00261a;
+  --color-on-gold: #00261a;
+  --color-on-gold-button: #00261a;
+  --color-gold-100: #0a7653;
+  --color-gold-500: #2fd49b;
+  --color-gold-700: #085e42;
+  --color-rest-bg: #e6faf3;
+  --accent-swatch: #2fd49b;
+}
+html[data-accent='brass'][data-theme='dark'] {
+  --color-primary-normal: #dcbb6c;
+  --color-primary-strong: #d6b053;
+  --color-primary-heavy: #907025;
+  --color-primary-bg: #272217;
+  --color-fill-strong: #d6b25e;
+  --color-on-fill: #1c1607;
+  --color-on-gold: #1c1607;
+  --color-on-gold-button: #1c1607;
+  --color-gold-100: #dcbb6c;
+  --color-gold-500: #d6b25e;
+  --color-gold-700: #d6b053;
+  --color-rest-bg: #1f1c14;
+  --accent-swatch: #d6b25e;
+}
+html[data-accent='brass'][data-theme='beige'] {
+  --color-primary-normal: #7a5a12;
+  --color-primary-strong: #644a0f;
+  --color-primary-heavy: #907025;
+  --color-primary-bg: #eee3cd;
+  --color-fill-strong: #d6b25e;
+  --color-on-fill: #1c1607;
+  --color-on-gold: #1c1607;
+  --color-on-gold-button: #1c1607;
+  --color-gold-100: #7a5a12;
+  --color-gold-500: #d6b25e;
+  --color-gold-700: #644a0f;
+  --color-rest-bg: #efe5d2;
+  --accent-swatch: #d6b25e;
+}
+html[data-accent='brass'][data-theme='light'] {
+  --color-primary-normal: #7a5a12;
+  --color-primary-strong: #644a0f;
+  --color-primary-heavy: #907025;
+  --color-primary-bg: #f8f3e5;
+  --color-fill-strong: #d6b25e;
+  --color-on-fill: #1c1607;
+  --color-on-gold: #1c1607;
+  --color-on-gold-button: #1c1607;
+  --color-gold-100: #7a5a12;
+  --color-gold-500: #d6b25e;
+  --color-gold-700: #644a0f;
+  --color-rest-bg: #faf6ec;
+  --accent-swatch: #d6b25e;
+}
+
 /* ───────── 숫자 표기 ───────── */
 .record-notation,
 .bt-num {

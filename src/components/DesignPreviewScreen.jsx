@@ -8,13 +8,13 @@
 //   - 휴식 타이머는 끝나기 전에 다시 시작시켜(알림음·진동이 울리지 않게) 계속 진행 중인 모습만 보여준다.
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { X, ChevronDown } from 'lucide-react'
-import { Button, Chip } from './ui'
+import { Button, Chip, AccentSwatches } from './ui'
 import { ExerciseCard } from './WorkoutInput'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT } from './GlobalTimerBar'
 import RestTimer from './RestTimer'
 import { nextSetType, nextRir } from './SetEditors'
 import { CountUp } from '../hooks/useCountUp'
-import { FONT_OPTIONS, normalizeFontId, applyDesignAttrs } from '../utils/fonts'
+import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, applyDesignAttrs } from '../utils/fonts'
 import { updateUserProfile } from '../storage'
 
 export const STYLE_OPTIONS = [
@@ -63,20 +63,22 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
     style: userDoc?.stylePreference || 'a',
     theme: userDoc?.themePreference || 'beige',
     font: normalizeFontId(userDoc?.fontPreference),
+    accent: normalizeAccentId(userDoc?.accentPreference),
     logMode: userDoc?.logMode || 'list',
   }).current
   const [style, setStyle] = useState(initial.style)
   const [theme, setTheme] = useState(initial.theme)
   const [font, setFont] = useState(initial.font)
+  const [accent, setAccent] = useState(initial.accent)
   const [logMode, setLogMode] = useState(initial.logMode)
   const [applying, setApplying] = useState(false)
   const appliedRef = useRef(false)
 
   // 선택이 바뀔 때마다 html 속성에 임시 반영
   useEffect(() => {
-    applyDesignAttrs({ style, theme, font })
+    applyDesignAttrs({ style, theme, font, accent })
     updateThemeMetaColor()
-  }, [style, theme, font])
+  }, [style, theme, font, accent])
 
   // 닫힐 때(적용 안 했으면) 원래 값으로 되돌림
   useEffect(() => {
@@ -123,7 +125,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
   async function handleApply() {
     setApplying(true)
     try {
-      await updateUserProfile(uid, { stylePreference: style, themePreference: theme, fontPreference: font, logMode })
+      await updateUserProfile(uid, { stylePreference: style, themePreference: theme, fontPreference: font, accentPreference: accent, logMode })
       appliedRef.current = true
       await onApplied?.()
       onClose()
@@ -192,6 +194,8 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
             ))}
           </div>
         </div>
+        {/* [2026-10-28] 강조색 팔레트 — 색 견본으로 항상 노출 */}
+        <AccentSwatches value={accent} onPick={setAccent} />
         <button
           type="button"
           onClick={() => setPanelOpen((v) => !v)}
@@ -199,7 +203,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
           style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-label-neutral)', padding: '2px 0' }}
         >
           <span className="text-keep-all" style={{ flex: 1, textAlign: 'left' }}>
-            {themeLabel} · {fontLabel} · {logMode === 'focus' ? '포커스형' : '리스트형'}
+            {ACCENT_OPTIONS.find((a) => a.id === accent)?.label} · {themeLabel} · {fontLabel} · {logMode === 'focus' ? '포커스형' : '리스트형'}
           </span>
           <span style={{ fontWeight: 700, color: 'var(--color-label-normal)' }}>테마·폰트·기록 방식</span>
           <ChevronDown size={16} strokeWidth={1.8} style={{ transform: panelOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
@@ -321,3 +325,4 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
     </div>
   )
 }
+

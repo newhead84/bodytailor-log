@@ -1,4 +1,5 @@
 import React from 'react'
+import { ACCENT_OPTIONS } from '../utils/fonts'
 import legendIconImg from '../assets/tier-icons/legend.png'
 import diamondIconImg from '../assets/tier-icons/diamond.png'
 import platinumIconImg from '../assets/tier-icons/platinum.png'
@@ -19,7 +20,8 @@ export function Button({ children, onClick, variant = 'primary', disabled, style
   }
   const variants = {
     primary: { background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)' },
-    secondary: { background: 'var(--color-primary-bg)', color: 'var(--color-gold-100)' },
+    // [2026-10-28 리디자인] 보조 버튼은 강조색 틴트(골드 바탕+골드 글자) 대신 무채색 — 강조색은 채움(primary)·선택 상태에만
+    secondary: { background: 'var(--color-bg-elevated)', color: 'var(--color-label-strong)', boxShadow: 'inset 0 0 0 1px var(--color-line)' },
     ghost: { background: 'transparent', color: 'var(--color-label-normal)', border: '1px solid var(--color-line)' },
     danger: { background: 'var(--color-danger)', color: '#131316' },
   }
@@ -204,7 +206,7 @@ export function TierBadge({ label, tierKey, size = 'md' }) {
         borderRadius: 'var(--radius-pill)',
         fontSize: sizes[size],
         fontWeight: 700,
-        background: 'var(--color-primary-bg)',
+        background: 'var(--color-bg-elevated)', // [2026-10-28 리디자인] 강조색 틴트 → 무채색
       }}
     >
       {tierKey && TIER_IMAGE_ICONS[tierKey] && <TierImageIcon tierKey={tierKey} size={sizes[size]} />}
@@ -331,9 +333,11 @@ export function Chip({ children, active, onClick, style, ...rest }) {
         borderRadius: 'var(--radius-pill)',
         fontSize: 14,
         fontWeight: 600,
-        border: active ? '1px solid var(--color-primary-normal)' : '1px solid var(--color-line)',
-        background: active ? 'var(--color-primary-bg)' : 'var(--color-bg-card)',
-        color: active ? 'var(--color-primary-strong)' : 'var(--color-label-normal)',
+        // [2026-10-28 리디자인] 선택 = 강조색 채움(팔레트), 미선택 = 투명 + 헤어라인
+        border: active ? '1px solid var(--color-fill-strong)' : '1px solid var(--color-line)',
+        background: active ? 'var(--color-fill-strong)' : 'transparent',
+        color: active ? 'var(--color-on-fill)' : 'var(--color-label-normal)',
+        transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
         whiteSpace: 'nowrap',
         ...style,
       }}
@@ -341,5 +345,67 @@ export function Chip({ children, active, onClick, style, ...rest }) {
     >
       {children}
     </button>
+  )
+}
+
+// [2026-10-28 신규, 리디자인] 기준·설명 문단을 기본으로 접어 두는 공용 토글(화면마다 길게 펼쳐진 설명문 정리).
+export function Disclosure({ label = '기준 보기', children, style }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <div style={style}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 0', fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)' }}
+      >
+        {label}
+        <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}>
+          <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="bt-enter text-keep-all" style={{ marginTop: 6, fontSize: 12, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 강조색 팔레트 견본 줄(미리보기·MY 디자인 공용)
+export function AccentSwatches({ value, onPick }) {
+  return (
+    <div role="radiogroup" aria-label="강조색" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {ACCENT_OPTIONS.map((a) => {
+        const active = value === a.id
+        return (
+          <button
+            key={a.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onPick(a.id)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 32,
+              padding: '0 10px 0 6px',
+              borderRadius: 'var(--radius-pill)',
+              border: active ? '1px solid var(--color-label-strong)' : '1px solid var(--color-line)',
+              background: active ? 'var(--color-bg-elevated)' : 'transparent',
+              color: active ? 'var(--color-label-strong)' : 'var(--color-label-normal)',
+              fontSize: 12.5,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: '50%', background: a.swatch, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} />
+            {a.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }

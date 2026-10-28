@@ -157,7 +157,7 @@ export default function Onboarding({ onComplete, previewMode = false, onClose })
               flex: 1,
               height: 4,
               borderRadius: 2,
-              background: i <= step ? 'var(--color-primary-normal)' : 'var(--color-line)',
+              background: i <= step ? 'var(--color-fill-strong)' : 'var(--color-line)',
             }}
           />
         ))}
@@ -286,9 +286,11 @@ function OptionRow({ label, selected, onClick, flex }) {
         textAlign: 'left',
         padding: '16px 18px',
         borderRadius: 'var(--radius-md)',
-        border: selected ? '2px solid var(--color-primary-normal)' : '1px solid var(--color-line)',
-        background: selected ? 'var(--color-primary-bg)' : 'var(--color-bg-card)',
-        color: selected ? 'var(--color-primary-strong)' : 'var(--color-label-strong)',
+        // [2026-10-28 리디자인] 선택 = 강조색 채움(칩과 동일 규칙), 미선택 = 헤어라인
+        border: selected ? '1px solid var(--color-fill-strong)' : '1px solid var(--color-line)',
+        background: selected ? 'var(--color-fill-strong)' : 'var(--color-bg-card)',
+        color: selected ? 'var(--color-on-fill)' : 'var(--color-label-strong)',
+        transition: 'background 0.15s ease, color 0.15s ease',
         fontSize: 15,
         fontWeight: 600,
       }}

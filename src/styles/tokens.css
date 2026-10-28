@@ -372,7 +372,12 @@ html[data-theme='beige'] {
     transform: scale(1.08);
     opacity: 0.85;
   }
+}/* [2026-10-28 리디자인] 스플래시 진행 막대 */
+@keyframes bt-splash-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
 }
+
 
 /* [2026-07-28] 운동완료 축하 팝업 애니메이션 */
 @keyframes bt-celebrate-pop {

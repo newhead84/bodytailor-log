@@ -6,7 +6,7 @@
 //  - PrCard: 최근 개인 기록(추정 1RM)
 //  - BoneHealthCard: "근력강화·골밀도증진" 목표 사용자용 주간 체크(주 2–3회, 고중량 다관절 세트)
 import React, { useMemo, useState } from 'react'
-import { Card, SectionTitle, Chip } from './ui'
+import { Card, SectionTitle, Chip, Disclosure } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
 import { exerciseKeyLabel } from '../utils/exerciseKey'
@@ -75,7 +75,7 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
             return (
               <div key={atom} style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) 40px 34px', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>{atom}</span>
-                <div style={{ position: 'relative', height: 8, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)' }}>
+                <div style={{ position: 'relative', height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)' }}>
                   <div
                     aria-hidden="true"
                     style={{
@@ -106,10 +106,11 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
             )
           })
         )}
-        <p className="text-keep-all" style={{ margin: 0, fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
+        {/* [2026-10-28 리디자인] 기준 설명은 접어 두기 */}
+        <Disclosure>
           웜업 제외 본세트 기준 · 주동 부위 1세트, 함께 쓰인 보조 부위 0.5세트로 계산 · 점선 구간 = 주 {WEEKLY_SET_GUIDE.min}–
           {WEEKLY_SET_GUIDE.max}세트 권장(초보자는 4–10세트로도 충분히 성장)
-        </p>
+        </Disclosure>
       </Card>
     </>
   )
@@ -129,13 +130,13 @@ export function CardioCard({ logs }) {
           </span>
           <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>/ {goal}분</span>
         </div>
-        <div style={{ height: 8, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)' }}>
-          <div className="bt-bar" style={{ width: `${pct}%`, height: 8, borderRadius: 'var(--radius-pill)', background: 'var(--color-success)' }} />
+        <div style={{ height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)' }}>
+          <div className="bt-bar" style={{ width: `${pct}%`, height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)' }} />
         </div>
-        <p className="text-keep-all" style={{ margin: 0, fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
+        <Disclosure>
           대화가 가능한 중강도 유산소 주 150분이 건강 기준(WHO)이에요. 웨이트와 같이 해도 근육 성장에는 지장이 없고, 순발력이 중요하면 웨이트와 시간을
           떨어뜨려 하세요.
-        </p>
+        </Disclosure>
       </Card>
     </>
   )
@@ -194,9 +195,9 @@ export function RecoveryCard({ logs }) {
                 </span>
               </div>
             ))}
-            <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            <Disclosure label="대처 방법">
               수면·식사를 점검하고, 무게를 5–10% 낮춰 반복 수를 다시 쌓거나 비슷한 대체 종목으로 2–4주 바꿔보세요.
-            </span>
+            </Disclosure>
           </div>
         )}
       </Card>
@@ -273,10 +274,10 @@ export function BoneHealthCard({ logs }) {
         {item(sessions >= 2, `이번 주 근력운동 ${sessions}회 (권장 주 2–3회)`)}
         {item(heavy >= 6, `고중량 다관절 본세트 ${heavy}세트 (8회 이하로 들 수 있는 무게, 주 6세트 이상 목표)`)}
         {item(lowerSets >= 6, `하체 본세트 ${lowerSets}세트 (스쿼트·데드리프트류가 뼈에 가장 효과적)`)}
-        <p className="text-keep-all" style={{ margin: 0, fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
+        <Disclosure>
           대한골대사학회 권고: 1RM의 50–85% 무게로 5–12회, 주 2–3일. 점프·착지 같은 충격 운동을 주 3회 곁들이면 더 좋아요. 골다공증이 있거나 진단받은
           질환이 있으면 무게를 올리기 전에 전문가와 상의하세요.
-        </p>
+        </Disclosure>
       </Card>
     </>
   )

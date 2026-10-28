@@ -7,7 +7,7 @@
 // (EXERCISE_DB_DESIGN_v2_1_통합본.md 143개 기준, 2026-08-05 세션에서 선반영).
 import React, { useEffect, useMemo, useState } from 'react'
 import { HOWTO_ONBOARDING_TEXT } from '../utils/howtoText'
-import { Search, ChevronRight, X } from 'lucide-react'
+import { Search, ChevronRight, X, Lightbulb, Info } from 'lucide-react'
 import { Card, SectionTitle, Chip, Button, EmptyState } from './ui'
 import {
   BODY_PART_ATOMS,
@@ -53,8 +53,10 @@ function OnboardingBanner({ uid, onDismissed }) {
   }
 
   return (
-    <Card style={{ marginBottom: 20, background: 'var(--color-primary-bg)', border: '1px solid var(--color-primary-normal)' }}>
-      <p className="text-keep-all" style={{ margin: '0 0 6px', fontWeight: 700, fontSize: 15, color: 'var(--color-label-strong)' }}>
+    // [2026-10-28 리디자인] 강조 테두리·틴트 배경 대신 무채색 안내 카드 + 정보 아이콘
+    <Card style={{ marginBottom: 20, background: 'var(--color-bg-elevated)', border: '1px solid var(--color-line)' }}>
+      <p className="text-keep-all" style={{ margin: '0 0 6px', fontWeight: 700, fontSize: 15, color: 'var(--color-label-strong)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Info size={16} strokeWidth={1.8} style={{ color: 'var(--color-primary-normal)' }} />
         {HOWTO_ONBOARDING_TEXT.title}
       </p>
       <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
@@ -201,8 +203,10 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
             {desc.howTo}
           </p>
           {desc.tip && (
-            <p className="text-keep-all" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--color-primary-normal)' }}>
-              💡 {desc.tip}
+            <p className="text-keep-all" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--color-label-normal)', display: 'flex', gap: 6 }}>
+              {/* [2026-10-28 리디자인] 이모지 → 라인 아이콘 */}
+              <Lightbulb size={15} strokeWidth={1.8} style={{ color: 'var(--color-primary-normal)', flexShrink: 0, marginTop: 1 }} />
+              <span>{desc.tip}</span>
             </p>
           )}
         </Card>
@@ -387,14 +391,20 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
       {listNames.length === 0 ? (
         <EmptyState title="검색 결과가 없어요" description="다른 이름이나 별칭으로 다시 검색해보세요." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {listNames.map((name) => {
+        // [2026-10-28 리디자인] 종목마다 카드 → 하나의 목록 + 헤어라인 구분
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          {listNames.map((name, idx) => {
             const atom = getExerciseAtom(name)
             const alias = getExerciseAlias(name)
             const gripOptions = getGripOptions(name)
             return (
-              <Card key={name} onClick={() => setSelectedExercise(name)} style={{ padding: '14px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <button
+                key={name}
+                type="button"
+                onClick={() => setSelectedExercise(name)}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '14px 16px', borderTop: idx ? '1px solid var(--color-line)' : 'none' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <div>
                     <div className="text-keep-all" style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
                       {name}
@@ -409,12 +419,12 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
                       </div>
                     )}
                   </div>
-                  <ChevronRight size={18} strokeWidth={1.8} color="var(--color-label-neutral)" />
+                  <ChevronRight size={18} strokeWidth={1.8} color="var(--color-label-neutral)" style={{ flexShrink: 0 }} />
                 </div>
-              </Card>
+              </button>
             )
           })}
-        </div>
+        </Card>
       )}
     </div>
   )

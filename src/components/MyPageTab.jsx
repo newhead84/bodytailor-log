@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
-import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm } from './ui'
+import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm, AccentSwatches } from './ui'
 import { CountUp } from '../hooks/useCountUp'
-import { FONT_OPTIONS, normalizeFontId } from '../utils/fonts'
+import { FONT_OPTIONS, normalizeFontId, normalizeAccentId } from '../utils/fonts'
 import { getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
@@ -183,6 +183,13 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   }
   // [2026-10-28 신규] 본문 폰트 5종 선택 저장(users/{uid}.fontPreference)
   const [fontPreference, setFontPreferenceState] = useState(normalizeFontId(userDoc?.fontPreference))
+  // [2026-10-28 신규] 강조색 팔레트 5종 선택 저장(users/{uid}.accentPreference)
+  const [accentPreference, setAccentPreferenceState] = useState(normalizeAccentId(userDoc?.accentPreference))
+  async function selectAccent(accent) {
+    setAccentPreferenceState(accent)
+    await updateUserProfile(uid, { accentPreference: accent })
+    await onProfileUpdated?.()
+  }
   async function selectFont(font) {
     setFontPreferenceState(font)
     await updateUserProfile(uid, { fontPreference: font })
@@ -276,30 +283,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
 
   return (
     <div style={{ padding: '20px 20px 100px' }}>
-      {/* [2026-08-02 재수정] 캡션 문구 자체가 불필요하다는 피드백으로 완전히 삭제(⑰).
-          카드를 탭하면 티어·XP 안내로 이동하는 동작(onShowTierInfo)은 그대로 유지된다. */}
-      <SectionTitle>등급</SectionTitle>
-      <Card onClick={onShowTierInfo} style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <TierBadge label={tier.label} tierKey={tier.key} size="lg" />
-          <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            <CountUp value={xp} /> XP
-          </span>
-        </div>
-        <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
-          <div className="bt-bar" style={{ width: `${tierProgress * 100}%`, height: '100%', background: 'var(--color-primary-normal)' }} />
-        </div>
-        {nextTier && (
-          <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '8px 0 0' }}>
-            다음 티어 {nextTier.label}까지 <CountUp value={nextTier.min - xp} /> XP
-          </p>
-        )}
-      </Card>
-
       <SectionTitle
         action={
           !editingProfile && (
-            <Button variant="secondary" onClick={startEditProfile}>
+            <Button variant="secondary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={startEditProfile}>
               수정
             </Button>
           )
@@ -328,7 +315,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                   justifyContent: 'center',
                   fontSize: 20,
                   fontWeight: 700,
-                  color: 'var(--color-primary-strong)',
+                  color: 'var(--color-label-strong)',
                 }}
               >
                 {(userDoc?.nickname || '?').trim().charAt(0)}
@@ -439,9 +426,32 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         ) : null}
       </Card>
 
+      {/* [2026-10-28 리디자인] 프로필을 맨 위로, 등급은 그 아래 */}
+      {/* [2026-08-02 재수정] 캡션 문구 자체가 불필요하다는 피드백으로 완전히 삭제(⑰).
+          카드를 탭하면 티어·XP 안내로 이동하는 동작(onShowTierInfo)은 그대로 유지된다. */}
+      <SectionTitle>등급</SectionTitle>
+      <Card onClick={onShowTierInfo} style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <TierBadge label={tier.label} tierKey={tier.key} size="lg" />
+          {/* [2026-10-28 리디자인] XP를 큰 숫자로, 진행 막대는 얇게·강조색 채움 */}
+          <span className="bt-num" style={{ fontSize: 'calc(22px * var(--num-scale))' }}>
+            <CountUp value={xp} />
+            <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 3 }}>XP</span>
+          </span>
+        </div>
+        <div style={{ height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)', overflow: 'hidden' }}>
+          <div className="bt-bar" style={{ width: `${tierProgress * 100}%`, height: '100%', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)' }} />
+        </div>
+        {nextTier && (
+          <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '8px 0 0' }}>
+            다음 티어 {nextTier.label}까지 <CountUp value={nextTier.min - xp} /> XP
+          </p>
+        )}
+      </Card>
+
       <SectionTitle
         action={
-          <Button variant="secondary" onClick={onManageRoutines}>
+          <Button variant="secondary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={onManageRoutines}>
             운동방식 변경
           </Button>
         }
@@ -683,7 +693,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             {STYLE_OPTIONS.map((opt) => (
               <Chip key={opt.id} active={stylePreference === opt.id} onClick={() => selectStyle(opt.id)} style={{ justifyContent: 'center', display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 6px', whiteSpace: 'normal' }}>
                 <span style={{ fontWeight: 800 }}>{opt.label}</span>
-                <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-label-neutral)' }}>{opt.desc}</span>
+                <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.75 }}>{opt.desc}</span>
               </Chip>
             ))}
           </div>
@@ -701,6 +711,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               라이트
             </Chip>
           </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>강조색</span>
+          <AccentSwatches value={accentPreference} onPick={selectAccent} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>폰트</span>
