@@ -237,10 +237,11 @@ export default function HomeTab({
         {[
           { v: weekStats.sessions, unit: '회', label: '이번 주 운동', d: 0 },
           { v: weekStats.sets, unit: '세트', label: '본세트', d: 0 },
-          { v: weekStats.volume >= 1000 ? Math.round(weekStats.volume / 100) / 10 : weekStats.volume, unit: weekStats.volume >= 1000 ? 't' : 'kg', label: '총 볼륨', d: weekStats.volume >= 1000 ? 1 : 0 },
+          // [2026-10-28] 1,000kg 이상도 t 대신 kg(쉼표) 그대로 — 큰 숫자 카운트업이 보이도록
+          { v: Math.round(weekStats.volume), unit: 'kg', label: '총 볼륨', d: 0 },
         ].map((it, i) => (
           <div key={it.label} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: i ? 14 : 2, borderLeft: i ? '1px solid var(--color-line)' : 'none' }}>
-            <span className="bt-num" style={{ fontSize: 'calc(26px * var(--num-scale))', lineHeight: 1.1 }}>
+            <span className="bt-num" style={{ fontSize: `calc(${it.v >= 10000 ? 22 : 26}px * var(--num-scale))`, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
               <CountUp value={it.v} decimals={it.d} />
               <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{it.unit}</span>
             </span>

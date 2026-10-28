@@ -2,7 +2,7 @@
 
 > 이 파일은 저장소 루트에 두고 Claude가 작업 시작 시 항상 먼저 읽는 작업 지침이다.
 > claude.ai 프로젝트 지침과 내용이 다르면 **이 파일이 최신 기준**이다. 규칙이 바뀌면 이 파일을 갱신하고 커밋한다.
-> 최종 갱신: 2026-10-28 (전면 리뉴얼 v10 반영)
+> 최종 갱신: 2026-10-28 (전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제)
 
 ---
 
@@ -57,7 +57,8 @@
 ## 5. 디자인 기준 (v10)
 - **스타일 A/B/C × 테마 다크/베이지/라이트**(9종) — `src/styles/designStyles.css`, `html[data-style][data-theme]`. MY탭 "디자인"에서 전환. 사용자가 실사용 비교 후 하나로 확정 예정 → 확정되면 나머지 토큰 제거 + 이 항목 갱신.
   - A 에디토리얼 애슬레틱(헤어라인·Barlow Condensed 숫자) / B 인스트루먼트(각진 표·IBM Plex Mono 숫자) / C 택타일 웜(둥근 타일·Outfit 숫자)
-- 본문 폰트 Pretendard. 숫자는 `.bt-num` / `.record-notation`(스타일별 숫자 서체).
+- 본문 폰트: 비교 중(프리텐다드/페이퍼로지/나눔스퀘어 네오/원티드 산스/SUIT) — `html[data-font]` → `--font-body`(designStyles.css), `users.fontPreference`, 미지정=Pretendard. MY "기록 화면 미리보기"(DesignPreviewScreen)에서 스타일·테마·폰트 동시 비교 후 확정 → 나머지 제거. 숫자는 `.bt-num` / `.record-notation`(스타일별 숫자 서체).
+- 큰 숫자 표시는 `CountUp`(hooks/useCountUp.js, 크기별 재생 시간 자동).
 - 색은 CSS 변수 토큰만 사용(변수명 유지, 값만 교체). 채움 버튼은 `--color-fill-strong`/`--color-on-fill`. 9종 모두 텍스트 대비 4.5:1 이상 유지.
 - 모서리는 `--radius-sm/md/lg/pill` 토큰. 카드는 `--card-bg/--card-border/--card-shadow`.
 - 운동 부위 고정 팔레트(getPartColor), 아이콘은 lucide 라인 아이콘(이모지 금지). "AI 느낌" 요소(그라데이션 워시, 좌측 굵은 색 띠 카드 등) 지양.
@@ -100,6 +101,7 @@
 ```
 users/{uid}
   stylePreference: 'a'|'b'|'c'      logMode: 'list'|'focus'      themePreference: 'dark'|'beige'|'light'
+  fontPreference: 'pretendard'|'paperlogy'|'nanumsquareneo'|'wanted'|'suit'
   exerciseSettings: { [종목키]: { repMin, repMax, restSec } }
   prs: { [종목키]: { e1rm, weight, reps, date, topWeight, topWeightReps, topWeightDate } }
   seasonKey: 'season-YYYY-Q'
@@ -112,10 +114,9 @@ activeSessions/{uid}: { draft: JSON 문자열, updatedAt }
 - 옛 종목명은 읽을 때 `normalizeExerciseName()`으로 정규화.
 
 ### 7.6 Phase1 잔여 과제
-- 운동 GIF 소스(ExerciseGymGifsDB, jsDelivr) **라이선스 없음** → 대체 이미지 소스 선정 필요
 - `WorkoutInput.jsx` 파일 분리(리팩터링)
 - 사이클 완료 판정 ↔ 기록 연결, 캘린더 과거 기록 편집 피커의 커스텀 운동 연결
-- 디자인 스타일 확정 후 미선택 스타일 제거
+- 디자인 스타일·폰트 확정 후 미선택 토큰 제거 → 전 탭 일괄 리디자인(2단계) → 등급 리뉴얼(3단계: Lv 숫자 + 단계명, 데이터 키 iron~legend 유지·표시명만 변경, 운동 완료 요약 카드·승급 연출·이름 붙은 성취 카드)
 - Vercel 자동 배포 연결 복구
 
 ## 8. 알려진 이슈 / 환경 특이사항

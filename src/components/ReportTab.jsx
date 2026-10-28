@@ -592,7 +592,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <span className="record-notation" style={{ fontWeight: 800, fontSize: 16, display: 'block' }}>
-                    {myEntry.finalScore}
+                    <CountUp value={myEntry.finalScore} />
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--color-label-neutral)' }}>세부 보기 ›</span>
                 </div>

@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm } from './ui'
+import { CountUp } from '../hooks/useCountUp'
+import { FONT_OPTIONS, normalizeFontId } from '../utils/fonts'
 import { getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
@@ -22,7 +24,7 @@ const STYLE_OPTIONS = [
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
-export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview }) {
+export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -179,6 +181,13 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     await updateUserProfile(uid, { stylePreference: style })
     await onProfileUpdated?.()
   }
+  // [2026-10-28 신규] 본문 폰트 5종 선택 저장(users/{uid}.fontPreference)
+  const [fontPreference, setFontPreferenceState] = useState(normalizeFontId(userDoc?.fontPreference))
+  async function selectFont(font) {
+    setFontPreferenceState(font)
+    await updateUserProfile(uid, { fontPreference: font })
+    await onProfileUpdated?.()
+  }
   async function selectLogMode(mode) {
     setLogModeState(mode)
     await updateUserProfile(uid, { logMode: mode })
@@ -274,7 +283,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <TierBadge label={tier.label} tierKey={tier.key} size="lg" />
           <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            {xp.toLocaleString()} XP
+            <CountUp value={xp} /> XP
           </span>
         </div>
         <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-elevated)', overflow: 'hidden' }}>
@@ -282,7 +291,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </div>
         {nextTier && (
           <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '8px 0 0' }}>
-            다음 티어 {nextTier.label}까지 {(nextTier.min - xp).toLocaleString()} XP
+            다음 티어 {nextTier.label}까지 <CountUp value={nextTier.min - xp} /> XP
           </p>
         )}
       </Card>
@@ -664,6 +673,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       {/* [2026-10-27 리뉴얼] 디자인 스타일 A/B/C × 테마 3종. 실사용 비교 후 하나로 확정 예정(사용자 확인). */}
       <SectionTitle>디자인</SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* [2026-10-28 신규] 샘플 기록 화면에서 스타일·테마·폰트·기록 방식을 바로 비교 */}
+        <Button full onClick={onShowDesignPreview}>
+          기록 화면 미리보기
+        </Button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>스타일</span>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
@@ -687,6 +700,16 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             <Chip active={themePreference === 'light'} onClick={() => selectTheme('light')} style={{ flex: 1, justifyContent: 'center' }}>
               라이트
             </Chip>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>폰트</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {FONT_OPTIONS.map((opt) => (
+              <Chip key={opt.id} active={fontPreference === opt.id} onClick={() => selectFont(opt.id)} style={{ whiteSpace: 'nowrap' }}>
+                {opt.label}
+              </Chip>
+            ))}
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

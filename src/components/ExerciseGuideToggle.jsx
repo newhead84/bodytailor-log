@@ -30,7 +30,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Card } from './ui'
 import { getExerciseDescription, getExerciseAtom, getPartColor } from '../utils/exerciseLibrary'
-import ExerciseGuideImage from './ExerciseGuideImage'
+import ExerciseVideoLink from './ExerciseVideoLink'
 
 const LONG_PRESS_MS = 500
 
@@ -144,7 +144,10 @@ export function ExerciseGuidePanel({ name }) {
         border: `1px solid ${color}55`,
       }}
     >
-      <ExerciseGuideImage name={name} />
+      {/* [2026-10-28] GIF 이미지 삭제 → YouTube 영상 검색 링크 */}
+      <div style={{ padding: desc ? '12px 14px 0' : 12 }}>
+        <ExerciseVideoLink name={name} compact />
+      </div>
       {desc && (
         <div style={{ padding: '12px 14px' }}>
           <p

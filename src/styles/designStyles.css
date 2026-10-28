@@ -19,7 +19,7 @@ html[data-style='a'] {
   --card-bg: var(--color-bg);
   --card-border: 1px solid var(--color-line);
   --card-shadow: none;
-  --font-num: 'Barlow Condensed', 'Pretendard', sans-serif;
+  --font-num: 'Barlow Condensed', var(--font-body, 'Pretendard'), sans-serif;
   --num-weight: 700;
   --num-scale: 1.18;
   --heading-tracking: -0.02em;
@@ -47,7 +47,7 @@ html[data-style='c'] {
   --card-bg: var(--color-bg-card);
   --card-border: 1px solid transparent;
   --card-shadow: none;
-  --font-num: 'Outfit', 'Pretendard', sans-serif;
+  --font-num: 'Outfit', var(--font-body, 'Pretendard'), sans-serif;
   --num-weight: 700;
   --num-scale: 1;
   --heading-tracking: -0.01em;
@@ -490,6 +490,78 @@ button:active:not(:disabled) {
 .bt-reveal > div > *:nth-child(6) { animation-delay: 0.2s; }
 .bt-reveal > div > *:nth-child(7) { animation-delay: 0.24s; }
 .bt-reveal > div > *:nth-child(n + 8) { animation-delay: 0.28s; }
+
+/* ───────── [2026-10-28 신규] 본문 폰트 5종 비교(html[data-font]) ─────────
+   @font-face는 선언만으로는 내려받지 않고, 해당 폰트가 실제로 쓰일 때(data-font 선택 시)만 파일을 받는다.
+   프리텐다드는 index.html에서 기본 로드. 폰트 확정 후 나머지 블록은 제거 예정.
+   라이선스: Pretendard·SUIT·Wanted Sans·NanumSquare Neo(OFL/네이버 글꼴 라이선스), Paperlogy(상업적 무료). */
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-5Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-7Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
+}
+/* 나눔스퀘어 네오: 네이버 한글한글 아름답게 공식 웹폰트 CDN(400/700/800) */
+@font-face {
+  font-family: 'NanumSquare Neo';
+  src: url('https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareNeo/NanumSquareNeoTTF-bRg.woff2') format('woff2'), url('https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareNeo/NanumSquareNeoTTF-bRg.woff') format('woff');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'NanumSquare Neo';
+  src: url('https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareNeo/NanumSquareNeoTTF-cBd.woff2') format('woff2'), url('https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareNeo/NanumSquareNeoTTF-cBd.woff') format('woff');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'NanumSquare Neo';
+  src: url('https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareNeo/NanumSquareNeoTTF-dEb.woff2') format('woff2'), url('https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareNeo/NanumSquareNeoTTF-dEb.woff') format('woff');
+  font-weight: 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SUIT Variable';
+  src: url('https://cdn.jsdelivr.net/npm/@sun-typeface/suit@2.0.5/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2-variations'),
+    url('https://cdn.jsdelivr.net/npm/@sun-typeface/suit@2.0.5/fonts/variable/woff2/SUIT-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Wanted Sans Variable';
+  src: url('https://cdn.jsdelivr.net/npm/wanted-sans@1.0.3/fonts/webfonts/variable/complete/woff2/WantedSansVariable.woff2') format('woff2-variations'),
+    url('https://cdn.jsdelivr.net/npm/wanted-sans@1.0.3/fonts/webfonts/variable/complete/woff2/WantedSansVariable.woff2') format('woff2');
+  font-weight: 400 1000;
+  font-display: swap;
+}
+html[data-font='paperlogy'] { --font-body: 'Paperlogy', 'Pretendard', system-ui, sans-serif; }
+html[data-font='nanumsquareneo'] { --font-body: 'NanumSquare Neo', 'Pretendard', system-ui, sans-serif; }
+html[data-font='wanted'] { --font-body: 'Wanted Sans Variable', 'Pretendard', system-ui, sans-serif; }
+html[data-font='suit'] { --font-body: 'SUIT Variable', 'Pretendard', system-ui, sans-serif; }
 
 /* 접근성: "동작 줄이기" 설정 시 모든 애니메이션·전환 제거 (캐스케이드 우선순위를 위해 항상 최하단 유지) */
 @media (prefers-reduced-motion: reduce) {

@@ -2,6 +2,17 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-28] 기록 화면 미리보기 + 본문 폰트 5종 비교, 큰 숫자 카운트업 확장, 운동 GIF 소스 삭제 → YouTube 영상 링크 | DesignPreviewScreen.jsx(신규), ExerciseVideoLink.jsx(신규), utils/fonts.js(신규), App.jsx, MyPageTab.jsx, WorkoutInput.jsx, HomeTab.jsx, HowToTab.jsx, ExerciseGuideToggle.jsx, ReportTab.jsx, TierInfoScreen.jsx, hooks/useCountUp.js, designStyles.css, tokens.css, exerciseLibrary.js(주석), ExerciseGuideImage.jsx·utils/exerciseImageApi.js·utils/exerciseImageMap.js(삭제)
+- 기록 화면 미리보기(MY → 디자인 → "기록 화면 미리보기"): 샘플 기록으로 실제 종목 카드(WorkoutInput ExerciseCard export)·상단 타이머 바·휴식 타이머·하단 완료 바를
+  그대로 보여주고 스타일 A/B/C·테마·폰트·기록 방식을 즉시 전환. 닫으면 원래대로 복귀, "이 조합으로 적용" 때만 users/{uid}에 저장.
+  샘플 세트 저장(V)·펼치기 가능(저장 안 됨). 휴식 타이머는 끝나기 전에 재시작해 알림음·진동 없음.
+- 본문 폰트 5종(프리텐다드·페이퍼로지·나눔스퀘어 네오·원티드 산스·SUIT): html[data-font] → --font-body, users/{uid}.fontPreference(필드 추가, 미지정=프리텐다드).
+  @font-face 선언만 두고 선택된 폰트 파일만 내려받음(CDN: jsDelivr npm/projectnoonnu, 나눔스퀘어 네오는 네이버 공식). 5종 모두 실제 브라우저 로드 확인.
+  숫자 서체(스타일별)는 유지. 로그인/온보딩 화면은 프리텐다드 고정. firestore.rules 변경 없음(users 필드 화이트리스트 없음).
+- 카운트업: 숫자 크기에 따라 재생 시간 자동(100 미만 0.5초/100 이상 0.8초/1,000 이상 1.1초). 기록 중 오늘 볼륨·완료 XP, MY XP·다음 티어까지 XP,
+  등급 화면 XP, 리포트 내 랭킹 점수에 추가 적용. 홈 이번 주 총 볼륨은 t 대신 kg(쉼표) 표기(1만 이상은 글자 크기 축소).
+- 운동 GIF(ExerciseGymGifsDB, 라이선스 없음) 완전 삭제 → HOWTO 상세·기록 중 가이드 패널에 "영상으로 자세 보기"("{종목명} 자세" YouTube 검색, 새 창).
+
 [2026-10-28] 작업 지침을 저장소 루트 CLAUDE.md로 관리 시작(v10 스펙·커밋 5개 모아 1번 푸시·푸시는 요청 시에만) | CLAUDE.md(신규)
 
 [2026-10-28] 앱 전반 모션 추가(과하지 않게, 0.15~0.35초·반동 없음) | designStyles.css, hooks/useCountUp.js(신규), App.jsx, ui.jsx, HomeTab.jsx, ReportTab.jsx, InsightCards.jsx, MyPageTab.jsx, WorkoutInput.jsx, SetEditors.jsx, RestTimer.jsx

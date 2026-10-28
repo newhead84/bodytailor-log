@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeH
 import { Sparkles } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm } from './ui'
+import { CountUp } from '../hooks/useCountUp'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, nextSetType, nextRir } from './SetEditors'
 import {
@@ -1744,7 +1745,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             <div style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0, whiteSpace: 'nowrap' }}>
               오늘 볼륨
               <div className="record-notation" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>
-                {totalVolume.toLocaleString()}
+                <CountUp value={totalVolume} />
               </div>
             </div>
             <Button style={{ flex: 1, minWidth: 0 }} disabled={!hasAnyRecord || saving} onClick={handleFinishWorkout}>
@@ -1831,7 +1832,7 @@ function WorkoutCompleteModal({ xpEarned, pendingRoutineAdd, templateForAdd, onA
               marginBottom: 20,
             }}
           >
-            +{xpEarned} XP 획득
+            +<CountUp value={xpEarned} /> XP 획득
           </div>
         )}
         {/* [2026-08-02 신규] 자유 추가 운동으로 기록한 오늘의 종목을, 화면 이동 없이 바로
@@ -1930,7 +1931,8 @@ function ExerciseGuideInfoButton({ name, open, onToggle }) {
 }
 
 // 운동 종목 한 칸(부위 색상 라인 + 세트 입력 영역). 루틴/자유 추가 운동 공통으로 사용.
-function ExerciseCard({
+// [2026-10-28] 기록 화면 미리보기(DesignPreviewScreen.jsx)에서 실제 카드 모양을 그대로 쓰기 위해 export
+export function ExerciseCard({
   name,
   draggable,
   dragControls,

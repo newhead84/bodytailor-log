@@ -2185,8 +2185,7 @@ export const EXERCISE_META = {
     difficulty: "입문",
   },
   // [2026-08-06 신규] 일립티컬과 유사하되 궤적(저항 곡선)이 달라 별도 기구로 취급되는
-  // 아크트레이너(Arc Trainer). 이미지 데이터셋(ExerciseGymGifsDB)에 대응 GIF가 없어
-  // 매핑하지 않고 "이미지 준비중"으로 표시된다(exerciseImageMap.js 참고).
+  // 아크트레이너(Arc Trainer).
   "아크트레이너": {
     part: "유산소",
     equipment: "machine",

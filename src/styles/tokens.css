@@ -257,7 +257,8 @@ body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-label-strong);
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  /* [2026-10-28] 본문 폰트 5종 비교 — html[data-font]가 --font-body를 바꾼다(designStyles.css). 미지정=Pretendard */
+  font-family: var(--font-body, 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif);
   font-size: var(--fs-body1);
   line-height: var(--lh-body1);
   -webkit-tap-highlight-color: transparent;

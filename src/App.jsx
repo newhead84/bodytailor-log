@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-28] 작업 지침을 루트 CLAUDE.md로 관리 시작. 직전 변경: 앱 전반 모션 추가.
- *            상세는 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-28] 기록 화면 미리보기(스타일·테마·본문 폰트 5종·기록 방식 비교), 큰 숫자 카운트업 확장,
+ *            운동 GIF 소스 삭제 → YouTube 영상 검색 링크. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -23,10 +23,12 @@ import InstallBanner from './components/InstallBanner'
 const HowToTab = lazy(() => import('./components/HowToTab'))
 const ReportTab = lazy(() => import('./components/ReportTab'))
 const TierInfoScreen = lazy(() => import('./components/TierInfoScreen'))
+const DesignPreviewScreen = lazy(() => import('./components/DesignPreviewScreen'))
 const InquiryScreen = lazy(() => import('./components/InquiryScreen'))
 const InquiryAdminScreen = lazy(() => import('./components/InquiryAdminScreen'))
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen } from './hooks/useBackableScreen'
+import { normalizeFontId } from './utils/fonts'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
@@ -67,6 +69,7 @@ export default function App() {
   }, [])
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
   const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동조합 변경" 진입 여부
+  const [showDesignPreview, setShowDesignPreview] = useState(false) // [2026-10-28] MY "디자인" → 기록 화면 미리보기
   const [showTierInfo, setShowTierInfo] = useState(false) // MY탭 "등급" 카드 탭 시 티어/XP 설명 전체화면 진입 여부
   // [2026-08-01 신규] MY탭 "온보딩 화면 미리보기"(관리자 전용 QA) 진입 여부. 실제 계정의
   // onboardingCompleted 여부와 무관하게 Onboarding.jsx를 미리보기 모드로 다시 열어본다.
@@ -193,6 +196,8 @@ export default function App() {
     // [2026-10-27 신규] 디자인 스타일 A/B/C(designStyles.css). 미선택 계정은 A.
     const style = userDoc?.onboardingCompleted ? userDoc.stylePreference || 'a' : 'a'
     document.documentElement.setAttribute('data-style', style)
+    // [2026-10-28 신규] 본문 폰트 5종(designStyles.css html[data-font]). 미선택·로그인/온보딩은 프리텐다드.
+    document.documentElement.setAttribute('data-font', userDoc?.onboardingCompleted ? normalizeFontId(userDoc.fontPreference) : 'pretendard')
     // [2026-07-30] 노티바(브라우저 주소창 틴트/상태표시줄) 색상이 테마와 무관하게 골드로
     // 고정돼 있던 문제 수정: index.html의 theme-color 메타 태그를 라이트=블루/다크=골드로
     // 동적 갱신한다. 단, manifest.json의 theme_color는 정적 파일이라 "홈 화면에 추가"로
@@ -205,7 +210,7 @@ export default function App() {
       const color = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim() || '#0B0B0C'
       metaThemeColor.setAttribute('content', color)
     }
-  }, [userDoc?.onboardingCompleted, userDoc?.themePreference, userDoc?.stylePreference])
+  }, [userDoc?.onboardingCompleted, userDoc?.themePreference, userDoc?.stylePreference, userDoc?.fontPreference])
 
   // [2026-10-27 신규] 개인 기록(PR) 맵이 없는 계정은 최초 1회 전체 기록으로 계산해 저장한다.
   const prsBuildRef = useRef(false)
@@ -284,11 +289,13 @@ export default function App() {
   // RoutineSetup.jsx에서 별도로 같은 훅을 사용해 중첩 처리한다.)
   const closeManagingRoutines = useCallback(() => setManagingRoutines(false), [])
   const closeTierInfo = useCallback(() => setShowTierInfo(false), [])
+  const closeDesignPreview = useCallback(() => setShowDesignPreview(false), [])
   const closeInquiries = useCallback(() => setShowInquiries(false), [])
   const closeInquiryAdmin = useCallback(() => setShowInquiryAdmin(false), [])
   const closeOnboardingPreview = useCallback(() => setShowOnboardingPreview(false), [])
   useBackableScreen(managingRoutines, closeManagingRoutines)
   useBackableScreen(showTierInfo, closeTierInfo)
+  useBackableScreen(showDesignPreview, closeDesignPreview)
   useBackableScreen(showInquiries, closeInquiries)
   useBackableScreen(showInquiryAdmin, closeInquiryAdmin)
   useBackableScreen(showOnboardingPreview, closeOnboardingPreview)
@@ -347,6 +354,11 @@ export default function App() {
         onClose={closeManagingRoutines}
       />
     )
+  }
+
+  // [2026-10-28] 기록 화면 미리보기(스타일·테마·폰트·기록 방식 비교). 적용 시 userDoc을 다시 불러온다.
+  if (showDesignPreview) {
+    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><DesignPreviewScreen uid={authUser.uid} userDoc={userDoc} onClose={closeDesignPreview} onApplied={refreshUserDoc} /></Suspense>
   }
 
   // MY탭 등급 카드를 탭하면 티어 체계/XP 설명을 별도 전체 화면으로 보여준다.
@@ -487,6 +499,7 @@ export default function App() {
           onRoutineUpdated={refreshRoutineTemplates}
           onProfileUpdated={refreshUserDoc}
           onShowTierInfo={() => setShowTierInfo(true)}
+          onShowDesignPreview={() => setShowDesignPreview(true)}
           onShowInquiries={() => setShowInquiries(true)}
           onShowInquiryAdmin={() => setShowInquiryAdmin(true)}
           onShowOnboardingPreview={() => setShowOnboardingPreview(true)}

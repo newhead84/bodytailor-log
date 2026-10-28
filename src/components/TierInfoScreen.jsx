@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Card, SectionTitle, TierBadge, BackButton } from './ui'
+import { CountUp } from '../hooks/useCountUp'
 import { TIERS, getTierByXp } from '../utils/tier'
 import { getLeaderboard } from '../storage'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
@@ -45,7 +46,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
         티어 & XP 안내
       </h1>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-        지금 내 등급은 <TierBadge label={currentTier.label} tierKey={currentTier.key} size="sm" />, {xp.toLocaleString()} XP예요.
+        지금 내 등급은 <TierBadge label={currentTier.label} tierKey={currentTier.key} size="sm" />, <CountUp value={xp} /> XP예요.
       </p>
 
       <SectionTitle>내 랭킹 · {formatSeasonLabel(period)}</SectionTitle>

@@ -24,7 +24,7 @@ import {
   getGripOptionNotes,
 } from '../utils/exerciseLibrary'
 import { updateUserProfile, quickAddExerciseToRoutine } from '../storage'
-import ExerciseGuideImage from './ExerciseGuideImage'
+import ExerciseVideoLink from './ExerciseVideoLink'
 
 const MUSCLE_ROLE_LABELS = [
   { key: 'primary', label: '주동근' },
@@ -187,9 +187,10 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
         )}
       </div>
 
-      <Card style={{ marginBottom: 14, padding: 0, overflow: 'hidden' }}>
-        <ExerciseGuideImage name={name} />
-      </Card>
+      {/* [2026-10-28] GIF 이미지 삭제 → YouTube 영상 검색 링크 */}
+      <div style={{ marginBottom: 14 }}>
+        <ExerciseVideoLink name={name} />
+      </div>
 
       {desc && (
         <Card style={{ marginBottom: 14 }}>
