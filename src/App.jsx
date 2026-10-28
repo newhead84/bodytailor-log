@@ -1,13 +1,14 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-28] 세트 행 RIR 겹침 등 좁은 화면 겹침·넘침 수정(WorkoutInput.jsx Stepper/SetRow, HomeTab.jsx).
- *            직전: 디자인 스타일 C 고정, 강조색·폰트 3종으로 축소. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-29] 전면 점검 반영(기록·점수·캘린더 버그, 운동 중 상단 접기, 루틴 수정 개편) + 등급 Lv 리뉴얼(완료 요약 카드·성취).
+ *            직전: 세트 행 RIR 겹침 등 좁은 화면 겹침·넘침 수정. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
 import React, { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { watchAuthState } from './firebase'
-import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLog, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
+import { LEGACY_EXERCISE_NAME_MAP } from './utils/exerciseLibrary'
+import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLogAndRevertXp, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
 
 import LoginScreen from './components/LoginScreen'
 import Onboarding from './components/Onboarding'
@@ -173,7 +174,7 @@ export default function App() {
     const unsub = watchAuthState(async (user) => {
       setAuthUser(user)
       if (user) {
-        const doc = await ensureUserDoc(user.uid, { nickname: user.displayName || '' })
+        const doc = await ensureUserDoc(user.uid, { nickname: (user.displayName || '').slice(0, 30) })
         setUserDoc(doc)
         const templates = await getRoutineTemplates(user.uid)
         setRoutineTemplates(templates)
@@ -216,7 +217,9 @@ export default function App() {
   // [2026-10-27 신규] 개인 기록(PR) 맵이 없는 계정은 최초 1회 전체 기록으로 계산해 저장한다.
   const prsBuildRef = useRef(false)
   useEffect(() => {
-    if (!authUser?.uid || !userDoc?.onboardingCompleted || userDoc.prs || prsBuildRef.current) return
+    // [2026-10-29] PR 맵에 옛 종목명 키(예: 와이드그립랫풀다운)가 남아 있으면 정규화된 이름으로 한 번 다시 계산
+    const hasLegacyPrKey = !!userDoc?.prs && Object.keys(userDoc.prs).some((k) => k.split('::')[0] in LEGACY_EXERCISE_NAME_MAP)
+    if (!authUser?.uid || !userDoc?.onboardingCompleted || (userDoc.prs && !hasLegacyPrKey) || prsBuildRef.current) return
     prsBuildRef.current = true
     rebuildPersonalRecords(authUser.uid)
       .then(() => refreshUserDoc())
@@ -255,9 +258,15 @@ export default function App() {
   }, [autoNoticeKey])
   const undoAutoNotice = useCallback(async () => {
     if (!autoNotice?.logId || !authUser?.uid) return
-    await deleteWorkoutLog(authUser.uid, autoNotice.logId)
+    // [2026-10-29] 기록과 함께 그때 받은 XP도 되돌린다(이전엔 기록만 지워지고 XP·등급이 남았다)
+    try {
+      await deleteWorkoutLogAndRevertXp(authUser.uid, autoNotice.logId, autoNotice.xpEarned)
+    } catch (err) {
+      console.error('자동 저장 되돌리기 실패:', err)
+    }
     dismissAutoNotice()
     setLogsVersion((v) => v + 1)
+    getUserDoc(authUser.uid).then(setUserDoc).catch(() => {}) // 줄어든 XP·등급 반영
   }, [autoNotice, authUser, dismissAutoNotice])
 
   const refreshUserDoc = useCallback(async () => {
@@ -477,6 +486,7 @@ export default function App() {
           personalRecords={userDoc.prs || null}
           exerciseSettings={userDoc.exerciseSettings || null}
           logMode={userDoc.logMode || 'list'}
+          seasonXp={getEffectiveSeasonXp(userDoc)}
         />
       </div>
       <div ref={reportScrollRef} style={tabWrapperStyle('report')} className={revealedTabs.has('report') ? 'bt-reveal' : ''}>
@@ -505,6 +515,7 @@ export default function App() {
           onShowInquiryAdmin={() => setShowInquiryAdmin(true)}
           onShowOnboardingPreview={() => setShowOnboardingPreview(true)}
           googlePhotoURL={authUser?.photoURL}
+          isActive={activeTab === 'my'}
         />
       </div>
       <BottomNav active={activeTab} onChange={handleTabPress} />

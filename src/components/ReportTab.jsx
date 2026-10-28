@@ -15,7 +15,7 @@ import {
 } from 'recharts'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState, Disclosure } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom, getEffectiveSeasonXp } from '../storage'
-import { getTierByXp } from '../utils/tier'
+import { getTierByXp, getLevelInfo } from '../utils/tier'
 import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeOverloadByOccurrenceForDisplay, computeFinalScore, computeStreakBonus } from '../utils/scoring'
 import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, getBodyweightVolumeFactor, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
@@ -130,6 +130,8 @@ function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
 }
 
 export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true }) {
+  // [2026-10-29] 출석 목표 일수 = 루틴 파트 수(2~5일로 제한). 랭킹 출석 점수와 리포트 출석률이 같은 기준을 쓴다.
+  const attendanceTargetDays = Math.min(5, Math.max(2, targetSessionsPerWeek || 3))
   // 랭킹 관련 상태
   const [entries, setEntries] = useState([])
   const [rankingLoading, setRankingLoading] = useState(true)
@@ -200,12 +202,29 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
 
   async function handleRefreshMyScore() {
     setRefreshing(true)
+    // [2026-10-29] 저장 실패(규칙 거부 등)해도 버튼이 '계산 중'에 멈추지 않게 finally로 해제
+    try {
+      await refreshMyScore()
+    } catch (err) {
+      console.error('랭킹 점수 갱신 실패:', err)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  async function refreshMyScore() {
     const today = new Date()
     const weekStart = startOfWeek(today)
     const prevWeekStart = new Date(weekStart)
     prevWeekStart.setDate(prevWeekStart.getDate() - 7)
     const fourWeeksAgo = new Date(weekStart)
     fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28)
+    // [2026-10-29] 볼륨 기준 = 이번 주 직전 4주(지난주 일요일까지). 이전엔 끝이 지난주 월요일이라 3주+1일을 4로 나눴다.
+    const baselineEnd = new Date(weekStart)
+    baselineEnd.setDate(baselineEnd.getDate() - 1)
+    // [2026-10-29] 연속 출석 보너스 최대 +20(16주)까지 셀 수 있게 16주 조회(이전 12주 범위라 최대 +15)
+    const streakRangeStart = new Date(weekStart)
+    streakRangeStart.setDate(streakRangeStart.getDate() - 16 * 7)
     // [2026-07-31 신규] 점진적 과부하를 "같은 종목의 직전 수행 대비"로 판단하기 위해,
     // 이번 주 이전 수행 기록도 함께 조회한다(탐색 범위는 현재 통계 조회 범위와 동일하게
     // STATS_RANGE_DAYS로 제한, 사용자 확인).
@@ -217,20 +236,22 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     // 반영되지만, 랭킹 점수(출석/볼륨/과부하) 계산에서는 제외한다.
     const excludeBackfilled = (arr) => arr.filter((l) => !l.isBackfilled)
     const thisWeekLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(weekStart), fmt(today)))
-    const baselineLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(fourWeeksAgo), fmt(prevWeekStart)))
+    const baselineLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(fourWeeksAgo), fmt(baselineEnd)))
     const overloadRangeLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(overloadRangeStart), fmt(today)))
+    const streakRangeLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(streakRangeStart), fmt(today)))
 
     const thisWeekVolume = thisWeekLogs.reduce((s, l) => s + (l.totalVolume || 0), 0)
     const baselineAvgVolume = baselineLogs.length > 0 ? baselineLogs.reduce((s, l) => s + (l.totalVolume || 0), 0) / 4 : 0
 
-    const attendanceScore = computeAttendanceScore(thisWeekLogs.length, targetSessionsPerWeek)
+    // [2026-10-29] 출석 = 이번 주 운동한 날 수(하루 여러 번은 1일) / 목표 일수(루틴 파트 수, 2~5일). 리포트 카드와 같은 기준.
+    const attendanceScore = computeAttendanceScore(new Set(thisWeekLogs.map((l) => l.date)).size, attendanceTargetDays)
     const volumeScore = computeVolumeScore(thisWeekVolume, baselineAvgVolume)
     const overloadScore = computeOverloadByOccurrence(overloadRangeLogs, fmt(weekStart)).score
     // [2026-10-27 리뉴얼 W3] 연속 출석 주 보너스 연결(4주 연속마다 +5점, 최대 +20). 이번 주 포함,
     // 기록(과거 입력 제외)이 1회 이상 있는 주가 끊기지 않고 이어진 주 수.
-    const weeksWithSession = new Set(overloadRangeLogs.map((l) => startOfWeekStr(new Date(l.date + 'T00:00:00'))))
+    const weeksWithSession = new Set(streakRangeLogs.map((l) => startOfWeekStr(new Date(l.date + 'T00:00:00'))))
     let streakWeeks = 0
-    for (let k = 0; k > -13; k--) {
+    for (let k = 0; k > -17; k--) {
       if (weeksWithSession.has(startOfWeekStr(new Date(), k))) streakWeeks += 1
       else if (k === 0) continue // 이번 주는 아직 진행 중이라 비어 있어도 연속이 끊기지 않음
       else break
@@ -239,7 +260,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     const finalScore = computeFinalScore({ attendanceScore, volumeScore, overloadScore, streakBonus })
 
     await upsertLeaderboardEntry('all', period, uid, {
-      nickname: userDoc?.nickname || '회원',
+      nickname: (userDoc?.nickname || '회원').slice(0, 30), // 규칙: 30자 이하
       attendanceScore,
       volumeScore,
       overloadScore,
@@ -247,7 +268,6 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
       finalScore,
     })
     await loadRanking()
-    setRefreshing(false)
   }
 
   // [2026-07-29 변경] 점수는 이제 운동완료와 함께 자동으로 갱신된다(App.jsx가 운동 저장 직후
@@ -387,7 +407,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     )
     return { thisWeek: thisWeekDaySet.size, lastWeek: lastWeekDaySet.size }
   }, [logs])
-  const attendanceRate = Math.round((weeklyAttendanceDays.thisWeek / 7) * 100)
+  const attendanceRate = Math.min(100, Math.round((weeklyAttendanceDays.thisWeek / attendanceTargetDays) * 100))
 
   // [2026-07-31 변경] 라이브러리 개편 전 이름 등으로 현재 EXERCISE_LIBRARY와 매칭되지
   // 않는 종목은 '기타'로 뭉쳐 보여주지 않고, 집계 단계에서부터 완전히 제외한다
@@ -589,7 +609,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
                   </span>
                   {/* [2026-08-01] 닉네임+티어가 세로 2줄이던 걸 한 줄로 통합(티어 뱃지 오른쪽에 닉네임) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <TierBadge label={tier.label} tierKey={tier.key} size="sm" />
+                    <TierBadge label={tier.label} tierKey={tier.key} level={getLevelInfo(getEffectiveSeasonXp(userDoc)).level} size="sm" />
                     <span style={{ fontWeight: 700, fontSize: 14 }}>{myEntry.nickname} (나)</span>
                   </div>
                 </div>
@@ -620,7 +640,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span className="bt-num" style={{ fontSize: 'calc(30px * var(--num-scale))' }}><CountUp value={attendanceRate} />%</span>
               <span className="record-notation" style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                {weeklyAttendanceDays.thisWeek} / 7일
+                {weeklyAttendanceDays.thisWeek} / 목표 {attendanceTargetDays}일
               </span>
             </div>
 
@@ -629,7 +649,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
             <p className="record-notation" style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--color-label-neutral)' }}>
               이번주 {weeklyAttendance.thisWeekLabel} · 지난주 {weeklyAttendance.lastWeekLabel} 대비 {weeklyAttendanceDays.lastWeek}일
             </p>
-            <Disclosure style={{ marginTop: 4 }}>이번 주 7일 중 운동을 완료한 날짜 수 기준이에요 (루틴 분할과 무관)</Disclosure>
+            <Disclosure style={{ marginTop: 4 }}>이번 주(월~일) 운동한 날 수를 목표 일수와 비교해요. 목표는 내 루틴의 파트 수(최소 2일, 최대 5일)이고, 하루에 여러 번 해도 1일로 세요. 랭킹 출석 점수도 같은 기준이에요(랭킹은 캘린더에서 추가한 과거 기록은 빼고 계산).</Disclosure>
           </Card>
 
           {/* [2026-10-27 리뉴얼 W2] 근거 기반 인사이트: 근육별 주간 세트·유산소·정체/디로드·PR·골밀도 */}

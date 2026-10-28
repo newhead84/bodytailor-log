@@ -71,9 +71,10 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
           rows.map((atom) => {
             const v = sets[atom] || 0
             const pct = Math.min(100, (v / scaleMax) * 100)
-            const status = v === 0 ? '' : v < WEEKLY_SET_GUIDE.min ? '부족' : v > WEEKLY_SET_GUIDE.max ? '많음' : '적정'
+            // [2026-10-29] 이번 주는 아직 진행 중이라 기준 미만이어도 '부족' 대신 '진행 중'으로(주중에 모두 '부족'으로 떠 위협적이던 문제)
+            const status = v === 0 ? '' : v < WEEKLY_SET_GUIDE.min ? (week === 0 ? '진행 중' : '부족') : v > WEEKLY_SET_GUIDE.max ? '많음' : '적정'
             return (
-              <div key={atom} style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) 40px 34px', alignItems: 'center', gap: 8 }}>
+              <div key={atom} style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) 40px 44px', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>{atom}</span>
                 <div style={{ position: 'relative', height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)' }}>
                   <div
@@ -97,7 +98,8 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
                   style={{
                     fontSize: 11,
                     textAlign: 'right',
-                    color: status === '적정' ? 'var(--color-success)' : status === '부족' ? 'var(--color-label-neutral)' : 'var(--color-warning)',
+                    whiteSpace: 'nowrap',
+                    color: status === '적정' ? 'var(--color-success)' : status === '부족' || status === '진행 중' ? 'var(--color-label-neutral)' : 'var(--color-warning)',
                   }}
                 >
                   {status}

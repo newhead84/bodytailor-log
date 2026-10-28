@@ -31,6 +31,8 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
 
   useEffect(() => {
     if (!isActive || isPaused) return
+    // [2026-10-29] 재개·시작 직후 이전 시각(nowTick)으로 계산돼 1초가량 00:00으로 튀던 문제 → 즉시 갱신
+    setNowTick(Date.now())
     const id = setInterval(() => setNowTick(Date.now()), 1000)
     return () => clearInterval(id)
   }, [isActive, isPaused])

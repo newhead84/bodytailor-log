@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { Sparkles } from 'lucide-react'
+import { ChevronDown, Info } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm } from './ui'
 import { CountUp } from '../hooks/useCountUp'
@@ -40,8 +40,10 @@ import {
   isSessionStale,
   sessionDateStr,
   sessionLogId,
+  sessionIdentity,
 } from '../utils/sessionPayload'
 import { todayStr, toLocalDateStr } from '../utils/date'
+import { getLevelInfo } from '../utils/tier'
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 import { pickSetEncouragement } from '../utils/setEncouragements'
 
@@ -173,6 +175,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     personalRecords,
     exerciseSettings,
     logMode,
+    seasonXp = 0, // [2026-10-29] 완료 요약 카드의 Lv 진행(저장 전 시즌 XP)
   },
   ref
 ) {
@@ -183,6 +186,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const [guideHintClosed, setGuideHintClosed] = useState(false)
   const [dismissingGuideHint, setDismissingGuideHint] = useState(false)
   const showGuideHint = !guideHintDismissed && !guideHintClosed
+  // [2026-10-29] 운동 중에는 운동방식·파트·휴식 선택줄을 한 줄 요약으로 접는다(세트 입력줄이 화면 밖으로 밀리던 문제).
+  const [sessionHeaderOpen, setSessionHeaderOpen] = useState(false)
   async function handleDismissGuideHint() {
     setDismissingGuideHint(true)
     try {
@@ -246,6 +251,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 전체 세션 진행 단계: idle(시작 전) → warmup(웜업 중) → main(본운동)
   const [sessionPhase, setSessionPhase] = useState('idle')
   const [sessionStartAt, setSessionStartAt] = useState(null) // ms epoch, 총 운동시간 계산 기준
+  // [2026-10-29] 세션 고정 ID(시작 시각 ms). 타이머 ±10초·초기화로 sessionStartAt이 바뀌어도 기록 ID·날짜는 그대로.
+  const [sessionId, setSessionId] = useState(null)
   const [warmupActualSec, setWarmupActualSec] = useState(null)
   const [nowTick, setNowTick] = useState(Date.now())
   // 일시정지: 진행 중(웜업/본운동) 동안 잠시 멈췄다 재개할 수 있게 한다.
@@ -301,10 +308,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   // 세션이 진행 중일 때(웜업/본운동) 1초마다 경과시간 표시 갱신
   useEffect(() => {
-    if (sessionPhase === 'idle') return
+    if (sessionPhase === 'idle' || pauseStartedAt) return
+    setNowTick(Date.now()) // [2026-10-29] 시작·재개 직후 1초간 이전 시각으로 계산되던 문제
     const t = setInterval(() => setNowTick(Date.now()), 1000)
     return () => clearInterval(t)
-  }, [sessionPhase])
+  }, [sessionPhase, pauseStartedAt])
 
   // [2026-08-04 근본원인 수정] "종목 추가했다가 X로 지우면 종목추가 목록에 다시 안 보이는"
   // 버그의 원인. 기존에는 selectedPart(객체 참조)가 바뀔 때마다 재동기화했는데, addExerciseToRoutine
@@ -380,6 +388,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setCompletedExercises(draft.completedExercises || {})
     setSessionPhase(draft.sessionPhase || 'idle')
     setSessionStartAt(draft.sessionStartAt || null)
+    setSessionId(draft.sessionId || draft.sessionStartAt || null)
     setWarmupActualSec(draft.warmupActualSec ?? null)
     setPauseStartedAt(draft.pauseStartedAt || null)
     setPausedAccumMs(draft.pausedAccumMs || 0)
@@ -394,11 +403,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
+    setSessionId(null)
     setWarmupActualSec(null)
     setPauseStartedAt(null)
     setPausedAccumMs(0)
     setFreeExercises([])
     setHiddenToday([])
+    setLastRecords({}) // [2026-10-29] 다음 세션의 직전 기록·증량 추천이 오늘 기록 기준으로 다시 계산되게
     setAddingExercise(false)
     setAddingFreeExercise(false)
     setExpandedExercise(null)
@@ -513,7 +524,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         }
         // 다른 기기에서 시작했거나 이 기기의 브라우저 데이터가 지워진 경우: 서버 백업 확인
         const remote = await getActiveSession(uid)
-        if (isSessionActive(remote) && remote.sessionStartAt !== localDraft?.sessionStartAt) {
+        if (isSessionActive(remote) && sessionIdentity(remote) !== sessionIdentity(localDraft)) {
           if (isSessionStale(remote)) {
             await autoFinalizeDraft(remote)
             clearActiveSession(uid)
@@ -551,6 +562,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       completedExercises,
       sessionPhase,
       sessionStartAt,
+      sessionId,
       warmupActualSec,
       pauseStartedAt,
       pausedAccumMs,
@@ -586,6 +598,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     completedExercises,
     sessionPhase,
     sessionStartAt,
+    sessionId,
     warmupActualSec,
     pauseStartedAt,
     pausedAccumMs,
@@ -617,6 +630,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     if (!(await confirm('운동을 취소할까요? 지금까지 입력한 기록은 사라져요.'))) return
     setSessionPhase('idle')
     setSessionStartAt(null)
+    setSessionId(null)
+    setLastRecords({})
     setWarmupActualSec(null)
     setPauseStartedAt(null)
     setPausedAccumMs(0)
@@ -655,7 +670,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 준비되면 "본운동 시작" 버튼으로 넘어간다.
   function handleStartWorkout() {
     setSessionPhase('warmup')
-    setSessionStartAt(Date.now())
+    const startMs = Date.now()
+    setSessionStartAt(startMs)
+    setSessionId(startMs)
     // [2026-07-30 신규] 이전 세션에서 남아있을 수 있는 종목추가 패널 열림 상태를 방어적으로 초기화(⑫).
     setAddingExercise(false)
     setAddingFreeExercise(false)
@@ -711,10 +728,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 총 운동시간을 10초 단위로 미세 조정. sessionStartAt을 앞뒤로 옮겨
   // "지금 - sessionStartAt - pausedAccumMs" 값(경과시간)이 ±10초 변하게 한다.
   function handleAdjustElapsed(deltaSec) {
+    // [2026-10-29] 일시정지 중엔 멈춘 시점 기준으로 제한(−10초 연타로 시작 시각이 멈춘 시점을 넘어가 표시가 0에 붙던 문제)
+    const refAt = pauseStartedAt ?? Date.now()
     setSessionStartAt((prev) => {
       if (!prev) return prev
       const next = prev - deltaSec * 1000
-      return Math.min(next, Date.now())
+      return Math.min(next, refAt - pausedAccumMs)
     })
   }
 
@@ -827,15 +846,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRecords((r) => ({
       ...r,
       // 사용자가 값을 직접 고친 행은 자동 프리필 행이 아니므로 기록 대상(auto 해제)
-      [name]: r[name].map((s, i) => (i === idx ? { ...s, [field]: value, auto: false } : s)),
+      [name]: r[name].map((s, i) => (i === idx ? { ...s, [field]: value, auto: false, planned: false } : s)),
     }))
   }
 
   function copyLastSet(name, idx) {
     setRecords((r) => {
       const sets = r[name]
-      const { saved, savedAt, auto, rir, ...base } = sets[idx] || {}
-      return { ...r, [name]: [...sets, { ...base, ...(base.type === 'warmup' ? { type: 'working' } : {}) }] }
+      const { saved, savedAt, auto, planned, rir, ...base } = sets[idx] || {}
+      // [2026-10-29] 미리 만든 행은 planned — 체크(V)·수정하지 않으면 완료 시 포함 여부를 묻는다(안 한 세트가 그대로 저장되던 문제).
+      // "세트완료" 때 지워지는 auto 행과 달리 남겨 둔다.
+      return { ...r, [name]: [...sets, { ...base, ...(base.type === 'warmup' ? { type: 'working' } : {}), planned: true }] }
     })
   }
 
@@ -856,7 +877,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     autoResumeIfPaused()
     setRecords((r) => ({
       ...r,
-      [key]: (r[key] || []).map((st, i) => (i === idx ? { ...st, ...patch, auto: false } : st)),
+      [key]: (r[key] || []).map((st, i) => (i === idx ? { ...st, ...patch, auto: false, planned: false } : st)),
     }))
   }
   function cycleSetType(key, idx) {
@@ -893,7 +914,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRecords((r) => ({
       ...r,
       [key]: [
-        ...ramp.map((w) => ({ type: 'warmup', weight: String(w.weight), reps: String(w.reps) })),
+        ...ramp.map((w) => ({ type: 'warmup', weight: String(w.weight), reps: String(w.reps), planned: true })),
         ...(r[key] || []).filter((st) => st.type !== 'warmup'),
       ],
     }))
@@ -967,7 +988,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     }
     if (savedSet && savedSet.type !== 'warmup' && getExerciseInputType(parseExerciseKey(name).name) === 'sets') {
       const v = e1rm(savedSet.weight, savedSet.reps)
-      const prevBest = Math.max(personalRecords?.[name]?.e1rm || 0, sessionBestRef.current[name] || 0)
+      // [2026-10-29] 이번 세션 최고치는 ref 대신 현재 기록에서 다시 계산(새로고침·세트 삭제·웜업 전환에도 정확)
+      const sessionBest = (records[name] || []).reduce((m, st, i) => (i !== idx && st.saved && st.type !== 'warmup' ? Math.max(m, e1rm(st.weight, st.reps) || 0) : m), 0)
+      const prevBest = Math.max(personalRecords?.[name]?.e1rm || 0, sessionBest)
       if (v > 0 && personalRecords?.[name]?.e1rm && v > prevBest) {
         showToast(`신기록! 추정 1RM ${v}kg (+${Math.round((v - prevBest) * 10) / 10})`, 2600)
       }
@@ -978,8 +1001,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRecords((r) => {
       // [2026-10-27] savedAt: 마지막 활동 시각(방치 세션 판단·자동 저장 시 운동시간 계산)용.
       // 자동 생성되는 다음 세트 행은 auto:true — 손대지도 체크하지도 않으면 기록에서 제외된다.
-      const sets = r[name].map((s, i) => (i === idx ? { ...s, saved: true, auto: false, savedAt: Date.now() } : s))
-      const { saved, savedAt, auto, rir, ...base } = sets[idx]
+      const sets = r[name].map((s, i) => (i === idx ? { ...s, saved: true, auto: false, planned: false, savedAt: Date.now() } : s))
+      const { saved, savedAt, auto, planned, rir, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]
       // 웜업 세트를 저장한 뒤 자동으로 생기는 다음 행은 본세트로 시작
       const nextBase = base.type === 'warmup' ? { ...base, type: 'working' } : base
@@ -1034,11 +1057,20 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }
 
   // "삭제": 루틴(파트) 자체는 그대로 두고, 오늘 세션 화면에서만 숨긴다 (다음에 다시 보임)
-  function hideExerciseToday(name) {
+  // [2026-10-29] 저장(V)한 세트가 있으면 먼저 확인 — 확인 없이 기록까지 지워지던 문제. 숨긴 종목의 기록은 남기지 않는다
+  // (숨김 = 오늘 안 한 종목). 다시 추가하면 완료 표시도 풀린 빈 카드로 시작.
+  async function hideExerciseToday(name) {
+    const savedCount = (records[name] || []).filter((st) => st.saved).length
+    if (savedCount > 0 && !(await confirm(`"${exerciseKeyLabel(name)}"에 저장한 세트 ${savedCount}개가 있어요. 오늘 목록에서 숨기면 이 세트들은 기록에서 빠져요. 숨길까요?`, { okLabel: '숨기기', cancelLabel: '그대로 두기' }))) return
     setHiddenToday((prev) => [...prev, name])
     unpairSuperset(name)
     setRecords((r) => {
       const { [name]: _omit, ...rest } = r
+      return rest
+    })
+    setCompletedExercises((c) => {
+      if (!c[name]) return c
+      const { [name]: _o, ...rest } = c
       return rest
     })
     if (expandedExercise === name) setExpandedExercise(null)
@@ -1130,7 +1162,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setAddingFreeExercise(false)
   }
 
-  function removeFreeExercise(name) {
+  async function removeFreeExercise(name) {
+    const savedCount = (records[name] || []).filter((st) => st.saved).length
+    if (savedCount > 0 && !(await confirm(`"${exerciseKeyLabel(name)}"에 저장한 세트 ${savedCount}개가 있어요. 목록에서 지우면 이 세트들은 기록에서 빠져요. 지울까요?`, { okLabel: '지우기', cancelLabel: '그대로 두기' }))) return
     setFreeExercises((prev) => prev.filter((n) => n !== name))
     unpairSuperset(name)
     setRecords((r) => {
@@ -1196,8 +1230,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     if (unchecked > 0) {
       includeUnchecked = await confirm(
         `체크(V)하지 않은 세트가 ${unchecked}개 있어요. 실제로 한 세트라면 함께 저장하고, 아니면 체크한 세트만 저장할게요.`,
-        { okLabel: '함께 저장', cancelLabel: '체크한 세트만' }
+        { okLabel: '함께 저장', cancelLabel: '체크한 세트만', dismissValue: null }
       )
+      // [2026-10-29] 바깥을 눌러 닫으면 저장하지 않고 운동을 계속한다(이전엔 '체크한 세트만'으로 저장·종료됐다)
+      if (includeUnchecked === null) return
     }
     setSaving(true)
     const exercises = buildExercisesFromRecords(records, { includeUnchecked })
@@ -1219,12 +1255,14 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const caloriesKcal = estimateCaloriesV2(weightKg, exercises, totalDurationSec)
 
     let xpEarned = 0
+    let prCount = 0
+    const xpBefore = Number(seasonXp) || 0
     try {
       const res = await addWorkoutLog(
         uid,
         {
           // [2026-10-27 W0] 자정을 넘겨 끝낸 운동도 시작한 날짜로 기록한다.
-          date: sessionStartAt ? toLocalDateStr(new Date(sessionStartAt)) : todayStr(),
+          date: sessionId || sessionStartAt ? sessionDateStr({ sessionId, sessionStartAt }) : todayStr(),
           exercises,
           totalVolume: finishVolume,
       totalDurationSec,
@@ -1236,9 +1274,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           scoreWeight: sessionType === 'extra' ? 0.7 : 1.0,
         },
         // [2026-10-27] 세션 시작 시각 기반 고정 ID — 자동 저장과 겹쳐도 기록이 하나만 생긴다.
-        sessionLogId({ sessionStartAt })
+        sessionLogId({ sessionId, sessionStartAt })
       )
       xpEarned = res.xpEarned
+      prCount = new Set((res.newRecords || []).map((r) => r.key)).size // 종목당 1개로(같은 종목 연속 신기록은 1개)
     } catch (err) {
       // 저장 실패 시 무한 "저장 중"에 갇히지 않게 한다. draft(로컬+서버 백업)는 그대로 남아 있다.
       console.error('운동 기록 저장 실패:', err)
@@ -1278,12 +1317,14 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
+    setSessionId(null)
     setWarmupActualSec(null)
     setPauseStartedAt(null)
     setPausedAccumMs(0)
     setFreeExercises([])
     setHiddenToday([])
     setSupersets({})
+    setLastRecords({}) // [2026-10-29] 같은 앱 실행 중 다음 세션의 직전 기록이 오늘 기록으로 갱신되게
     sessionBestRef.current = {}
     // [2026-07-30 신규] 운동 완료 시 "+ 종목 추가" 패널을 열어둔 채로 끝내면(취소를 누르지
     // 않고 완료) 다음 세션 시작 시에도 그 패널이 열린 채로 보이던 버그(⑫) 수정.
@@ -1292,7 +1333,22 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setSaving(false)
     // 운동완료 시점에 진행 중이던 휴식타이머는 즉시 사라져야 한다.
     setRestActive(false)
-    setCelebration({ xpEarned, pendingRoutineAdd, templateForAdd })
+    // [2026-10-29 등급 리뉴얼] 완료 요약 카드: 시간·볼륨·본세트·PR·XP + Lv 진행(레벨 업·단계 승급 연출)
+    const workingSetCount = exercises.reduce((n, ex) => n + (ex.sets || []).filter((st) => st.type !== 'warmup').length, 0)
+    setCelebration({
+      xpEarned,
+      pendingRoutineAdd,
+      templateForAdd,
+      summary: {
+        durationSec: totalDurationSec || 0,
+        volume: finishVolume || 0,
+        workingSets: workingSetCount,
+        exerciseCount: exercises.length,
+        prCount,
+        xpBefore,
+        xpAfter: xpBefore + (xpEarned || 0),
+      },
+    })
     onSaved?.()
   }
 
@@ -1382,7 +1438,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           elapsedSeconds/isPaused/handleAdjustElapsed/handleResetElapsed/handlePauseToggle는
           여전히 draft 저장·자동재개 등 다른 로직에서 쓰이므로 그대로 둔다. */}
 
-      {showGuideHint && (
+      {showGuideHint && sessionPhase !== 'idle' && (
+        // [2026-10-29] 운동 중에는 가이드 안내를 한 줄로(카드가 화면 1/4을 차지하던 문제)
+        <div className="text-keep-all" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary-bg)', fontSize: 12.5, color: 'var(--color-label-normal)' }}>
+          <Info size={15} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--color-primary-strong)' }} />
+          <span style={{ flex: 1, minWidth: 0 }}>종목명을 길게 누르면 동작 가이드가 열려요.</span>
+          <button type="button" onClick={handleDismissGuideHint} disabled={dismissingGuideHint} style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', padding: '4px 2px' }}>
+            다시 보지 않기
+          </button>
+        </div>
+      )}
+      {showGuideHint && sessionPhase === 'idle' && (
         <Card
           style={{
             marginBottom: 14,
@@ -1404,6 +1470,23 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         </Card>
       )}
 
+      {sessionPhase !== 'idle' && (
+        <button
+          type="button"
+          onClick={() => setSessionHeaderOpen((v) => !v)}
+          aria-expanded={sessionHeaderOpen}
+          className="text-keep-all"
+          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, marginBottom: sessionHeaderOpen ? 12 : 14, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'transparent', textAlign: 'left' }}
+        >
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+            {sessionType === 'routine' ? [selectedTemplate?.title, selectedPart ? truncatePartLabel(selectedPart.name) : null].filter(Boolean).join(' · ') : `자유 추가 · ${freeCategory}`}
+            <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)' }}> · 휴식 {REST_OPTIONS.find((o) => o.value === restSeconds)?.label || `${restSeconds}초`}</span>
+          </span>
+          <span style={{ flexShrink: 0, fontSize: 12, color: 'var(--color-label-neutral)' }}>{sessionHeaderOpen ? '접기' : '바꾸기'}</span>
+          <ChevronDown size={16} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--color-label-neutral)', transform: sessionHeaderOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+        </button>
+      )}
+      {(sessionPhase === 'idle' || sessionHeaderOpen) && (<>
       {/* 운동방식: 내 루틴(최대 8개) 중 선택 / 자유 추가 운동 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0 }}>운동방식 선택</span>
@@ -1456,6 +1539,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           </Chip>
         ))}
       </div>
+      </>)}
 
       {/* ── idle: 운동 시작 전 ── */}
       {sessionPhase === 'idle' && (
@@ -1701,6 +1785,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       {celebration && (
         <WorkoutCompleteModal
           xpEarned={celebration.xpEarned}
+          summary={celebration.summary}
           pendingRoutineAdd={celebration.pendingRoutineAdd}
           templateForAdd={celebration.templateForAdd}
           onAddToRoutine={handleAddTodayToRoutine}
@@ -1763,9 +1848,30 @@ export default WorkoutInput
 
 // [2026-07-28] 운동완료 축하 팝업. 격려 문구 + 획득 XP + 체크마크 애니메이션.
 // 배경을 눌러도 닫히지 않게(다음 행동 유도) 버튼으로만 닫는다.
-function WorkoutCompleteModal({ xpEarned, pendingRoutineAdd, templateForAdd, onAddToRoutine, onClose }) {
+// [2026-10-29 등급 리뉴얼] 운동 완료 요약 카드: 오늘 운동 요약(시간·볼륨·본세트·PR) + 받은 XP +
+// Lv 진행 막대(저장 전 → 후로 차오름). Lv이 오르면 "레벨 업", 단계가 바뀌면 "OO 달성" 표시.
+function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateForAdd, onAddToRoutine, onClose }) {
   const [addState, setAddState] = useState('idle') // idle | adding | done
   const hasPendingCandidates = !!(templateForAdd && pendingRoutineAdd?.length)
+  const before = getLevelInfo(summary?.xpBefore || 0)
+  const after = getLevelInfo(summary?.xpAfter || 0)
+  const leveledUp = after.level > before.level
+  const stagedUp = after.tierKey !== before.tierKey
+  // 막대: 레벨이 그대로면 이전 진행도 → 새 진행도, 올랐으면 0 → 새 진행도
+  const [barPct, setBarPct] = useState(leveledUp ? 0 : before.progress * 100)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setBarPct(after.progress * 100))
+    return () => cancelAnimationFrame(id)
+  }, [after.progress])
+  const mins = Math.max(0, Math.round((summary?.durationSec || 0) / 60))
+  const stats = summary
+    ? [
+        { label: '운동 시간', value: mins, unit: '분' },
+        { label: '총 볼륨', value: Math.round(summary.volume), unit: 'kg' },
+        { label: '본세트', value: summary.workingSets, unit: '세트' },
+        { label: '신기록', value: summary.prCount, unit: '개' },
+      ]
+    : []
 
   async function handleAddClick() {
     setAddState('adding')
@@ -1775,6 +1881,9 @@ function WorkoutCompleteModal({ xpEarned, pendingRoutineAdd, templateForAdd, onA
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="오늘 운동 완료"
       style={{
         position: 'fixed',
         inset: 0,
@@ -1791,49 +1900,68 @@ function WorkoutCompleteModal({ xpEarned, pendingRoutineAdd, templateForAdd, onA
         style={{
           background: 'var(--color-bg-elevated)',
           borderRadius: 'var(--radius-lg)',
-          padding: '32px 24px',
-          textAlign: 'center',
-          maxWidth: 320,
+          padding: '28px 22px 22px',
+          maxWidth: 340,
           width: '100%',
+          maxHeight: 'calc(100vh - 48px)',
+          overflowY: 'auto',
         }}
       >
-        <div
-          className="bt-celebrate-check"
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: '50%',
-            background: 'var(--color-success)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 16px',
-          }}
-        >
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12l5 5L19 7" />
-          </svg>
-        </div>
-        <p className="text-keep-all" style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-          오늘도 득근 완료! <Sparkles size={18} strokeWidth={1.8} color="var(--color-gold-500)" />
-        </p>
-        <p className="text-keep-all" style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--color-label-neutral)' }}>
-          수고하셨어요. 꾸준함이 곧 실력이 됩니다.
-        </p>
-        {xpEarned > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
           <div
-            style={{
-              display: 'inline-block',
-              padding: '8px 16px',
-              borderRadius: 'var(--radius-pill)',
-              background: 'var(--color-primary-bg)',
-              color: 'var(--color-primary-strong)',
-              fontWeight: 800,
-              fontSize: 15,
-              marginBottom: 20,
-            }}
+            className="bt-celebrate-check"
+            style={{ width: 44, height: 44, flexShrink: 0, borderRadius: '50%', background: 'var(--color-success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            +<CountUp value={xpEarned} /> XP 획득
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12l5 5L19 7" />
+            </svg>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <p className="text-keep-all" style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)' }}>오늘 운동 완료</p>
+            <p className="text-keep-all" style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>
+              {summary?.exerciseCount ? `${summary.exerciseCount}개 종목을 마쳤어요. 수고하셨어요.` : '수고하셨어요. 꾸준함이 곧 실력이 됩니다.'}
+            </p>
+          </div>
+        </div>
+
+        {stats.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 16 }}>
+            {stats.map((st) => (
+              <div key={st.label} style={{ padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)' }}>
+                <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)', marginBottom: 2 }}>{st.label}</span>
+                <span className="bt-num" style={{ fontSize: 'calc(20px * var(--num-scale))', color: 'var(--color-label-strong)', whiteSpace: 'nowrap' }}>
+                  <CountUp value={st.value} />
+                  <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{st.unit}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {xpEarned > 0 && (
+          <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary-bg)', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+              <span className="bt-num" style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+                Lv {leveledUp ? `${before.level} → ${after.level}` : after.level}
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', marginLeft: 6 }}>{after.stage}</span>
+              </span>
+              <span className="bt-num" style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-primary-strong)', whiteSpace: 'nowrap' }}>
+                +<CountUp value={xpEarned} /> XP
+              </span>
+            </div>
+            <div style={{ height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)', overflow: 'hidden' }}>
+              <div style={{ width: `${barPct}%`, height: '100%', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', transition: 'width 0.6s var(--ease-out, ease-out)' }} />
+            </div>
+            {(leveledUp || stagedUp) && (
+              <p className="bt-pop-in text-keep-all" style={{ margin: '10px 0 0', fontSize: 13, fontWeight: 800, color: 'var(--color-primary-strong)' }}>
+                {stagedUp ? `${after.stage} 단계 달성! 이제 Lv ${after.level}` : `레벨 업! 이제 Lv ${after.level}`}
+              </p>
+            )}
+            {!leveledUp && (
+              <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                Lv {after.level + 1}까지 {after.xpToNext.toLocaleString()} XP
+              </p>
+            )}
           </div>
         )}
         {/* [2026-08-02 신규] 자유 추가 운동으로 기록한 오늘의 종목을, 화면 이동 없이 바로
@@ -2379,7 +2507,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
       className="bt-row-in"
       // [2026-10-28] 숫자 칸은 최소 폭(무게 44·횟수 24px)을 지키고, 그래도 한 줄에 안 들어가는 좁은 화면이면
       // RIR·저장·삭제 묶음이 다음 줄 오른쪽으로 내려간다(겹치거나 숫자가 잘리는 대신).
-      style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 6, marginBottom: 8, opacity: set.auto && !done ? 0.85 : 1 }}
+      style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 6, marginBottom: 8, opacity: (set.auto || set.planned) && !done ? 0.85 : 1 }}
     >
       {/* [2026-10-27 모션] 방금 저장한 세트만 잠깐 초록 하이라이트(카드를 다시 펼칠 때는 재생하지 않음) */}
       {justSaved && <span key={set.savedAt} aria-hidden="true" className="bt-saved-flash" style={{ position: 'absolute', inset: '-3px -4px', pointerEvents: 'none' }} />}

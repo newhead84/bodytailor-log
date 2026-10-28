@@ -24,7 +24,7 @@ import {
   arrayRemove,
   FieldPath,
 } from 'firebase/firestore'
-import { getExerciseAtom, normalizeExerciseNames } from './utils/exerciseLibrary'
+import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises } from './utils/exerciseLibrary'
 import { mergePrsFromExercises, computePrsFromLogs } from './utils/strength'
 import { getSeasonPeriod } from './utils/season'
 
@@ -407,7 +407,7 @@ export async function addWorkoutLog(uid, logData, logId = null) {
 // 기록을 수정/삭제했을 때도 다시 계산한다(PR이 지워진 기록에 남지 않도록).
 export async function rebuildPersonalRecords(uid) {
   const snap = await getDocs(collection(db, 'workoutLogs', uid, 'logs'))
-  const prs = computePrsFromLogs(snap.docs.map((d) => d.data()))
+  const prs = computePrsFromLogs(snap.docs.map((d) => normalizeLogExercises(d.data())))
   await settleOrTimeout(updateDoc(doc(db, 'users', uid), { prs }))
   // 화면(App.jsx)이 사용자 문서를 다시 불러오도록 알림 — 삭제된 기록의 PR이 남아 보이지 않게
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('bt-prs-updated'))
@@ -434,6 +434,24 @@ export async function deleteWorkoutLog(uid, logId) {
   rebuildPersonalRecords(uid).catch(() => {})
 }
 
+// [2026-10-29] 자동 저장된 운동 "되돌리기": 기록을 지우고 그때 받은 XP도 뺀다(0 아래로는 안 내려감).
+// 시즌 XP는 같은 시즌일 때만 뺀다(이미 새 시즌이면 그 XP는 지난 시즌 몫). firestore.rules가 ±200 변경을 허용해야 한다.
+export async function deleteWorkoutLogAndRevertXp(uid, logId, xp) {
+  // 이미 지워진 기록(캘린더 삭제·다른 기기)이면 XP는 건드리지 않는다(같은 XP를 두 번 빼지 않게)
+  const logSnap = await getDoc(doc(db, 'workoutLogs', uid, 'logs', logId))
+  if (!logSnap.exists()) return
+  await deleteWorkoutLog(uid, logId)
+  const amount = Math.max(0, Math.min(200, Math.round(Number(xp) || 0)))
+  if (!amount) return
+  const userRef = doc(db, 'users', uid)
+  const snap = await getDoc(userRef)
+  if (!snap.exists()) return
+  const u = snap.data()
+  const updates = { lifetimeXp: Math.max(0, (u.lifetimeXp || 0) - amount) }
+  if (!u.seasonKey || u.seasonKey === getSeasonPeriod()) updates.seasonXp = Math.max(0, (u.seasonXp || 0) - amount)
+  await settleOrTimeout(updateDoc(userRef, updates))
+}
+
 export async function getWorkoutLogsInRange(uid, fromDateStr, toDateStr) {
   const col = collection(db, 'workoutLogs', uid, 'logs')
   const q = query(
@@ -443,20 +461,25 @@ export async function getWorkoutLogsInRange(uid, fromDateStr, toDateStr) {
     orderBy('date', 'asc')
   )
   const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  return snap.docs.map(readLogDoc)
+}
+
+// [2026-10-29] 기록을 읽을 때 옛 종목명을 새 이름(+그립)으로 정규화 — PR·추이·정체·직전 기록이 하나로 이어지게
+function readLogDoc(d) {
+  return normalizeLogExercises({ id: d.id, ...d.data() })
 }
 
 // [2026-10-27 신규] 전체 운동 기록(CSV 내보내기용), 날짜 오름차순
 export async function getAllWorkoutLogs(uid) {
   const snap = await getDocs(query(collection(db, 'workoutLogs', uid, 'logs'), orderBy('date', 'asc')))
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  return snap.docs.map(readLogDoc)
 }
 
 export async function getRecentWorkoutLogs(uid, count = 10) {
   const col = collection(db, 'workoutLogs', uid, 'logs')
   const q = query(col, orderBy('date', 'desc'), limit(count))
   const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  return snap.docs.map(readLogDoc)
 }
 
 // [2026-10-27 W0] 종목을 펼칠 때마다 최근 30개 로그를 매번 다시 읽던 것을(Firestore 읽기 낭비·지연)

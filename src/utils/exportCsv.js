@@ -6,8 +6,11 @@ const HEADER = ['날짜', '종목', '그립', '부위', '세트', '종류', '무
 
 function cell(v) {
   if (v === null || v === undefined) return ''
-  const s = String(v)
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  let s = String(v)
+  // [2026-10-29] 엑셀 수식 주입 방지: 글자(문자열)가 = + - @ 로 시작하면 앞에 ' 를 붙인다(숫자는 그대로).
+  if (typeof v === 'string' && /^[=+\-@]/.test(s)) s = "'" + s
+  // \r도 따옴표 처리(이전엔 \n만)
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
 export function logsToCsv(logs) {

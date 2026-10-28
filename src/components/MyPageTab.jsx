@@ -1,11 +1,13 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm, AccentSwatches } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, normalizeFontId, normalizeAccentId } from '../utils/fonts'
 import { getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
-import { getTierByXp, getTierProgress, getNextTier } from '../utils/tier'
+import { todayStr } from '../utils/date'
+import { getTierByXp, getNextTier, getLevelInfo, stageLevelRange } from '../utils/tier'
+import { computeAchievements } from '../utils/achievements'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS, getExercisesForPart } from '../utils/exerciseLibrary'
 import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
 
@@ -19,7 +21,7 @@ const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
-export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview }) {
+export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, isActive = true }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -57,7 +59,31 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const xp = getEffectiveSeasonXp(userDoc)
   const tier = getTierByXp(xp)
   const nextTier = getNextTier(xp)
-  const tierProgress = getTierProgress(xp)
+  // [2026-10-29 등급 리뉴얼] Lv 숫자 + 단계명
+  const levelInfo = getLevelInfo(xp)
+
+  // [2026-10-29 신규] 이름 붙은 성취 — 전체 기록에서 계산(저장 안 함). Firestore 읽기를 아끼려고 MY 탭을 볼 때만,
+  // 그리고 새 기록이 생겼을 때(lifetimeXp 변화)만 다시 읽는다.
+  const [achievementLogs, setAchievementLogs] = useState(null)
+  const [achievementsXpKey, setAchievementsXpKey] = useState(null)
+  const lifetimeXpKey = `${uid}:${userDoc?.lifetimeXp ?? 0}`
+  useEffect(() => {
+    if (!uid || !isActive || achievementsXpKey === lifetimeXpKey) return
+    let alive = true
+    getAllWorkoutLogs(uid)
+      .then((logs) => {
+        if (!alive) return
+        setAchievementLogs(logs)
+        setAchievementsXpKey(lifetimeXpKey)
+      })
+      .catch(() => alive && setAchievementLogs((prev) => prev || []))
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, isActive, lifetimeXpKey])
+  const achievements = useMemo(() => (achievementLogs ? computeAchievements(achievementLogs, userDoc?.prs || {}) : null), [achievementLogs, userDoc?.prs])
+  const [showAllAchievements, setShowAllAchievements] = useState(false)
 
   // 키/몸무게가 모두 있으면 BMI를 자동 계산해 표시(체중(kg) / 키(m)^2).
   // [2026-07-28] 판정 구간을 10단계로 세분화(사용자 제공 기준표 반영).
@@ -124,7 +150,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     setSaving(true)
     const { nickname, ...onboardingForm } = profileForm
     await updateUserProfile(uid, {
-      nickname,
+      nickname: (nickname || '').trim().slice(0, 30), // [2026-10-29] 랭킹 규칙(30자 이하)에 맞춤
       onboarding: {
         ...onboardingForm,
         age: Number(onboardingForm.age),
@@ -195,7 +221,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     setExporting(true)
     try {
       const logs = await getAllWorkoutLogs(uid)
-      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      const stamp = todayStr().replace(/-/g, '') // [2026-10-29] toISOString 금지(오전 0~9시 전날 날짜로 찍히던 문제)
       downloadText(`bodytailor-log-${stamp}.csv`, logsToCsv(logs))
     } catch (err) {
       console.error('CSV 내보내기 실패:', err)
@@ -348,6 +374,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               <input
                 value={profileForm.nickname}
                 onChange={(e) => updateProfileForm('nickname', e.target.value)}
+                maxLength={30}
                 placeholder="닉네임"
                 style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14, boxSizing: 'border-box' }}
               />
@@ -419,22 +446,85 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       {/* [2026-08-02 재수정] 캡션 문구 자체가 불필요하다는 피드백으로 완전히 삭제(⑰).
           카드를 탭하면 티어·XP 안내로 이동하는 동작(onShowTierInfo)은 그대로 유지된다. */}
       <SectionTitle>등급</SectionTitle>
+      {/* [2026-10-29 등급 리뉴얼] 큰 Lv 숫자 + 단계명, 다음 Lv까지 진행 막대 */}
       <Card onClick={onShowTierInfo} style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <TierBadge label={tier.label} tierKey={tier.key} size="lg" />
-          {/* [2026-10-28 리디자인] XP를 큰 숫자로, 진행 막대는 얇게·강조색 채움 */}
-          <span className="bt-num" style={{ fontSize: 'calc(22px * var(--num-scale))' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+            <span className="bt-num" style={{ fontSize: 'calc(34px * var(--num-scale))', lineHeight: 1, color: 'var(--color-label-strong)' }}>
+              Lv <CountUp value={levelInfo.level} />
+            </span>
+            <span style={{ alignSelf: 'flex-start' }}>
+              <TierBadge label={tier.label} tierKey={tier.key} size="sm" />
+            </span>
+          </div>
+          <span className="bt-num" style={{ fontSize: 'calc(18px * var(--num-scale))', color: 'var(--color-label-normal)', flexShrink: 0 }}>
             <CountUp value={xp} />
             <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 3 }}>XP</span>
           </span>
         </div>
         <div style={{ height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)', overflow: 'hidden' }}>
-          <div className="bt-bar" style={{ width: `${tierProgress * 100}%`, height: '100%', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)' }} />
+          <div className="bt-bar" style={{ width: `${levelInfo.progress * 100}%`, height: '100%', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)' }} />
         </div>
-        {nextTier && (
-          <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '8px 0 0' }}>
-            다음 티어 {nextTier.label}까지 <CountUp value={nextTier.min - xp} /> XP
-          </p>
+        <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '8px 0 0' }}>
+          Lv {levelInfo.level + 1}까지 <CountUp value={levelInfo.xpToNext} /> XP
+          {nextTier ? ` · ${nextTier.label}는 Lv ${stageLevelRange(nextTier.key)?.from}부터` : ''}
+        </p>
+      </Card>
+
+      {/* [2026-10-29 신규] 이름 붙은 성취 카드 */}
+      <SectionTitle
+        action={
+          achievements ? (
+            <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+              {achievements.filter((a) => a.earned).length} / {achievements.length}
+            </span>
+          ) : null
+        }
+      >
+        성취
+      </SectionTitle>
+      <Card style={{ marginBottom: 20 }}>
+        {!achievements ? (
+          <div style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>불러오는 중…</div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+              {[...achievements.filter((a) => a.earned), ...achievements.filter((a) => !a.earned)]
+                .slice(0, showAllAchievements ? achievements.length : 4)
+                .map((a) => (
+                  <div
+                    key={a.id}
+                    className="text-keep-all"
+                    style={{
+                      padding: '12px 12px 10px',
+                      borderRadius: 'var(--radius-md)',
+                      border: a.earned ? '1px solid var(--color-fill-strong)' : '1px solid var(--color-line)',
+                      background: a.earned ? 'var(--color-primary-bg)' : 'transparent',
+                      opacity: a.earned ? 1 : 0.72,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                    }}
+                  >
+                    <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--color-label-strong)' }}>{a.title}</span>
+                    <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>{a.desc}</span>
+                    {!a.earned && (
+                      <div style={{ height: 4, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)', overflow: 'hidden', marginTop: 4 }}>
+                        <div style={{ width: `${a.progress * 100}%`, height: '100%', background: 'var(--color-label-neutral)' }} />
+                      </div>
+                    )}
+                    <span className="bt-num" style={{ fontSize: 11, color: a.earned ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)', fontWeight: 700 }}>
+                      {a.progressLabel}
+                    </span>
+                  </div>
+                ))}
+            </div>
+            {achievements.length > 4 && (
+              <Button variant="ghost" full style={{ marginTop: 10, fontSize: 13 }} onClick={() => setShowAllAchievements((v) => !v)}>
+                {showAllAchievements ? '접기' : `전체 보기 (${achievements.length})`}
+              </Button>
+            )}
+          </>
         )}
       </Card>
 

@@ -40,6 +40,9 @@ export async function getHolidaysForMonth(year, month) {
     const res = await fetch(`/api/holidays?year=${year}&month=${month}`)
     if (!res.ok) return {}
     const json = await res.json()
+    // [2026-10-29] 서버가 오류(키 미설정·공공데이터포털 장애)를 알리면 캐시하지 않는다 — 한 번 실패한 빈 결과가 30일간 남아
+    // 키를 넣거나 장애가 풀린 뒤에도 공휴일이 안 보이던 문제.
+    if (json.error) return {}
     const map = {}
     ;(json.holidays || []).forEach(({ date, name }) => {
       // date: YYYYMMDD -> YYYY-MM-DD

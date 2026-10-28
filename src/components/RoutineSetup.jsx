@@ -229,8 +229,35 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
 // 고유 색상을 넣어 구간을 나눴다. atom 순서는 파트명 토큰 순서(getAtomsForPartName)를 그대로
 // 따른다. 종목 Chip은 (2026-08-02에 전면 삭제됐던) 롱프레스 동작 가이드 토글을 다시 붙였다
 // (ExerciseGuideToggle, 짧게 재탭하면 선택 상태 변화 없이 닫힘 — 상세는 해당 파일 주석 참고).
+// [2026-10-29 개편] 파트마다 70여 개 종목 칩이 한꺼번에 펼쳐져 고르기 어렵다는 점검 결과로,
+// 부위별로 "고른 종목"만 먼저 보여주고 나머지는 "+ 종목 더 보기"로 접어 두며, 파트 상단에 검색칸을 둔다.
+// 검색어가 있으면 모든 부위에서 이름이 맞는 종목만 펼쳐 보여준다.
 function PartEditor({ part, customExercises, onToggle, onRemovePart, onEditAtoms }) {
   const atoms = getAtomsForPartName(part.name)
+  const [openAtoms, setOpenAtoms] = useState({})
+  const [query, setQuery] = useState('')
+  const q = query.trim().replace(/\s+/g, '')
+  const matches = (label) => !q || label.replace(/\s+/g, '').includes(q)
+
+  // 종목 → 칩 항목 목록(그립 종목은 그립별 칩). key는 part.exercises에 저장되는 값.
+  const itemsFor = (name) => {
+    const gripOptions = getGripOptions(name)
+    if (!gripOptions) return [{ key: name, name, label: name }]
+    // [2026-10-29] 분할 템플릿 기본 종목처럼 그립 없이 이름만 저장된 경우(예: '랫풀다운')는 첫 그립 칩이 그 키를 맡는다
+    // — 이전엔 어느 칩에도 선택 표시가 안 돼, 루틴에 들어 있는데도 안 보이고 '기본'을 누르면 중복으로 추가됐다.
+    const plainSelected = part.exercises.includes(name)
+    return gripOptions.map((g, i) => ({ key: plainSelected && i === 0 ? name : makeExerciseKey(name, g), name, label: `${name} (${g})` }))
+  }
+  const renderChip = (it) => (
+    <ExerciseGuideToggle key={it.key} name={it.name}>
+      {(guideProps) => (
+        <Chip active={part.exercises.includes(it.key)} onClick={() => onToggle(it.key)} {...guideProps}>
+          {it.label}
+        </Chip>
+      )}
+    </ExerciseGuideToggle>
+  )
+
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -244,56 +271,43 @@ function PartEditor({ part, customExercises, onToggle, onRemovePart, onEditAtoms
           </button>
         </div>
       </div>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="종목 검색 (예: 랫풀, 컬)"
+        aria-label={`${part.name} 종목 검색`}
+        style={{ width: '100%', boxSizing: 'border-box', height: 40, padding: '0 12px', marginBottom: 12, border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--color-label-strong)', fontSize: 14 }}
+      />
       {atoms.map((atom) => {
         const names = [...new Set([...getExercisesForPart(atom), ...getCustomExercisesForPart(customExercises, atom)])]
         if (names.length === 0) return null
+        const items = names.flatMap(itemsFor)
+        const selected = items.filter((it) => part.exercises.includes(it.key))
+        const rest = items.filter((it) => !part.exercises.includes(it.key))
+        const isOpen = !!openAtoms[atom]
+        const visibleRest = q ? rest.filter((it) => matches(it.label)) : isOpen ? rest : []
+        const visibleSelected = q ? selected.filter((it) => matches(it.label)) : selected
+        if (q && visibleRest.length === 0 && visibleSelected.length === 0) return null
         const color = getPartColor(atom)
         return (
           <div key={atom} style={{ marginBottom: 14 }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 12,
-                fontWeight: 700,
-                color,
-                marginBottom: 8,
-              }}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color, marginBottom: 8 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />
               {atom}
+              <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {selected.length}개 선택</span>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, rowGap: 10 }}>
-              {names.flatMap((name) => {
-                const gripOptions = getGripOptions(name)
-                if (!gripOptions) {
-                  return [
-                    <ExerciseGuideToggle key={name} name={name}>
-                      {(guideProps) => (
-                        <Chip active={part.exercises.includes(name)} onClick={() => onToggle(name)} {...guideProps}>
-                          {name}
-                        </Chip>
-                      )}
-                    </ExerciseGuideToggle>,
-                  ]
-                }
-                // [2026-08-10 신규] 그립옵션이 있는 종목(랫풀다운 등)은 그립별로 별도 Chip을
-                // 만들어, 같은 종목을 그립 다르게 해서 여러 개 동시에 "내 루틴"에 등록할 수
-                // 있게 한다(사용자 확인).
-                return gripOptions.map((g) => {
-                  const key = makeExerciseKey(name, g)
-                  return (
-                    <ExerciseGuideToggle key={key} name={name}>
-                      {(guideProps) => (
-                        <Chip active={part.exercises.includes(key)} onClick={() => onToggle(key)} {...guideProps}>
-                          {name} ({g})
-                        </Chip>
-                      )}
-                    </ExerciseGuideToggle>
-                  )
-                })
-              })}
+              {visibleSelected.map(renderChip)}
+              {visibleRest.map(renderChip)}
+              {!q && rest.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setOpenAtoms((o) => ({ ...o, [atom]: !o[atom] }))}
+                  style={{ height: 34, padding: '0 12px', borderRadius: 'var(--radius-pill)', border: '1px dashed var(--color-line-strong)', fontSize: 13, fontWeight: 600, color: 'var(--color-label-normal)' }}
+                >
+                  {isOpen ? '접기' : `+ 종목 더 보기 (${rest.length})`}
+                </button>
+              )}
             </div>
           </div>
         )

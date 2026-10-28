@@ -8,6 +8,13 @@ import { makeExerciseKey, parseExerciseKey } from '../utils/exerciseKey'
 import { CountUp } from '../hooks/useCountUp'
 import CalendarView from './CalendarView'
 import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
+
+// [2026-10-29] 'YYYY-MM-DD' → '10/26(월)' (HOME 최근 기록 표기)
+function formatShortDate(ds) {
+  if (!ds || !/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds || ''
+  const d = new Date(ds + 'T00:00:00')
+  return `${d.getMonth() + 1}/${d.getDate()}(${'일월화수목금토'[d.getDay()]})`
+}
 import { getSuggestedNext } from '../utils/routineSuggestion'
 import { pickRandomQuote } from '../utils/quotes'
 import { todayStr } from '../utils/date'
@@ -187,7 +194,7 @@ export default function HomeTab({
         </p>
         <p className="text-keep-all" style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
           {recentLogs[0]
-            ? `최근 기록 ${recentLogs[0].date}${summarizePartsOfLog(recentLogs[0]) ? ` · ${summarizePartsOfLog(recentLogs[0])}` : ''}`
+            ? `최근 기록 ${formatShortDate(recentLogs[0].date)}${summarizePartsOfLog(recentLogs[0]) ? ` · ${summarizePartsOfLog(recentLogs[0])}` : ''}`
             : '아직 기록이 없어요.'}
         </p>
         {suggested && !doneToday && increaseList.length > 0 && (

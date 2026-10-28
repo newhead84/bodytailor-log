@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Card, SectionTitle, TierBadge, BackButton } from './ui'
 import { CountUp } from '../hooks/useCountUp'
-import { TIERS, getTierByXp } from '../utils/tier'
+import { TIERS, getTierByXp, getLevelInfo, stageLevelRange, LEVELS_PER_STAGE, LEGEND_XP_PER_LEVEL } from '../utils/tier'
 import { getLeaderboard } from '../storage'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 
@@ -16,6 +16,7 @@ const TIERS_DESC = [...TIERS].reverse()
 // 직접 불러오는 기존 패턴과 동일).
 export default function TierInfoScreen({ uid, xp, onClose }) {
   const currentTier = getTierByXp(xp)
+  const levelInfo = getLevelInfo(xp)
   const period = getSeasonPeriod()
   const [rankLoading, setRankLoading] = useState(true)
   const [myEntry, setMyEntry] = useState(null)
@@ -43,10 +44,11 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
     <div style={{ padding: '24px 20px 40px', height: '100%', overflowY: 'auto' }}>
       <BackButton onClick={onClose} />
       <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
-        티어 & XP 안내
+        등급 & XP 안내
       </h1>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-        지금 내 등급은 <TierBadge label={currentTier.label} tierKey={currentTier.key} size="sm" />, <CountUp value={xp} /> XP예요.
+        지금 내 등급은 <TierBadge label={currentTier.label} tierKey={currentTier.key} level={levelInfo.level} size="sm" />, <CountUp value={xp} /> XP예요.
+        {' '}Lv {levelInfo.level + 1}까지 {levelInfo.xpToNext.toLocaleString()} XP 남았어요.
       </p>
 
       <SectionTitle>내 랭킹 · {formatSeasonLabel(period)}</SectionTitle>
@@ -105,15 +107,15 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
         <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)', lineHeight: '22px' }}>
           <p style={{ margin: '0 0 10px' }}>매주 아래 항목을 종합해 최종점수를 계산하고, 전체/PT그룹/일반그룹 랭킹에 반영해요.</p>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
-            <li>출석 40% — 목표 주간 세션 수 대비 실제 수행 횟수</li>
+            <li>출석 40% — 이번 주 운동한 날 수 / 목표 일수(내 루틴 파트 수, 2~5일)</li>
             <li>볼륨·기록 30% — 최근 평균 대비 이번 주 총 볼륨</li>
             <li>점진적 과부하 30% — 지난주 대비 중량·볼륨이 늘어난 종목 비율</li>
-            <li>보너스 — 연속 출석 스트릭, (PT회원은) 프로그램 준수율</li>
+            <li>보너스 — 연속 출석 4주마다 +5점(최대 +20)</li>
           </ul>
         </div>
       </Card>
 
-      <SectionTitle>티어 체계</SectionTitle>
+      <SectionTitle>단계와 Lv</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {TIERS_DESC.map((t) => {
@@ -132,8 +134,16 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
                   background: isCurrent ? 'var(--color-bg-elevated)' : 'transparent',
                 }}
               >
-                <TierBadge label={t.label} tierKey={t.key} size="sm" />
-                <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <TierBadge label={t.label} tierKey={t.key} size="sm" />
+                  <span className="bt-num" style={{ fontSize: 12, color: 'var(--color-label-normal)', whiteSpace: 'nowrap' }}>
+                    {(() => {
+                      const r = stageLevelRange(t.key)
+                      return r?.to ? `Lv ${r.from}–${r.to}` : `Lv ${r?.from}+`
+                    })()}
+                  </span>
+                </span>
+                <span className="record-notation" style={{ fontSize: 12, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>
                   {nextMin != null ? `${t.min.toLocaleString()} ~ ${(nextMin - 1).toLocaleString()} XP` : `${t.min.toLocaleString()}+ XP`}
                 </span>
               </div>
@@ -141,7 +151,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
           })}
         </div>
         <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '12px 0 0' }}>
-          매 분기(3개월)마다 시즌이 초기화돼요. 시즌이 바뀌어도 지금까지 쌓은 라이프타임 XP와 명예의 전당 배지는 그대로 남아요.
+          단계마다 Lv이 {LEVELS_PER_STAGE}개씩 있고, Legend부터는 {LEGEND_XP_PER_LEVEL.toLocaleString()} XP마다 Lv이 계속 올라요. 매 분기(3개월)마다 시즌이 초기화돼 Lv 1부터 다시 시작하지만, 지금까지 쌓은 누적 XP와 MY 탭의 성취는 그대로 남아요.
         </p>
       </Card>
 

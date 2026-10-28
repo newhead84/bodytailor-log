@@ -65,6 +65,29 @@ export function playSound(soundId, times = 2) {
   }
 }
 
+function showSystemNotification(title, options) {
+  const fallback = () => {
+    try {
+      new Notification(title, options)
+    } catch (e) {
+      // 알림 불가 환경은 무시(소리·진동으로 대체)
+    }
+  }
+  try {
+    // getRegistration은 서비스워커가 없으면 undefined로 바로 끝난다(ready는 영영 안 끝날 수 있음)
+    if (navigator.serviceWorker?.getRegistration) {
+      navigator.serviceWorker
+        .getRegistration()
+        .then((reg) => (reg ? reg.showNotification(title, options) : fallback()))
+        .catch(fallback)
+      return
+    }
+    fallback()
+  } catch (e) {
+    fallback()
+  }
+}
+
 function vibrateStrong() {
   if (navigator.vibrate) navigator.vibrate([250, 120, 250, 120, 250])
 }
@@ -88,6 +111,11 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   const [overtime, setOvertime] = useState(false)
   const intervalRef = useRef(null)
   const endAtRef = useRef(Date.now() + seconds * 1000)
+  // [2026-10-29] 휴식 길이는 시작(resetKey) 시점 값으로 고정 — 쉬는 중에 휴식 칩을 바꾸거나 슈퍼세트 저장으로
+  // seconds가 바뀌어도 진행 중인 휴식이 처음부터 다시 시작되지 않게 한다.
+  const secondsRef = useRef(seconds)
+  secondsRef.current = seconds
+  const [startSeconds, setStartSeconds] = useState(seconds)
   const finishedRef = useRef(false)
   const lastOvertimeAlertRef = useRef(0)
   const overtimeAlertCountRef = useRef(0)
@@ -118,7 +146,10 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
       // [2026-07-30 신규] icon을 명시하지 않으면 브라우저가 파비콘을 임의로 골라 쓰던 것을
       // 앱 아이콘(icon-192.png)으로 고정해, RISE 등 다른 알림들과 마찬가지로 자체 앱
       // 아이콘으로 표시되게 한다(⑥).
-      new Notification(isFirst ? '휴식 끝!' : '휴식 시간이 초과됐어요', {
+      // [2026-10-29] 안드로이드 크롬·설치 PWA는 new Notification()을 막아 "Illegal constructor"가 났고,
+      // 그 예외 때문에 알림 카운터 갱신이 건너뛰어져 소리·진동이 한 번 더 울렸다.
+      // → 서비스워커 registration.showNotification() 우선, 안 되면 기존 방식, 모두 try/catch.
+      showSystemNotification(isFirst ? '휴식 끝!' : '휴식 시간이 초과됐어요', {
         body: isFirst ? '다음 세트를 시작할 시간이에요.' : '다음 세트를 바로 시작해 주세요.',
         icon: '/icon-192.png',
         tag: 'bodytailor-rest',
@@ -130,9 +161,10 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
     if (finishedRef.current) return
     finishedRef.current = true
     setOvertime(true)
-    fireAlert(true)
+    // [2026-10-29] 카운터를 알림보다 먼저 갱신(알림 중 예외가 나도 반복 알림 간격이 지켜지게)
     overtimeAlertCountRef.current = 1
     lastOvertimeAlertRef.current = Date.now()
+    fireAlert(true)
     onFinish?.()
     // 0 이후에도 마이너스로 계속 카운트하며 화면에 남아있지만, 초과 알림 자체는
     // MAX_OVERTIME_ALERTS(2회)까지만 울리고 이후 자동으로 타이머를 종료한다.
@@ -142,8 +174,10 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
     finishedRef.current = false
     overtimeAlertCountRef.current = 0
     setOvertime(false)
-    endAtRef.current = Date.now() + seconds * 1000
-    setRemaining(seconds)
+    const sec = secondsRef.current
+    endAtRef.current = Date.now() + sec * 1000
+    setRemaining(sec)
+    setStartSeconds(sec)
     acquireWakeLock()
 
     clearInterval(intervalRef.current)
@@ -182,7 +216,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
       releaseWakeLock()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey, seconds])
+  }, [resetKey])
 
   function handleDismiss() {
     clearInterval(intervalRef.current)
@@ -196,7 +230,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   const ss = String(displaySec % 60).padStart(2, '0')
 
   // [2026-10-27 리뉴얼 모션] 남은 시간 진행 막대(부드럽게 줄어듦) + 아래에서 올라오는 등장
-  const progress = seconds > 0 ? Math.max(0, Math.min(1, remaining / seconds)) : 0
+  const progress = startSeconds > 0 ? Math.max(0, Math.min(1, remaining / startSeconds)) : 0
   return (
     <div
       className="bt-slide-up"

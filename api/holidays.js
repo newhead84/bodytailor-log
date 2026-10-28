@@ -29,11 +29,19 @@ export default async function handler(req, res) {
   }
 
   const solMonth = String(month).padStart(2, '0')
-  const url = `${BASE_URL}?serviceKey=${serviceKey}&solYear=${year}&solMonth=${solMonth}&_type=json&numOfRows=50`
+  // [2026-10-29] 포털 키는 인코딩/디코딩 두 형태로 발급된다. 어느 쪽을 넣어도 동작하게 한 번 풀었다가 다시 인코딩.
+  let encodedKey = serviceKey
+  try {
+    encodedKey = encodeURIComponent(decodeURIComponent(serviceKey))
+  } catch (e) {
+    encodedKey = encodeURIComponent(serviceKey)
+  }
+  const url = `${BASE_URL}?serviceKey=${encodedKey}&solYear=${year}&solMonth=${solMonth}&_type=json&numOfRows=50`
 
   try {
     const upstream = await fetch(url)
     if (!upstream.ok) {
+      res.setHeader('Cache-Control', 'no-store')
       res.status(200).json({ error: `공공데이터포털 응답 오류(${upstream.status})`, holidays: [] })
       return
     }
@@ -48,6 +56,7 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'public, max-age=2592000, s-maxage=2592000')
     res.status(200).json({ holidays })
   } catch (e) {
+    res.setHeader('Cache-Control', 'no-store')
     res.status(200).json({ error: '공휴일 조회 실패', holidays: [] })
   }
 }

@@ -9,6 +9,7 @@ import {
   BODY_PART_ATOMS,
   getExercisesForPart,
   getExerciseInputType,
+  getExerciseAtom,
 } from '../utils/exerciseLibrary'
 import { getHolidaysForMonth } from '../utils/holidays'
 
@@ -213,7 +214,8 @@ function EditLogForm({
   // [신규] 지금 편집 중인 내용을 날짜 인풋에 입력된 날짜로 복사해 별도 신규 기록으로 저장하는
   // 버튼(⑦). 종목이 하나도 없으면 복사할 내용이 없으므로 비활성화.
   const hasExercises = (editDraft?.exercises?.length || 0) > 0
-  const justCopied = copiedToDate && copiedToDate === editDraft?.date
+  // [2026-10-29] 복사 후 날짜 칸이 원래 날짜로 돌아가므로, 복사한 날짜를 그대로 보여 준다
+  const justCopied = !!copiedToDate
   return (
     <Card style={{ marginBottom: 10 }}>
       <div style={{ marginBottom: 10 }}>
@@ -239,13 +241,13 @@ function EditLogForm({
                 opacity: !hasExercises || copyingToDate ? 0.5 : 1,
               }}
             >
-              {justCopied ? '복사됨!' : '해당 날짜에 운동내역 복사'}
+              {justCopied ? `${copiedToDate}에 복사됨` : '해당 날짜에 운동내역 복사'}
             </button>
           )}
         </div>
       </div>
       {editDraft?.exercises.map((ex, exIdx) => (
-        <div key={ex.name} style={{ marginBottom: 14 }}>
+        <div key={`${ex.name}::${ex.grip || ''}::${exIdx}`} style={{ marginBottom: 14 }}>
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{ex.name}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {ex.sets.map((s, setIdx) => (
@@ -622,11 +624,9 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     return `${cell.y}-${pad(cell.m + 1)}-${pad(cell.day)}`
   }
 
-  // [2026-07-30 신규] 오늘 날짜 표시(①)를 위한 기준값. 자정을 넘기면 다음 렌더에서 자연히 갱신된다.
-  const todayDateStr = useMemo(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  }, [])
+  // [2026-10-29] 오늘 날짜 표시는 매 렌더 계산(이전 useMemo([])는 앱을 켜 둔 채 자정이 지나면 어제를 오늘로 표시했다)
+  const todayNow = new Date()
+  const todayDateStr = `${todayNow.getFullYear()}-${pad(todayNow.getMonth() + 1)}-${pad(todayNow.getDate())}`
 
   const selectedLogs = selectedDate ? logsByDate[selectedDate] || [] : []
 
@@ -677,6 +677,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     setEditingLogId(log.id)
     setEditDraft({
       date: log.date,
+      originalDate: log.date, // [2026-10-29] "다른 날짜로 복사" 후 원래 기록 날짜로 되돌리기용
       exercises: log.exercises.map((ex) => ({
         name: ex.name,
         inputType: ex.inputType || getExerciseInputType(ex.name),
@@ -750,7 +751,9 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     setEditDraft((prev) => {
       if (prev.exercises.some((ex) => ex.name === name)) return prev
       const inputType = getExerciseInputType(name)
-      return { ...prev, exercises: [...prev.exercises, { name, inputType, sets: [makeEmptySet(inputType, name)] }] }
+      // [2026-10-29] part를 함께 저장(골밀도 하체 세트 등 부위 집계에서 빠지던 문제)
+      const part = getExerciseAtom(name)
+      return { ...prev, exercises: [...prev.exercises, { name, inputType, ...(part ? { part } : {}), sets: [makeEmptySet(inputType, name)] }] }
     })
     setAddingExercise(false)
   }
@@ -763,7 +766,13 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       ...(s.type && s.type !== 'working' ? { type: s.type } : {}),
       ...(s.rir !== undefined && s.rir !== null && s.rir !== '' ? { rir: Number(s.rir) } : {}),
     })
-    const cleanedExercises = draft.exercises.map((ex) => ({
+    // [2026-10-29] 비어 있는 세트(횟수·시간 0)는 저장하지 않는다 — 0×0 세트가 근육별 세트·캘린더에 집계되던 문제.
+    // 세트가 하나도 안 남은 종목도 뺀다.
+    const isFilled = (ex, s) => (ex.inputType === 'cardio' ? Number(s.durationMin) > 0 : parseInt(s.reps, 10) > 0)
+    const cleanedExercises = draft.exercises
+      .map((ex) => ({ ...ex, sets: ex.sets.filter((s) => isFilled(ex, s)) }))
+      .filter((ex) => ex.sets.length > 0)
+      .map((ex) => ({
       name: ex.name,
       inputType: ex.inputType,
       ...(ex.part ? { part: ex.part } : {}),
@@ -799,9 +808,28 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
 
   async function saveEdit(log) {
     if (!editDraft?.date) return
+    const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
+    // [2026-10-29] 남은 세트가 없으면 빈 기록(운동한 날로 집계됨)을 남기지 않고 삭제할지 묻는다
+    if (cleanedExercises.length === 0) {
+      if (await confirm('입력된 세트가 없어요. 이 날짜의 기록을 삭제할까요?', { okLabel: '삭제', cancelLabel: '계속 수정' })) {
+        setSavingEdit(true)
+        try {
+          await deleteWorkoutLog(uid, log.id)
+          const grouped = await loadMonth()
+          setLogsByDate(grouped)
+          cancelEdit()
+          onLogsChanged?.()
+        } catch (err) {
+          console.error('기록 삭제 실패:', err)
+          await confirm('기록 삭제에 실패했어요. 잠시 후 다시 시도해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+        } finally {
+          setSavingEdit(false)
+        }
+      }
+      return
+    }
     setSavingEdit(true)
     try {
-      const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
       await updateWorkoutLog(uid, log.id, {
         date: editDraft.date,
         exercises: cleanedExercises,
@@ -821,9 +849,13 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   // 계산(리포트 탭의 attendanceScore/volumeScore/overloadScore)에서는 제외되도록 표시한다(⑦).
   async function saveNewLog() {
     if (!editDraft?.date || editDraft.exercises.length === 0) return
+    const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
+    if (cleanedExercises.length === 0) {
+      await confirm('횟수(또는 시간)를 입력한 세트가 없어요. 세트를 입력한 뒤 저장해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+      return
+    }
     setSavingEdit(true)
     try {
-      const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
       await addWorkoutLog(uid, {
         date: editDraft.date,
         exercises: cleanedExercises,
@@ -856,6 +888,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
         if (!ok) return
       }
       const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
+      if (cleanedExercises.length === 0) return
       await addWorkoutLog(uid, {
         date: targetDate,
         exercises: cleanedExercises,
@@ -868,6 +901,9 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       setLogsByDate(grouped)
       onLogsChanged?.()
       setCopiedToDate(targetDate)
+      // [2026-10-29] 복사에 쓴 날짜 칸을 원래 기록 날짜로 되돌린다 — 이어서 "저장"을 누르면 원래 기록까지
+      // 복사한 날짜로 옮겨지던 문제(원래 날짜는 비고 새 날짜에 기록이 두 개).
+      setEditDraft((prev) => (prev?.originalDate ? { ...prev, date: prev.originalDate } : prev))
       setTimeout(() => setCopiedToDate((cur) => (cur === targetDate ? null : cur)), 1500)
     } finally {
       setCopyingToDate(false)
@@ -1246,12 +1282,12 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                       </button>
                     </div>
                   </div>
-                {log.exercises.map((ex) => (
+                {log.exercises.map((ex, exIdx) => (
                   // [2026-07-31 재수정] 이름 span과 한 줄(flex)에서 minWidth:0으로 폭을 나눠 갖는
                   // 기존 방식은 실기기에서 스크롤이 걸리지 않는 문제가 있어(이름 span과 폭 경합),
                   // 이름을 윗줄로 분리하고 기록 텍스트는 카드 전체 너비(100%)를 온전히 차지하는
                   // 독립된 가로 스크롤 박스로 바꿨다.
-                  <div key={ex.name} style={{ fontSize: 13, marginBottom: 6 }}>
+                  <div key={`${ex.name}::${ex.grip || ''}::${exIdx}`} style={{ fontSize: 13, marginBottom: 6 }}>
                     <div style={{ fontWeight: 600, marginBottom: 2 }}>{ex.name}</div>
                     <div
                       className="record-notation h-scroll"

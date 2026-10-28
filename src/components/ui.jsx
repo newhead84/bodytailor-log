@@ -2,7 +2,7 @@ import React from 'react'
 import { ACCENT_OPTIONS } from '../utils/fonts'
 import legendIconImg from '../assets/tier-icons/legend.png'
 import diamondIconImg from '../assets/tier-icons/diamond.png'
-import platinumIconImg from '../assets/tier-icons/platinum.png'
+// [2026-10-29] platinum.png('PLATINUM' 글자 일러스트)는 단계명 변경으로 미사용 — 파일은 보관
 
 export function Button({ children, onClick, variant = 'primary', disabled, style, type = 'button', full }) {
   const base = {
@@ -142,8 +142,9 @@ function TierChevronIcon({ tierKey, size = 14 }) {
 // [2026-07-29 신규] 플래티넘/다이아몬드/레전드 3개 티어는 기존 쉐브론 라인 아이콘 대신
 // 사용자가 제공한 일러스트 아이콘(이두근+하트=레전드 / 보석+리본=다이아몬드 / PLATINUM 리본=플래티넘)으로
 // 교체한다.
+// [2026-10-29] 단계명이 영문(Elite 등)으로 바뀌면서 'PLATINUM' 글자가 들어간 일러스트는 맞지 않아
+// 플래티넘(Elite) 단계는 쉐브론 아이콘으로 표시한다(다이아몬드·레전드 일러스트는 글자가 없어 유지).
 const TIER_IMAGE_ICONS = {
-  platinum: platinumIconImg,
   diamond: diamondIconImg,
   legend: legendIconImg,
 }
@@ -178,7 +179,8 @@ function TierImageIcon({ tierKey, size = 14 }) {
 // tierKey를 넘기면 아이언(칙칙한 골드, 기존 유지)→레전드(그라디언트+글로우)로 갈수록
 // 화려해지는 색상/쉐브린 아이콘이 함께 표시된다. tierKey 없이 label만 넘기면 기존과
 // 동일한 단색 배지로 표시된다(하위 호환).
-export function TierBadge({ label, tierKey, size = 'md' }) {
+// [2026-10-29] level을 넘기면 "Lv 12 · Regular"처럼 Lv 숫자를 앞에 붙인다(등급 리뉴얼).
+export function TierBadge({ label, tierKey, size = 'md', level }) {
   const sizes = { sm: 12, md: 13, lg: 15 }
   const isLegend = tierKey === 'legend'
   const glow = tierKey ? TIER_GLOW[tierKey] : null
@@ -211,6 +213,11 @@ export function TierBadge({ label, tierKey, size = 'md' }) {
     >
       {tierKey && TIER_IMAGE_ICONS[tierKey] && <TierImageIcon tierKey={tierKey} size={sizes[size]} />}
       {tierKey && !TIER_IMAGE_ICONS[tierKey] && <TierChevronIcon tierKey={tierKey} size={sizes[size]} />}
+      {level != null && (
+        <span className="bt-num" style={{ color: 'var(--color-label-strong)', fontWeight: 800 }}>
+          Lv {level}
+        </span>
+      )}
       <span style={textStyle}>{label}</span>
     </span>
   )
@@ -255,7 +262,9 @@ export function ConfirmProvider({ children }) {
   // [2026-10-27] 선택적으로 버튼 문구를 바꿀 수 있다: confirm(msg, { okLabel, cancelLabel })
   const confirm = React.useCallback((message, options = {}) => {
     return new Promise((resolve) => {
-      setState({ message, resolve, okLabel: options.okLabel, cancelLabel: options.cancelLabel })
+      // [2026-10-29] dismissValue: 바깥(배경)을 눌러 닫았을 때 돌려줄 값(기본 false). 두 버튼이 모두
+      // "진행" 의미인 확인창(예: 체크한 세트만 / 함께 저장)은 null을 받아 작업 자체를 멈춘다.
+      setState({ message, resolve, okLabel: options.okLabel, cancelLabel: options.cancelLabel, dismissValue: 'dismissValue' in options ? options.dismissValue : false })
     })
   }, [])
 
@@ -282,7 +291,7 @@ export function ConfirmProvider({ children }) {
             zIndex: 100,
             padding: 24,
           }}
-          onClick={() => respond(false)}
+          onClick={() => respond(state.dismissValue)}
         >
           <div
             onClick={(e) => e.stopPropagation()}

@@ -3002,6 +3002,39 @@ export function normalizeExerciseName(name) {
   return LEGACY_EXERCISE_NAME_MAP[name] || name
 }
 
+// [2026-10-29 신규] 그립 통합 전 옛 이름이 어떤 그립이었는지. 운동 기록을 읽을 때 이름은 새 이름으로,
+// grip은 비어 있을 때만 이 값으로 채워 PR·추이·직전 기록이 새 기록과 하나로 이어지게 한다.
+export const LEGACY_EXERCISE_GRIP_MAP = {
+  '와이드그립랫풀다운': '와이드',
+  '리버스그립랫풀다운': '리버스',
+  '내로우그립랫풀다운': '내로우',
+  '랫풀다운(내로우그립)': '내로우',
+  '와이드그립시티드로우': '와이드',
+  '와이드그립풀업': '와이드',
+  '스트레이트바케이블푸시다운': '스트레이트바',
+  '로프케이블푸시다운': '로프',
+  '케이블푸시다운(스트레이트바)': '스트레이트바',
+  '케이블푸시다운(로프)': '로프',
+  '리버스바벨컬': '오버핸드',
+  '케이블리버스컬': '오버핸드',
+  '와이드그립벤치프레스': '와이드',
+  '와이드푸시업': '와이드',
+}
+
+// [2026-10-29 신규] 운동 기록 1건의 종목명을 읽을 때 정규화(저장된 데이터는 바꾸지 않음).
+export function normalizeLogExercises(log) {
+  if (!log || !Array.isArray(log.exercises)) return log
+  let changed = false
+  const exercises = log.exercises.map((ex) => {
+    const name = normalizeExerciseName(ex?.name)
+    if (!ex || name === ex.name) return ex
+    changed = true
+    const legacyGrip = LEGACY_EXERCISE_GRIP_MAP[ex.name]
+    return { ...ex, name, ...(!ex.grip && legacyGrip ? { grip: legacyGrip } : {}) }
+  })
+  return changed ? { ...log, exercises } : log
+}
+
 // 종목명 배열(예: routineTemplate의 parts[].exercises)을 정규화 + 중복 제거해서 반환.
 // 옛 이름과 새 이름이 이미 함께 저장돼 있던 경우(예: "바벨컬"과 "리버스바벨컬"을 둘 다
 // 추가해둔 상태) 정규화 후 하나로 합쳐지므로 순서를 유지한 채 중복만 제거한다.

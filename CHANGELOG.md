@@ -2,6 +2,16 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-29] 전면 점검 반영 — 버그 수정·사용성 개선·등급 Lv 리뉴얼 | WorkoutInput.jsx, SetEditors(영향 없음), RestTimer.jsx, GlobalTimerBar.jsx, ui.jsx, LogTab.jsx, App.jsx, ReportTab.jsx, CalendarView.jsx, MyPageTab.jsx, TierInfoScreen.jsx, HomeTab.jsx, InsightCards.jsx, RoutineSetup.jsx, storage.js, firestore.rules, utils/tier.js·achievements.js(신규)·sessionPayload.js·exerciseLibrary.js·holidays.js·exportCsv.js, api/holidays.js, CLAUDE.md
+- 기록: 휴식 종료 알림을 서비스워커 showNotification으로(안드로이드에서 안 뜨고 소리 한 번 더 울리던 문제), 쉬는 중 휴식 칩 변경 시 타이머 재시작 안 함 / "+ 세트 추가"·웜업 세트 행도 체크 안 하면 완료 시 포함 여부 확인 / 완료 확인창 바깥 누르면 저장 안 하고 계속 / 저장한 세트가 있는 종목 숨기기·지우기 전 확인 / 같은 앱 실행 중 다음 세션의 직전 기록 갱신 / 기록 ID·날짜를 시작 시 고정(sessionId, ±10초·초기화로 중복 기록 생기던 위험) / 일시정지 중 −10초 연타·재개 직후 00:00 튐 수정 / 세션 신기록 비교를 현재 기록에서 계산.
+- 점수·리포트: 볼륨 기준 기간(4주) 수정, 연속 출석 보너스 16주 조회(최대 +20), 점수 갱신 실패 시 버튼 멈춤 해소, 닉네임 30자 제한, 출석 = 운동한 날 수 / 목표 일수(루틴 파트 수 2~5일)로 랭킹·리포트 통일.
+- 캘린더 편집: 다른 날짜로 복사 후 저장하면 원래 기록까지 옮겨지던 문제, 빈 세트(0회) 저장·빈 기록 남는 문제(삭제 확인), 추가 종목 part 저장, 같은 종목 다른 그립 key 충돌, 자정 지나도 어제를 오늘로 표시.
+- 데이터: 옛 종목명(그립 통합 전 이름 포함)을 읽을 때 새 이름+그립으로 정규화, PR 맵 옛 키 있으면 1회 재계산. 자동 저장 되돌리기 시 XP도 차감(규칙: XP 1회 변경 −200~+200, 0 이상 — Firebase 콘솔 게시 필요).
+- 기타: 공휴일 오류 응답은 캐시 안 함·서비스키 인코딩 양쪽 대응, CSV 수식 주입 방지·\r 처리·파일명 로컬 날짜, HOME 최근 기록 "10/26(월)", 이번 주 근육 세트 기준 미만은 '진행 중'.
+- 사용성: 운동 중엔 운동방식·파트·휴식 선택줄을 한 줄 요약(누르면 펼침)으로, 가이드 안내도 한 줄로. 루틴 수정은 부위별 고른 종목만 먼저·나머지 "+ 종목 더 보기"·검색칸, 그립 없이 저장된 기본 종목(랫풀다운 등)이 선택 표시 안 되던 문제.
+- 등급: 단계명 Starter~Legend + Lv(단계당 5, Legend 이후 1500XP마다), MY 등급 카드·등급 안내·리포트 랭킹에 Lv 표시, 운동 완료 요약 카드(시간·볼륨·본세트·신기록·XP·Lv 진행·레벨 업/단계 달성), 성취 10종(MY). 'PLATINUM' 글자 일러스트는 Elite 단계와 안 맞아 쉐브론 아이콘으로.
+- 캘린더 배지 "set" → "세트"는 360px 화면에서 칸을 넘쳐 보류.
+
 [2026-10-28] 세트 행 RIR 겹침 등 좁은 화면 겹침·넘침 수정 | WorkoutInput.jsx(Stepper, SetRow, ExerciseCard 머리줄, 휴식 칩 줄), HomeTab.jsx(주간 요약 숫자)
 - 원인: 세트 행의 무게·횟수 스테퍼가 고정 폭(flexShrink 0)이라 공간이 모자라도 줄지 않고 RIR 칩 밑으로 파고듦(Outfit 숫자 서체가 넓어 411px 폰에서도 발생).
 - Stepper fluid 모드: 남은 폭에 맞춰 줄고(무게 1.4 : 횟수 1), 숫자 칸 최소 폭(무게 44·횟수 24px) 보장, ± 버튼 좌우 여백을 화면 폭 비례(2~5px)로. 유산소 행 스테퍼도 같은 방식.

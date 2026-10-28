@@ -2,7 +2,7 @@
 
 > 이 파일은 저장소 루트에 두고 Claude가 작업 시작 시 항상 먼저 읽는 작업 지침이다.
 > claude.ai 프로젝트 지침과 내용이 다르면 **이 파일이 최신 기준**이다. 규칙이 바뀌면 이 파일을 갱신하고 커밋한다.
-> 최종 갱신: 2026-10-28 (옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
+> 최종 갱신: 2026-10-29 (등급 Lv 리뉴얼·전면 점검 반영, 옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
 
 ---
 
@@ -53,7 +53,7 @@
 - 운동명 변경 시 `LEGACY_EXERCISE_NAME_MAP` 갱신
 
 ## 4. 보안 체크리스트
-- `firestore.rules`: 본인 uid만 읽기/쓰기. `users`의 `role/roleRequestStatus/tier/lifetimeBadges/trainerProfile`은 클라이언트 수정 불가, XP는 1회 증가 0~200(시즌 전환 시 리셋 허용), `leaderboard`는 필드 화이트리스트+점수 0~200, `exercisePopularity`는 counts 맵만, `activeSessions/{uid}`는 본인만.
+- `firestore.rules`: 본인 uid만 읽기/쓰기. `users`의 `role/roleRequestStatus/tier/lifetimeBadges/trainerProfile`은 클라이언트 수정 불가, XP는 1회 변경 −200~+200·0 이상(자동 저장 되돌리기 시 감소, 시즌 전환 시 리셋 허용), `leaderboard`는 필드 화이트리스트+점수 0~200, `exercisePopularity`는 counts 맵만, `activeSessions/{uid}`는 본인만.
 - 규칙 파일을 바꾸면 **코드 배포 후 Firebase 콘솔에서 규칙 게시**가 필요함을 안내한다(로컬 에뮬레이터 없음).
 - `.env`는 .gitignore 포함·이력 노출 여부 확인. 실질 보안은 Rules + 승인된 도메인(Authorized domains).
 - Google 로그인: Firebase Authentication → 승인된 도메인에 배포 주소가 등록돼 있는지 확인.
@@ -112,8 +112,14 @@
 
 ### 7.4 리포트 · 홈 인사이트
 - 근육별 주간 세트(직접 1·보조 0.5, 주 10–20 권장 밴드), 최근 PR, 정체 종목(최근 3회 e1RM 정체)·디로드 제안(6주 연속 고강도), 유산소 주간 분/150분, 골밀도 목표 체크(목표 선택자), 종목 추이는 추정 1RM.
-- 랭킹 점수: 출석 40%·볼륨 30%·과부하 30% + 연속 출석 보너스(4주마다 +5, 최대 +20). 운동 완료 시 자동 갱신.
+- 랭킹 점수: 출석 40%·볼륨 30%·과부하 30% + 연속 출석 보너스(4주마다 +5, 최대 +20, 16주 조회). 운동 완료 시 자동 갱신.
+  - 출석 = 이번 주 운동한 날 수(하루 여러 번은 1일) / 목표 일수(첫 루틴 파트 수, 2~5일). 리포트 출석률 카드도 같은 기준.
+  - 볼륨 기준 = 이번 주 직전 4주(지난주 일요일까지) 평균.
 - 시즌 XP: 분기마다 초기화(`seasonKey`), 누적 XP(`lifetimeXp`) 유지. 티어는 시즌 XP 기준(세션당 기본 50XP, 자유운동 0.7배, 볼륨·시간 보너스). 티어 키 iron/bronze/silver/gold/platinum/diamond/legend.
+- **등급 표시 = Lv 숫자 + 단계명**(2026-10-29): 단계명 Starter/Rookie/Regular/Pro/Elite/Master/Legend(키·경계 XP 1000/2500/4500/7000/10000/15000 유지), 단계당 Lv 5개(경계 사이 5등분), Legend 이후 1500 XP마다 Lv+1. `utils/tier.js getLevelInfo()`, `TierBadge level`.
+- 운동 완료 요약 카드(시간·볼륨·본세트·신기록·XP, Lv 진행·레벨 업/단계 달성) — `WorkoutCompleteModal`.
+- 성취(이름 붙은 성취 10종) — `utils/achievements.js`, MY "성취". 저장하지 않고 기록·PR에서 계산(`lifetimeBadges`는 규칙상 클라이언트 쓰기 불가).
+- 자동 저장 "되돌리기"는 기록 삭제 + 그때 받은 XP 차감(`deleteWorkoutLogAndRevertXp`).
 - 랭킹 그룹: Phase1은 전체(`all`)만, PT그룹/일반그룹 분리·프로그램 준수율 보너스는 Phase2. 화면 이름은 REPORT지만 `leaderboard` 컬렉션 구조 유지.
 
 ### 7.5 데이터 모델 (v9 기본 + v10 추가분, 추가분은 모두 필드 추가 — 기존 데이터 호환)
@@ -147,12 +153,14 @@ workoutLogs/{uid}/logs/{logId}   // logId: session-{시작ms} 또는 자동 ID
 activeSessions/{uid}: { draft: JSON 문자열, updatedAt }
 ```
 - 종목키 = `이름` 또는 `이름::그립`(그립이 다르면 별개 종목으로 집계).
-- 옛 종목명은 읽을 때 `normalizeExerciseName()`으로 정규화.
+- 옛 종목명은 읽을 때 정규화: 기록은 `storage.js readLogDoc → normalizeLogExercises()`(그립 통합 전 이름은 `LEGACY_EXERCISE_GRIP_MAP`으로 grip도 채움), 루틴은 `normalizeExerciseNames()`. PR 맵에 옛 이름 키가 있으면 App이 한 번 재계산.
+- 진행 세션 기록 ID·날짜는 시작 시 고정한 `sessionId`(draft에 저장) 기준 — 타이머 ±10초·초기화로 `sessionStartAt`이 바뀌어도 유지. 옛 draft는 `sessionStartAt`으로 대체.
 
 ### 7.6 Phase1 잔여 과제
 - `WorkoutInput.jsx` 파일 분리(리팩터링)
 - 사이클 완료 판정 ↔ 기록 연결, 캘린더 과거 기록 편집 피커의 커스텀 운동 연결
-- 전 탭 리디자인(2단계) 완료 2026-10-28, 스타일 C 확정·팔레트/폰트 3종으로 축소 2026-10-28 → 다음: 등급 리뉴얼(3단계: Lv 숫자 + 단계명, 데이터 키 iron~legend 유지·표시명만 변경, 운동 완료 요약 카드·승급 연출·이름 붙은 성취 카드)
+- 전 탭 리디자인(2단계) 완료 2026-10-28, 스타일 C 확정·팔레트/폰트 3종으로 축소 2026-10-28, 등급 리뉴얼(3단계: Lv + 단계명·완료 요약 카드·레벨 업 연출·성취) 완료 2026-10-29.
+- 랭킹 화면에서 100위 밖이면 내 순위가 안 보임(상위 100개만 조회) — 사용자 늘면 개선.
 
 ### 7.7 로드맵
 - Phase1(MVP, 구현 완료·지속 개선): 온보딩 / 분할 루틴 / 기록 입력 / 캘린더 / 리포트(랭킹+통계+티어·시즌 XP) / MY / PWA.

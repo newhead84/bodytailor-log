@@ -21,10 +21,12 @@ service cloud.firestore {
       return ['role', 'roleRequestStatus', 'tier', 'lifetimeBadges', 'trainerProfile'];
     }
     // 세션 1회 XP 상한(storage.js computeSessionXp 최대 180) — 여유분 포함 200
+    // [2026-10-29] 자동 저장 "되돌리기"로 XP를 빼야 해서 감소도 1회 200까지 허용(0 미만 불가).
     function xpDeltaOk(field) {
       return !(field in request.resource.data) ||
         (request.resource.data[field] is number &&
-         request.resource.data[field] - resource.data.get(field, 0) >= 0 &&
+         request.resource.data[field] >= 0 &&
+         request.resource.data[field] - resource.data.get(field, 0) >= -200 &&
          request.resource.data[field] - resource.data.get(field, 0) <= 200);
     }
     // 시즌이 바뀐 첫 저장에서는 seasonXp가 새 시즌 값(0~200)으로 리셋될 수 있다.

@@ -21,8 +21,10 @@ function setMeta(s) {
   return meta
 }
 
+// [2026-10-29] planned: "+ 세트 추가"·웜업 램프로 미리 만든 행. 체크(V)·수정 전엔 auto처럼 기록에서 빠지고
+// 완료 시 포함 여부를 묻지만, "세트완료" 때 자동 정리(auto 행 삭제) 대상은 아니다(사용자가 일부러 만든 행).
 export function isCountableSet(s) {
-  return !!s && !(s.auto && !s.saved)
+  return !!s && (!!s.saved || (!s.auto && !s.planned))
 }
 
 // 체크(V)도 수정도 안 한 자동 프리필 행 중 값이 채워진 행 수(완료 시 포함 여부를 물어볼 때 사용)
@@ -129,10 +131,18 @@ export function isSessionStale(draft, now = Date.now()) {
 }
 
 // 같은 세션을 여러 번(여러 기기/탭) 저장해도 기록이 하나만 생기도록 세션 시작 시각 기반 고정 ID를 쓴다.
+// [2026-10-29] sessionId(시작 시 고정)를 우선 사용 — 타이머 ±10초·초기화로 sessionStartAt이 바뀌어도 ID·날짜가 그대로.
+// sessionId가 없는 옛 draft는 기존처럼 sessionStartAt을 쓴다.
+export function sessionIdentity(draft) {
+  return draft?.sessionId || draft?.sessionStartAt || null
+}
+
 export function sessionLogId(draft) {
-  return draft?.sessionStartAt ? `session-${draft.sessionStartAt}` : null
+  const id = sessionIdentity(draft)
+  return id ? `session-${id}` : null
 }
 
 export function sessionDateStr(draft) {
-  return draft?.sessionStartAt ? toLocalDateStr(new Date(draft.sessionStartAt)) : toLocalDateStr(new Date())
+  const id = sessionIdentity(draft)
+  return id ? toLocalDateStr(new Date(id)) : toLocalDateStr(new Date())
 }
