@@ -2,6 +2,12 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-29] 홍보 페이지 /intro 신설(플랜핏·짐워크·RISE 벤치마킹) | public/intro/index.html(신규), public/intro/img/*(앱 화면 캡처 webp·공유 이미지), CLAUDE.md
+- 같은 Vercel 주소 아래 정적 페이지(앱 번들과 분리, 앱 코드 변경 없음). 주소: /intro/
+- 구성: 히어로 + 직접 눌러 보는 세트 기록 데모(체크 → 휴식 → 앱과 같은 규칙의 다음 무게 추천, 횟수를 바꾸면 추천이 달라짐) → 운동명 흐름 띠 → 사용법 3단계 → 기능 4가지(넓은 화면은 스크롤에 맞춰 폰 화면 전환) → 추천 규칙(숫자 카운트업) → 안심 포인트 3가지 → FAQ 6개 → 마무리 CTA.
+- 디자인: 앱 기본값(베이지·볼트 라임·페이퍼로지·Outfit 숫자). 근거 없는 사용자 수·후기는 넣지 않음. prefers-reduced-motion이면 애니메이션 제거. 공유 미리보기(OG) 이미지 포함.
+- 검증: 320·360·412·768·1280px 겹침·가로 스크롤 없음, 데모 추천 문구가 앱 규칙(증량/유지/횟수 도전)과 일치.
+
 [2026-10-29] 운동 기록 반복 테스트·트레이너 관점 검토 반영 | utils/load.js(신규), utils/strength.js, utils/sessionPayload.js, utils/scoring.js, utils/achievements.js, WorkoutInput.jsx, SetEditors.jsx, InsightCards.jsx, ReportTab.jsx, CalendarView.jsx, HomeTab.jsx, App.jsx, storage.js, CLAUDE.md
 - 버그: 빈 유산소 행·빈 행이 0분/NaN 세트로 저장되던 문제(값이 채워진 세트만 저장·볼륨 반영), 체크한 세트가 없을 때 완료가 "저장할 세트 없음"으로 막히던 흐름("입력해 둔 N세트를 저장할까요?"로 한 번만 확인), "함께 저장" 시 세트 저장 후 자동으로 생긴 다음 행(직전 세트 복제)이 기록되던 문제.
 - 입력 기준(사용자 확정): 덤벨 1개·한쪽 횟수 기준 입력, 볼륨만 ×2. 플랭크류는 초. 종목 카드에 입력 기준 안내 한 줄, 포커스형 입력칸 이름(보조 kg·추가 kg·덤벨 1개 kg·횟수(한쪽)·시간(초)).
