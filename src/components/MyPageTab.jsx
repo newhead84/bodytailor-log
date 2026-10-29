@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm, AccentSwatches } from './ui'
 import { CountUp } from '../hooks/useCountUp'
-import { FONT_OPTIONS, normalizeFontId, normalizeAccentId } from '../utils/fonts'
+import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
 import { getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
@@ -31,7 +32,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const [restSoundId, setRestSoundId] = useState(userDoc?.restTimerSoundId || 'beep')
   // [2026-07-30 신규, 2026-08-01 3종으로 확장, 2026-08-04 기본값 beige로 변경] 화면 테마:
   // 'dark'(블랙골드) | 'beige'(베이지블랙, 기본) | 'light'(화이트블루, 구 v1)
-  const [themePreference, setThemePreferenceState] = useState(userDoc?.themePreference || 'beige')
+  const [themePreference, setThemePreferenceState] = useState(userDoc?.themePreference || DEFAULT_THEME)
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
   const [addingCustomGoal, setAddingCustomGoal] = useState(false)
@@ -54,6 +55,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     weightKg: userDoc?.onboarding?.weightKg ?? '',
     heightCm: userDoc?.onboarding?.heightCm ?? '',
     goals: userDoc?.onboarding?.goals || [],
+    weeklyTargetDays: userDoc?.weeklyTargetDays || null,
   }))
 
   const xp = getEffectiveSeasonXp(userDoc)
@@ -141,6 +143,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       weightKg: userDoc?.onboarding?.weightKg ?? '',
       heightCm: userDoc?.onboarding?.heightCm ?? '',
       goals: userDoc?.onboarding?.goals || [],
+      weeklyTargetDays: userDoc?.weeklyTargetDays || null,
     })
     setEditingProfile(true)
   }
@@ -148,9 +151,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   // [2026-07-28] 닉네임 단독 저장 버튼 제거: 닉네임도 프로필 수정 폼의 일부로 통합해 한 번에 저장한다.
   async function saveProfileEdit() {
     setSaving(true)
-    const { nickname, ...onboardingForm } = profileForm
+    const { nickname, weeklyTargetDays, ...onboardingForm } = profileForm
     await updateUserProfile(uid, {
       nickname: (nickname || '').trim().slice(0, 30), // [2026-10-29] 랭킹 규칙(30자 이하)에 맞춤
+      // [2026-10-29] 주당 운동 목표 일수(출석 목표). 고르지 않았으면 저장하지 않음(루틴 파트 수 사용)
+      ...(weeklyTargetDays ? { weeklyTargetDays } : {}),
       onboarding: {
         ...onboardingForm,
         age: Number(onboardingForm.age),
@@ -195,11 +200,22 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   // [2026-07-30 신규] MY탭 "화면 테마" 선택 저장. onProfileUpdated()로 App.jsx의 userDoc을
   // 다시 불러오면, App.jsx의 data-theme effect가 반응해 즉시 전체 화면에 반영된다.
   // [2026-10-27 신규] 기록 방식(리스트/포커스) 선택 저장. [2026-10-28] 스타일은 C 고정이라 선택 제거.
-  const [logMode, setLogModeState] = useState(userDoc?.logMode || 'list')
+  const [logMode, setLogModeState] = useState(userDoc?.logMode || DEFAULT_LOG_MODE)
   // [2026-10-28 신규] 본문 폰트 3종 선택 저장(users/{uid}.fontPreference)
   const [fontPreference, setFontPreferenceState] = useState(normalizeFontId(userDoc?.fontPreference))
   // [2026-10-28 신규] 강조색 팔레트 3종 선택 저장(users/{uid}.accentPreference)
   const [accentPreference, setAccentPreferenceState] = useState(normalizeAccentId(userDoc?.accentPreference))
+  // [2026-10-29] 저장된 값이 바뀌면(기본값 일괄 적용, 미리보기 "이 조합으로 적용" 등) 화면 선택 표시도 따라가게
+  useEffect(() => {
+    setThemePreferenceState(userDoc?.themePreference || DEFAULT_THEME)
+    setLogModeState(userDoc?.logMode || DEFAULT_LOG_MODE)
+    setFontPreferenceState(normalizeFontId(userDoc?.fontPreference))
+    setAccentPreferenceState(normalizeAccentId(userDoc?.accentPreference))
+  }, [userDoc?.themePreference, userDoc?.logMode, userDoc?.fontPreference, userDoc?.accentPreference])
+  // [2026-10-29] 디자인 설정은 기본으로 접어 두고, 현재 조합만 한 줄로 보여준다
+  const [designOpen, setDesignOpen] = useState(false)
+  const themeLabelOf = { dark: '다크', beige: '베이지', light: '라이트' }
+
   async function selectAccent(accent) {
     setAccentPreferenceState(accent)
     await updateUserProfile(uid, { accentPreference: accent })
@@ -364,6 +380,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               {userDoc?.onboarding?.goals?.length > 0 && (
                 <div>{userDoc.onboarding.goals.join(' · ')}</div>
               )}
+              {userDoc?.weeklyTargetDays ? <div>주 {userDoc.weeklyTargetDays}일 목표</div> : null}
             </div>
           )}
         </div>
@@ -393,6 +410,16 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               <NumberField label="나이" unit="세" value={profileForm.age} onChange={(v) => updateProfileForm('age', v)} />
               <NumberField label="몸무게" unit="kg" value={profileForm.weightKg} onChange={(v) => updateProfileForm('weightKg', v)} />
               <NumberField label="키" unit="cm" value={profileForm.heightCm} onChange={(v) => updateProfileForm('heightCm', v)} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>주당 운동 목표</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[2, 3, 4, 5, 6].map((d) => (
+                  <Chip key={d} active={profileForm.weeklyTargetDays === d} onClick={() => updateProfileForm('weeklyTargetDays', d)}>
+                    주 {d}일
+                  </Chip>
+                ))}
+              </div>
             </div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>운동 목표</div>
@@ -760,10 +787,24 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       </Card>
 
       {/* [2026-10-28] 스타일 C 택타일 웜 고정(선택 없음). 테마 3종·강조색·폰트·기록 방식만 선택. */}
+      {/* [2026-10-29] 기본은 접힌 상태 — 현재 조합 한 줄 + "설정 바꾸기"를 눌러야 선택지가 열린다(사용자 요청). */}
       <SectionTitle>디자인</SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <button
+          type="button"
+          onClick={() => setDesignOpen((v) => !v)}
+          aria-expanded={designOpen}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: 0 }}
+        >
+          <span className="text-keep-all" style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+            {[themeLabelOf[themePreference] || themePreference, ACCENT_OPTIONS.find((a) => a.id === accentPreference)?.label, FONT_OPTIONS.find((f) => f.id === fontPreference)?.label, logMode === 'focus' ? '포커스형' : '리스트형'].filter(Boolean).join(' · ')}
+          </span>
+          <span style={{ flexShrink: 0, fontSize: 12, color: 'var(--color-label-neutral)' }}>{designOpen ? '접기' : '설정 바꾸기'}</span>
+          <ChevronDown size={16} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--color-label-neutral)', transform: designOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+        </button>
+        {designOpen && (<>
         {/* [2026-10-28 신규] 샘플 기록 화면에서 테마·강조색·폰트·기록 방식을 바로 비교 */}
-        <Button full onClick={onShowDesignPreview}>
+        <Button full variant="secondary" onClick={onShowDesignPreview}>
           기록 화면 미리보기
         </Button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -808,6 +849,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             {logMode === 'focus' ? '한 번에 한 세트만 크게 보여주고, 큰 버튼으로 입력해요.' : '모든 세트를 표로 한눈에 보며 입력해요.'}
           </span>
         </div>
+        </>)}
       </Card>
 
       {/* [2026-07-31 신규] MY탭 1:1 문의(⑩). role === '관리자'인 계정에서만 "문의 관리"

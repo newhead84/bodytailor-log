@@ -176,11 +176,16 @@ export async function getUserDoc(uid) {
   return snap.exists() ? snap.data() : null
 }
 
-export async function saveOnboarding(uid, onboardingData) {
+export async function saveOnboarding(uid, onboardingData, extra = {}) {
   const ref = doc(db, 'users', uid)
+  // [2026-10-29] extra: 닉네임·주당 목표 일수 등 users 최상위 필드(값이 있을 때만)
+  const top = {}
+  if (typeof extra.nickname === 'string' && extra.nickname.trim()) top.nickname = extra.nickname.trim().slice(0, 30)
+  if (Number(extra.weeklyTargetDays) > 0) top.weeklyTargetDays = Math.min(6, Math.max(2, Math.round(Number(extra.weeklyTargetDays))))
   await updateDoc(ref, {
     onboarding: onboardingData,
     onboardingCompleted: true,
+    ...top,
   })
 }
 

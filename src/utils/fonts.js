@@ -15,12 +15,22 @@ export const ACCENT_OPTIONS = [
   { id: 'cobalt', label: '코발트', swatch: '#2f5cf0' },
 ]
 
+// [2026-10-29] 디자인 기본값(사용자 지정): 베이지 · 볼트 라임 · 페이퍼로지 · 리스트형
+export const DEFAULT_THEME = 'beige'
+export const DEFAULT_ACCENT = 'lime'
+export const DEFAULT_FONT = 'paperlogy'
+export const DEFAULT_LOG_MODE = 'list'
+// 이 버전 키가 없는 계정은 로그인 시 한 번 위 기본값으로 맞춘다(이후엔 각자 바꾼 값 유지).
+export const DESIGN_DEFAULTS_VERSION = '2026-10-29'
+
 export function normalizeAccentId(id) {
-  return ACCENT_OPTIONS.some((a) => a.id === id) ? id : 'brass'
+  // [2026-10-29] 기본값 볼트 라임(사용자 지정)
+  return ACCENT_OPTIONS.some((a) => a.id === id) ? id : DEFAULT_ACCENT
 }
 
 export function normalizeFontId(id) {
-  return FONT_OPTIONS.some((f) => f.id === id) ? id : 'pretendard'
+  // [2026-10-29] 기본값 페이퍼로지(사용자 지정)
+  return FONT_OPTIONS.some((f) => f.id === id) ? id : DEFAULT_FONT
 }
 
 // html 속성 세팅(App.jsx 저장값 반영, DesignPreviewScreen 임시 미리보기 공용)

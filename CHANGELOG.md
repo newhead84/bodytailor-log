@@ -2,6 +2,12 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-29] 온보딩 닉네임·주당 운동 목표 추가, 디자인 기본값(베이지·볼트 라임·페이퍼로지·리스트형) 일괄 적용, MY 디자인 접기 | Onboarding.jsx, App.jsx, storage.js(saveOnboarding), MyPageTab.jsx, ReportTab.jsx, TierInfoScreen.jsx, utils/fonts.js, CLAUDE.md
+- 온보딩 첫 단계 닉네임(구글 이름 미리 채움, 30자 — 랭킹에 실명 노출 방지), 마지막 단계 주당 운동 목표 2~6일(users.weeklyTargetDays). MY 프로필 수정에도 주당 목표 추가.
+- 출석 목표 = weeklyTargetDays(없으면 첫 루틴 파트 수), 2~6일. 리포트·등급 안내 문구 갱신.
+- 디자인 기본값 DEFAULT_*(fonts.js), users.designDefaultsVersion이 없는 계정은 로그인 시 한 번 기본값으로 덮어씀(사용자 결정: 기존 계정 포함). 이후 변경은 유지.
+- MY "디자인"은 현재 조합 한 줄 + "설정 바꾸기"로 펼침(기본 접힘). 저장값이 바뀌면 선택 표시도 동기화.
+
 [2026-10-29] 전면 점검 반영 — 버그 수정·사용성 개선·등급 Lv 리뉴얼 | WorkoutInput.jsx, SetEditors(영향 없음), RestTimer.jsx, GlobalTimerBar.jsx, ui.jsx, LogTab.jsx, App.jsx, ReportTab.jsx, CalendarView.jsx, MyPageTab.jsx, TierInfoScreen.jsx, HomeTab.jsx, InsightCards.jsx, RoutineSetup.jsx, storage.js, firestore.rules, utils/tier.js·achievements.js(신규)·sessionPayload.js·exerciseLibrary.js·holidays.js·exportCsv.js, api/holidays.js, CLAUDE.md
 - 기록: 휴식 종료 알림을 서비스워커 showNotification으로(안드로이드에서 안 뜨고 소리 한 번 더 울리던 문제), 쉬는 중 휴식 칩 변경 시 타이머 재시작 안 함 / "+ 세트 추가"·웜업 세트 행도 체크 안 하면 완료 시 포함 여부 확인 / 완료 확인창 바깥 누르면 저장 안 하고 계속 / 저장한 세트가 있는 종목 숨기기·지우기 전 확인 / 같은 앱 실행 중 다음 세션의 직전 기록 갱신 / 기록 ID·날짜를 시작 시 고정(sessionId, ±10초·초기화로 중복 기록 생기던 위험) / 일시정지 중 −10초 연타·재개 직후 00:00 튐 수정 / 세션 신기록 비교를 현재 기록에서 계산.
 - 점수·리포트: 볼륨 기준 기간(4주) 수정, 연속 출석 보너스 16주 조회(최대 +20), 점수 갱신 실패 시 버튼 멈춤 해소, 닉네임 30자 제한, 출석 = 운동한 날 수 / 목표 일수(루틴 파트 수 2~5일)로 랭킹·리포트 통일.

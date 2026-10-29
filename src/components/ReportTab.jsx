@@ -130,8 +130,9 @@ function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
 }
 
 export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true }) {
-  // [2026-10-29] 출석 목표 일수 = 루틴 파트 수(2~5일로 제한). 랭킹 출석 점수와 리포트 출석률이 같은 기준을 쓴다.
-  const attendanceTargetDays = Math.min(5, Math.max(2, targetSessionsPerWeek || 3))
+  // [2026-10-29] 출석 목표 일수 = 주당 목표 일수(온보딩·MY에서 설정, 없으면 루틴 파트 수), 2~6일로 제한.
+  // 랭킹 출석 점수와 리포트 출석률이 같은 기준을 쓴다.
+  const attendanceTargetDays = Math.min(6, Math.max(2, targetSessionsPerWeek || 3))
   // 랭킹 관련 상태
   const [entries, setEntries] = useState([])
   const [rankingLoading, setRankingLoading] = useState(true)
@@ -649,7 +650,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
             <p className="record-notation" style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--color-label-neutral)' }}>
               이번주 {weeklyAttendance.thisWeekLabel} · 지난주 {weeklyAttendance.lastWeekLabel} 대비 {weeklyAttendanceDays.lastWeek}일
             </p>
-            <Disclosure style={{ marginTop: 4 }}>이번 주(월~일) 운동한 날 수를 목표 일수와 비교해요. 목표는 내 루틴의 파트 수(최소 2일, 최대 5일)이고, 하루에 여러 번 해도 1일로 세요. 랭킹 출석 점수도 같은 기준이에요(랭킹은 캘린더에서 추가한 과거 기록은 빼고 계산).</Disclosure>
+            <Disclosure style={{ marginTop: 4 }}>이번 주(월~일) 운동한 날 수를 목표 일수와 비교해요. 목표는 MY에서 정한 주당 목표 일수(정하지 않았으면 내 루틴의 파트 수, 2~6일)이고, 하루에 여러 번 해도 1일로 세요. 랭킹 출석 점수도 같은 기준이에요(랭킹은 캘린더에서 추가한 과거 기록은 빼고 계산).</Disclosure>
           </Card>
 
           {/* [2026-10-27 리뉴얼 W2] 근거 기반 인사이트: 근육별 주간 세트·유산소·정체/디로드·PR·골밀도 */}

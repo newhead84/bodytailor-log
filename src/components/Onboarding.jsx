@@ -11,9 +11,13 @@ const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력
 // 변경이라 확인 후 반영). MY탭 프로필 수정 화면에서도 동일하게 제거.
 // [2026-08-01 변경] 나이/몸무게/키를 "basic" 한 페이지에 몰아 놓았던 구조가 입력 줄이 다닥다닥
 // 붙어 보기 불편하다는 피드백에 따라, 질문당 1페이지씩 완전히 분리했다(요청 확인 후 반영).
-const STEPS = ['gender', 'age', 'weight', 'height', 'goals']
+// [2026-10-29] 닉네임(랭킹에 보이는 이름 — 구글 실명이 그대로 노출되던 문제)과 주당 운동 목표 일수(출석 목표)를 추가.
+const STEPS = ['nickname', 'gender', 'age', 'weight', 'height', 'goals', 'days']
+const TARGET_DAY_OPTIONS = [2, 3, 4, 5, 6]
 
 const STEP_TITLES = {
+  nickname: '앱에서 쓸 닉네임을 정해 주세요',
+  days: '일주일에 며칠 운동할 계획인가요?',
   gender: '성별을 알려주세요',
   age: '나이가 어떻게 되세요?',
   weight: '몸무게가 어떻게 되세요?',
@@ -35,10 +39,12 @@ const stepVariants = {
 // previewMode/onClose를 추가했다. previewMode=true일 때는 실제 계정 데이터를 전혀 건드리지
 // 않는 순수 뷰어로 동작한다: 상단에 닫기 버튼이 뜨고, 마지막 단계에서 "시작하기"를 눌러도
 // onComplete(실제 Firestore 저장)를 호출하지 않고 그냥 onClose로 미리보기를 닫는다.
-export default function Onboarding({ onComplete, previewMode = false, onClose }) {
+export default function Onboarding({ onComplete, previewMode = false, onClose, initialNickname = '' }) {
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
   const [form, setForm] = useState({
+    nickname: (initialNickname || '').slice(0, 30),
+    weeklyTargetDays: 3,
     gender: '',
     age: '',
     weightKg: '',
@@ -81,6 +87,8 @@ export default function Onboarding({ onComplete, previewMode = false, onClose })
   }
 
   const canNext = {
+    nickname: form.nickname.trim().length > 0,
+    days: !!form.weeklyTargetDays,
     gender: !!form.gender,
     age: !!form.age,
     weight: !!form.weightKg,
@@ -97,6 +105,8 @@ export default function Onboarding({ onComplete, previewMode = false, onClose })
     setSaving(true)
     await onComplete({
       ...form,
+      nickname: form.nickname.trim().slice(0, 30),
+      weeklyTargetDays: Number(form.weeklyTargetDays) || 3,
       age: Number(form.age),
       weightKg: Number(form.weightKg),
       heightCm: Number(form.heightCm),
@@ -174,6 +184,47 @@ export default function Onboarding({ onComplete, previewMode = false, onClose })
             exit="exit"
             transition={{ duration: 0.28, ease: [0.22, 0.61, 0.36, 1] }}
           >
+            {STEPS[step] === 'nickname' && (
+              <StepBlock title={STEP_TITLES.nickname}>
+                <input
+                  autoFocus
+                  value={form.nickname}
+                  onChange={(e) => update('nickname', e.target.value)}
+                  maxLength={30}
+                  placeholder="닉네임"
+                  aria-label="닉네임"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '18px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 20, fontWeight: 700 }}
+                />
+                <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginTop: 14 }}>
+                  랭킹에서 다른 사용자에게 보이는 이름이에요. 실명이 아니어도 괜찮고, MY 탭에서 언제든 바꿀 수 있어요.
+                </p>
+              </StepBlock>
+            )}
+
+            {STEPS[step] === 'days' && (
+              <StepBlock title={STEP_TITLES.days}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 8 }}>
+                  {TARGET_DAY_OPTIONS.map((d) => {
+                    const on = form.weeklyTargetDays === d
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => update('weeklyTargetDays', d)}
+                        aria-pressed={on}
+                        style={{ padding: '16px 0', borderRadius: 'var(--radius-md)', border: on ? '1px solid var(--color-fill-strong)' : '1px solid var(--color-line)', background: on ? 'var(--color-fill-strong)' : 'var(--color-bg-card)', color: on ? 'var(--color-on-fill)' : 'var(--color-label-strong)', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap' }}
+                      >
+                        {d}일
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginTop: 14 }}>
+                  이번 주 출석률과 랭킹 출석 점수의 목표가 돼요. 처음이라면 주 2~3일로 시작해도 충분해요. MY 탭에서 바꿀 수 있어요.
+                </p>
+              </StepBlock>
+            )}
+
             {STEPS[step] === 'gender' && (
               <StepBlock title={STEP_TITLES.gender}>
                 <div style={{ display: 'flex', gap: 10 }}>

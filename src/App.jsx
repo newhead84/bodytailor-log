@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-29] 전면 점검 반영(기록·점수·캘린더 버그, 운동 중 상단 접기, 루틴 수정 개편) + 등급 Lv 리뉴얼(완료 요약 카드·성취).
- *            직전: 세트 행 RIR 겹침 등 좁은 화면 겹침·넘침 수정. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-29] 온보딩 닉네임·주당 목표, 디자인 기본값(베이지·볼트 라임·페이퍼로지·리스트형) 일괄 적용, MY 디자인 접기.
+ *            직전: 전면 점검 반영 + 등급 Lv 리뉴얼. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -29,7 +29,7 @@ const InquiryScreen = lazy(() => import('./components/InquiryScreen'))
 const InquiryAdminScreen = lazy(() => import('./components/InquiryAdminScreen'))
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen } from './hooks/useBackableScreen'
-import { normalizeFontId, normalizeAccentId } from './utils/fonts'
+import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DEFAULT_ACCENT, DEFAULT_FONT, DESIGN_DEFAULTS_VERSION } from './utils/fonts'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
@@ -192,7 +192,7 @@ export default function App() {
   // 적용 범위는 "로그인 이후 메인 4탭 전체"로 한정 — 로그인/온보딩 화면(userDoc이 없거나
   // 온보딩 미완료)에서는 항상 dark를 유지하고, 온보딩이 끝난 뒤부터만 사용자 선택을 반영한다.
   useEffect(() => {
-    const theme = userDoc?.onboardingCompleted ? userDoc.themePreference || 'beige' : 'dark'
+    const theme = userDoc?.onboardingCompleted ? userDoc.themePreference || DEFAULT_THEME : 'dark'
     document.documentElement.setAttribute('data-theme', theme)
     // [2026-10-28] 디자인 스타일은 C 택타일 웜으로 고정(A/B 삭제, 선택 없음). 저장된 stylePreference는 무시.
     document.documentElement.setAttribute('data-style', 'c')
@@ -215,6 +215,25 @@ export default function App() {
   }, [userDoc?.onboardingCompleted, userDoc?.themePreference, userDoc?.fontPreference, userDoc?.accentPreference])
 
   // [2026-10-27 신규] 개인 기록(PR) 맵이 없는 계정은 최초 1회 전체 기록으로 계산해 저장한다.
+  // [2026-10-29] 디자인 기본값(베이지·볼트 라임·페이퍼로지·리스트형)을 모든 계정에 한 번 적용(사용자 결정).
+  // users.designDefaultsVersion이 없거나 다르면 한 번만 덮어쓰고, 이후 사용자가 바꾼 값은 그대로 둔다.
+  const designDefaultsRef = useRef(false)
+  useEffect(() => {
+    if (!authUser?.uid || !userDoc?.onboardingCompleted || designDefaultsRef.current) return
+    if (userDoc.designDefaultsVersion === DESIGN_DEFAULTS_VERSION) return
+    designDefaultsRef.current = true
+    updateUserProfile(authUser.uid, {
+      themePreference: DEFAULT_THEME,
+      accentPreference: DEFAULT_ACCENT,
+      fontPreference: DEFAULT_FONT,
+      logMode: DEFAULT_LOG_MODE,
+      designDefaultsVersion: DESIGN_DEFAULTS_VERSION,
+    })
+      .then(() => getUserDoc(authUser.uid))
+      .then((doc) => doc && setUserDoc(doc))
+      .catch((err) => console.error('디자인 기본값 적용 실패:', err))
+  }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.designDefaultsVersion])
+
   const prsBuildRef = useRef(false)
   useEffect(() => {
     // [2026-10-29] PR 맵에 옛 종목명 키(예: 와이드그립랫풀다운)가 남아 있으면 정규화된 이름으로 한 번 다시 계산
@@ -311,7 +330,9 @@ export default function App() {
   useBackableScreen(showOnboardingPreview, closeOnboardingPreview)
 
   async function handleOnboardingComplete(onboardingData) {
-    await saveOnboarding(authUser.uid, onboardingData)
+    // [2026-10-29] 닉네임·주당 목표 일수는 users 최상위 필드, 나머지는 onboarding 객체(기존 구조 유지)
+    const { nickname, weeklyTargetDays, ...rest } = onboardingData
+    await saveOnboarding(authUser.uid, rest, { nickname, weeklyTargetDays })
     await refreshUserDoc()
   }
 
@@ -338,7 +359,7 @@ export default function App() {
 
   // 온보딩 미완료
   if (!userDoc.onboardingCompleted) {
-    return <Onboarding onComplete={handleOnboardingComplete} />
+    return <Onboarding onComplete={handleOnboardingComplete} initialNickname={userDoc?.nickname || authUser?.displayName || ''} />
   }
 
   // 루틴 로딩 중
@@ -392,7 +413,8 @@ export default function App() {
 
   // 리포트 탭의 "주간 목표 세션 수"는 다중 루틴 모델에서는 대표값이 필요해,
   // 가장 먼저 만든 루틴의 파트 수를 근사치로 사용한다.
-  const targetSessionsPerWeek = routineTemplates[0]?.parts?.length || 3
+  // [2026-10-29] 사용자가 정한 주당 목표 일수(온보딩·MY)를 우선, 없으면(기존 계정) 첫 루틴 파트 수
+  const targetSessionsPerWeek = userDoc?.weeklyTargetDays || routineTemplates[0]?.parts?.length || 3
 
   // 메인 4탭
   // 4개 탭을 항상 마운트한 상태로 두고 visibility로만 보이기/숨기기를 전환한다.
@@ -485,7 +507,7 @@ export default function App() {
           onAutoFinalized={handleAutoFinalized}
           personalRecords={userDoc.prs || null}
           exerciseSettings={userDoc.exerciseSettings || null}
-          logMode={userDoc.logMode || 'list'}
+          logMode={userDoc.logMode || DEFAULT_LOG_MODE}
           seasonXp={getEffectiveSeasonXp(userDoc)}
         />
       </div>

@@ -107,7 +107,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
         <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)', lineHeight: '22px' }}>
           <p style={{ margin: '0 0 10px' }}>매주 아래 항목을 종합해 최종점수를 계산하고, 전체/PT그룹/일반그룹 랭킹에 반영해요.</p>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
-            <li>출석 40% — 이번 주 운동한 날 수 / 목표 일수(내 루틴 파트 수, 2~5일)</li>
+            <li>출석 40% — 이번 주 운동한 날 수 / 주당 목표 일수(MY에서 설정, 2~6일)</li>
             <li>볼륨·기록 30% — 최근 평균 대비 이번 주 총 볼륨</li>
             <li>점진적 과부하 30% — 지난주 대비 중량·볼륨이 늘어난 종목 비율</li>
             <li>보너스 — 연속 출석 4주마다 +5점(최대 +20)</li>
