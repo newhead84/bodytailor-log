@@ -668,7 +668,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
           <MuscleSetsCard logs={logs} liveExercises={liveExercises} />
           <PrCard prs={userDoc?.prs} />
           <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} />
-          <CardioCard logs={logs} />
+          <CardioCard logs={logs} liveExercises={liveExercises} />
           {(userDoc?.onboarding?.goals || []).includes('근력강화·골밀도증진') && <BoneHealthCard logs={logs} />}
 
           {/* 부위별 운동 추이 (누적 레이더 차트) */}

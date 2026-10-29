@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { ChevronDown, Info, X, SlidersHorizontal } from 'lucide-react'
+import { ChevronDown, Info, X, SlidersHorizontal, Play } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm } from './ui'
 import { CountUp } from '../hooks/useCountUp'
@@ -19,7 +19,7 @@ import {
   SET_TYPE_LABEL,
   SET_TYPE_DESC,
 } from '../utils/strength'
-import { getCardioFields, formatCardioSet, makeCardioSet } from '../utils/cardioFields'
+import { getCardioFields, formatCardioSet, makeCardioSet, autoFillCardio, cardioTimerMs, cardioTimerMinutes } from '../utils/cardioFields'
 import { allowsZeroWeight, isAssistedExercise, weightCaption, repsCaption, repsUnit, formatLoad, weightUnitShort, inputHint } from '../utils/load'
 import { useExerciseGuidePress, ExerciseGuidePanel } from './ExerciseGuideToggle'
 import logoMarkTransparent from '../assets/logo-mark-transparent.png'
@@ -896,17 +896,25 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   function updateSet(name, idx, field, value) {
     autoResumeIfPaused()
+    const exName = parseExerciseKey(name).name
+    const isCardio = getExerciseInputType(exName) === 'cardio'
     setRecords((r) => ({
       ...r,
       // 사용자가 값을 직접 고친 행은 자동 프리필 행이 아니므로 기록 대상(auto 해제)
-      [name]: r[name].map((s, i) => (i === idx ? { ...s, [field]: value, auto: false, planned: false } : s)),
+      // [2026-10-29] 유산소: 거리·속도·시간 중 두 칸을 넣으면 나머지를 자동 계산(타이머 상태 저장은 auto를 건드리지 않음)
+      [name]: r[name].map((s, i) => {
+        if (i !== idx) return s
+        if (field === 'cardioTimer') return { ...s, cardioTimer: value }
+        const next = { ...s, [field]: value, auto: false, planned: false }
+        return isCardio ? autoFillCardio(exName, next, field) : next
+      }),
     }))
   }
 
   function copyLastSet(name, idx) {
     setRecords((r) => {
       const sets = r[name]
-      const { saved, savedAt, auto, planned, rir, ...base } = sets[idx] || {}
+      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, ...base } = sets[idx] || {}
       // [2026-10-29] 미리 만든 행은 planned — 체크(V)·수정하지 않으면 완료 시 포함 여부를 묻는다(안 한 세트가 그대로 저장되던 문제).
       // "세트완료" 때 지워지는 auto 행과 달리 남겨 둔다.
       // 웜업·실패 세트를 복사하면 본세트로, 드롭 세트는 연속 드롭을 위해 그대로 둔다
@@ -1055,6 +1063,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   async function trySaveSet(key, idx) {
     const set = records[key]?.[idx]
     const inputType = getExerciseInputType(parseExerciseKey(key).name)
+    // [2026-10-29] 유산소 타이머가 돌고 있으면 저장 때 시간을 채우므로 빈 값으로 보지 않는다
+    if (set?.cardioTimer?.startAt && cardioTimerMinutes(set.cardioTimer) > 0) {
+      saveSetAndStartRest(key, idx)
+      return
+    }
     const isEmpty =
       !set ||
       (inputType === 'cardio' ? set.durationMin === '' : inputType === 'reps' ? set.reps === '' : set.weight === '' || set.reps === '')
@@ -1104,8 +1117,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRecords((r) => {
       // [2026-10-27] savedAt: 마지막 활동 시각(방치 세션 판단·자동 저장 시 운동시간 계산)용.
       // 자동 생성되는 다음 세트 행은 auto:true — 손대지도 체크하지도 않으면 기록에서 제외된다.
-      const sets = r[name].map((s, i) => (i === idx ? { ...s, saved: true, auto: false, planned: false, savedAt: Date.now() } : s))
-      const { saved, savedAt, auto, planned, rir, ...base } = sets[idx]
+      const sets = r[name].map((s, i) => {
+        if (i !== idx) return s
+        // [2026-10-29] 유산소 타이머로 기록 중이면 경과 시간(분)을 채우고 타이머를 끝낸다
+        const timed = s.cardioTimer?.startAt ? { durationMin: String(cardioTimerMinutes(s.cardioTimer)), cardioTimer: null } : {}
+        return { ...s, ...timed, saved: true, auto: false, planned: false, savedAt: Date.now() }
+      })
+      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]
       // 웜업 세트를 저장한 뒤 자동으로 생기는 다음 행은 본세트로 시작
       // [2026-10-29] 드롭(D)·실패(F) 세트 다음에 자동으로 생기는 행도 본세트로 시작(또 D/F로 기록되던 문제)
@@ -2489,6 +2507,7 @@ export function ExerciseCard({
             />
           )}
 
+          {inputType === 'cardio' && !isDone && <CardioTimerPanel sets={sets} onFieldChange={onFieldChange} />}
           {useFocus ? (
             <FocusSetPanel
               sets={sets}
@@ -2565,6 +2584,68 @@ export function ExerciseCard({
         </div>
       )}
     </Card>
+  )
+}
+
+// [2026-10-29 신규, 유산소 기록 개선] "타이머로 기록": 체크하지 않은 첫 유산소 줄에 타이머를 붙여 큰 경과 시간으로 보여 주고,
+// 종료(또는 세트 저장)하면 시간(분) 칸을 채운다. 타이머 상태는 세트 행(cardioTimer)에 있어 새로고침해도 이어진다.
+function CardioTimerPanel({ sets, onFieldChange }) {
+  const idx = sets.findIndex((st) => !st.saved)
+  const t = idx >= 0 ? sets[idx]?.cardioTimer : null
+  const running = !!t?.startAt && !t?.pausedAt
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!running) return undefined
+    const id = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [running])
+  if (idx < 0) return null
+  if (!t?.startAt) {
+    return (
+      <button
+        type="button"
+        onClick={() => onFieldChange(idx, 'cardioTimer', { startAt: Date.now(), pausedMs: 0 })}
+        style={{ height: 44, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line-strong)', fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+      >
+        <Play size={15} strokeWidth={2.2} aria-hidden="true" />
+        타이머로 기록
+      </button>
+    )
+  }
+  const sec = Math.floor(cardioTimerMs(t) / 1000)
+  const hh = Math.floor(sec / 3600)
+  const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0')
+  const ss = String(sec % 60).padStart(2, '0')
+  const toggle = () =>
+    onFieldChange(
+      idx,
+      'cardioTimer',
+      running ? { ...t, pausedAt: Date.now() } : { ...t, pausedAt: null, pausedMs: (t.pausedMs || 0) + (Date.now() - t.pausedAt) }
+    )
+  const finish = () => {
+    onFieldChange(idx, 'durationMin', String(cardioTimerMinutes(t)))
+    onFieldChange(idx, 'cardioTimer', null)
+  }
+  const btn = { flex: 1, height: 44, borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 800 }
+  return (
+    <div className="bt-enter" style={{ padding: '14px 12px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-label-neutral)' }}>{running ? '유산소 진행 중' : '일시정지'}</span>
+      <span className="bt-num" aria-live="off" style={{ fontSize: 'calc(44px * var(--num-scale))', lineHeight: 1, color: 'var(--color-label-strong)', fontVariantNumeric: 'tabular-nums' }}>
+        {hh > 0 ? `${hh}:` : ''}
+        {mm}:{ss}
+      </span>
+      <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+        <button type="button" onClick={toggle} style={{ ...btn, border: '1px solid var(--color-line-strong)', color: 'var(--color-label-strong)' }}>
+          {running ? '일시정지' : '재개'}
+        </button>
+        <button type="button" onClick={finish} style={{ ...btn, background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)' }}>
+          종료하고 시간 넣기
+        </button>
+      </div>
+      <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', textAlign: 'center' }}>
+        거리나 속도를 넣으면 나머지 칸은 자동으로 계산돼요.
+      </span>
+    </div>
   )
 }
 

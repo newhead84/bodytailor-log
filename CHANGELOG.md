@@ -2,6 +2,11 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-29] 유산소 기록 개선(A안, 탭 추가 없음) | WorkoutInput.jsx(CardioTimerPanel·updateSet·세트 저장), utils/cardioFields.js(autoFillCardio·cardioDistanceKm·cardioStats·타이머), InsightCards.jsx(CardioCard), ReportTab.jsx, HomeTab.jsx
+- NOTE 유산소 카드 "타이머로 기록": 큰 경과 시간·일시정지/재개·종료하면 시간(분) 칸 자동 입력. 타이머를 켠 채 세트를 저장해도 시간이 채워짐. 타이머 상태는 세트 행(cardioTimer)에 있어 새로고침해도 이어짐(저장 기록에는 안 남음).
+- 거리 칸이 있는 종목(실내사이클): 거리·속도·시간 중 두 칸을 넣으면 나머지 자동 계산(직접 고치면 자동 계산 멈춤).
+- REPORT 이번 주 유산소: 시간/150분 + 거리 합계(거리 칸이 없으면 속도×시간) + 종목별 시간 + 최근 4주 시간 막대, 진행 중 세션 포함. HOME에 이번 주 유산소 시간·거리 한 줄.
+
 [2026-10-29] 근육별 주간 세트에 진행 중인 운동 포함, 0세트 상태 표시(사용자 지적) | WorkoutInput.jsx(onLiveExercisesChange), LogTab.jsx, App.jsx(liveExercises), InsightCards.jsx(MuscleSetsCard), ReportTab.jsx, HomeTab.jsx
 - 오늘 운동 중 체크한 세트가 저장 전이라 근육별 주간 세트에 0으로 보이던 문제: 이번 주 보기에 진행 중 세트를 더하고 "오늘 진행 중인 운동(체크한 세트) 포함" 표시. 저장하면 실제 기록으로 대체.
 - 0세트 부위도 이번 주 '진행 중', 지난주 '부족'으로 표시(코어 제외).

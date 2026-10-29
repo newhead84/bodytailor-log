@@ -5,6 +5,7 @@ import { getRecentWorkoutLogs, getWorkoutLogsInRange } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
 import { suggestNextSet, workingSetsOf } from '../utils/strength'
 import { isAssistedExercise, isBodyweightLoaded, logVolumeKg } from '../utils/load'
+import { cardioStats } from '../utils/cardioFields'
 import { makeExerciseKey, parseExerciseKey } from '../utils/exerciseKey'
 import { CountUp } from '../hooks/useCountUp'
 import CalendarView from './CalendarView'
@@ -112,6 +113,7 @@ export default function HomeTab({
       cancelled = true
     }
   }, [uid, logsVersion, today])
+  const cardioWeek = useMemo(() => cardioStats(weekLogs), [weekLogs])
   const weekStats = useMemo(() => {
     const sessions = new Set(weekLogs.map((l) => l.date)).size
     let sets = 0
@@ -263,6 +265,18 @@ export default function HomeTab({
           </div>
         ))}
       </div>
+      {/* [2026-10-29] 유산소 기록 개선: 이번 주 유산소 시간·거리 한 줄 */}
+      {cardioWeek.minutes > 0 && (
+        <p style={{ margin: '-6px 2px 14px', fontSize: 13, color: 'var(--color-label-normal)' }}>
+          이번 주 유산소 <span className="bt-num" style={{ fontSize: 15 }}>{Math.round(cardioWeek.minutes)}</span>분
+          {cardioWeek.km > 0 && (
+            <>
+              {' '}· <span className="bt-num" style={{ fontSize: 15 }}>{Math.round(cardioWeek.km * 10) / 10}</span>km
+            </>
+          )}
+          <span style={{ color: 'var(--color-label-neutral)' }}> / 목표 150분</span>
+        </p>
+      )}
       {(weekLogs.length > 0 || liveExercises?.length > 0) && <MuscleSetsCard logs={weekLogs} liveExercises={liveExercises} compact title="이번 주 근육별 세트" />}
       <PrCard prs={userDoc?.prs} limit={2} title="최근 PR" />
 

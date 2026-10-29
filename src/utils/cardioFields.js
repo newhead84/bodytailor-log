@@ -4,6 +4,8 @@
 //  - 스텝밀: 스텝 수·레벨(단위 없는 숫자, speedKmh 필드 재사용)·시간 분 (2026-08-18)
 //  - 실내사이클: 거리 km·속도 km/h·시간 분 (2026-10-29 사용자 요청 — 경사가 없는 기구)
 // key는 저장 필드명. 기존 기록과 호환되도록 기존 필드명(incline·steps·speedKmh·durationMin)은 그대로 쓴다.
+import { getExerciseInputType } from './exerciseLibrary'
+
 const DEFAULT_FIELDS = [
   { key: 'incline', label: '경사', unit: '%', step: 1, summary: (v) => `경사${v}%` },
   { key: 'speedKmh', label: '속도', unit: 'km/h', step: 0.5, summary: (v) => `시속${v}km/h` },
@@ -49,4 +51,71 @@ export function toSavedCardioSet(name, s) {
     out[f.key] = Number(s?.[f.key]) || 0
   })
   return out
+}
+
+// [2026-10-29] 유산소 기록 개선(A안)
+// 거리(km): 거리 칸이 있으면 그 값, 없으면 속도(km/h)×시간으로 추정(스텝밀처럼 속도가 레벨인 종목은 제외)
+export function cardioDistanceKm(name, s) {
+  const fields = getCardioFields(name)
+  if (fields.some((f) => f.key === 'distanceKm')) return Number(s?.distanceKm) || 0
+  const speed = fields.find((f) => f.key === 'speedKmh')
+  if (!speed || speed.unit !== 'km/h') return 0
+  const v = Number(s?.speedKmh) || 0
+  const m = Number(s?.durationMin) || 0
+  return v > 0 && m > 0 ? (v * m) / 60 : 0
+}
+
+const has = (v) => v !== '' && v != null && Number(v) > 0
+const r1 = (v) => String(Math.round(v * 10) / 10)
+const r2 = (v) => String(Math.round(v * 100) / 100)
+// 거리·속도·시간 중 두 칸을 넣으면 나머지 한 칸을 자동 계산(거리 칸이 있는 종목만).
+// 자동으로 채운 칸은 autoField로 기억해 두고, 사용자가 그 칸을 직접 고치면 자동 계산을 멈춘다.
+export function autoFillCardio(name, set, field) {
+  const fields = getCardioFields(name)
+  if (!fields.some((f) => f.key === 'distanceKm')) return set
+  let next = { ...set }
+  if (field === next.autoField) {
+    delete next.autoField
+    return next
+  }
+  const d = next.distanceKm
+  const v = next.speedKmh
+  const m = next.durationMin
+  const free = (k) => !has(next[k]) || next.autoField === k
+  if (has(d) && has(m) && free('speedKmh') && (field === 'distanceKm' || field === 'durationMin')) {
+    next.speedKmh = r1(Number(d) / (Number(m) / 60))
+    next.autoField = 'speedKmh'
+  } else if (has(v) && has(m) && free('distanceKm') && (field === 'speedKmh' || field === 'durationMin')) {
+    next.distanceKm = r2((Number(v) * Number(m)) / 60)
+    next.autoField = 'distanceKm'
+  }
+  return next
+}
+
+// 유산소 타이머(세트 행의 cardioTimer: { startAt, pausedAt?, pausedMs }) — 기록 draft에 같이 저장돼 새로고침해도 이어짐
+export function cardioTimerMs(t, now = Date.now()) {
+  if (!t?.startAt) return 0
+  return Math.max(0, (t.pausedAt || now) - t.startAt - (t.pausedMs || 0))
+}
+export function cardioTimerMinutes(t) {
+  return Math.round((cardioTimerMs(t) / 60000) * 10) / 10
+}
+
+// 기록 묶음의 유산소 합계: { minutes, km, byName: {종목: 분} }
+export function cardioStats(logs) {
+  let minutes = 0
+  let km = 0
+  const byName = {}
+  ;(logs || []).forEach((log) =>
+    (log.exercises || []).forEach((ex) => {
+      if ((ex.inputType || getExerciseInputType(ex.name)) !== 'cardio') return
+      ;(ex.sets || []).forEach((st) => {
+        const m = Number(st.durationMin) || 0
+        minutes += m
+        km += cardioDistanceKm(ex.name, st)
+        byName[ex.name] = (byName[ex.name] || 0) + m
+      })
+    })
+  )
+  return { minutes, km, byName }
 }

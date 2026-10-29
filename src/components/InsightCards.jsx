@@ -8,14 +8,14 @@
 import React, { useMemo, useState } from 'react'
 import { Card, SectionTitle, Chip, Disclosure } from './ui'
 import { CountUp } from '../hooks/useCountUp'
-import { BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
+import { BODY_PART_ATOMS, getPartColor, getExerciseInputType } from '../utils/exerciseLibrary'
 import { exerciseKeyLabel, parseExerciseKey } from '../utils/exerciseKey'
 import { formatLoad, repsUnit, logVolumeKg } from '../utils/load'
+import { cardioStats } from '../utils/cardioFields'
 import { toLocalDateStr } from '../utils/date'
 import {
   fractionalSetsByAtom,
   WEEKLY_SET_GUIDE,
-  cardioMinutes,
   detectPlateaus,
   recentPrList,
   heavyCompoundSets,
@@ -143,26 +143,65 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
   )
 }
 
-export function CardioCard({ logs }) {
-  const minutes = useMemo(() => cardioMinutes(logsInWeek(logs, 0)), [logs])
+// [2026-10-29] 유산소 기록 개선(A안): 이번 주 시간(150분 목표)·거리 합계·종목별 시간 + 최근 4주 시간 막대 (cardioStats는 cardioFields.js)
+export function CardioCard({ logs, liveExercises = null }) {
   const goal = 150
-  const pct = Math.min(100, (minutes / goal) * 100)
+  const live = Array.isArray(liveExercises) && liveExercises.some((ex) => (ex.inputType || getExerciseInputType(ex.name)) === 'cardio')
+  const weeks = useMemo(
+    () =>
+      [-3, -2, -1, 0].map((k) =>
+        cardioStats([...logsInWeek(logs, k), ...(k === 0 && live ? [{ date: toLocalDateStr(new Date()), exercises: liveExercises }] : [])])
+      ),
+    [logs, live, liveExercises]
+  )
+  const cur = weeks[3]
+  const pct = Math.min(100, (cur.minutes / goal) * 100)
+  const top = Object.entries(cur.byName).sort((a, b) => b[1] - a[1]).slice(0, 3)
+  const maxWeek = Math.max(goal, ...weeks.map((w) => w.minutes))
+  const weekLabel = (k) => (k === 3 ? '이번 주' : k === 2 ? '지난주' : `${3 - k}주 전`)
   return (
     <>
       <SectionTitle>이번 주 유산소</SectionTitle>
-      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
           <span className="bt-num" style={{ fontSize: 'calc(28px * var(--num-scale))' }}>
-            <CountUp value={Math.round(minutes)} />
+            <CountUp value={Math.round(cur.minutes)} />
           </span>
           <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>/ {goal}분</span>
+          {cur.km > 0 && (
+            <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--color-label-normal)' }}>
+              거리 <span className="bt-num" style={{ fontSize: 16 }}>{fmt1(cur.km)}</span>km
+            </span>
+          )}
         </div>
         <div style={{ height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)' }}>
           <div className="bt-bar" style={{ width: `${pct}%`, height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)' }} />
         </div>
+        {top.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {top.map(([name, m]) => (
+              <div key={name} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
+                <span className="text-keep-all" style={{ color: 'var(--color-label-normal)' }}>{name}</span>
+                <span className="bt-num" style={{ flexShrink: 0 }}>{Math.round(m)}분</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* 최근 4주 유산소 시간 — 점선 = 주 150분 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, alignItems: 'end', height: 92, position: 'relative', marginTop: 4 }}>
+          <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: `calc(${(goal / maxWeek) * 60}px + 26px)`, borderTop: '1px dashed var(--color-line-strong)' }} />
+          {weeks.map((w, k) => (
+            <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <span className="bt-num" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>{Math.round(w.minutes)}</span>
+              <div style={{ width: '60%', maxWidth: 34, height: Math.max(2, (w.minutes / maxWeek) * 60), borderRadius: 4, background: k === 3 ? 'var(--color-fill-strong)' : 'var(--color-line-strong)' }} />
+              <span style={{ fontSize: 11, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>{weekLabel(k)}</span>
+            </div>
+          ))}
+        </div>
+        {live && <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>오늘 진행 중인 운동(체크한 세트) 포함</span>}
         <Disclosure>
           대화가 가능한 중강도 유산소 주 150분이 건강 기준(WHO)이에요. 웨이트와 같이 해도 근육 성장에는 지장이 없고, 순발력이 중요하면 웨이트와 시간을
-          떨어뜨려 하세요.
+          떨어뜨려 하세요. 거리는 적은 값이 없으면 속도 × 시간으로 계산해요.
         </Disclosure>
       </Card>
     </>
