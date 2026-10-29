@@ -11,8 +11,9 @@ import {
   getExerciseAtom,
 } from '../utils/exerciseLibrary'
 import { getHolidaysForMonth } from '../utils/holidays'
-import { getCardioFields, formatCardioSet, makeCardioSet, toSavedCardioSet } from '../utils/cardioFields'
-import { setsVolumeKg, repsUnit, formatLoad, allowsZeroWeight, weightUnitShort } from '../utils/load'
+import { getCardioFieldsForSet, formatCardioSet, makeCardioSet, toSavedCardioSet } from '../utils/cardioFields'
+import { estimateCaloriesV2 } from '../utils/calories'
+import { setsVolumeKg, repsUnit, formatLoad, allowsZeroWeight, weightUnitShort, getBodyweightKg } from '../utils/load'
 
 // [2026-07-30 재수정] 프레임 고정(위 CELL_HEIGHT/+N 요약) 방식이 기록 일부를 가려 오히려
 // 불편하다는 피드백에 따라 되돌림. 셀 높이는 내용에 맞춰 자동으로 늘어나고, 그 날의 부위별
@@ -203,6 +204,7 @@ function EditLogForm({
   onCopyToDate,
   copyingToDate,
   copiedToDate,
+  onUpdateField,
 }) {
   // [신규] 지금 편집 중인 내용을 날짜 인풋에 입력된 날짜로 복사해 별도 신규 기록으로 저장하는
   // 버튼(⑦). 종목이 하나도 없으면 복사할 내용이 없으므로 비활성화.
@@ -211,6 +213,28 @@ function EditLogForm({
   const justCopied = !!copiedToDate
   return (
     <Card style={{ marginBottom: 10 }}>
+      {/* [2026-10-29] 운동 시간(웜업·본운동 분) — 저장하면 총 운동 시간·칼로리도 다시 계산 */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-label-neutral)' }}>운동 시간</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            ['warmMin', '웜업'],
+            ['mainMin', '본운동'],
+          ].map(([k, label]) => (
+            <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 12, color: 'var(--color-label-normal)' }}>{label}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={editDraft?.[k] ?? ''}
+                onChange={(e) => onUpdateField?.(k, e.target.value)}
+                style={{ width: 58, padding: '8px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 14 }}
+              />
+              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>분</span>
+            </label>
+          ))}
+        </div>
+      </div>
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-label-neutral)' }}>날짜</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -260,7 +284,7 @@ function EditLogForm({
               >
                 {ex.inputType === 'cardio' ? (
                   // [2026-10-29] 종목별 유산소 칸(cardioFields.js) — 실내사이클은 거리·속도·시간
-                  getCardioFields(ex.name).map((f, fi) => (
+                  getCardioFieldsForSet(ex.name, s).map((f, fi) => (
                     <React.Fragment key={f.key}>
                       <input
                         type="number"
@@ -269,7 +293,7 @@ function EditLogForm({
                         onChange={(e) => onUpdateSet(exIdx, setIdx, f.key, e.target.value)}
                         style={{ width: 50, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                       />
-                      <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{f.unit}{fi < 2 ? ' ·' : ''}</span>
+                      <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{f.unit}{fi < getCardioFieldsForSet(ex.name, s).length - 1 ? ' ·' : ''}</span>
                     </React.Fragment>
                   ))
                 ) : ex.inputType === 'reps' ? (
@@ -637,6 +661,12 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     setEditDraft({
       date: log.date,
       originalDate: log.date, // [2026-10-29] "다른 날짜로 복사" 후 원래 기록 날짜로 되돌리기용
+      // [2026-10-29] 운동 시간 수정(특히 "운동 완료"를 안 눌러 자동 저장된 기록)
+      warmMin: log.warmupActualSec != null ? String(Math.round(log.warmupActualSec / 60)) : '',
+      mainMin: log.totalDurationSec > 0 ? String(Math.round(Math.max(0, log.totalDurationSec - (log.warmupActualSec || 0)) / 60)) : '',
+      origWarmMin: log.warmupActualSec != null ? String(Math.round(log.warmupActualSec / 60)) : '',
+      origMainMin: log.totalDurationSec > 0 ? String(Math.round(Math.max(0, log.totalDurationSec - (log.warmupActualSec || 0)) / 60)) : '',
+      hadWarmup: log.warmupActualSec != null,
       exercises: log.exercises.map((ex) => ({
         name: ex.name,
         inputType: ex.inputType || getExerciseInputType(ex.name),
@@ -665,6 +695,9 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     setAddingExercise(false)
   }
 
+  function updateDraftField(key, value) {
+    setEditDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
+  }
   function updateDraftDate(value) {
     setEditDraft((prev) => ({ ...prev, date: value }))
   }
@@ -783,6 +816,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
         date: editDraft.date,
         exercises: cleanedExercises,
         totalVolume,
+        ...durationPayload(editDraft, cleanedExercises),
       })
       const grouped = await loadMonth()
       setLogsByDate(grouped)
@@ -809,6 +843,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
         date: editDraft.date,
         exercises: cleanedExercises,
         totalVolume,
+        ...durationPayload(editDraft, cleanedExercises),
         sessionType: 'extra',
         scoreWeight: 0,
         isBackfilled: true,
@@ -856,6 +891,21 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       setTimeout(() => setCopiedToDate((cur) => (cur === targetDate ? null : cur)), 1500)
     } finally {
       setCopyingToDate(false)
+    }
+  }
+
+  // [2026-10-29] 편집 화면의 운동 시간(분) → 저장 필드(총 운동 시간·웜업·칼로리).
+  // 시간 칸을 고치지 않았거나 둘 다 비어 있으면 시간은 건드리지 않음(초 단위 기록이 분 단위로 깎이지 않게).
+  function durationPayload(draft, exercises) {
+    if ((draft?.warmMin ?? '') === '' && (draft?.mainMin ?? '') === '') return {}
+    if ((draft.warmMin ?? '') === (draft.origWarmMin ?? '') && (draft.mainMin ?? '') === (draft.origMainMin ?? '')) return {}
+    const warm = Math.max(0, Number(draft.warmMin) || 0) * 60
+    const main = Math.max(0, Number(draft.mainMin) || 0) * 60
+    const totalDurationSec = warm + main
+    return {
+      totalDurationSec,
+      warmupActualSec: draft.warmMin === '' && !draft.hadWarmup ? null : warm,
+      caloriesKcal: estimateCaloriesV2(getBodyweightKg(), exercises, totalDurationSec),
     }
   }
 
@@ -1182,6 +1232,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                   editDraft={editDraft}
                   savingEdit={savingEdit}
                   onUpdateDate={updateDraftDate}
+                  onUpdateField={updateDraftField}
                   onUpdateSet={updateDraftSet}
                   onAddSet={addDraftSet}
                   onDeleteSet={deleteDraftSet}
@@ -1285,6 +1336,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                 editDraft={editDraft}
                 savingEdit={savingEdit}
                 onUpdateDate={updateDraftDate}
+                onUpdateField={updateDraftField}
                 onUpdateSet={updateDraftSet}
                 onAddSet={addDraftSet}
                 onDeleteSet={deleteDraftSet}

@@ -19,7 +19,7 @@ function formatShortDate(ds) {
 }
 import { getSuggestedNext } from '../utils/routineSuggestion'
 import { pickRandomQuote } from '../utils/quotes'
-import { todayStr } from '../utils/date'
+import { todayStr, toLocalDateStr } from '../utils/date'
 
 // 로그 하나에서 실제로 수행한 부위들을 중복 없이 뽑아 "가슴·삼두"처럼 요약한다.
 function summarizePartsOfLog(log) {
@@ -113,14 +113,17 @@ export default function HomeTab({
       cancelled = true
     }
   }, [uid, logsVersion, today])
-  const cardioWeek = useMemo(() => cardioStats(weekLogs), [weekLogs])
+  // [2026-10-29] 운동 중이면 오늘 체크한 세트도 이번 주 요약에 더한다(근육별 세트와 같은 기준)
+  const liveLog = useMemo(() => (Array.isArray(liveExercises) && liveExercises.length > 0 ? { date: toLocalDateStr(new Date()), exercises: liveExercises } : null), [liveExercises])
+  const weekWithLive = useMemo(() => (liveLog ? [...weekLogs, liveLog] : weekLogs), [weekLogs, liveLog])
+  const cardioWeek = useMemo(() => cardioStats(weekWithLive), [weekWithLive])
   const weekStats = useMemo(() => {
-    const sessions = new Set(weekLogs.map((l) => l.date)).size
+    const sessions = new Set(weekWithLive.map((l) => l.date)).size
     let sets = 0
-    weekLogs.forEach((l) => (l.exercises || []).forEach((e) => (sets += workingSetsOf(e).length)))
-    const volume = weekLogs.reduce((v, l) => v + logVolumeKg(l), 0)
+    weekWithLive.forEach((l) => (l.exercises || []).forEach((e) => (sets += workingSetsOf(e).length)))
+    const volume = weekWithLive.reduce((v, l) => v + logVolumeKg(l), 0)
     return { sessions, sets, volume }
-  }, [weekLogs])
+  }, [weekWithLive])
 
   const todayLogs = useMemo(() => recentLogs.filter((l) => l.date === today), [recentLogs, today])
   const doneToday = todayLogs.length > 0

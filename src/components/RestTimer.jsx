@@ -261,7 +261,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
           {mm}:{ss}
         </span>
       </div>
-      <button onClick={handleDismiss} style={{ color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)', fontSize: 13, opacity: 0.9, padding: '4px 8px' }}>
+      <button onClick={handleDismiss} style={{ color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)', fontSize: 13, opacity: 0.9, padding: '10px 12px', margin: '-6px -8px', minHeight: 40, touchAction: 'manipulation' }}>
         {overtime ? '닫기' : '건너뛰기'}
       </button>
       {!overtime && (

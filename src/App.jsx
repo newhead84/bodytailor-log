@@ -1,6 +1,6 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-29] 유산소 기록 개선(타이머로 기록·거리/속도/시간 자동 계산·리포트 거리·4주 추이).
+ * 최신 변경: [2026-10-29] 자동 저장 기록 검토 팝업(시간·세트 수정)·MY 설정 화면 분리·캘린더 운동 시간 편집·유산소 기구별 칸 확대.
  *            직전: 근육별 주간 세트에 진행 중인 운동 포함. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
@@ -13,6 +13,7 @@ import { prsVersionKey } from './utils/strength'
 import { setBodyweightKg } from './utils/load'
 
 import LoginScreen from './components/LoginScreen'
+import AutoSavedReview from './components/AutoSavedReview'
 import Onboarding from './components/Onboarding'
 import RoutineManager from './components/RoutineManager'
 import BottomNav from './components/BottomNav'
@@ -479,6 +480,17 @@ export default function App() {
 
   return (
     <div style={{ height: '100%', position: 'relative' }}>
+      {/* [2026-10-29] 자동 저장된 운동은 HOME 배너 대신 팝업으로 확인·수정(시간·세트) */}
+      {autoNotice && (
+        <AutoSavedReview
+          key={autoNotice.logId}
+          uid={authUser.uid}
+          notice={autoNotice}
+          onClose={dismissAutoNotice}
+          onUndo={undoAutoNotice}
+          onSaved={() => setLogsVersion((v) => v + 1)}
+        />
+      )}
       <GlobalTimerBar
         timing={sessionTiming}
         onPress={() => setActiveTab('log')}
@@ -501,7 +513,7 @@ export default function App() {
           onGoToLog={() => setActiveTab('log')}
           onCancelWorkout={handleCancelWorkout}
           onLogsChanged={handleLogSaved}
-          autoNotice={autoNotice}
+          autoNotice={null}
           onDismissAutoNotice={dismissAutoNotice}
           onUndoAutoNotice={undoAutoNotice}
         />

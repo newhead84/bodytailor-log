@@ -522,7 +522,18 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       sessionLogId(draft)
     )
     if (res.duplicate) return null
-    const notice = { logId: res.id, date, exerciseCount: exercises.length, totalVolume, xpEarned: res.xpEarned, at: Date.now() }
+    // [2026-10-29] 다음에 앱을 열 때 팝업에서 시간·세트를 고칠 수 있도록 저장한 내용을 함께 넘긴다
+    const notice = {
+      logId: res.id,
+      date,
+      exerciseCount: exercises.length,
+      totalVolume,
+      xpEarned: res.xpEarned,
+      at: Date.now(),
+      exercises,
+      totalDurationSec,
+      warmupActualSec: draft.warmupActualSec ?? null,
+    }
     onAutoFinalized?.(notice)
     onSaved?.()
     return notice

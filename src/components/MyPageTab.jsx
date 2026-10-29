@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, ChevronLeft, Settings } from 'lucide-react'
 import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm, AccentSwatches } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
@@ -214,6 +214,15 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   }, [userDoc?.themePreference, userDoc?.logMode, userDoc?.fontPreference, userDoc?.accentPreference])
   // [2026-10-29] 디자인 설정은 기본으로 접어 두고, 현재 조합만 한 줄로 보여준다
   const [designOpen, setDesignOpen] = useState(false)
+  // [2026-10-29] 설정 화면(우상단 아이콘)
+  const [showSettings, setShowSettings] = useState(false)
+  const settingsTopRef = React.useRef(null)
+  function openSettings() {
+    setShowSettings(true)
+  }
+  useEffect(() => {
+    if (showSettings) settingsTopRef.current?.scrollIntoView({ block: 'start' })
+  }, [showSettings])
   const themeLabelOf = { dark: '다크', beige: '베이지', light: '라이트' }
 
   async function selectAccent(accent) {
@@ -322,21 +331,185 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     await onProfileUpdated?.()
   }
 
+  // [2026-10-29] 설정(디자인·알림·데이터 등)은 우상단 설정 아이콘 → 별도 화면으로 분리(사용자 요청)
+  if (showSettings) {
+    return (
+      <div ref={settingsTopRef} style={{ padding: '12px 20px 100px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 14px -8px' }}>
+          <button type="button" onClick={() => setShowSettings(false)} aria-label="MY로 돌아가기" style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-strong)' }}>
+            <ChevronLeft size={22} strokeWidth={2} />
+          </button>
+          <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)' }}>설정</span>
+        </div>
+      {/* [2026-10-28] 스타일 C 택타일 웜 고정(선택 없음). 테마 3종·강조색·폰트·기록 방식만 선택. */}
+      {/* [2026-10-29] 기본은 접힌 상태 — 현재 조합 한 줄 + "설정 바꾸기"를 눌러야 선택지가 열린다(사용자 요청). */}
+      <SectionTitle>디자인</SectionTitle>
+      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <button
+          type="button"
+          onClick={() => setDesignOpen((v) => !v)}
+          aria-expanded={designOpen}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: 0 }}
+        >
+          <span className="text-keep-all" style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+            {[themeLabelOf[themePreference] || themePreference, ACCENT_OPTIONS.find((a) => a.id === accentPreference)?.label, FONT_OPTIONS.find((f) => f.id === fontPreference)?.label, logMode === 'focus' ? '포커스형' : '리스트형'].filter(Boolean).join(' · ')}
+          </span>
+          <span style={{ flexShrink: 0, fontSize: 12, color: 'var(--color-label-neutral)' }}>{designOpen ? '접기' : '설정 바꾸기'}</span>
+          <ChevronDown size={16} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--color-label-neutral)', transform: designOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+        </button>
+        {designOpen && (<>
+        {/* [2026-10-28 신규] 샘플 기록 화면에서 테마·강조색·폰트·기록 방식을 바로 비교 */}
+        <Button full variant="secondary" onClick={onShowDesignPreview}>
+          기록 화면 미리보기
+        </Button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>테마</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Chip active={themePreference === 'dark'} onClick={() => selectTheme('dark')} style={{ flex: 1, justifyContent: 'center' }}>
+              다크
+            </Chip>
+            <Chip active={themePreference === 'beige'} onClick={() => selectTheme('beige')} style={{ flex: 1, justifyContent: 'center' }}>
+              베이지
+            </Chip>
+            <Chip active={themePreference === 'light'} onClick={() => selectTheme('light')} style={{ flex: 1, justifyContent: 'center' }}>
+              라이트
+            </Chip>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>강조색</span>
+          <AccentSwatches value={accentPreference} onPick={selectAccent} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>폰트</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {FONT_OPTIONS.map((opt) => (
+              <Chip key={opt.id} active={fontPreference === opt.id} onClick={() => selectFont(opt.id)} style={{ whiteSpace: 'nowrap' }}>
+                {opt.label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>기록 방식</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Chip active={logMode === 'list'} onClick={() => selectLogMode('list')} style={{ flex: 1, justifyContent: 'center' }}>
+              리스트형
+            </Chip>
+            <Chip active={logMode === 'focus'} onClick={() => selectLogMode('focus')} style={{ flex: 1, justifyContent: 'center' }}>
+              포커스형
+            </Chip>
+          </div>
+          <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            {logMode === 'focus' ? '한 번에 한 세트만 크게 보여주고, 큰 버튼으로 입력해요.' : '모든 세트를 표로 한눈에 보며 입력해요.'} 운동 중에는 맨 위 초록 바 왼쪽 버튼으로도 바꿀 수 있어요.
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>RIR(남은 여력) 기록</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Chip active={rirEnabled} onClick={() => selectRirEnabled(true)} style={{ flex: 1, justifyContent: 'center' }}>
+              켜기
+            </Chip>
+            <Chip active={!rirEnabled} onClick={() => selectRirEnabled(false)} style={{ flex: 1, justifyContent: 'center' }}>
+              끄기
+            </Chip>
+          </div>
+          <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            세트마다 몇 개 더 할 수 있었는지(0 = 한계) 적는 칸이에요. 적으면 다음 무게 추천에 반영돼요. 끄면 세트 줄에서 칸이 사라지고, 이미 적은 기록은 그대로 남아요.
+          </span>
+        </div>
+        </>)}
+      </Card>
+
+      <SectionTitle>알림</SectionTitle>
+      <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span className="text-keep-all" style={{ fontSize: 14 }}>세트 휴게타이머 종료 알림</span>
+          <Button variant={notifPermission === 'granted' ? 'ghost' : 'secondary'} onClick={requestNotifPermission}>
+            {notifPermission === 'granted' ? '허용됨' : '권한 요청'}
+          </Button>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
+          <div style={{ minWidth: 0, marginRight: 12 }}>
+            <div className="text-keep-all" style={{ fontSize: 14 }}>휴식 중 화면 꺼짐 방지</div>
+            <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
+              화면이 꺼지면 타이머가 멈출 수 있어요. 휴식 중에는 화면을 켜진 상태로 유지해요.
+            </div>
+          </div>
+          <Button
+            variant={wakeLockEnabled ? 'ghost' : 'secondary'}
+            style={{ flexShrink: 0 }}
+            onClick={toggleWakeLock}
+            disabled={!wakeLockSupported}
+          >
+            {!wakeLockSupported ? '미지원' : wakeLockEnabled ? '사용 중' : '사용'}
+          </Button>
+        </div>
+
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
+          <div className="text-keep-all" style={{ fontSize: 14, marginBottom: 8 }}>휴게타이머 알림음</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {REST_SOUND_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.id}
+                active={restSoundId === opt.id}
+                onClick={() => {
+                  selectRestSound(opt.id)
+                  playSound(opt.id, 1)
+                }}
+              >
+                {opt.label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* [2026-10-27 리뉴얼 W2] 내 기록 내보내기(CSV) — 데이터는 언제든 내 것 */}
+      <SectionTitle>데이터</SectionTitle>
+      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-normal)' }}>
+          지금까지의 모든 운동 기록을 세트 단위 CSV 파일로 받아요. 엑셀·구글 시트에서 바로 열 수 있어요.
+        </p>
+        <Button variant="secondary" full disabled={exporting} onClick={handleExportCsv}>
+          {exporting ? '만드는 중…' : '운동 기록 내보내기 (CSV)'}
+        </Button>
+      </Card>
+
+      {/* [2026-08-01 신규] 온보딩 화면(Onboarding.jsx) QA/디자인 확인용 재열람 진입점.
+          일반회원/VIP에게는 불필요한 개발용 기능이라 관리자 계정에만 노출한다. */}
+      {userDoc?.role === '관리자' && (
+        <>
+          <SectionTitle>개발자 도구</SectionTitle>
+          <Card onClick={onShowOnboardingPreview} style={{ marginBottom: 20 }}>
+            <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
+              온보딩 화면 미리보기
+            </p>
+            <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+              가입 시 보이는 온보딩 화면을 다시 열어볼 수 있어요. 여기서 입력해도 실제 계정 정보는 저장되지 않아요.
+            </p>
+          </Card>
+        </>
+      )}
+
+      </div>
+    )
+  }
+
   return (
-    <div style={{ padding: '20px 20px 100px' }}>
-      <SectionTitle
-        action={
-          !editingProfile && (
-            <Button variant="secondary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={startEditProfile}>
-              수정
-            </Button>
-          )
-        }
-      >
-        프로필
-      </SectionTitle>
+    <div style={{ padding: '12px 20px 100px' }}>
+      {/* [2026-10-29] MY 머리줄: 오른쪽 위 설정 아이콘(디자인·기록 방식·RIR·미리보기·알림·데이터) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 -8px 10px 0' }}>
+        <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)' }}>MY</span>
+        <button type="button" onClick={openSettings} aria-label="설정" title="설정" style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-strong)' }}>
+          <Settings size={22} strokeWidth={1.8} />
+        </button>
+      </div>
+      <SectionTitle>프로필</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+          {/* [2026-10-29] 프로필 수정 버튼은 카드 안(사진 아래)으로 — 우상단 자리는 설정 아이콘 */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
             {profilePhotoURL ? (
               <img
@@ -362,6 +535,16 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                 {(userDoc?.nickname || '?').trim().charAt(0)}
               </div>
             )}
+          </div>
+          {!editingProfile && (
+            <button
+              type="button"
+              onClick={startEditProfile}
+              style={{ height: 28, padding: '0 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-strong)' }}
+            >
+              수정
+            </button>
+          )}
           </div>
           {/* [2026-08-01 변경] 프로필 카드 레이아웃 재구성: 사진 오른쪽에 1행(닉네임+역할+성별+나이)
               /2행(신체정보)/3행(운동목표) 텍스트 3줄 배치. 수정 모드에서는 아래 폼에서 편집하므로
@@ -752,130 +935,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </div>
       </Card>
 
-      <SectionTitle>알림</SectionTitle>
-      <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="text-keep-all" style={{ fontSize: 14 }}>세트 휴게타이머 종료 알림</span>
-          <Button variant={notifPermission === 'granted' ? 'ghost' : 'secondary'} onClick={requestNotifPermission}>
-            {notifPermission === 'granted' ? '허용됨' : '권한 요청'}
-          </Button>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
-          <div style={{ minWidth: 0, marginRight: 12 }}>
-            <div className="text-keep-all" style={{ fontSize: 14 }}>휴식 중 화면 꺼짐 방지</div>
-            <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
-              화면이 꺼지면 타이머가 멈출 수 있어요. 휴식 중에는 화면을 켜진 상태로 유지해요.
-            </div>
-          </div>
-          <Button
-            variant={wakeLockEnabled ? 'ghost' : 'secondary'}
-            style={{ flexShrink: 0 }}
-            onClick={toggleWakeLock}
-            disabled={!wakeLockSupported}
-          >
-            {!wakeLockSupported ? '미지원' : wakeLockEnabled ? '사용 중' : '사용'}
-          </Button>
-        </div>
-
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
-          <div className="text-keep-all" style={{ fontSize: 14, marginBottom: 8 }}>휴게타이머 알림음</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {REST_SOUND_OPTIONS.map((opt) => (
-              <Chip
-                key={opt.id}
-                active={restSoundId === opt.id}
-                onClick={() => {
-                  selectRestSound(opt.id)
-                  playSound(opt.id, 1)
-                }}
-              >
-                {opt.label}
-              </Chip>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      {/* [2026-10-28] 스타일 C 택타일 웜 고정(선택 없음). 테마 3종·강조색·폰트·기록 방식만 선택. */}
-      {/* [2026-10-29] 기본은 접힌 상태 — 현재 조합 한 줄 + "설정 바꾸기"를 눌러야 선택지가 열린다(사용자 요청). */}
-      <SectionTitle>디자인</SectionTitle>
-      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <button
-          type="button"
-          onClick={() => setDesignOpen((v) => !v)}
-          aria-expanded={designOpen}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: 0 }}
-        >
-          <span className="text-keep-all" style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-            {[themeLabelOf[themePreference] || themePreference, ACCENT_OPTIONS.find((a) => a.id === accentPreference)?.label, FONT_OPTIONS.find((f) => f.id === fontPreference)?.label, logMode === 'focus' ? '포커스형' : '리스트형'].filter(Boolean).join(' · ')}
-          </span>
-          <span style={{ flexShrink: 0, fontSize: 12, color: 'var(--color-label-neutral)' }}>{designOpen ? '접기' : '설정 바꾸기'}</span>
-          <ChevronDown size={16} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--color-label-neutral)', transform: designOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
-        </button>
-        {designOpen && (<>
-        {/* [2026-10-28 신규] 샘플 기록 화면에서 테마·강조색·폰트·기록 방식을 바로 비교 */}
-        <Button full variant="secondary" onClick={onShowDesignPreview}>
-          기록 화면 미리보기
-        </Button>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>테마</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Chip active={themePreference === 'dark'} onClick={() => selectTheme('dark')} style={{ flex: 1, justifyContent: 'center' }}>
-              다크
-            </Chip>
-            <Chip active={themePreference === 'beige'} onClick={() => selectTheme('beige')} style={{ flex: 1, justifyContent: 'center' }}>
-              베이지
-            </Chip>
-            <Chip active={themePreference === 'light'} onClick={() => selectTheme('light')} style={{ flex: 1, justifyContent: 'center' }}>
-              라이트
-            </Chip>
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>강조색</span>
-          <AccentSwatches value={accentPreference} onPick={selectAccent} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>폰트</span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {FONT_OPTIONS.map((opt) => (
-              <Chip key={opt.id} active={fontPreference === opt.id} onClick={() => selectFont(opt.id)} style={{ whiteSpace: 'nowrap' }}>
-                {opt.label}
-              </Chip>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>기록 방식</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Chip active={logMode === 'list'} onClick={() => selectLogMode('list')} style={{ flex: 1, justifyContent: 'center' }}>
-              리스트형
-            </Chip>
-            <Chip active={logMode === 'focus'} onClick={() => selectLogMode('focus')} style={{ flex: 1, justifyContent: 'center' }}>
-              포커스형
-            </Chip>
-          </div>
-          <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            {logMode === 'focus' ? '한 번에 한 세트만 크게 보여주고, 큰 버튼으로 입력해요.' : '모든 세트를 표로 한눈에 보며 입력해요.'} 운동 중에는 맨 위 초록 바 왼쪽 버튼으로도 바꿀 수 있어요.
-          </span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>RIR(남은 여력) 기록</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Chip active={rirEnabled} onClick={() => selectRirEnabled(true)} style={{ flex: 1, justifyContent: 'center' }}>
-              켜기
-            </Chip>
-            <Chip active={!rirEnabled} onClick={() => selectRirEnabled(false)} style={{ flex: 1, justifyContent: 'center' }}>
-              끄기
-            </Chip>
-          </div>
-          <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            세트마다 몇 개 더 할 수 있었는지(0 = 한계) 적는 칸이에요. 적으면 다음 무게 추천에 반영돼요. 끄면 세트 줄에서 칸이 사라지고, 이미 적은 기록은 그대로 남아요.
-          </span>
-        </div>
-        </>)}
-      </Card>
-
       {/* [2026-07-31 신규] MY탭 1:1 문의(⑩). role === '관리자'인 계정에서만 "문의 관리"
           진입점이 추가로 보인다. */}
       <SectionTitle>문의</SectionTitle>
@@ -897,33 +956,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </p>
         </Card>
       )}
-
-      {/* [2026-08-01 신규] 온보딩 화면(Onboarding.jsx) QA/디자인 확인용 재열람 진입점.
-          일반회원/VIP에게는 불필요한 개발용 기능이라 관리자 계정에만 노출한다. */}
-      {userDoc?.role === '관리자' && (
-        <>
-          <SectionTitle>개발자 도구</SectionTitle>
-          <Card onClick={onShowOnboardingPreview} style={{ marginBottom: 20 }}>
-            <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
-              온보딩 화면 미리보기
-            </p>
-            <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-              가입 시 보이는 온보딩 화면을 다시 열어볼 수 있어요. 여기서 입력해도 실제 계정 정보는 저장되지 않아요.
-            </p>
-          </Card>
-        </>
-      )}
-
-      {/* [2026-10-27 리뉴얼 W2] 내 기록 내보내기(CSV) — 데이터는 언제든 내 것 */}
-      <SectionTitle>데이터</SectionTitle>
-      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-normal)' }}>
-          지금까지의 모든 운동 기록을 세트 단위 CSV 파일로 받아요. 엑셀·구글 시트에서 바로 열 수 있어요.
-        </p>
-        <Button variant="secondary" full disabled={exporting} onClick={handleExportCsv}>
-          {exporting ? '만드는 중…' : '운동 기록 내보내기 (CSV)'}
-        </Button>
-      </Card>
 
       <Button variant="ghost" full onClick={logout}>
         로그아웃
