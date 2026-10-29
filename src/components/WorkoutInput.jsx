@@ -197,6 +197,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     onRoutineUpdated,
     onSessionPhaseChange,
     onSessionTimingChange,
+    onLiveExercisesChange, // [2026-10-29] 진행 중 세션의 체크한 세트(리포트·홈 근육별 주간 세트에 반영)
     customExercises,
     onGoToRoutineSetup,
     guideHintDismissed,
@@ -695,6 +696,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     onSessionTimingChange?.({ sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs])
+  // [2026-10-29] 진행 중(본운동) 세션에서 체크(V)한 세트를 위로 알린다 — 근육별 주간 세트가 오늘 운동을 아직 저장 전이라 0으로 보이던 문제
+  useEffect(() => {
+    if (!onLiveExercisesChange) return
+    onLiveExercisesChange(sessionPhase === 'main' ? buildExercisesFromRecords(records) : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records, sessionPhase])
 
   // [2026-07-30 신규] 운동 시작을 잘못 눌렀을 때를 위한 취소. 웜업/본운동 진행 중에만
   // 노출되며, 세션 상태(단계·타이머·오늘 입력한 기록)를 모두 초기화하고 임시저장(draft)도 지운다.

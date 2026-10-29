@@ -130,7 +130,7 @@ function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
   )
 }
 
-export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true }) {
+export default function ReportTab({ liveExercises = null, uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true }) {
   // [2026-10-29] 출석 목표 일수 = 주당 목표 일수(온보딩·MY에서 설정, 없으면 루틴 파트 수), 2~6일로 제한.
   // 랭킹 출석 점수와 리포트 출석률이 같은 기준을 쓴다.
   const attendanceTargetDays = Math.min(6, Math.max(2, targetSessionsPerWeek || 3))
@@ -665,7 +665,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           </Card>
 
           {/* [2026-10-27 리뉴얼 W2] 근거 기반 인사이트: 근육별 주간 세트·유산소·정체/디로드·PR·골밀도 */}
-          <MuscleSetsCard logs={logs} />
+          <MuscleSetsCard logs={logs} liveExercises={liveExercises} />
           <PrCard prs={userDoc?.prs} />
           <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} />
           <CardioCard logs={logs} />

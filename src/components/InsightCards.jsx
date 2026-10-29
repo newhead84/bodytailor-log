@@ -39,9 +39,14 @@ export function logsInWeek(logs, offsetWeeks = 0) {
 }
 const fmt1 = (n) => (Math.round(n * 10) / 10).toString()
 
-export function MuscleSetsCard({ logs, compact = false, title = '근육별 주간 세트' }) {
+export function MuscleSetsCard({ logs, liveExercises = null, compact = false, title = '근육별 주간 세트' }) {
   const [week, setWeek] = useState(0)
-  const sets = useMemo(() => fractionalSetsByAtom(logsInWeek(logs, week)), [logs, week])
+  // [2026-10-29] 이번 주 보기에는 지금 진행 중인 운동에서 체크한 세트도 더한다(저장 전이라 0으로 보이던 문제)
+  const hasLive = week === 0 && Array.isArray(liveExercises) && liveExercises.length > 0
+  const sets = useMemo(
+    () => fractionalSetsByAtom([...logsInWeek(logs, week), ...(hasLive ? [{ date: toLocalDateStr(new Date()), exercises: liveExercises }] : [])]),
+    [logs, week, hasLive, liveExercises]
+  )
   // [2026-10-29] 하체는 앞·뒤로 나눠 표시
   const atoms = BODY_PART_ATOMS.filter((a) => a !== '유산소').flatMap((a) => (a === '하체' ? [LEG_FRONT, LEG_BACK] : [a]))
   const rows = compact ? atoms.filter((a) => (sets[a] || 0) > 0).sort((a, b) => (sets[b] || 0) - (sets[a] || 0)).slice(0, 5) : atoms
@@ -79,10 +84,10 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
             // [2026-10-29] 초보자는 주 4세트 이상이면 충분히 성장하므로 '부족'은 4세트 미만일 때만. 코어는 근비대
             // 연구의 권장 범위를 그대로 적용하기 어려워 범위·판정 없이 세트 수만 보여준다.
             const isCore = atom === '코어'
-            const status =
-              v === 0 || isCore
-                ? ''
-                : v < WEEKLY_SET_GUIDE.minEffective
+            // [2026-10-29] 0세트도 이번 주는 '진행 중', 지난주는 '부족'으로(빈칸이라 다른 부위와 다르게 보이던 문제)
+            const status = isCore
+              ? ''
+              : v < WEEKLY_SET_GUIDE.minEffective
                 ? week === 0
                   ? '진행 중'
                   : '부족'
@@ -123,6 +128,9 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
               </div>
             )
           })
+        )}
+        {hasLive && (
+          <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>오늘 진행 중인 운동(체크한 세트) 포함</span>
         )}
         {/* [2026-10-28 리디자인] 기준 설명은 접어 두기 */}
         <Disclosure>

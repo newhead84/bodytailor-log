@@ -28,6 +28,7 @@ function summarizePartsOfLog(log) {
 }
 
 export default function HomeTab({
+  liveExercises = null,
   uid,
   userDoc,
   routineTemplates,
@@ -262,7 +263,7 @@ export default function HomeTab({
           </div>
         ))}
       </div>
-      {weekLogs.length > 0 && <MuscleSetsCard logs={weekLogs} compact title="이번 주 근육별 세트" />}
+      {(weekLogs.length > 0 || liveExercises?.length > 0) && <MuscleSetsCard logs={weekLogs} liveExercises={liveExercises} compact title="이번 주 근육별 세트" />}
       <PrCard prs={userDoc?.prs} limit={2} title="최근 PR" />
 
       <div style={{ margin: '0 -20px 4px' }}>

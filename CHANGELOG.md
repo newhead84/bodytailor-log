@@ -2,6 +2,10 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-29] 근육별 주간 세트에 진행 중인 운동 포함, 0세트 상태 표시(사용자 지적) | WorkoutInput.jsx(onLiveExercisesChange), LogTab.jsx, App.jsx(liveExercises), InsightCards.jsx(MuscleSetsCard), ReportTab.jsx, HomeTab.jsx
+- 오늘 운동 중 체크한 세트가 저장 전이라 근육별 주간 세트에 0으로 보이던 문제: 이번 주 보기에 진행 중 세트를 더하고 "오늘 진행 중인 운동(체크한 세트) 포함" 표시. 저장하면 실제 기록으로 대체.
+- 0세트 부위도 이번 주 '진행 중', 지난주 '부족'으로 표시(코어 제외).
+
 [2026-10-29] 기록 화면 사용성 묶음(사용자 요청) — 사용법 가이드·RIR 켜고 끄기·기록 방식 전환·큰 ± 버튼·웜업 빼기·W/D/F 설명·실내사이클 칸 | WorkoutGuide.jsx(신규), utils/cardioFields.js(신규), WorkoutInput.jsx, SetEditors.jsx, GlobalTimerBar.jsx, DesignPreviewScreen.jsx, MyPageTab.jsx, LogTab.jsx, App.jsx, CalendarView.jsx, utils/strength.js·sessionPayload.js·exportCsv.js, CLAUDE.md
 - 사용법 가이드: 처음 쓰는 계정은 본운동 중 종목 카드를 처음 열면 말풍선이 세트 번호→무게×횟수→RIR→세트 완료→추천→목표→웜업·슈퍼세트→이 종목 완료→기록 방식 버튼을 순서대로 짚음(이전/다음/건너뛰기, 화면에 없는 항목은 건너뜀). 끝내면 users.workoutGuideSeen 저장. MY > 기록 화면 미리보기에 "기록 화면 사용법"(처음부터 보기·항목 골라 보기).
 - RIR: MY 디자인에 "RIR(남은 여력) 기록 켜기/끄기"(users.rirEnabled, 기본 켜짐). 끄면 세트 줄·포커스형에서 칸이 사라지고 가이드에서도 빠짐.

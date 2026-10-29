@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-29] 기록 화면 사용법 가이드·RIR 켜고 끄기·상단 바 기록 방식 전환·큰 ± 버튼·실내사이클 거리 칸.
- *            직전: 다음 무게 추천 카드 닫힘. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-29] 근육별 주간 세트에 진행 중인 운동 포함·0세트 상태 표시.
+ *            직전: 기록 화면 사용성 묶음(가이드·RIR 끄기·기록 방식 전환·큰 ±·실내사이클). 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -306,6 +306,8 @@ export default function App() {
 
   // [2026-10-29] 운동 중 상단 바 왼쪽 버튼으로 리스트형 ↔ 포커스형 바로 전환(MY 설정에도 저장)
   const [logModeOverride, setLogModeOverride] = useState(null)
+  // [2026-10-29] 진행 중 세션의 체크한 세트(근육별 주간 세트에 오늘 운동 포함)
+  const [liveExercises, setLiveExercises] = useState(null)
   const effectiveLogMode = logModeOverride || userDoc?.logMode || DEFAULT_LOG_MODE
   useEffect(() => {
     if (logModeOverride && userDoc?.logMode === logModeOverride) setLogModeOverride(null)
@@ -490,6 +492,7 @@ export default function App() {
       />
       <div ref={homeScrollRef} style={tabWrapperStyle('home')} className={revealedTabs.has('home') ? 'bt-reveal' : ''}>
         <HomeTab
+          liveExercises={liveExercises}
           uid={authUser.uid}
           userDoc={userDoc}
           routineTemplates={routineTemplates}
@@ -528,6 +531,7 @@ export default function App() {
           onRoutineUpdated={refreshRoutineTemplates}
           onSessionPhaseChange={setWorkoutPhase}
           onSessionTimingChange={setSessionTiming}
+          onLiveExercisesChange={setLiveExercises}
           customExercises={userDoc.customExercises || {}}
           onGoToRoutineSetup={() => setManagingRoutines(true)}
           guideHintDismissed={!!userDoc.exerciseGuideHintDismissed}
@@ -544,6 +548,7 @@ export default function App() {
       <div ref={reportScrollRef} style={tabWrapperStyle('report')} className={revealedTabs.has('report') ? 'bt-reveal' : ''}>
         <Suspense fallback={null}>
           <ReportTab
+            liveExercises={liveExercises}
             uid={authUser.uid}
             userDoc={userDoc}
             targetSessionsPerWeek={targetSessionsPerWeek}
