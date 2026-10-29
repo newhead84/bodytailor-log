@@ -4,6 +4,7 @@
 // 웜업 세트는 볼륨에서 제외, 캘린더에서 추가한 과거 기록(isBackfilled)도 기록 수·볼륨에는 포함한다
 // (실제로 한 운동이므로). 연속 주는 이번 주가 비어 있어도 끊기지 않은 것으로 본다(랭킹 보너스와 같은 규칙).
 import { toLocalDateStr } from './date'
+import { setsVolumeKg } from './load'
 
 function mondayStr(dateStr) {
   const d = new Date(dateStr + 'T00:00:00')
@@ -49,14 +50,14 @@ function totalVolumeKg(logs) {
       sum +
       (l.exercises || []).reduce((s, ex) => {
         if (ex.inputType && ex.inputType !== 'sets') return s
-        return s + (ex.sets || []).filter((st) => st.type !== 'warmup').reduce((v, st) => v + (Number(st.weight) || 0) * (Number(st.reps) || 0), 0)
+        return s + setsVolumeKg(ex.name, (ex.sets || []).filter((st) => st.type !== 'warmup'))
       }, 0),
     0
   )
 }
 
 function maxTopWeight(prs) {
-  return Object.values(prs || {}).reduce((m, p) => Math.max(m, Number(p?.topWeight) || Number(p?.weight) || 0), 0)
+  return Object.values(prs || {}).reduce((m, p) => Math.max(m, Number(p?.topWeight) || 0), 0)
 }
 
 // 반환: [{ id, title, desc, earned, progress(0~1), progressLabel }]

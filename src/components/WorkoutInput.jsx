@@ -11,9 +11,12 @@ import {
   getDefaultRestSec,
   buildWarmupRamp,
   usesBarbellPlates,
-  e1rm,
+  setE1rm,
   bestE1rmOfSets,
+  hasWarmupRamp,
+  getProgressionIncrement,
 } from '../utils/strength'
+import { allowsZeroWeight, isAssistedExercise, weightCaption, repsCaption, repsUnit, formatLoad, weightUnitShort, inputHint } from '../utils/load'
 import { useExerciseGuidePress, ExerciseGuidePanel } from './ExerciseGuideToggle'
 import logoMarkTransparent from '../assets/logo-mark-transparent.png'
 import {
@@ -41,13 +44,17 @@ import {
   sessionDateStr,
   sessionLogId,
   sessionIdentity,
+  isFilledSet,
 } from '../utils/sessionPayload'
 import { todayStr, toLocalDateStr } from '../utils/date'
 import { getLevelInfo } from '../utils/tier'
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 import { pickSetEncouragement } from '../utils/setEncouragements'
 
+// [2026-10-29] '자동' = 종목별 권장 휴식(다관절 2분30초 / 고립 1분30초). 새 기본값.
+const REST_AUTO = 0
 const REST_OPTIONS = [
+  { label: '자동', value: REST_AUTO },
   { label: '1분', value: 60 },
   { label: '1분30초', value: 90 },
   { label: '2분', value: 120 },
@@ -105,10 +112,29 @@ function removeLocalDraftKeys(uid, exceptKey = null) {
   })
 }
 
+// [2026-10-29] 직전 기록에서 프리필 기준으로 쓸 세트: 웜업·드롭 제외 본세트 중 가장 힘들었던 세트
+// (중량형: 가장 무거운 세트, 어시스트: 보조가 가장 적은 세트, 같은 무게면 횟수가 많은 세트 / 횟수형: 가장 많이 한 세트)
+function pickTopSet(sets, name, inputType) {
+  const all = (sets || []).filter(Boolean)
+  const pool = all.filter((s) => s.type !== 'warmup' && s.type !== 'drop')
+  const list = pool.length ? pool : all
+  if (list.length === 0) return undefined
+  const assisted = isAssistedExercise(name)
+  return list.reduce((best, s) => {
+    if (!best) return s
+    if (inputType === 'reps') return (Number(s.reps) || 0) > (Number(best.reps) || 0) ? s : best
+    const w = Number(s.weight) || 0
+    const bw = Number(best.weight) || 0
+    if (w !== bw) return (assisted ? w < bw : w > bw) ? s : best
+    return (Number(s.reps) || 0) > (Number(best.reps) || 0) ? s : best
+  }, null)
+}
+
 // [2026-07-28] 휴식시간 설정(1분/1분30초/2분)이 앱을 나갔다 들어오면 90초로 초기화되던
 // 버그 수정: 날짜와 무관하게 uid별로 영속 저장한다(오늘의 세션 draft와는 별도 키).
+// [2026-10-29] '자동'을 기본값으로 바꾸면서 키를 새로 만든다(기존 키에는 모든 사용자에게 90초가 저장돼 있음).
 function restSecondsKey(uid) {
-  return `bodytailor-rest-seconds-${uid}`
+  return `bodytailor-rest-seconds-v2-${uid}`
 }
 
 // [2026-07-30 신규] "등&이두&삼두"처럼 '&'로 이어붙인 파트명이 길어지면 칩이 좌우로
@@ -213,7 +239,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 카드를 펼친 채로 그립을 바꾸는 UI는 제거했다(그립 자체가 인스턴스 식별자가 됐으므로).
   const [records, setRecords] = useState({}) // { [exerciseKey]: [{weight, reps, saved}] }
   const [lastRecords, setLastRecords] = useState({}) // { [exerciseKey]: {sets, date} }
-  const [restSeconds, setRestSeconds] = useState(90)
+  const [restSeconds, setRestSeconds] = useState(REST_AUTO)
   const [restKey, setRestKey] = useState(0)
   const [restActive, setRestActive] = useState(false)
   // [2026-08-02 신규, 같은 날 재수정] 종목 하나를 "세트완료" 처리할 때 잠깐 뜨는 응원 멘트
@@ -783,7 +809,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       const inputType = getExerciseInputType(name)
       setRecords((r) => {
         if (r[key]?.length > 0) return r
-        const lastSet = last?.sets?.[last.sets.length - 1]
+        // [2026-10-29] 직전 기록의 "마지막" 세트는 드롭·백오프 세트인 경우가 많아, 가장 힘들었던 본세트
+        // (중량형: 가장 무거운 세트 / 어시스트: 보조가 가장 적은 세트 / 횟수형: 가장 많이 한 세트)를 기준으로 프리필
+        const lastSet = inputType === 'cardio' ? last?.sets?.[last.sets.length - 1] : pickTopSet(last?.sets, name, inputType)
         if (inputType === 'cardio') {
           // [2026-08-18 신규] 스텝밀은 경사 개념이 없는 기구라 경사%(incline) 대신
           // 스텝수(steps, 누적 걸음/계단 수)를 기록한다. 속도(speedKmh)는 스텝밀의 경우
@@ -856,7 +884,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       const { saved, savedAt, auto, planned, rir, ...base } = sets[idx] || {}
       // [2026-10-29] 미리 만든 행은 planned — 체크(V)·수정하지 않으면 완료 시 포함 여부를 묻는다(안 한 세트가 그대로 저장되던 문제).
       // "세트완료" 때 지워지는 auto 행과 달리 남겨 둔다.
-      return { ...r, [name]: [...sets, { ...base, ...(base.type === 'warmup' ? { type: 'working' } : {}), planned: true }] }
+      // 웜업·실패 세트를 복사하면 본세트로, 드롭 세트는 연속 드롭을 위해 그대로 둔다
+      return { ...r, [name]: [...sets, { ...base, ...(base.type === 'warmup' || base.type === 'failure' ? { type: 'working' } : {}), planned: true }] }
     })
   }
 
@@ -932,7 +961,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function cardExt(key) {
     const { name } = parseExerciseKey(key)
     const setting = settingFor(key)
-    const sessionBest = bestE1rmOfSets((records[key] || []).filter((st) => st.saved))
+    const sessionBest = bestE1rmOfSets((records[key] || []).filter((st) => st.saved), name)
     return {
       logMode: logMode || 'list',
       suggestion: suggestionFor(key),
@@ -940,6 +969,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       repRange: getRepRange(name, setting),
       restSec: setting?.restSec || null,
       defaultRestSec: getDefaultRestSec(name),
+      showWarmupRamp: hasWarmupRamp(name),
+      step: setting?.step ?? null,
+      defaultStep: getProgressionIncrement(name),
       onCycleType: (idx) => cycleSetType(key, idx),
       onCycleRir: (idx) => cycleSetRir(key, idx),
       onApplySuggestion: () => applySuggestion(key),
@@ -960,13 +992,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const isEmpty =
       !set ||
       (inputType === 'cardio' ? set.durationMin === '' : inputType === 'reps' ? set.reps === '' : set.weight === '' || set.reps === '')
+    // [2026-10-29] 맨몸+추가 종목(웨이티드 풀업·딥스 등)의 추가 0kg = 맨몸 세트, 어시스트의 보조 0kg = 보조 없이 한 세트라 정상 기록
+    const zeroWeightOk = allowsZeroWeight(parseExerciseKey(key).name)
     const isZero =
       !isEmpty &&
       (inputType === 'cardio'
         ? Number(set.durationMin) === 0
         : inputType === 'reps'
         ? Number(set.reps) === 0
-        : Number(set.weight) === 0 || Number(set.reps) === 0)
+        : (!zeroWeightOk && Number(set.weight) === 0) || Number(set.reps) === 0)
     if (isZero) {
       if (await confirm('값이 0으로 입력되어 있어요. 이 세트를 삭제할까요?')) {
         removeSet(key, idx)
@@ -987,17 +1021,20 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       return
     }
     if (savedSet && savedSet.type !== 'warmup' && getExerciseInputType(parseExerciseKey(name).name) === 'sets') {
-      const v = e1rm(savedSet.weight, savedSet.reps)
+      const exName = parseExerciseKey(name).name
+      // [2026-10-29] 실제 부하 기준(어시스트 = 체중 − 보조, 맨몸+추가 = 체중 + 추가)
+      const v = setE1rm(exName, savedSet)
       // [2026-10-29] 이번 세션 최고치는 ref 대신 현재 기록에서 다시 계산(새로고침·세트 삭제·웜업 전환에도 정확)
-      const sessionBest = (records[name] || []).reduce((m, st, i) => (i !== idx && st.saved && st.type !== 'warmup' ? Math.max(m, e1rm(st.weight, st.reps) || 0) : m), 0)
+      const sessionBest = (records[name] || []).reduce((m, st, i) => (i !== idx && st.saved && st.type !== 'warmup' ? Math.max(m, setE1rm(exName, st) || 0) : m), 0)
       const prevBest = Math.max(personalRecords?.[name]?.e1rm || 0, sessionBest)
       if (v > 0 && personalRecords?.[name]?.e1rm && v > prevBest) {
         showToast(`신기록! 추정 1RM ${v}kg (+${Math.round((v - prevBest) * 10) / 10})`, 2600)
       }
       if (v > (sessionBestRef.current[name] || 0)) sessionBestRef.current[name] = v
     }
-    // 종목별 휴식 설정이 있으면 그 시간으로, 없으면 상단 공통 휴식 시간으로
-    setActiveRestSec(settingFor(name)?.restSec || null)
+    // 종목별 휴식 설정이 있으면 그 시간으로, 없으면 상단 공통 휴식 시간으로.
+    // [2026-10-29] 상단 휴식이 '자동'(기본값)이면 종목별 권장 휴식(다관절 2분30초 / 고립 1분30초)
+    setActiveRestSec(settingFor(name)?.restSec || (restSeconds === REST_AUTO ? getDefaultRestSec(parseExerciseKey(name).name) : null))
     setRecords((r) => {
       // [2026-10-27] savedAt: 마지막 활동 시각(방치 세션 판단·자동 저장 시 운동시간 계산)용.
       // 자동 생성되는 다음 세트 행은 auto:true — 손대지도 체크하지도 않으면 기록에서 제외된다.
@@ -1005,7 +1042,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       const { saved, savedAt, auto, planned, rir, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]
       // 웜업 세트를 저장한 뒤 자동으로 생기는 다음 행은 본세트로 시작
-      const nextBase = base.type === 'warmup' ? { ...base, type: 'working' } : base
+      // [2026-10-29] 드롭(D)·실패(F) 세트 다음에 자동으로 생기는 행도 본세트로 시작(또 D/F로 기록되던 문제)
+      const nextBase = { ...base, type: 'working' }
       const nextSets = hasNext ? sets : [...sets, { ...nextBase, auto: true }]
       return { ...r, [name]: nextSets }
     })
@@ -1209,9 +1247,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   const hasAnyRecord = Object.entries(records).some(([key, sets]) => {
     const inputType = getExerciseInputType(parseExerciseKey(key).name)
-    if (inputType === 'cardio') return sets.some((s) => s.durationMin !== '')
-    if (inputType === 'reps') return sets.some((s) => s.reps !== '')
-    return sets.some((s) => s.weight !== '' && s.reps !== '')
+    return sets.some((s) => isFilledSet(s, inputType)) // [2026-10-29] 빈 행(필드 없음)은 입력 안 한 것으로
   })
 
   const visibleExercises =
@@ -1227,7 +1263,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // 있으면 포함 여부를 묻는다. 이전에는 이런 행이 무조건 저장돼 실제로 안 한 세트가 기록되곤 했다.
     const unchecked = countUncheckedAutoSets(records)
     let includeUnchecked = false
-    if (unchecked > 0) {
+    const checkedCount = buildExercisesFromRecords(records).reduce((n, ex) => n + ex.sets.length, 0)
+    if (unchecked > 0 && checkedCount === 0) {
+      // [2026-10-29] 체크한 세트가 하나도 없으면 "체크한 세트만"은 의미가 없어(저장할 세트 없음 안내로 이어짐) 바로 묻는다
+      const ok = await confirm(`체크(V)한 세트가 없어요. 입력해 둔 ${unchecked}세트를 저장할까요?`, { okLabel: '저장', cancelLabel: '계속 운동', dismissValue: false })
+      if (!ok) return
+      includeUnchecked = true
+    } else if (unchecked > 0) {
       includeUnchecked = await confirm(
         `체크(V)하지 않은 세트가 ${unchecked}개 있어요. 실제로 한 세트라면 함께 저장하고, 아니면 체크한 세트만 저장할게요.`,
         { okLabel: '함께 저장', cancelLabel: '체크한 세트만', dismissValue: null }
@@ -1772,7 +1814,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
       {restActive && (
         <RestTimer
-          seconds={activeRestSec || restSeconds}
+          seconds={activeRestSec || restSeconds || 90}
           resetKey={restKey}
           notificationEnabled={restNotificationEnabled}
           wakeLockEnabled={restWakeLockEnabled}
@@ -2270,10 +2312,19 @@ export function ExerciseCard({
                     ? lastRecord.sets.map((st) => `${st.steps || 0}스텝·레벨${st.speedKmh || 0}·${st.durationMin || 0}분`).join(' / ')
                     : lastRecord.sets.map((st) => `경사${st.incline || 0}%·시속${st.speedKmh || 0}km/h·${st.durationMin || 0}분`).join(' / ')
                   : inputType === 'reps'
-                  ? lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.reps}회`).join('/')
+                  ? lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.reps}${repsUnit(exName)}`).join('/')
+                  : allowsZeroWeight(exName)
+                  ? lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${formatLoad(exName, st.weight)}×${st.reps}`).join('/')
                   : lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.weight}x${st.reps}`).join('/')}
               </span>
             </div>
+          )}
+
+          {/* [2026-10-29] 입력 기준 안내(보조·추가 무게, 덤벨 1개·한쪽 기준, 플랭크류 초) */}
+          {inputHint(exName) && !isDone && (
+            <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+              {inputHint(exName)}
+            </span>
           )}
 
           {/* [2026-10-27 리뉴얼 W1] 이중 진행 기반 다음 세트 추천 */}
@@ -2292,8 +2343,16 @@ export function ExerciseCard({
             >
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-                  {suggestion.kind === 'increase' ? '▲ ' : ''}추천{' '}
-                  <span className="bt-num">{fmtKg(suggestion.weight)}</span>kg × <span className="bt-num">{suggestion.reps}</span>회
+                  {suggestion.kind === 'increase' ? '▲ ' : suggestion.kind === 'decrease' ? '▼ ' : ''}추천{' '}
+                  {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(suggestion.weight) === 0 ? (
+                    '맨몸'
+                  ) : (
+                    <>
+                      {isAssistedExercise(exName) ? '보조 ' : allowsZeroWeight(exName) ? '추가 ' : ''}
+                      <span className="bt-num">{fmtKg(suggestion.weight)}</span>kg
+                    </>
+                  )}{' '}
+                  × <span className="bt-num">{suggestion.reps}</span>회
                 </span>
                 <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>
                   {suggestion.reason}
@@ -2311,7 +2370,7 @@ export function ExerciseCard({
 
           {isStrength && !isDone && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {!hasSaved && (
+              {!hasSaved && ext.showWarmupRamp && (
                 <ToolChip onClick={ext.onAddWarmups} title="본세트 무게 기준 40·60·80% 웜업 세트 추가">
                   웜업 세트
                 </ToolChip>
@@ -2342,6 +2401,8 @@ export function ExerciseCard({
               repRange={repRange}
               restSec={restSec ?? null}
               defaultRestSec={defaultRestSec || 90}
+              step={ext.step ?? null}
+              defaultStep={ext.defaultStep ?? null}
               onChange={ext.onSettingChange}
               onClose={() => setShowSetting(false)}
             />
@@ -2352,6 +2413,9 @@ export function ExerciseCard({
               sets={sets}
               inputType={inputType}
               weightStep={weightStep}
+              weightLabel={weightCaption(exName)}
+              repsLabel={repsCaption(exName)}
+              repsUnitLabel={repsUnit(exName)}
               focusIdx={focusIdx}
               onSelect={(i) => setFocusIdx(i)}
               onField={(i, field, v) => onFieldChange(i, field, v)}
@@ -2515,10 +2579,10 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
       {/* [2026-10-28] RIR 겹침 수정: 스테퍼 묶음이 남은 폭을 차지하고(flex 1) 스테퍼도 함께 줄어든다(최소 폭까지만). 무게 칸이 조금 더 넓게(grow 1.4) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 3, flex: '1 1 0' }}>
         {inputType === 'reps' ? (
-          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" fluid minInput={28} />
+          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder={repsUnit(exName)} fluid minInput={28} />
         ) : (
           <>
-            <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder="kg" fluid grow={1.4} minInput={44} />
+            <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder={weightUnitShort(exName)} fluid grow={1.4} minInput={44} />
             <span style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }}>×</span>
             <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" fluid minInput={24} />
           </>

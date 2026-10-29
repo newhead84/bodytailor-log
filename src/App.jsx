@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-29] 온보딩 닉네임·주당 목표, 디자인 기본값(베이지·볼트 라임·페이퍼로지·리스트형) 일괄 적용, MY 디자인 접기.
- *            직전: 전면 점검 반영 + 등급 Lv 리뉴얼. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-29] 운동 기록 반복 테스트·트레이너 관점 검토 반영(입력 기준·어시스트/맨몸+추가 부하·증량/감량·휴식 자동·주간 세트).
+ *            직전: 온보딩 닉네임·주당 목표, 디자인 기본값 일괄 적용, MY 디자인 접기. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -9,6 +9,8 @@ import React, { useEffect, useRef, useState, useCallback, lazy, Suspense } from 
 import { watchAuthState } from './firebase'
 import { LEGACY_EXERCISE_NAME_MAP } from './utils/exerciseLibrary'
 import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLogAndRevertXp, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
+import { prsVersionKey } from './utils/strength'
+import { setBodyweightKg } from './utils/load'
 
 import LoginScreen from './components/LoginScreen'
 import Onboarding from './components/Onboarding'
@@ -234,17 +236,25 @@ export default function App() {
       .catch((err) => console.error('디자인 기본값 적용 실패:', err))
   }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.designDefaultsVersion])
 
+  // [2026-10-29] 어시스트·맨몸+추가 종목의 실제 부하(체중 ∓ 입력 무게) 계산용 체중. 렌더 중에 바로 반영해
+  // 같은 렌더의 계산(볼륨·추정 1RM)부터 쓰이게 한다.
+  setBodyweightKg(userDoc?.onboarding?.weightKg || 0)
+
   const prsBuildRef = useRef(false)
   useEffect(() => {
     // [2026-10-29] PR 맵에 옛 종목명 키(예: 와이드그립랫풀다운)가 남아 있으면 정규화된 이름으로 한 번 다시 계산
+    // [2026-10-29] PR 계산 규칙이 바뀌면(prsVersion) 전체 기록으로 한 번 다시 계산 — 어시스트·추가 중량 종목 실제 부하 반영, 15회까지 추정
     const hasLegacyPrKey = !!userDoc?.prs && Object.keys(userDoc.prs).some((k) => k.split('::')[0] in LEGACY_EXERCISE_NAME_MAP)
-    if (!authUser?.uid || !userDoc?.onboardingCompleted || (userDoc.prs && !hasLegacyPrKey) || prsBuildRef.current) return
-    prsBuildRef.current = true
+    // 체중이 바뀌면(어시스트·맨몸+추가 종목의 실제 부하가 달라짐) 버전 키도 달라져 다시 계산한다
+    const prsKey = prsVersionKey()
+    const staleRules = userDoc?.prsVersion !== prsKey
+    if (!authUser?.uid || !userDoc?.onboardingCompleted || (userDoc.prs && !hasLegacyPrKey && !staleRules) || prsBuildRef.current === prsKey) return
+    prsBuildRef.current = prsKey
     rebuildPersonalRecords(authUser.uid)
       .then(() => refreshUserDoc())
       .catch((err) => console.error('PR 계산 실패:', err))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.prs])
+  }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.prs, userDoc?.prsVersion, userDoc?.onboarding?.weightKg])
 
   const autoNoticeKey = authUser?.uid ? `bt-auto-finalized-${authUser.uid}` : null
   useEffect(() => {

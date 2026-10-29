@@ -5,13 +5,13 @@ import { Plus, X, Copy, Pencil, Trash2, ClipboardPaste } from 'lucide-react'
 import {
   getExerciseDisplayAtom,
   getPartColor,
-  calcVolume,
   BODY_PART_ATOMS,
   getExercisesForPart,
   getExerciseInputType,
   getExerciseAtom,
 } from '../utils/exerciseLibrary'
 import { getHolidaysForMonth } from '../utils/holidays'
+import { setsVolumeKg, repsUnit, formatLoad, allowsZeroWeight, weightUnitShort } from '../utils/load'
 
 // [2026-07-30 재수정] 프레임 고정(위 CELL_HEIGHT/+N 요약) 방식이 기록 일부를 가려 오히려
 // 불편하다는 피드백에 따라 되돌림. 셀 높이는 내용에 맞춰 자동으로 늘어나고, 그 날의 부위별
@@ -144,8 +144,10 @@ function formatExerciseSets(ex) {
       .join(' / ')
   }
   if (ex.inputType === 'reps') {
-    return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${s.reps}회`).join('/')
+    return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${s.reps}${repsUnit(ex.name)}`).join('/')
   }
+  // [2026-10-29] 보조·맨몸+추가 종목은 "보조 20kg×8" / "맨몸×8"처럼 의미가 보이게
+  if (allowsZeroWeight(ex.name)) return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${formatLoad(ex.name, s.weight)}×${s.reps}`).join('/')
   return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${s.weight}x${s.reps}`).join('/')
 }
 
@@ -321,7 +323,7 @@ function EditLogForm({
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
                       style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
-                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{repsUnit(ex.name)}</span>
                   </>
                 ) : (
                   <>
@@ -331,7 +333,7 @@ function EditLogForm({
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'weight', e.target.value)}
                       style={{ width: 64, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
                     />
-                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>kg ×</span>
+                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{weightUnitShort(ex.name)} ×</span>
                     <input
                       type="number"
                       value={s.reps}
@@ -800,7 +802,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     }))
     // 유산소/횟수전용 종목은 무게 개념이 없어 볼륨 계산에서 제외한다(운동기록 입력 화면과 동일 규칙).
     const totalVolume = cleanedExercises.reduce(
-      (sum, ex) => sum + (ex.inputType === 'sets' || !ex.inputType ? calcVolume(ex.sets.filter((s) => s.type !== 'warmup')) : 0),
+      (sum, ex) => sum + (ex.inputType === 'sets' || !ex.inputType ? setsVolumeKg(ex.name, ex.sets.filter((s) => s.type !== 'warmup')) : 0),
       0
     )
     return { cleanedExercises, totalVolume }

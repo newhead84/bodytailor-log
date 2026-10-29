@@ -146,7 +146,7 @@ function BigValue({ caption, value, onChange, children }) {
 }
 
 // 포커스형: sets(중량형)·reps(횟수형) 종목에서 "지금 할 세트" 하나를 크게 보여준다.
-export function FocusSetPanel({ sets, inputType, weightStep, onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, onRemoveSet, workingIndexOf }) {
+export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무게 kg', repsLabel = '횟수', repsUnitLabel = '회', onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, onRemoveSet, workingIndexOf }) {
   const idx = focusIdx != null && sets[focusIdx] ? focusIdx : Math.max(0, sets.findIndex((s) => !s.saved))
   const cur = sets[idx] || {}
   const isReps = inputType === 'reps'
@@ -192,7 +192,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, onField, onSave, on
                 {t === 'working' ? `${workingIndexOf(i)}세트` : SET_TYPE_LABEL[t]}
               </span>
               <span className="bt-num" style={{ fontSize: 13, color: s.saved ? 'var(--color-success)' : 'var(--color-label-strong)' }}>
-                {isReps ? `${s.reps || '–'}회` : `${s.weight || '–'}×${s.reps || '–'}`}
+                {isReps ? `${s.reps || '–'}${repsUnitLabel}` : `${s.weight !== '' && s.weight != null ? s.weight : '–'}×${s.reps || '–'}`}
               </span>
             </button>
           )
@@ -237,12 +237,12 @@ export function FocusSetPanel({ sets, inputType, weightStep, onField, onSave, on
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             {!isReps && (
-              <BigValue caption="무게 kg" value={cur.weight ?? ''} onChange={(v) => onField(idx, 'weight', v)}>
+              <BigValue caption={weightLabel} value={cur.weight ?? ''} onChange={(v) => onField(idx, 'weight', v)}>
                 <BigStep label={`−${weightStep}`} onClick={() => onField(idx, 'weight', step(cur.weight, -weightStep))} />
                 <BigStep label={`+${weightStep}`} onClick={() => onField(idx, 'weight', step(cur.weight, weightStep))} />
               </BigValue>
             )}
-            <BigValue caption="횟수" value={cur.reps ?? ''} onChange={(v) => onField(idx, 'reps', v)}>
+            <BigValue caption={repsLabel} value={cur.reps ?? ''} onChange={(v) => onField(idx, 'reps', v)}>
               <BigStep label="−1" onClick={() => onField(idx, 'reps', step(cur.reps, -1))} />
               <BigStep label="+1" onClick={() => onField(idx, 'reps', step(cur.reps, 1))} />
             </BigValue>
@@ -350,9 +350,12 @@ const REST_CHOICES = [
   { label: '3:00', value: 180 },
 ]
 
-export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, onChange, onClose }) {
+// [2026-10-29] 증량 단위(step) 추가: 집에 1.25kg 원판이 있거나 케이블 스택이 2.5kg 단위인 경우 등
+// 종목별로 증량 제안 폭을 바꿀 수 있다. null = 기본(기구별 기본 단위).
+const STEP_CHOICES = [1, 1.25, 2, 2.5, 5]
+export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step = null, defaultStep = null, onChange, onClose }) {
   const [min, max] = repRange
-  const set = (patch) => onChange({ repMin: min, repMax: max, restSec, ...patch })
+  const set = (patch) => onChange({ repMin: min, repMax: max, restSec, step: step ?? null, ...patch })
   const stepBtn = (label, onClick, aria) => (
     <button
       type="button"
@@ -384,7 +387,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, onCha
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-          휴식 (기본 = 상단 휴식 설정, 권장 {Math.floor(defaultRestSec / 60)}:{String(defaultRestSec % 60).padStart(2, '0')})
+          휴식 (기본 = 상단 휴식 설정 · 자동이면 이 종목 권장 {Math.floor(defaultRestSec / 60)}:{String(defaultRestSec % 60).padStart(2, '0')})
         </span>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {REST_CHOICES.map((c) => {
@@ -411,6 +414,35 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, onCha
           })}
         </div>
       </div>
+      {defaultStep != null && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>증량 단위 (기본 {defaultStep}kg)</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[null, ...STEP_CHOICES].map((v) => {
+              const on = (step ?? null) === v
+              return (
+                <button
+                  key={String(v)}
+                  type="button"
+                  onClick={() => set({ step: v })}
+                  className="bt-num"
+                  style={{
+                    height: 34,
+                    padding: '0 10px',
+                    borderRadius: 'var(--radius-pill)',
+                    border: on ? '1px solid var(--color-label-strong)' : '1px solid var(--color-line)',
+                    background: on ? 'var(--color-label-strong)' : 'transparent',
+                    color: on ? 'var(--color-bg)' : 'var(--color-label-strong)',
+                    fontSize: 13,
+                  }}
+                >
+                  {v == null ? '기본' : v}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
         모든 본세트가 상한 횟수에 도달하면 다음 운동에서 증량을 추천해요.
       </span>

@@ -25,7 +25,7 @@ import {
   FieldPath,
 } from 'firebase/firestore'
 import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises } from './utils/exerciseLibrary'
-import { mergePrsFromExercises, computePrsFromLogs } from './utils/strength'
+import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey } from './utils/strength'
 import { getSeasonPeriod } from './utils/season'
 
 // ───────────── exercisePopularity/{atom} — 부위별 "다른 유저 즐겨찾는 운동" 공개 집계 ─────────────
@@ -411,9 +411,10 @@ export async function addWorkoutLog(uid, logData, logId = null) {
 // [2026-10-27 신규] 개인 기록(PR) 맵이 없는 계정은 전체 기록에서 한 번 계산해 저장한다.
 // 기록을 수정/삭제했을 때도 다시 계산한다(PR이 지워진 기록에 남지 않도록).
 export async function rebuildPersonalRecords(uid) {
+  const prsVersion = prsVersionKey()
   const snap = await getDocs(collection(db, 'workoutLogs', uid, 'logs'))
   const prs = computePrsFromLogs(snap.docs.map((d) => normalizeLogExercises(d.data())))
-  await settleOrTimeout(updateDoc(doc(db, 'users', uid), { prs }))
+  await settleOrTimeout(updateDoc(doc(db, 'users', uid), { prs, prsVersion }))
   // 화면(App.jsx)이 사용자 문서를 다시 불러오도록 알림 — 삭제된 기록의 PR이 남아 보이지 않게
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('bt-prs-updated'))
   return prs

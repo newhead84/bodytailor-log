@@ -3,7 +3,8 @@
 // "오늘 운동 완료" 버튼(WorkoutInput.handleFinishWorkout)과, 완료를 누르지 않고 방치된
 // 세션의 자동 저장(미완료 세션 자동 완료) 양쪽에서 같은 규칙을 쓰기 위해 분리했다.
 
-import { getExerciseInputType, getExerciseAtom, calcVolume } from './exerciseLibrary'
+import { getExerciseInputType, getExerciseAtom } from './exerciseLibrary'
+import { setsVolumeKg } from './load'
 import { parseExerciseKey } from './exerciseKey'
 import { toLocalDateStr } from './date'
 
@@ -23,8 +24,31 @@ function setMeta(s) {
 
 // [2026-10-29] planned: "+ 세트 추가"·웜업 램프로 미리 만든 행. 체크(V)·수정 전엔 auto처럼 기록에서 빠지고
 // 완료 시 포함 여부를 묻지만, "세트완료" 때 자동 정리(auto 행 삭제) 대상은 아니다(사용자가 일부러 만든 행).
+// [2026-10-29] 값이 실제로 입력됐는지(빈 문자열·undefined·null·숫자 아님은 미입력). 이전엔 필드가 아예 없는 빈 행
+// (예: 기록 없는 종목의 첫 행, 빈 유산소 행)이 '' 비교를 통과해 0분·NaN 세트로 저장되고 미체크 개수에도 잡혔다.
+function hasNum(v) {
+  return v !== '' && v !== undefined && v !== null && Number.isFinite(Number(v))
+}
+export function isFilledSet(s, inputType) {
+  if (!s) return false
+  if (inputType === 'cardio') return hasNum(s.durationMin) && Number(s.durationMin) > 0
+  if (inputType === 'reps') return hasNum(s.reps) && Number(s.reps) > 0
+  return hasNum(s.weight) && hasNum(s.reps) && Number(s.reps) > 0
+}
+
 export function isCountableSet(s) {
   return !!s && (!!s.saved || (!s.auto && !s.planned))
+}
+
+// [2026-10-29] 세트를 저장(V)하면 다음 세트용 행이 직전 값 복사(auto)로 자동 생긴다. 이 행은 "아직 안 한 다음 세트"
+// 자리라, 완료 시 "체크 안 한 세트"로 세거나 "함께 저장"에 넣으면 하지 않은 세트(직전 세트 복제)가 기록됐다.
+// 같은 종목에 저장한 세트가 있으면 auto 행은 미체크 후보에서 뺀다(첫 프리필 행처럼 저장한 세트가 없을 때만 후보).
+function isNextSetPlaceholder(s, sets) {
+  return !!s && !!s.auto && !s.saved && (sets || []).some((x) => x?.saved)
+}
+function keepForSave(s, sets, includeUnchecked) {
+  if (isCountableSet(s)) return true
+  return includeUnchecked && !isNextSetPlaceholder(s, sets)
 }
 
 // 체크(V)도 수정도 안 한 자동 프리필 행 중 값이 채워진 행 수(완료 시 포함 여부를 물어볼 때 사용)
@@ -33,9 +57,8 @@ export function countUncheckedAutoSets(records) {
   Object.entries(records || {}).forEach(([key, sets]) => {
     const inputType = getExerciseInputType(parseExerciseKey(key).name)
     ;(sets || []).forEach((s) => {
-      if (isCountableSet(s)) return
-      const filled = inputType === 'cardio' ? s.durationMin !== '' : inputType === 'reps' ? s.reps !== '' : s.weight !== '' && s.reps !== ''
-      if (filled) n += 1
+      if (isCountableSet(s) || isNextSetPlaceholder(s, sets)) return
+      if (isFilledSet(s, inputType)) n += 1
     })
   })
   return n
@@ -48,14 +71,14 @@ export function buildExercisesFromRecords(records, { includeUnchecked = false } 
       // key는 합성키("이름" 또는 "이름::그립") — 저장 시 실제 종목명과 그립으로 분해한다.
       const { name, grip } = parseExerciseKey(key)
       const inputType = getExerciseInputType(name)
-      const sets = (rawSets || []).filter((st) => includeUnchecked || isCountableSet(st))
+      const sets = (rawSets || []).filter((st) => keepForSave(st, rawSets, includeUnchecked))
       let validSets
       if (inputType === 'cardio') {
         // [2026-08-18] 스텝밀은 incline 대신 steps(스텝수)를 저장한다.
         validSets =
           name === '스텝밀'
             ? sets
-                .filter((s) => s.durationMin !== '')
+                .filter((s) => isFilledSet(s, 'cardio'))
                 .map((s) => ({
                   weight: 0,
                   reps: 0,
@@ -64,7 +87,7 @@ export function buildExercisesFromRecords(records, { includeUnchecked = false } 
                   durationMin: Number(s.durationMin) || 0,
                 }))
             : sets
-                .filter((s) => s.durationMin !== '')
+                .filter((s) => isFilledSet(s, 'cardio'))
                 .map((s) => ({
                   weight: 0,
                   reps: 0,
@@ -73,10 +96,10 @@ export function buildExercisesFromRecords(records, { includeUnchecked = false } 
                   durationMin: Number(s.durationMin) || 0,
                 }))
       } else if (inputType === 'reps') {
-        validSets = sets.filter((s) => s.reps !== '').map((s) => ({ weight: 0, reps: Number(s.reps), ...setMeta(s) }))
+        validSets = sets.filter((s) => isFilledSet(s, 'reps')).map((s) => ({ weight: 0, reps: Number(s.reps), ...setMeta(s) }))
       } else {
         validSets = sets
-          .filter((s) => s.weight !== '' && s.reps !== '')
+          .filter((s) => isFilledSet(s, 'sets'))
           .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps), ...setMeta(s) }))
       }
       return { name, part: getExerciseAtom(name) || '', inputType, sets: validSets, ...(grip ? { grip } : {}) }
@@ -85,17 +108,19 @@ export function buildExercisesFromRecords(records, { includeUnchecked = false } 
 }
 
 // 근력(중량×횟수) 종목만 볼륨에 합산한다(유산소/횟수전용 제외).
+// [2026-10-29] 실제 부하·양손/양쪽 ×2 규칙은 load.js(setsVolumeKg)를 따른다.
 export function computeVolumeFromRecords(records, { includeUnchecked = false } = {}) {
   let sum = 0
   Object.entries(records || {}).forEach(([key, sets]) => {
-    const inputType = getExerciseInputType(parseExerciseKey(key).name)
+    const name = parseExerciseKey(key).name
+    const inputType = getExerciseInputType(name)
     if (inputType !== 'sets') return
     const parsed = (sets || [])
-      .filter((st) => includeUnchecked || isCountableSet(st))
+      .filter((st) => keepForSave(st, sets, includeUnchecked))
       .filter((st) => st.type !== 'warmup') // 웜업 세트는 볼륨에서 제외
-      .filter((s) => s.weight !== '' && s.reps !== '')
+      .filter((s) => isFilledSet(s, 'sets'))
       .map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) }))
-    sum += calcVolume(parsed)
+    sum += setsVolumeKg(name, parsed)
   })
   return sum
 }

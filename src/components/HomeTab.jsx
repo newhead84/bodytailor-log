@@ -4,6 +4,7 @@ import { Card, Button, useConfirm } from './ui'
 import { getRecentWorkoutLogs, getWorkoutLogsInRange } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
 import { suggestNextSet, workingSetsOf } from '../utils/strength'
+import { isAssistedExercise, isBodyweightLoaded, logVolumeKg } from '../utils/load'
 import { makeExerciseKey, parseExerciseKey } from '../utils/exerciseKey'
 import { CountUp } from '../hooks/useCountUp'
 import CalendarView from './CalendarView'
@@ -114,7 +115,7 @@ export default function HomeTab({
     const sessions = new Set(weekLogs.map((l) => l.date)).size
     let sets = 0
     weekLogs.forEach((l) => (l.exercises || []).forEach((e) => (sets += workingSetsOf(e).length)))
-    const volume = weekLogs.reduce((v, l) => v + (l.totalVolume || 0), 0)
+    const volume = weekLogs.reduce((v, l) => v + logVolumeKg(l), 0)
     return { sessions, sets, volume }
   }, [weekLogs])
 
@@ -202,7 +203,7 @@ export default function HomeTab({
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)' }}>증량 추천</span>
             {increaseList.slice(0, 3).map((x) => (
               <span key={x.key} className="text-keep-all" style={{ fontSize: 12, padding: '4px 9px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', color: 'var(--color-label-normal)' }}>
-                {x.name} <span className="bt-num">{x.weight}</span>kg
+                {x.name} {isAssistedExercise(x.name) ? '보조 ' : isBodyweightLoaded(x.name) ? '+' : ''}<span className="bt-num">{x.weight}</span>kg
               </span>
             ))}
             {increaseList.length > 3 && <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>외 {increaseList.length - 3}</span>}

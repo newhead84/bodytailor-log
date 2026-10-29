@@ -23,6 +23,7 @@ import { toLocalDateStr } from '../utils/date'
 import { estimateCardioSetKcal } from '../utils/calories'
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 import { workingSetsOf, bestE1rmOfSets } from '../utils/strength'
+import { setsVolumeKg, isHoldExercise, logVolumeKg } from '../utils/load'
 import { CountUp } from '../hooks/useCountUp'
 import { MuscleSetsCard, CardioCard, RecoveryCard, PrCard, BoneHealthCard, startOfWeekStr } from './InsightCards'
 
@@ -241,8 +242,9 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
     const overloadRangeLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(overloadRangeStart), fmt(today)))
     const streakRangeLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(streakRangeStart), fmt(today)))
 
-    const thisWeekVolume = thisWeekLogs.reduce((s, l) => s + (l.totalVolume || 0), 0)
-    const baselineAvgVolume = baselineLogs.length > 0 ? baselineLogs.reduce((s, l) => s + (l.totalVolume || 0), 0) / 4 : 0
+    // [2026-10-29] 저장된 totalVolume 대신 세트에서 같은 규칙으로 다시 계산(볼륨 규칙 변경 전후 기록 비교 왜곡 방지)
+    const thisWeekVolume = thisWeekLogs.reduce((s, l) => s + logVolumeKg(l), 0)
+    const baselineAvgVolume = baselineLogs.length > 0 ? baselineLogs.reduce((s, l) => s + logVolumeKg(l), 0) / 4 : 0
 
     // [2026-10-29] 출석 = 이번 주 운동한 날 수(하루 여러 번은 1일) / 목표 일수(루틴 파트 수, 2~5일). 리포트 카드와 같은 기준.
     const attendanceScore = computeAttendanceScore(new Set(thisWeekLogs.map((l) => l.date)).size, attendanceTargetDays)
@@ -335,12 +337,15 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
           primaryValue = kcal
         } else if (inputType === 'reps') {
           const totalReps = wsets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
-          const bwVolume = weightKg * getBodyweightVolumeFactor(ex.name) * totalReps
+          // [2026-10-29] 플랭크류는 횟수 칸에 초를 입력 → 약 3초를 1회로 환산(초를 그대로 곱하면 과대평가)
+          const repEq = isHoldExercise(ex.name) ? totalReps / 3 : totalReps
+          const bwVolume = weightKg * getBodyweightVolumeFactor(ex.name) * repEq
           primary.bwVolume += bwVolume
           primary.score += bwVolume
           primaryValue = bwVolume
         } else {
-          const volume = wsets.reduce((s, st) => s + (st.weight || 0) * (st.reps || 0), 0)
+          // [2026-10-29] 실제 부하(보조·추가 중량 반영)·양손 덤벨/양쪽 ×2 규칙(load.js)
+          const volume = setsVolumeKg(ex.name, wsets)
           primary.volume += volume
           primary.score += volume
           primaryValue = volume
@@ -511,7 +516,13 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
   //   - cardio(유산소): 총 운동시간(분)
   const selectedExerciseInputType = selectedExercise ? getExerciseInputType(parseExerciseKey(selectedExercise).name) : 'sets'
   const trendMetricLabel =
-    selectedExerciseInputType === 'cardio' ? '총 운동시간(분)' : selectedExerciseInputType === 'reps' ? '총 횟수(회)' : '추정 1RM(kg)'
+    selectedExerciseInputType === 'cardio'
+      ? '총 운동시간(분)'
+      : selectedExerciseInputType === 'reps'
+      ? selectedExercise && isHoldExercise(parseExerciseKey(selectedExercise).name)
+        ? '총 시간(초)'
+        : '총 횟수(회)'
+      : '추정 1RM(kg)'
   const exerciseTrend = useMemo(() => {
     if (!selectedExercise) return []
     const { name: exName } = parseExerciseKey(selectedExercise)
@@ -530,7 +541,7 @@ export default function ReportTab({ uid, userDoc, targetSessionsPerWeek = 3, log
         }
         // [2026-10-27] 중량형은 최고 중량 대신 추정 1RM(Epley, 12회 이하 본세트)으로 — 무게·횟수 향상을 함께 반영.
         // 12회 초과만 한 날은 추정치가 없어 그래프에서 제외(다른 지표와 섞지 않음).
-        const best = bestE1rmOfSets(ex.sets)
+        const best = bestE1rmOfSets(ex.sets, ex.name)
         return best ? { date: log.date.slice(5), value: best } : null
       })
       .filter(Boolean)

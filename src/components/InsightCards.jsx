@@ -9,7 +9,8 @@ import React, { useMemo, useState } from 'react'
 import { Card, SectionTitle, Chip, Disclosure } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
-import { exerciseKeyLabel } from '../utils/exerciseKey'
+import { exerciseKeyLabel, parseExerciseKey } from '../utils/exerciseKey'
+import { formatLoad, repsUnit, logVolumeKg } from '../utils/load'
 import { toLocalDateStr } from '../utils/date'
 import {
   fractionalSetsByAtom,
@@ -18,7 +19,9 @@ import {
   detectPlateaus,
   recentPrList,
   heavyCompoundSets,
-  workingSetsOf,
+  lowerBodyLoadSets,
+  LEG_FRONT,
+  LEG_BACK,
 } from '../utils/strength'
 
 export function startOfWeekStr(d = new Date(), offsetWeeks = 0) {
@@ -39,7 +42,8 @@ const fmt1 = (n) => (Math.round(n * 10) / 10).toString()
 export function MuscleSetsCard({ logs, compact = false, title = '근육별 주간 세트' }) {
   const [week, setWeek] = useState(0)
   const sets = useMemo(() => fractionalSetsByAtom(logsInWeek(logs, week)), [logs, week])
-  const atoms = BODY_PART_ATOMS.filter((a) => a !== '유산소')
+  // [2026-10-29] 하체는 앞·뒤로 나눠 표시
+  const atoms = BODY_PART_ATOMS.filter((a) => a !== '유산소').flatMap((a) => (a === '하체' ? [LEG_FRONT, LEG_BACK] : [a]))
   const rows = compact ? atoms.filter((a) => (sets[a] || 0) > 0).sort((a, b) => (sets[b] || 0) - (sets[a] || 0)).slice(0, 5) : atoms
   const scaleMax = 25
   const bandLeft = (WEEKLY_SET_GUIDE.min / scaleMax) * 100
@@ -72,12 +76,24 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
             const v = sets[atom] || 0
             const pct = Math.min(100, (v / scaleMax) * 100)
             // [2026-10-29] 이번 주는 아직 진행 중이라 기준 미만이어도 '부족' 대신 '진행 중'으로(주중에 모두 '부족'으로 떠 위협적이던 문제)
-            const status = v === 0 ? '' : v < WEEKLY_SET_GUIDE.min ? (week === 0 ? '진행 중' : '부족') : v > WEEKLY_SET_GUIDE.max ? '많음' : '적정'
+            // [2026-10-29] 초보자는 주 4세트 이상이면 충분히 성장하므로 '부족'은 4세트 미만일 때만. 코어는 근비대
+            // 연구의 권장 범위를 그대로 적용하기 어려워 범위·판정 없이 세트 수만 보여준다.
+            const isCore = atom === '코어'
+            const status =
+              v === 0 || isCore
+                ? ''
+                : v < WEEKLY_SET_GUIDE.minEffective
+                ? week === 0
+                  ? '진행 중'
+                  : '부족'
+                : v > WEEKLY_SET_GUIDE.max
+                ? '많음'
+                : '적정'
             return (
-              <div key={atom} style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) 40px 44px', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>{atom}</span>
+              <div key={atom} style={{ display: 'grid', gridTemplateColumns: '48px minmax(0, 1fr) 36px 40px', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, color: 'var(--color-label-normal)', whiteSpace: 'nowrap' }}>{atom}</span>
                 <div style={{ position: 'relative', height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)' }}>
-                  <div
+                  {!isCore && <div
                     aria-hidden="true"
                     style={{
                       position: 'absolute',
@@ -88,8 +104,8 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
                       borderLeft: '1px dashed var(--color-line-strong)',
                       borderRight: '1px dashed var(--color-line-strong)',
                     }}
-                  />
-                  <div className="bt-bar" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 'var(--radius-pill)', background: getPartColor(atom) }} />
+                  />}
+                  <div className="bt-bar" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 'var(--radius-pill)', background: getPartColor(atom === LEG_FRONT || atom === LEG_BACK ? '하체' : atom) }} />
                 </div>
                 <span className="bt-num" style={{ fontSize: 14, textAlign: 'right' }}>
                   {fmt1(v)}
@@ -111,7 +127,8 @@ export function MuscleSetsCard({ logs, compact = false, title = '근육별 주�
         {/* [2026-10-28 리디자인] 기준 설명은 접어 두기 */}
         <Disclosure>
           웜업 제외 본세트 기준 · 주동 부위 1세트, 함께 쓰인 보조 부위 0.5세트로 계산 · 점선 구간 = 주 {WEEKLY_SET_GUIDE.min}–
-          {WEEKLY_SET_GUIDE.max}세트 권장(초보자는 4–10세트로도 충분히 성장)
+          {WEEKLY_SET_GUIDE.max}세트(근비대 권장) · 초보자는 주 {WEEKLY_SET_GUIDE.minEffective}세트 이상이면 충분히 성장해요 · 하체 앞 =
+          허벅지 앞·안쪽, 하체 뒤 = 엉덩이·햄스트링·종아리 · 코어는 권장 범위 없이 세트 수만 표시
         </Disclosure>
       </Card>
     </>
@@ -145,16 +162,20 @@ export function CardioCard({ logs }) {
 }
 
 // 연속으로 "주 2회 이상 + 볼륨이 평소의 60% 이상"인 주가 몇 주째인지(디로드 제안용)
+// [2026-10-29] 꾸준히 운동하는 것만으로 디로드가 뜨지 않도록, 화면에서는 6주 이상 연속이면서
+// 정체 종목이 있거나 최근 2주 본세트의 30% 이상이 RIR 0–1(한계 근처)일 때만 제안한다.
+// 횟수 종목만 하는 사용자는 볼륨이 0이라 판단에서 제외한다.
 function consecutiveHardWeeks(logs) {
   const byWeek = {}
   ;(logs || []).forEach((l) => {
     const w = startOfWeekStr(new Date(l.date + 'T00:00:00'))
     byWeek[w] = byWeek[w] || { sessions: 0, volume: 0 }
     byWeek[w].sessions += 1
-    byWeek[w].volume += l.totalVolume || 0
+    byWeek[w].volume += logVolumeKg(l)
   })
   const vols = Object.values(byWeek).map((w) => w.volume).filter((v) => v > 0).sort((a, b) => a - b)
   const median = vols.length ? vols[Math.floor(vols.length / 2)] : 0
+  if (!median) return 0
   let streak = 0
   for (let k = -1; k >= -12; k--) {
     const w = byWeek[startOfWeekStr(new Date(), k)]
@@ -164,11 +185,31 @@ function consecutiveHardWeeks(logs) {
   return streak
 }
 
+// 최근 2주 본세트 중 RIR 0–1로 기록한 비율(RIR을 기록한 세트가 6개 미만이면 null)
+function nearFailureShare(logs) {
+  const since = startOfWeekStr(new Date(), -1)
+  let logged = 0
+  let hard = 0
+  ;(logs || [])
+    .filter((l) => l.date >= since)
+    .forEach((l) =>
+      (l.exercises || []).forEach((ex) =>
+        (ex.sets || []).forEach((s) => {
+          if (s.type === 'warmup' || s.rir === '' || s.rir == null) return
+          logged += 1
+          if (Number(s.rir) <= 1 || s.type === 'failure') hard += 1
+        })
+      )
+    )
+  return logged >= 6 ? hard / logged : null
+}
+
 export function RecoveryCard({ logs }) {
   const sorted = useMemo(() => [...(logs || [])].sort((a, b) => (a.date < b.date ? -1 : 1)), [logs])
   const plateaus = useMemo(() => detectPlateaus(sorted).slice(0, 3), [sorted])
   const hardWeeks = useMemo(() => consecutiveHardWeeks(sorted), [sorted])
-  const suggestDeload = hardWeeks >= 6
+  const nearFailure = useMemo(() => nearFailureShare(sorted), [sorted])
+  const suggestDeload = hardWeeks >= 6 && (plateaus.length > 0 || (nearFailure != null && nearFailure >= 0.3))
   if (plateaus.length === 0 && !suggestDeload) return null
   return (
     <>
@@ -193,7 +234,7 @@ export function RecoveryCard({ logs }) {
                   {exerciseKeyLabel(p.key)}
                 </span>
                 <span className="bt-num" style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0 }}>
-                  최고 {fmt1(p.bestBefore)} → 최근 {fmt1(p.bestRecent)}kg
+                  직전 {fmt1(p.bestBefore)} → 최근 {fmt1(p.bestRecent)}kg
                 </span>
               </div>
             ))}
@@ -221,7 +262,7 @@ export function PrCard({ prs, limit = 5, title = '최근 개인 기록' }) {
                 {exerciseKeyLabel(p.key)}
               </span>
               <span className="bt-num" style={{ fontSize: 12, color: 'var(--color-label-neutral)', fontWeight: 500 }}>
-                {p.date} · {p.weight}kg × {p.reps}
+                {p.date} · {formatLoad(parseExerciseKey(p.key).name, p.weight)} × {p.reps}{repsUnit(parseExerciseKey(p.key).name)}
               </span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
@@ -242,14 +283,8 @@ export function BoneHealthCard({ logs }) {
   const week = useMemo(() => logsInWeek(logs, 0), [logs])
   const sessions = new Set(week.map((l) => l.date)).size
   const heavy = useMemo(() => heavyCompoundSets(week), [week])
-  const lowerSets = useMemo(
-    () =>
-      week.reduce(
-        (n, l) => n + (l.exercises || []).filter((e) => (e.part || '') === '하체').reduce((m, e) => m + workingSetsOf(e).length, 0),
-        0
-      ),
-    [week]
-  )
+  // [2026-10-29] 부위가 '등'인 데드리프트류도 하체 체중 부하로 집계(스쿼트·힌지·런지 패턴 기준)
+  const lowerSets = useMemo(() => lowerBodyLoadSets(week), [week])
   const item = (ok, text) => (
     <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
       <span
