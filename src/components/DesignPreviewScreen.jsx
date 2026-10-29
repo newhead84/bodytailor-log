@@ -323,7 +323,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
                   restSec: isBench ? 120 : null,
                   defaultRestSec: 90,
                   bestE1rm: isBench ? 80 : null,
-                  suggestion: isBench ? { kind: 'increase', weight: 62.5, reps: 6, reason: '지난번 모든 본세트에서 10회를 채웠어요. 2.5kg 올려 보세요.' } : null,
+                  suggestion: isBench ? { kind: 'increase', weight: 62.5, reps: 6, reason: '지난번 60kg로 첫 세트 10회 · 나머지도 6회 이상 → 62.5kg로 6회부터' } : null,
                   onApplySuggestion: () => {},
                   onAddWarmups: () => {},
                   showWarmupRamp: true,

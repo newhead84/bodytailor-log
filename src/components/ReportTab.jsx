@@ -25,7 +25,8 @@ import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/ex
 import { workingSetsOf, bestE1rmOfSets } from '../utils/strength'
 import { setsVolumeKg, isHoldExercise, logVolumeKg } from '../utils/load'
 import { CountUp } from '../hooks/useCountUp'
-import { MuscleSetsCard, CardioCard, RecoveryCard, PrCard, BoneHealthCard, startOfWeekStr } from './InsightCards'
+import { MuscleSetsCard, CardioCard, RecoveryCard, PrCard, BoneHealthCard, BalanceCard, startOfWeekStr } from './InsightCards'
+import { getTrainingProfile } from '../utils/goals'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
 // 눈에 잘 띄지 않던 '통계' 서브탭을 하나의 '리포트' 탭으로 통합했다. 여기에 추가로
@@ -669,7 +670,9 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
           <PrCard prs={userDoc?.prs} />
           <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} />
           <CardioCard logs={logs} liveExercises={liveExercises} />
-          {(userDoc?.onboarding?.goals || []).includes('근력강화·골밀도증진') && <BoneHealthCard logs={logs} />}
+          {/* [2026-10-30] 목표에 골밀도가 있으면(순위 무관) 골밀도 체크, 밀기·당기기 균형은 모두(자세·코어 목표면 코어 체크 추가) */}
+          {getTrainingProfile().showBoneCard && <BoneHealthCard logs={logs} />}
+          <BalanceCard logs={logs} posture={getTrainingProfile().showPostureCard} />
 
           {/* 부위별 운동 추이 (누적 레이더 차트) */}
           {/* [2026-08-05 변경] 기존에 별도 섹션이던 "누적 볼륨(부위별)" 가로 막대 차트를

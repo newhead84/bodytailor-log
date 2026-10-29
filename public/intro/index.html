@@ -336,9 +336,9 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: s
       <h2 id="rules-title">감이 아니라 규칙으로 추천해요</h2>
       <p class="sub">모든 추천은 운동 과학에서 많이 쓰는 기준을 따르고, 왜 그 숫자인지 화면에 그대로 보여 줘요.</p>
       <div class="rule-grid">
-        <div class="rule"><div class="big num"><span data-count="10">10</span><small>회</small></div><h3>상한을 채우면 증량</h3><p>다관절 6–10회, 고립 10–15회. 모든 본세트가 상한에 닿으면 다음엔 무게를 올려요.</p></div>
-        <div class="rule"><div class="big num"><span data-count="10">10</span><small>%</small></div><h3>많이 모자라면 감량</h3><p>목표보다 3회 이상 모자라거나 한계까지 갔다면 약 10% 낮춰 다시 쌓도록 안내해요.</p></div>
-        <div class="rule"><div class="big num"><span data-count="20">20</span><small>세트</small></div><h3>근육별 주간 세트</h3><p>주 10–20세트를 권장 범위로 보여 주고, 초보자는 4세트 이상이면 충분하다고 알려 줘요.</p></div>
+        <div class="rule"><div class="big num"><span data-count="10">10</span><small>회</small></div><h3>상한을 채우면 증량</h3><p>다관절 6–10회, 고립 10–15회(운동 목표에 맞춰 조정). 첫 세트가 상한을 채우고 나머지 세트가 하한 이상이면 다음엔 무게를 올려요.</p></div>
+        <div class="rule"><div class="big num"><span data-count="10">10</span><small>%</small></div><h3>두 번 모자라면 감량</h3><p>목표보다 3회 이상 모자란 날이 두 번 이어지면 약 10% 낮춰 다시 쌓도록 안내해요. 한 번은 컨디션 탓일 수 있으니까요.</p></div>
+        <div class="rule"><div class="big num"><span data-count="20">20</span><small>세트</small></div><h3>근육별 주간 세트</h3><p>운동 목표에 맞춘 주간 세트 범위(근육량 10–20세트 등)를 보여 주고, 처음 8주는 낮게 시작해요.</p></div>
         <div class="rule"><div class="big num">0–3<small>RIR</small></div><h3>여유까지 반영</h3><p>남은 여력(RIR)을 적어 두면, 상한을 채웠어도 한계였던 날은 한 번 더 같은 무게로 권해요.</p></div>
       </div>
       <p class="note">추천은 참고용이에요. 통증이 있거나 자세가 무너지면 무게보다 몸 상태를 먼저 챙기세요.</p>
@@ -458,11 +458,12 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: s
   }
   function suggestion() {
     const minR = Math.min(...reps)
-    if (reps.every((r) => r >= REP_MAX)) return [`▲ 다음엔 <span class="num">${W + INC}kg</span> × ${REP_MIN}회부터`, `지난번 ${W}kg로 모든 세트 ${REP_MAX}회 이상 → ${W + INC}kg로 ${REP_MIN}회부터`]
-    if (minR <= REP_MIN - 3) return [`▼ 다음엔 <span class="num">${W - 5}kg</span> × ${REP_MIN}회부터`, `지난번 ${W}kg에서 목표(${REP_MIN}회)보다 많이 모자랐어요 → ${W - 5}kg로 낮춰 ${REP_MIN}회부터 다시 쌓기`]
+    const total = reps.reduce((a, b) => a + b, 0)
+    if ((reps[0] >= REP_MAX && minR >= REP_MIN) || total >= 0.9 * REP_MAX * reps.length) return [`▲ 다음엔 <span class="num">${W + INC}kg</span> × ${REP_MIN}회부터`, `지난번 ${W}kg로 첫 세트 ${reps[0]}회 · 나머지도 ${REP_MIN}회 이상 → ${W + INC}kg로 ${REP_MIN}회부터`]
+    if (minR <= REP_MIN - 3) return [`다음엔 <span class="num">${W}kg</span> × ${REP_MIN}회 한 번 더`, `지난번 ${W}kg에서 목표(${REP_MIN}회)보다 많이 모자랐어요 → 컨디션 탓일 수 있어 같은 무게로 한 번 더(두 번 연속이면 낮춰요)`]
     if (minR < REP_MIN) return [`다음엔 <span class="num">${W}kg</span> × ${REP_MIN}회 목표`, `지난번 ${W}kg에서 목표(${REP_MIN}회)보다 적었어요 → 같은 무게로 ${REP_MIN}회 목표`]
     const t = Math.min(REP_MAX, minR + 1)
-    return [`다음엔 <span class="num">${W}kg</span> × ${t}회 도전`, `목표 ${REP_MIN}–${REP_MAX}회 · 같은 무게로 ${t}회 도전 (모든 세트 ${REP_MAX}회를 채우면 증량)`]
+    return [`다음엔 <span class="num">${W}kg</span> × ${t}회 도전`, `목표 ${REP_MIN}–${REP_MAX}회 · 같은 무게로 ${t}회 도전 (첫 세트 ${REP_MAX}회 + 나머지 ${REP_MIN}회 이상이면 증량)`]
   }
   rows.addEventListener('click', (e) => {
     const row = e.target.closest('.row'); if (!row) return

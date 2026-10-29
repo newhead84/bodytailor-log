@@ -1,7 +1,5 @@
 import React from 'react'
 import { ACCENT_OPTIONS } from '../utils/fonts'
-import legendIconImg from '../assets/tier-icons/legend.png'
-import diamondIconImg from '../assets/tier-icons/diamond.png'
 // [2026-10-29] platinum.png('PLATINUM' 글자 일러스트)는 단계명 변경으로 미사용 — 파일은 보관
 
 export function Button({ children, onClick, variant = 'primary', disabled, style, type = 'button', full }) {
@@ -103,19 +101,66 @@ const TIER_GLOW = { platinum: 8, diamond: 10, legend: 14 }
 
 let btTierGradId = 0
 
-// 미 육군 계급장(쉐브론) 모티브의 오리지널 SVG 배지. 실제 계급장을 그대로 쓰지 않고
-// V자 줄무늬 모티브만 차용해 새로 그렸다 — 등급이 높을수록 줄 수가 늘어난다.
-function TierChevronIcon({ tierKey, size = 14 }) {
-  const idx = TIER_VISUAL_ORDER.indexOf(tierKey)
-  const count = idx === -1 ? 1 : idx + 1
+// [2026-10-29 교체] 등급 아이콘: 7단계 모두 같은 방패 엠블럼(사용자 선택 A안, 오리지널 SVG).
+// 단계가 오를수록 안쪽 표식이 늘어난다: 점 → 쉐브론 1·2·3 → 별 → 별 2개 → 왕관.
+// (예전 쉐브론 줄무늬 + 다이아몬드·레전드 일러스트 혼용을 하나의 세트로 통일)
+const TIER_SHIELD = 'M16 2.5 27 6.5v8.2c0 7-4.6 12.2-11 14.8C9.6 26.9 5 21.7 5 14.7V6.5Z'
+function starPoints(cx, cy, r) {
+  const pts = []
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5
+    const rr = i % 2 ? r * 0.45 : r
+    pts.push(`${(cx + rr * Math.cos(a)).toFixed(2)},${(cy + rr * Math.sin(a)).toFixed(2)}`)
+  }
+  return pts.join(' ')
+}
+const MARK = { fill: '#fff', stroke: 'rgba(0,0,0,0.18)', strokeWidth: 0.6, paintOrder: 'stroke' }
+function TierMarks({ idx }) {
+  if (idx <= 0) return <circle cx="16" cy="15" r="2.6" {...MARK} />
+  if (idx <= 3)
+    return Array.from({ length: idx }).map((_, k) => (
+      <path
+        key={k}
+        d={`M10.5 ${13 + k * 4.2 - (idx - 1) * 2.1}l5.5-3.6 5.5 3.6`}
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ))
+  if (idx === 4) return <polygon points={starPoints(16, 15, 6)} {...MARK} />
+  if (idx === 5)
+    return (
+      <>
+        <polygon points={starPoints(12, 15.5, 4.2)} {...MARK} />
+        <polygon points={starPoints(20, 15.5, 4.2)} {...MARK} />
+      </>
+    )
+  return (
+    <>
+      <path d="M9.5 18.5l1.2-7 3.2 3.4L16 9.6l2.1 5.3 3.2-3.4 1.2 7Z" {...MARK} />
+      <rect x="9.5" y="19.6" width="13" height="2" rx="1" {...MARK} />
+    </>
+  )
+}
+export function TierEmblem({ tierKey, size = 20 }) {
+  const idx = Math.max(0, TIER_VISUAL_ORDER.indexOf(tierKey))
   const isLegend = tierKey === 'legend'
   const gradId = React.useMemo(() => `bt-tier-grad-${btTierGradId++}`, [])
-  const w = size * 1.3
-  const gap = size * 0.34
-  const h = size * 0.62 + gap * (count - 1)
-  const stroke = isLegend ? `url(#${gradId})` : `var(--tier-${tierKey || 'iron'})`
+  const glow = TIER_GLOW[tierKey]
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} fill="none" style={{ flexShrink: 0 }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      aria-hidden="true"
+      style={{
+        flexShrink: 0,
+        display: 'block',
+        ...(glow ? { filter: `drop-shadow(0 0 ${glow * 0.35}px ${isLegend ? 'rgba(255, 77, 157, 0.55)' : `var(--tier-${tierKey})`})` } : {}),
+      }}
+    >
       {isLegend && (
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
@@ -125,54 +170,9 @@ function TierChevronIcon({ tierKey, size = 14 }) {
           </linearGradient>
         </defs>
       )}
-      {Array.from({ length: count }).map((_, i) => (
-        <path
-          key={i}
-          d={`M${w * 0.1} ${h * 0.32 + gap * i} L${w / 2} ${h * 0.05 + gap * i} L${w * 0.9} ${h * 0.32 + gap * i}`}
-          stroke={stroke}
-          strokeWidth={Math.max(1.4, size * 0.13)}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ))}
+      <path d={TIER_SHIELD} fill={isLegend ? `url(#${gradId})` : `var(--tier-${tierKey || 'iron'})`} />
+      <TierMarks idx={idx} />
     </svg>
-  )
-}
-
-// [2026-07-29 신규] 플래티넘/다이아몬드/레전드 3개 티어는 기존 쉐브론 라인 아이콘 대신
-// 사용자가 제공한 일러스트 아이콘(이두근+하트=레전드 / 보석+리본=다이아몬드 / PLATINUM 리본=플래티넘)으로
-// 교체한다.
-// [2026-10-29] 단계명이 영문(Elite 등)으로 바뀌면서 'PLATINUM' 글자가 들어간 일러스트는 맞지 않아
-// 플래티넘(Elite) 단계는 쉐브론 아이콘으로 표시한다(다이아몬드·레전드 일러스트는 글자가 없어 유지).
-const TIER_IMAGE_ICONS = {
-  diamond: diamondIconImg,
-  legend: legendIconImg,
-}
-
-// 아래 단계 쉐브론들과 나란히 놓였을 때 위화감이 들지 않도록 다듬었다:
-// - 쉐브론은 얇은 선 아이콘이라 작게(size≈12~15px) 둬도 읽히지만, 일러스트는 그만큼 축소하면
-//   형태가 뭉개져 오히려 더 작아 보이므로, 배지 폰트 크기 대비 약 1.6배로 살짝 키운다.
-// - 기존 플래티넘/다이아몬드/레전드 쉐브론에 걸려 있던 drop-shadow 글로우(TIER_GLOW)와
-//   동일한 톤·색을 이미지에도 그대로 적용해 "이 배지만 튀어 보이는" 느낌을 없앤다.
-function TierImageIcon({ tierKey, size = 14 }) {
-  const src = TIER_IMAGE_ICONS[tierKey]
-  const dim = Math.round(size * 1.6)
-  const isLegend = tierKey === 'legend'
-  const glowColor = isLegend ? 'rgba(255, 77, 157, 0.55)' : `var(--tier-${tierKey})`
-  // 쉐브론의 drop-shadow 글로우보다 이미지 면적이 넓어 그대로 쓰면 과해 보여서 절반 정도로 조정
-  const glowSize = (TIER_GLOW[tierKey] || 8) * 0.6
-  return (
-    <img
-      src={src}
-      alt=""
-      width={dim}
-      height={dim}
-      style={{
-        flexShrink: 0,
-        display: 'block',
-        filter: `drop-shadow(0 0 ${glowSize}px ${glowColor})`,
-      }}
-    />
   )
 }
 
@@ -211,8 +211,7 @@ export function TierBadge({ label, tierKey, size = 'md', level }) {
         background: 'var(--color-bg-elevated)', // [2026-10-28 리디자인] 강조색 틴트 → 무채색
       }}
     >
-      {tierKey && TIER_IMAGE_ICONS[tierKey] && <TierImageIcon tierKey={tierKey} size={sizes[size]} />}
-      {tierKey && !TIER_IMAGE_ICONS[tierKey] && <TierChevronIcon tierKey={tierKey} size={sizes[size]} />}
+      {tierKey && <TierEmblem tierKey={tierKey} size={Math.round(sizes[size] * 1.45)} />}
       {level != null && (
         <span className="bt-num" style={{ color: 'var(--color-label-strong)', fontWeight: 800 }}>
           Lv {level}

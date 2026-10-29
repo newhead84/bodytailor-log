@@ -8,14 +8,15 @@
 import React, { useMemo, useState } from 'react'
 import { Card, SectionTitle, Chip, Disclosure } from './ui'
 import { CountUp } from '../hooks/useCountUp'
-import { BODY_PART_ATOMS, getPartColor, getExerciseInputType } from '../utils/exerciseLibrary'
+import { BODY_PART_ATOMS, getPartColor, getExerciseInputType, getExerciseAtom, getExerciseMovementPattern } from '../utils/exerciseLibrary'
 import { exerciseKeyLabel, parseExerciseKey } from '../utils/exerciseKey'
 import { formatLoad, repsUnit, logVolumeKg } from '../utils/load'
 import { cardioStats } from '../utils/cardioFields'
 import { toLocalDateStr } from '../utils/date'
+import { getTrainingProfile } from '../utils/goals'
 import {
   fractionalSetsByAtom,
-  WEEKLY_SET_GUIDE,
+  getWeeklySetGuide,
   detectPlateaus,
   recentPrList,
   heavyCompoundSets,
@@ -51,6 +52,8 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
   const atoms = BODY_PART_ATOMS.filter((a) => a !== '유산소').flatMap((a) => (a === '하체' ? [LEG_FRONT, LEG_BACK] : [a]))
   const rows = compact ? atoms.filter((a) => (sets[a] || 0) > 0).sort((a, b) => (sets[b] || 0) - (sets[a] || 0)).slice(0, 5) : atoms
   const scaleMax = 25
+  // [2026-10-30] 목표·가입 기간에 맞춘 기준(goals.js) — 예: 근력 1순위 6–12, 처음 8주는 낮게
+  const WEEKLY_SET_GUIDE = getWeeklySetGuide()
   const bandLeft = (WEEKLY_SET_GUIDE.min / scaleMax) * 100
   const bandWidth = ((WEEKLY_SET_GUIDE.max - WEEKLY_SET_GUIDE.min) / scaleMax) * 100
   return (
@@ -135,7 +138,7 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
         {/* [2026-10-28 리디자인] 기준 설명은 접어 두기 */}
         <Disclosure>
           웜업 제외 본세트 기준 · 주동 부위 1세트, 함께 쓰인 보조 부위 0.5세트로 계산 · 점선 구간 = 주 {WEEKLY_SET_GUIDE.min}–
-          {WEEKLY_SET_GUIDE.max}세트(근비대 권장) · 초보자는 주 {WEEKLY_SET_GUIDE.minEffective}세트 이상이면 충분히 성장해요 · 하체 앞 =
+          {WEEKLY_SET_GUIDE.max}세트(내 운동 목표 기준, MY 프로필에서 변경) · 초보자는 주 {WEEKLY_SET_GUIDE.minEffective}세트 이상이면 충분히 성장해요 · 하체 앞 =
           허벅지 앞·안쪽, 하체 뒤 = 엉덩이·햄스트링·종아리 · 코어는 권장 범위 없이 세트 수만 표시
         </Disclosure>
       </Card>
@@ -145,7 +148,8 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
 
 // [2026-10-29] 유산소 기록 개선(A안): 이번 주 시간(150분 목표)·거리 합계·종목별 시간 + 최근 4주 시간 막대 (cardioStats는 cardioFields.js)
 export function CardioCard({ logs, liveExercises = null }) {
-  const goal = 150
+  // [2026-10-30] 주간 목표는 운동 목표에 맞춰(체지방 감소 250분 등), 고강도 1분 = 2분으로 환산(WHO)
+  const goal = getTrainingProfile().cardioGoalMin
   const live = Array.isArray(liveExercises) && liveExercises.some((ex) => (ex.inputType || getExerciseInputType(ex.name)) === 'cardio')
   const weeks = useMemo(
     () =>
@@ -155,9 +159,9 @@ export function CardioCard({ logs, liveExercises = null }) {
     [logs, live, liveExercises]
   )
   const cur = weeks[3]
-  const pct = Math.min(100, (cur.minutes / goal) * 100)
+  const pct = Math.min(100, (cur.effectiveMin / goal) * 100)
   const top = Object.entries(cur.byName).sort((a, b) => b[1] - a[1]).slice(0, 3)
-  const maxWeek = Math.max(goal, ...weeks.map((w) => w.minutes))
+  const maxWeek = Math.max(goal, ...weeks.map((w) => w.effectiveMin))
   const weekLabel = (k) => (k === 3 ? '이번 주' : k === 2 ? '지난주' : `${3 - k}주 전`)
   return (
     <>
@@ -165,9 +169,14 @@ export function CardioCard({ logs, liveExercises = null }) {
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
           <span className="bt-num" style={{ fontSize: 'calc(28px * var(--num-scale))' }}>
-            <CountUp value={Math.round(cur.minutes)} />
+            <CountUp value={Math.round(cur.effectiveMin)} />
           </span>
           <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>/ {goal}분</span>
+          {cur.vigorousMin > 0 && (
+            <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', width: '100%' }}>
+              실제 {Math.round(cur.minutes)}분 · 고강도 {Math.round(cur.vigorousMin)}분은 2배로 계산
+            </span>
+          )}
           {cur.km > 0 && (
             <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--color-label-normal)' }}>
               거리 <span className="bt-num" style={{ fontSize: 16 }}>{fmt1(cur.km)}</span>km
@@ -187,20 +196,20 @@ export function CardioCard({ logs, liveExercises = null }) {
             ))}
           </div>
         )}
-        {/* 최근 4주 유산소 시간 — 점선 = 주 150분 */}
+        {/* 최근 4주 유산소 시간(고강도 ×2 환산) — 점선 = 주간 목표 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, alignItems: 'end', height: 92, position: 'relative', marginTop: 4 }}>
           <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: `calc(${(goal / maxWeek) * 60}px + 26px)`, borderTop: '1px dashed var(--color-line-strong)' }} />
           {weeks.map((w, k) => (
             <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <span className="bt-num" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>{Math.round(w.minutes)}</span>
-              <div style={{ width: '60%', maxWidth: 34, height: Math.max(2, (w.minutes / maxWeek) * 60), borderRadius: 4, background: k === 3 ? 'var(--color-fill-strong)' : 'var(--color-line-strong)' }} />
+              <span className="bt-num" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>{Math.round(w.effectiveMin)}</span>
+              <div style={{ width: '60%', maxWidth: 34, height: Math.max(2, (w.effectiveMin / maxWeek) * 60), borderRadius: 4, background: k === 3 ? 'var(--color-fill-strong)' : 'var(--color-line-strong)' }} />
               <span style={{ fontSize: 11, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>{weekLabel(k)}</span>
             </div>
           ))}
         </div>
         {live && <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>오늘 진행 중인 운동(체크한 세트) 포함</span>}
         <Disclosure>
-          대화가 가능한 중강도 유산소 주 150분이 건강 기준(WHO)이에요. 웨이트와 같이 해도 근육 성장에는 지장이 없고, 순발력이 중요하면 웨이트와 시간을
+          대화가 가능한 중강도 유산소 주 150분(고강도면 75분)이 건강 기준(WHO)이라, 인터벌·에어바이크·배틀로프·줄넘기·시속 8km 이상 달리기는 1분을 2분으로 계산해요. 목표 분은 MY 프로필의 운동 목표에 맞춰져요. 웨이트와 같이 해도 근육 성장에는 지장이 없고, 순발력이 중요하면 웨이트와 시간을
           떨어뜨려 하세요. 거리는 적은 값이 없으면 속도 × 시간으로 계산해요.
         </Disclosure>
       </Card>
@@ -361,6 +370,76 @@ export function BoneHealthCard({ logs }) {
         <Disclosure>
           대한골대사학회 권고: 1RM의 50–85% 무게로 5–12회, 주 2–3일. 점프·착지 같은 충격 운동을 주 3회 곁들이면 더 좋아요. 골다공증이 있거나 진단받은
           질환이 있으면 무게를 올리기 전에 전문가와 상의하세요.
+        </Disclosure>
+      </Card>
+    </>
+  )
+}
+
+// [2026-10-30 신규] 밀기 : 당기기 균형(최근 2주 본세트) + 자세·코어 목표면 코어·등 체크.
+// 가슴·어깨 앞쪽(밀기)만 많고 등·후면(당기기)이 적으면 둥근 어깨·어깨 통증으로 이어지기 쉬워 당기기 ≥ 밀기의 0.8배를 권장.
+const REAR_DELT_WORDS = ['페이스풀', '리어', '리버스']
+function balanceCounts(logs) {
+  let push = 0
+  let pull = 0
+  let core = 0
+  ;(logs || []).forEach((log) =>
+    (log.exercises || []).forEach((ex) => {
+      const type = ex.inputType || getExerciseInputType(ex.name)
+      if (type === 'cardio') return
+      const n = (ex.sets || []).filter((st) => st.type !== 'warmup' && (Number(st.reps) || 0) > 0).length
+      if (!n) return
+      // 데드리프트류(힌지)·스쿼트·런지는 하체 운동이라 밀기·당기기에서 뺀다(부위가 '등'으로 저장돼도)
+      if (['hinge', 'squat', 'lunge'].includes(getExerciseMovementPattern(ex.name))) return
+      const atom = ex.part && !String(ex.part).includes('&') ? ex.part : getExerciseAtom(ex.name)
+      const rear = REAR_DELT_WORDS.some((w) => ex.name.includes(w))
+      if (atom === '등' || (atom === '어깨' && rear)) pull += n
+      else if (atom === '가슴' || (atom === '어깨' && !ex.name.includes('레이즈'))) push += n
+      else if (atom === '코어') core += n
+    })
+  )
+  return { push, pull, core }
+}
+export function BalanceCard({ logs, posture = false }) {
+  const two = useMemo(() => [...logsInWeek(logs, 0), ...logsInWeek(logs, -1)], [logs])
+  const { push, pull, core } = useMemo(() => balanceCounts(two), [two])
+  const week = useMemo(() => balanceCounts(logsInWeek(logs, 0)), [logs])
+  if (push + pull === 0 && !posture) return null
+  const ratio = push > 0 ? pull / push : null
+  const ok = ratio == null || ratio >= 0.8
+  const total = Math.max(1, push + pull)
+  return (
+    <>
+      <SectionTitle>{posture ? '자세·균형 체크' : '밀기 · 당기기 균형'}</SectionTitle>
+      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+          <span>
+            밀기 <span className="bt-num">{push}</span>세트
+          </span>
+          <span>
+            당기기 <span className="bt-num">{pull}</span>세트
+          </span>
+        </div>
+        <div style={{ display: 'flex', height: 8, borderRadius: 'var(--radius-pill)', overflow: 'hidden', background: 'var(--color-line)' }}>
+          <div style={{ width: `${(push / total) * 100}%`, background: 'var(--color-line-strong)' }} />
+          <div style={{ width: `${(pull / total) * 100}%`, background: 'var(--color-fill-strong)' }} />
+        </div>
+        <span className="text-keep-all" style={{ fontSize: 13, color: ok ? 'var(--color-label-normal)' : 'var(--color-warning)' }}>
+          {ratio == null
+            ? '최근 2주 밀기 운동 기록이 없어요.'
+            : ratio > 2
+            ? `최근 2주 당기기가 밀기의 ${ratio.toFixed(1)}배예요. 자세에는 좋지만 가슴·어깨 밀기 운동도 챙기면 균형이 더 좋아져요.`
+            : ok
+            ? `최근 2주 당기기가 밀기의 ${ratio.toFixed(1)}배 — 균형이 좋아요.`
+            : `최근 2주 당기기가 밀기의 ${ratio.toFixed(1)}배예요. 로우·랫풀다운·페이스풀을 늘려 0.8배 이상을 맞춰 보세요.`}
+        </span>
+        {posture && (
+          <span className="text-keep-all" style={{ fontSize: 13, color: week.core >= 6 ? 'var(--color-label-normal)' : 'var(--color-label-neutral)' }}>
+            이번 주 코어 본세트 {week.core}세트 (주 6세트 이상, 2–3회로 나눠서)
+          </span>
+        )}
+        <Disclosure>
+          가슴·어깨 앞쪽(밀기)만 많고 등·어깨 뒤쪽(당기기)이 적으면 어깨가 앞으로 말리고 통증이 생기기 쉬워요. 당기기를 밀기와 같거나 조금 더 하는 것을 권장해요. 팔(이두·삼두)·사이드 레이즈·데드리프트류는 빼고 셌어요.
         </Disclosure>
       </Card>
     </>

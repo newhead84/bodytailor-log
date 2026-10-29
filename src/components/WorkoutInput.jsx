@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { ChevronDown, Info, X, SlidersHorizontal, Play } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card, useConfirm } from './ui'
+import { Button, Chip, Card, useConfirm, TierEmblem } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
@@ -12,7 +12,7 @@ import {
   getDefaultRestSec,
   buildWarmupRamp,
   usesBarbellPlates,
-  setE1rm,
+  prE1rm,
   bestE1rmOfSets,
   hasWarmupRamp,
   getProgressionIncrement,
@@ -1113,9 +1113,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     if (savedSet && savedSet.type !== 'warmup' && getExerciseInputType(parseExerciseKey(name).name) === 'sets') {
       const exName = parseExerciseKey(name).name
       // [2026-10-29] 실제 부하 기준(어시스트 = 체중 − 보조, 맨몸+추가 = 체중 + 추가)
-      const v = setE1rm(exName, savedSet)
+      // [2026-10-30] 신기록 판정은 PR 규칙(다관절 10회 이하)과 같게
+      const v = prE1rm(exName, savedSet)
       // [2026-10-29] 이번 세션 최고치는 ref 대신 현재 기록에서 다시 계산(새로고침·세트 삭제·웜업 전환에도 정확)
-      const sessionBest = (records[name] || []).reduce((m, st, i) => (i !== idx && st.saved && st.type !== 'warmup' ? Math.max(m, setE1rm(exName, st) || 0) : m), 0)
+      const sessionBest = (records[name] || []).reduce((m, st, i) => (i !== idx && st.saved && st.type !== 'warmup' ? Math.max(m, prE1rm(exName, st) || 0) : m), 0)
       const prevBest = Math.max(personalRecords?.[name]?.e1rm || 0, sessionBest)
       if (v > 0 && personalRecords?.[name]?.e1rm && v > prevBest) {
         showToast(`신기록! 추정 1RM ${v}kg (+${Math.round((v - prevBest) * 10) / 10})`, 2600)
@@ -2080,7 +2081,8 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
         {xpEarned > 0 && (
           <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary-bg)', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-              <span className="bt-num" style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+              <span className="bt-num" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+                <TierEmblem tierKey={after.tierKey} size={22} />
                 Lv {leveledUp ? `${before.level} → ${after.level}` : after.level}
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', marginLeft: 6 }}>{after.stage}</span>
               </span>

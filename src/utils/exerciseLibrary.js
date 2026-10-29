@@ -2577,50 +2577,81 @@ export function getExerciseAliases(name) {
 // MY탭/운동조합 변경 화면 양쪽에서 "분할운동 템플릿에서 추가" 기능에 공통으로 사용한다.
 // [2026-07-30 개편] 모든 분할에서 각 파트 끝에 코어&유산소를 기본 포함하도록 전면 교체하고,
 // 5분할 프리셋을 신규 추가했다(기존에는 2/3/4분할만 존재, 코어·유산소 미포함 조합도 있었음).
+// [2026-10-30 트레이너 관점 재구성] 부위당 주 2회(근비대에 유리)를 기준으로 주당 일수별 분할을 고른다.
+//  - 무분할(전신): 주 2–3일 / 2분할(상체·하체): 주 4일 / 3분할(밀기·당기기·하체): 주 3일 또는 5–6일
+//  - 4·5분할은 부위당 주 1회 — 주 5–6일 운동하는 중급 이상용
+//  - 코어는 2~3개 파트에만(주 2–3회면 충분), 유산소는 목표가 체지방 감소·심폐 지구력일 때만 각 파트에 추가(withCardio)
 export const SPLIT_TEMPLATE_PRESETS = [
+  {
+    key: 'fullbody',
+    label: '무분할(전신)',
+    description: '한 번에 전신 — 주 2–3일, 처음 시작하기 좋아요',
+    days: '주 2–3일',
+    parts: [['가슴', '등', '어깨', '하체', '코어']],
+    perAtom: 1,
+  },
   {
     key: '2split',
     label: '2분할',
-    description: '상체&코어&유산소 / 하체&코어&유산소',
+    description: '상체&코어 / 하체 — 주 4일이면 부위당 주 2회',
+    days: '주 4일',
     parts: [
-      ['가슴', '등', '어깨', '이두', '삼두', '코어', '유산소'],
-      ['하체', '코어', '유산소'],
+      ['가슴', '등', '어깨', '이두', '삼두', '코어'],
+      ['하체'],
     ],
+    perAtom: 2,
   },
   {
     key: '3split',
-    label: '3분할',
-    description: '등&이두&코어&유산소 / 가슴&삼두&코어&유산소 / 하체&어깨&코어&유산소',
+    label: '3분할(밀기·당기기·하체)',
+    description: '가슴&어깨&삼두 / 등&이두&코어 / 하체&코어 — 주 3일 또는 6일',
+    days: '주 3·6일',
     parts: [
-      ['등', '이두', '코어', '유산소'],
-      ['가슴', '삼두', '코어', '유산소'],
-      ['하체', '어깨', '코어', '유산소'],
+      ['가슴', '어깨', '삼두'],
+      ['등', '이두', '코어'],
+      ['하체', '코어'],
     ],
   },
   {
     key: '4split',
     label: '4분할',
-    description: '가슴&코어&유산소 / 등&이두&삼두&코어&유산소 / 어깨&코어&유산소 / 하체&코어&유산소',
+    description: '가슴&코어 / 등&이두&삼두 / 어깨&코어 / 하체 — 부위당 주 1회, 중급 이상',
+    days: '주 4–5일',
     parts: [
-      ['가슴', '코어', '유산소'],
-      ['등', '이두', '삼두', '코어', '유산소'],
-      ['어깨', '코어', '유산소'],
-      ['하체', '코어', '유산소'],
+      ['가슴', '코어'],
+      ['등', '이두', '삼두'],
+      ['어깨', '코어'],
+      ['하체'],
     ],
   },
   {
     key: '5split',
     label: '5분할',
-    description: '가슴&코어&유산소 / 등&코어&유산소 / 어깨&코어&유산소 / 이두&삼두&코어&유산소 / 하체&코어&유산소',
+    description: '가슴 / 등 / 어깨&코어 / 이두&삼두 / 하체&코어 — 부위당 주 1회, 중급 이상',
+    days: '주 5–6일',
     parts: [
-      ['가슴', '코어', '유산소'],
-      ['등', '코어', '유산소'],
-      ['어깨', '코어', '유산소'],
-      ['이두', '삼두', '코어', '유산소'],
-      ['하체', '코어', '유산소'],
+      ['가슴'],
+      ['등'],
+      ['어깨', '코어'],
+      ['이두', '삼두'],
+      ['하체', '코어'],
     ],
   },
 ]
+
+// [2026-10-30 트레이너 관점] 주당 운동 일수 ↔ 분할. 부위당 주 2회가 근비대에 유리(Schoenfeld 2016 메타분석)해
+// 일수에 맞는 분할을 추천하고, 루틴 파트 수가 일수보다 많으면(부위당 주 1회 미만) 안내한다.
+export function recommendedSplitKey(days) {
+  const d = Number(days) || 3
+  if (d <= 3) return 'fullbody'
+  if (d === 4) return '2split'
+  return '3split'
+}
+// 루틴 파트 수·주당 일수 → 부위당 주 횟수(근사)
+export function perPartWeeklyFrequency(partCount, days) {
+  if (!partCount || !days) return null
+  return Math.round((Number(days) / partCount) * 10) / 10
+}
 
 // 프리셋(SPLIT_TEMPLATE_PRESETS의 한 항목) → 저장 가능한 template.parts 배열로 변환.
 // [2026-10-27 리뉴얼] 분할 템플릿으로 루틴을 만들면 부위의 라이브러리 종목 전체(하체만 28종)가
@@ -2637,14 +2668,31 @@ const PRESET_STARTER_EXERCISES = {
   코어: ['행잉레그레이즈'],
   유산소: ['인클라인워킹'],
 }
-export function buildTemplatePartsFromPreset(preset) {
-  return preset.parts.map((atoms) => {
+export function buildTemplatePartsFromPreset(preset, { withCardio = false } = {}) {
+  return preset.parts.map((baseAtoms) => {
+    // [2026-10-30] 유산소는 목표가 체지방 감소·심폐 지구력일 때만 각 파트 끝에
+    const atoms = withCardio && !baseAtoms.includes('유산소') ? [...baseAtoms, '유산소'] : baseAtoms
     const name = buildPartName(atoms)
     const exercises = []
     atoms.forEach((atom) => {
       const available = getExercisesForPart(atom)
       const starters = (PRESET_STARTER_EXERCISES[atom] || []).filter((n) => available.includes(n))
-      ;(starters.length > 0 ? starters : available.slice(0, 2)).forEach((n) => {
+      // 전신·상체처럼 부위가 많은 파트는 부위당 종목 수를 줄여 운동 시간이 길어지지 않게(perAtom)
+      const n = baseAtoms.filter((a) => a !== '코어' && a !== '유산소').length
+      const arm = atom === '이두' || atom === '삼두'
+      const limit =
+        atom === '코어' || atom === '유산소'
+          ? 1
+          : n >= 4
+          ? (atom === '가슴' || atom === '등') && (preset.perAtom || 1) > 1
+            ? 2
+            : 1
+          : n === 3
+          ? arm
+            ? 1
+            : 2
+          : 99
+      ;(starters.length > 0 ? starters : available.slice(0, 2)).slice(0, limit).forEach((n) => {
         if (!exercises.includes(n)) exercises.push(n)
       })
     })

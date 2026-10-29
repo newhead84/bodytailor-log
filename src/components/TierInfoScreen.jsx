@@ -108,7 +108,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
           <p style={{ margin: '0 0 10px' }}>매주 아래 항목을 종합해 최종점수를 계산하고, 전체/PT그룹/일반그룹 랭킹에 반영해요.</p>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             <li>출석 40% — 이번 주 운동한 날 수 / 주당 목표 일수(MY에서 설정, 2~6일)</li>
-            <li>볼륨·기록 30% — 최근 평균 대비 이번 주 총 볼륨</li>
+            <li>볼륨·기록 30% — 최근 4주 평균 대비 이번 주 총 볼륨(평균만큼 하면 만점, 더 늘려도 추가 점수 없음)</li>
             <li>점진적 과부하 30% — 지난주 대비 중량·볼륨이 늘어난 종목 비율</li>
             <li>보너스 — 연속 출석 4주마다 +5점(최대 +20)</li>
           </ul>
@@ -162,8 +162,9 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             <li>기본 50XP (사이클에 포함된 정규 운동 기준)</li>
             <li>사이클 외 자유 추가 운동은 0.7배(기본 35XP)로 계산돼요</li>
-            <li>볼륨 보너스: 총 볼륨 50마다 +1XP (최대 100XP)</li>
-            <li>운동시간 보너스: 2분마다 +1XP (최대 30XP)</li>
+            <li>볼륨 보너스: 총 볼륨 60kg마다 +1XP (최대 80XP)</li>
+            <li>운동시간 보너스: 3분마다 +1XP, 75분까지만 (최대 25XP)</li>
+            <li>신기록 보너스: 개인 기록 1개당 +10XP (최대 20XP)</li>
             <li>세션당 최소 10XP는 보장돼요</li>
             <li>웜업 세트는 볼륨·XP 계산에서 빠져요(본세트만 반영)</li>
           </ul>

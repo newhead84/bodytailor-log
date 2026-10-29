@@ -505,7 +505,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step 
         </div>
       )}
       <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
-        모든 본세트가 상한 횟수에 도달하면 다음 운동에서 증량을 추천해요.
+        첫 세트가 상한을, 나머지 세트가 하한 이상을 채우면 다음 운동에서 증량을 추천해요. 기본값은 MY 프로필의 운동 목표에 맞춰져요.
       </span>
     </div>
   )

@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Button, Chip, BackButton } from './ui'
+import { Button, BackButton } from './ui'
 import { HOWTO_ONBOARDING_TEXT } from '../utils/howtoText'
+import { GoalPicker, TrainingPlanSummary } from './GoalPicker'
 
 const GENDERS = ['남성', '여성']
-const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
 
 // [2026-07-28] 앱 컨셉상(셀프 PT, 트레이너 개입 없이 스스로 기록) 운동 수준(입문/초급/중급/고급)을
 // 미리 묻는 게 맞지 않다는 사용자 피드백으로 온보딩에서 이 질문을 완전히 제거함(스펙 8.4와 배치되는
@@ -12,7 +12,8 @@ const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력
 // [2026-08-01 변경] 나이/몸무게/키를 "basic" 한 페이지에 몰아 놓았던 구조가 입력 줄이 다닥다닥
 // 붙어 보기 불편하다는 피드백에 따라, 질문당 1페이지씩 완전히 분리했다(요청 확인 후 반영).
 // [2026-10-29] 닉네임(랭킹에 보이는 이름 — 구글 실명이 그대로 노출되던 문제)과 주당 운동 목표 일수(출석 목표)를 추가.
-const STEPS = ['nickname', 'gender', 'age', 'weight', 'height', 'goals', 'days']
+// [2026-10-30] 목표 7종·우선순위(GoalPicker) + 마지막에 맞춤 기준 요약(plan)
+const STEPS = ['nickname', 'gender', 'age', 'weight', 'height', 'goals', 'days', 'plan']
 const TARGET_DAY_OPTIONS = [2, 3, 4, 5, 6]
 
 const STEP_TITLES = {
@@ -22,7 +23,8 @@ const STEP_TITLES = {
   age: '나이가 어떻게 되세요?',
   weight: '몸무게가 어떻게 되세요?',
   height: '키가 어떻게 되세요?',
-  goals: '운동 목표를 선택해 주세요 (복수 선택 가능)',
+  goals: '운동 목표를 골라 주세요',
+  plan: '이렇게 맞춰 드려요',
 }
 
 // [2026-08-01 신규] 페이지 전환 슬라이드 애니메이션. direction(1: 다음으로 진행, -1: 이전으로
@@ -52,8 +54,6 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
     goals: [],
   })
   const [saving, setSaving] = useState(false)
-  const [addingCustomGoal, setAddingCustomGoal] = useState(false)
-  const [customGoalInput, setCustomGoalInput] = useState('')
 
   function update(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -69,23 +69,6 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
     setStep((s) => s - 1)
   }
 
-  function toggleGoal(goal) {
-    setForm((f) => ({
-      ...f,
-      goals: f.goals.includes(goal) ? f.goals.filter((g) => g !== goal) : [...f.goals, goal],
-    }))
-  }
-
-  // "기타: 자유입력" — 사전 정의된 목표에 없는 내용을 직접 적어 goals 배열에 추가한다.
-  function addCustomGoal() {
-    const trimmed = customGoalInput.trim().slice(0, 30)
-    if (trimmed && !form.goals.includes(trimmed)) {
-      setForm((f) => ({ ...f, goals: [...f.goals, trimmed] }))
-    }
-    setCustomGoalInput('')
-    setAddingCustomGoal(false)
-  }
-
   const canNext = {
     nickname: form.nickname.trim().length > 0,
     days: !!form.weeklyTargetDays,
@@ -94,6 +77,7 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
     weight: !!form.weightKg,
     height: !!form.heightCm,
     goals: form.goals.length > 0,
+    plan: true,
   }[STEPS[step]]
 
   async function handleFinish() {
@@ -258,39 +242,18 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
 
             {STEPS[step] === 'goals' && (
               <StepBlock title={STEP_TITLES.goals}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: addingCustomGoal ? 12 : 0 }}>
-                  {GOALS.map((g) => (
-                    <Chip key={g} active={form.goals.includes(g)} onClick={() => toggleGoal(g)}>
-                      {g}
-                    </Chip>
-                  ))}
-                  {form.goals
-                    .filter((g) => !GOALS.includes(g))
-                    .map((g) => (
-                      <Chip key={g} active onClick={() => toggleGoal(g)}>
-                        {g}
-                      </Chip>
-                    ))}
-                  <Chip active={addingCustomGoal} onClick={() => setAddingCustomGoal((v) => !v)}>
-                    기타: 자유입력
-                  </Chip>
+                <GoalPicker goals={form.goals} onChange={(goals) => update('goals', goals)} />
+              </StepBlock>
+            )}
+
+            {STEPS[step] === 'plan' && (
+              <StepBlock title={STEP_TITLES.plan}>
+                <div style={{ padding: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)' }}>
+                  <TrainingPlanSummary goals={form.goals} beginner />
                 </div>
-                {addingCustomGoal && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      autoFocus
-                      value={customGoalInput}
-                      onChange={(e) => setCustomGoalInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addCustomGoal()}
-                      placeholder="목표를 직접 입력해 주세요"
-                      className="text-keep-all"
-                      style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14 }}
-                    />
-                    <Button variant="secondary" onClick={addCustomGoal}>
-                      추가
-                    </Button>
-                  </div>
-                )}
+                <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginTop: 14 }}>
+                  주 {form.weeklyTargetDays}일 기준이에요. 처음 8주는 몸이 적응하도록 주간 세트를 낮게 시작하고, 기록이 쌓이면 다음 무게 추천이 무게를 조금씩 올려 드려요.
+                </p>
               </StepBlock>
             )}
           </motion.div>

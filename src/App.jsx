@@ -1,6 +1,6 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-29] 자동 저장 기록 검토 팝업(시간·세트 수정)·MY 설정 화면 분리·캘린더 운동 시간 편집·유산소 기구별 칸 확대.
+ * 최신 변경: [2026-10-30] 등급 방패 아이콘·운동 목표 우선순위 맞춤 설정(goals.js)·성취 30종·증량/감량·PR·XP·유산소 고강도·밀기당기기 균형 개선.
  *            직전: 근육별 주간 세트에 진행 중인 운동 포함. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
@@ -11,6 +11,7 @@ import { LEGACY_EXERCISE_NAME_MAP } from './utils/exerciseLibrary'
 import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLogAndRevertXp, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
 import { prsVersionKey } from './utils/strength'
 import { setBodyweightKg } from './utils/load'
+import { setTrainingProfile, isBeginnerAccount } from './utils/goals'
 
 import LoginScreen from './components/LoginScreen'
 import AutoSavedReview from './components/AutoSavedReview'
@@ -240,6 +241,8 @@ export default function App() {
   // [2026-10-29] 어시스트·맨몸+추가 종목의 실제 부하(체중 ∓ 입력 무게) 계산용 체중. 렌더 중에 바로 반영해
   // 같은 렌더의 계산(볼륨·추정 1RM)부터 쓰이게 한다.
   setBodyweightKg(userDoc?.onboarding?.weightKg || 0)
+  // [2026-10-30] 운동 목표(우선순위) → 목표 반복·휴식·주간 세트·유산소 기준(goals.js). 가입 8주 미만은 주간 세트를 낮게.
+  setTrainingProfile(userDoc?.onboarding?.goals || [], { beginner: isBeginnerAccount(userDoc) })
 
   const prsBuildRef = useRef(false)
   useEffect(() => {
@@ -408,6 +411,7 @@ export default function App() {
         uid={authUser.uid}
         templates={routineTemplates}
         customExercises={userDoc.customExercises || {}}
+        weeklyTargetDays={userDoc.weeklyTargetDays || 3}
         isFirstSetup={isFirstSetup}
         onChanged={refreshRoutineTemplates}
         onSkip={isFirstSetup ? handleSkipRoutineSetup : null}

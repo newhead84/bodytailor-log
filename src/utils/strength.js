@@ -16,6 +16,7 @@ import {
 } from './exerciseLibrary'
 import { makeExerciseKey } from './exerciseKey'
 import { effectiveLoad, isAssistedExercise, isBodyweightLoaded, allowsZeroWeight, getBodyweightKg } from './load'
+import { getTrainingProfile } from './goals'
 
 export const SET_TYPES = ['working', 'warmup', 'drop', 'failure']
 export const SET_TYPE_LABEL = { working: '본세트', warmup: '웜업', drop: '드롭', failure: '실패' }
@@ -57,8 +58,15 @@ export function bestE1rmOfSets(sets, name) {
 
 // ───────── 개인 기록(PR) ─────────
 // PR 계산 규칙 버전. 바뀌면 App이 전체 기록으로 PR을 한 번 다시 계산한다(users.prsVersion).
-export const PRS_RULES_VERSION = '2026-10-29'
+// [2026-10-30] 다관절은 10회 이하 세트만 PR(추정 1RM) 대상 — 반복이 많을수록 Epley 추정 오차가 커져 신기록이 부풀던 문제
+export const PRS_RULES_VERSION = '2026-10-30'
+export const PR_MAX_REPS_COMPOUND = 10
 // 저장 키 = 규칙 버전 + 계산에 쓴 체중(체중이 바뀌면 어시스트·맨몸+추가 종목의 실제 부하가 달라져 다시 계산)
+// PR(신기록) 판정용 추정 1RM — 다관절은 10회 이하 세트만
+export function prE1rm(name, s, compound = isCompoundExercise(name)) {
+  if (compound && (Number(s?.reps) || 0) > PR_MAX_REPS_COMPOUND) return 0
+  return setE1rm(name, s)
+}
 export function prsVersionKey() {
   return `${PRS_RULES_VERSION}|${getBodyweightKg()}`
 }
@@ -72,14 +80,15 @@ export function mergePrsFromExercises(prev, exercises, date) {
     const cur = { ...(next[key] || {}) }
     let changed = false
     const plain = !allowsZeroWeight(ex.name)
+    const compound = isCompoundExercise(ex.name)
     workingSetsOf(ex).forEach((s) => {
       const w = Number(s.weight) || 0
       const r = Number(s.reps) || 0
       if (r <= 0 || (plain && w <= 0)) return
       // [2026-10-29] e1RM은 실제 부하 기준. weight/reps는 사용자가 입력한 값 그대로 보관(표시용)
-      const v = setE1rm(ex.name, s)
-      if (!v) return
-      if (v > (cur.e1rm || 0)) {
+      // [2026-10-30] 다관절은 10회 이하만(고립은 기존대로 15회까지)
+      const v = prE1rm(ex.name, s, compound)
+      if (v && v > (cur.e1rm || 0)) {
         if (cur.e1rm) newRecords.push({ key, kind: 'e1rm', value: v, prev: cur.e1rm })
         cur.e1rm = v
         cur.weight = w
@@ -151,14 +160,18 @@ export function isCompoundExercise(name) {
 }
 
 // 기본 목표 반복 범위: 다관절 6–10회, 고립 10–15회 (사용자가 종목별로 바꿀 수 있음)
+// [2026-10-30] 기본값은 운동 목표(우선순위)에 맞춘 기준(goals.js) — 예: 근력 1순위면 다관절 3–6회
 export function getRepRange(name, setting) {
   if (setting?.repMin && setting?.repMax) return [Number(setting.repMin), Number(setting.repMax)]
-  return isCompoundExercise(name) ? [6, 10] : [10, 15]
+  const pr = getTrainingProfile()
+  return isCompoundExercise(name) ? [pr.compound.repMin, pr.compound.repMax] : [pr.iso.repMin, pr.iso.repMax]
 }
 
 // 기본 휴식: 다관절 고중량 2분 30초~3분, 고립 1분 30초 (Singer et al. 2024: 60초 초과가 근비대에 유리)
 export function getDefaultRestSec(name) {
-  return isCompoundExercise(name) ? 150 : 90
+  // [2026-10-30] 운동 목표에 맞춘 기준(goals.js): 근육량 기본 다관절 2:30·고립 1:30
+  const pr = getTrainingProfile()
+  return isCompoundExercise(name) ? pr.compound.restSec : pr.iso.restSec
 }
 
 // setting.step(종목별 설정)이 있으면 그 값. 바벨 스쿼트·힌지(데드리프트 포함)는 5kg이 일반적.
@@ -208,7 +221,11 @@ export function suggestNextSet(name, lastRecord, setting) {
   const avgRir = rirs.length ? rirs.reduce((a, b) => a + b, 0) / rirs.length : null
   const hitFailure = atTop.some((s) => s.type === 'failure' || (s.rir !== '' && s.rir != null && Number(s.rir) === 0))
 
-  if (repsAtTop.every((r) => r >= repMax)) {
+  // [2026-10-30 트레이너 관점 개선] 같은 무게로 여러 세트를 하면 피로로 뒤 세트 횟수가 떨어지는 게 정상이라(예: 10·10·8)
+  // "모든 세트 상한"은 증량이 거의 안 나왔다. 첫 세트가 상한을 채우고 나머지가 하한 이상이거나, 총 반복이 상한×세트 수의 90% 이상이면 증량.
+  const totalAtTop = repsAtTop.reduce((a, b) => a + b, 0)
+  const progressed = (repsAtTop[0] >= repMax && repsAtTop.every((r) => r >= repMin)) || totalAtTop >= 0.9 * repMax * repsAtTop.length
+  if (progressed) {
     if (assisted && topW <= 0) {
       return { weight: 0, reps: repMax, kind: 'hold', reason: `보조 없이 ${repMax}회 달성 — 이제 맨몸 풀업·친업이나 웨이티드로 넘어가 보세요` }
     }
@@ -225,11 +242,36 @@ export function suggestNextSet(name, lastRecord, setting) {
       weight: w,
       reps: repMin,
       kind: 'increase',
-      reason: `지난번 ${ro(topW)} 모든 세트 ${repMax}회 이상 → ${ro(w)} ${repMin}회부터`,
+      reason: repsAtTop.every((r) => r >= repMax)
+        ? `지난번 ${ro(topW)} 모든 세트 ${repMax}회 이상 → ${ro(w)} ${repMin}회부터`
+        : repsAtTop[0] >= repMax && repsAtTop.every((r) => r >= repMin)
+        ? `지난번 ${ro(topW)} 첫 세트 ${repsAtTop[0]}회 · 나머지도 ${repMin}회 이상 → ${ro(w)} ${repMin}회부터`
+        : `지난번 ${ro(topW)} 총 ${totalAtTop}회(상한의 90% 이상) → ${ro(w)} ${repMin}회부터`,
     }
   }
   const minReps = Math.min(...repsAtTop)
-  if (minReps <= repMin - 3 || (minReps < repMin && hitFailure)) {
+  // [2026-10-30] 컨디션이 나쁜 하루만으로 감량하지 않도록, 그 전 기록(lastRecord.prev)도 모자랐을 때만 감량(한 번이면 같은 무게 유지)
+  const fellShort = (sets) => {
+    const ws = (sets || []).filter(
+      (s2) => !isWarmupSet(s2) && s2.weight !== '' && s2.weight != null && (zeroOk ? Number(s2.weight) >= 0 : Number(s2.weight) > 0) && Number(s2.reps) > 0
+    )
+    if (!ws.length) return false
+    const tw = assisted ? Math.min(...ws.map((s2) => Number(s2.weight))) : Math.max(...ws.map((s2) => Number(s2.weight)))
+    const top = ws.filter((s2) => Number(s2.weight) === tw)
+    const mr = Math.min(...top.map((s2) => Number(s2.reps)))
+    const fail = top.some((s2) => s2.type === 'failure' || (s2.rir !== '' && s2.rir != null && Number(s2.rir) === 0))
+    return mr <= repMin - 3 || (mr < repMin && fail)
+  }
+  const shortNow = minReps <= repMin - 3 || (minReps < repMin && hitFailure)
+  if (shortNow && !fellShort(lastRecord.prev?.sets)) {
+    return {
+      weight: topW,
+      reps: repMin,
+      kind: 'hold',
+      reason: `지난번 ${label(topW)}에서 목표(${repMin}회)보다 많이 모자랐어요 → 컨디션 탓일 수 있어 같은 무게로 한 번 더(두 번 연속이면 무게를 낮춰요)`,
+    }
+  }
+  if (shortNow) {
     // 실제 부하를 약 10% 줄인다(최소 한 단계)
     const load = effectiveLoad(name, topW)
     const cut = Math.max(inc, load ? roundTo(load * 0.1, unit) : inc)
@@ -239,7 +281,7 @@ export function suggestNextSet(name, lastRecord, setting) {
         weight: w,
         reps: repMin,
         kind: 'decrease',
-        reason: `지난번 ${label(topW)}에서 목표(${repMin}회)보다 많이 모자랐어요 → ${ro(w)} 낮춰 ${repMin}회부터 다시 쌓기`,
+        reason: `두 번 연속 ${label(topW)}에서 목표(${repMin}회)보다 많이 모자랐어요 → ${ro(w)} 낮춰 ${repMin}회부터 다시 쌓기`,
       }
     }
   }
@@ -256,7 +298,7 @@ export function suggestNextSet(name, lastRecord, setting) {
     weight: topW,
     reps: target,
     kind: 'reps',
-    reason: `목표 ${repMin}–${repMax}회 · 같은 무게로 ${target}회 도전 (상한 달성 시 증량)`,
+    reason: `목표 ${repMin}–${repMax}회 · 같은 무게로 ${target}회 도전 (첫 세트 ${repMax}회 + 나머지 ${repMin}회 이상이면 증량)`,
   }
 }
 
@@ -365,6 +407,10 @@ export function fractionalSetsByAtom(logs) {
 
 // 권장 주간 세트 범위(근육별): 일반 10–20, 초보·최소 유효 4세트 이상
 export const WEEKLY_SET_GUIDE = { min: 10, max: 20, minEffective: 4 }
+// [2026-10-30] 목표·가입 기간에 맞춘 주간 세트 기준(goals.js)
+export function getWeeklySetGuide() {
+  return getTrainingProfile().weeklySets || WEEKLY_SET_GUIDE
+}
 
 // 유산소 총 분(주간 150분 목표 — WHO 신체활동 지침)
 export function cardioMinutes(logs) {

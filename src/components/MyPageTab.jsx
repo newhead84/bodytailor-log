@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronLeft, Settings } from 'lucide-react'
-import { Card, SectionTitle, Button, Chip, TierBadge, useConfirm, AccentSwatches } from './ui'
+import { ChevronDown, ChevronLeft, ExternalLink, Settings } from 'lucide-react'
+import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
 import { getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
@@ -9,14 +9,16 @@ import { logout } from '../firebase'
 import { todayStr } from '../utils/date'
 import { getTierByXp, getNextTier, getLevelInfo, stageLevelRange } from '../utils/tier'
 import { computeAchievements } from '../utils/achievements'
-import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS, getExercisesForPart } from '../utils/exerciseLibrary'
+import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS, getExercisesForPart, recommendedSplitKey, perPartWeeklyFrequency } from '../utils/exerciseLibrary'
 import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
+import { GoalPicker, TrainingPlanSummary } from './GoalPicker'
+import AchievementPager from './AchievementPager'
+import { normalizeGoals, GOAL_LABELS, isBeginnerAccount, getTrainingProfile } from '../utils/goals'
 
 // [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
 // "운동조합 변경"(RoutineManager) 화면이 같은 프리셋 정의를 공유하도록 정리했다.
 
 const GENDERS = ['남성', '여성']
-const GOALS = ['근력강화·골밀도증진', '체지방감소', '기초체력증진']
 
 // [2026-07-28 개편] '내 루틴'(자주 하는 운동 즐겨찾기) 섹션을 제거하고,
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
@@ -35,8 +37,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const [themePreference, setThemePreferenceState] = useState(userDoc?.themePreference || DEFAULT_THEME)
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
-  const [addingCustomGoal, setAddingCustomGoal] = useState(false)
-  const [customGoalInput, setCustomGoalInput] = useState('')
   const [pickingSplitTemplate, setPickingSplitTemplate] = useState(false)
   const [addingTemplateKey, setAddingTemplateKey] = useState(null)
   const [templateError, setTemplateError] = useState('')
@@ -54,7 +54,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     age: userDoc?.onboarding?.age ?? '',
     weightKg: userDoc?.onboarding?.weightKg ?? '',
     heightCm: userDoc?.onboarding?.heightCm ?? '',
-    goals: userDoc?.onboarding?.goals || [],
+    goals: normalizeGoals(userDoc?.onboarding?.goals),
     weeklyTargetDays: userDoc?.weeklyTargetDays || null,
   }))
 
@@ -84,8 +84,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, isActive, lifetimeXpKey])
-  const achievements = useMemo(() => (achievementLogs ? computeAchievements(achievementLogs, userDoc?.prs || {}) : null), [achievementLogs, userDoc?.prs])
-  const [showAllAchievements, setShowAllAchievements] = useState(false)
+  const achievements = useMemo(() => (achievementLogs ? computeAchievements(achievementLogs, userDoc?.prs || {}, { bodyweightKg: userDoc?.onboarding?.weightKg, weeklyTargetDays: userDoc?.weeklyTargetDays }) : null), [achievementLogs, userDoc?.prs, userDoc?.onboarding?.weightKg, userDoc?.weeklyTargetDays])
 
   // 키/몸무게가 모두 있으면 BMI를 자동 계산해 표시(체중(kg) / 키(m)^2).
   // [2026-07-28] 판정 구간을 10단계로 세분화(사용자 제공 기준표 반영).
@@ -119,22 +118,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     setProfileForm((f) => ({ ...f, [key]: value }))
   }
 
-  function toggleProfileGoal(goal) {
-    setProfileForm((f) => ({
-      ...f,
-      goals: f.goals.includes(goal) ? f.goals.filter((g) => g !== goal) : [...f.goals, goal],
-    }))
-  }
-
-  function addCustomGoal() {
-    const trimmed = customGoalInput.trim().slice(0, 30)
-    if (trimmed && !profileForm.goals.includes(trimmed)) {
-      setProfileForm((f) => ({ ...f, goals: [...f.goals, trimmed] }))
-    }
-    setCustomGoalInput('')
-    setAddingCustomGoal(false)
-  }
-
   function startEditProfile() {
     setProfileForm({
       nickname: userDoc?.nickname || '',
@@ -142,7 +125,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       age: userDoc?.onboarding?.age ?? '',
       weightKg: userDoc?.onboarding?.weightKg ?? '',
       heightCm: userDoc?.onboarding?.heightCm ?? '',
-      goals: userDoc?.onboarding?.goals || [],
+      goals: normalizeGoals(userDoc?.onboarding?.goals),
       weeklyTargetDays: userDoc?.weeklyTargetDays || null,
     })
     setEditingProfile(true)
@@ -216,6 +199,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const [designOpen, setDesignOpen] = useState(false)
   // [2026-10-29] 설정 화면(우상단 아이콘)
   const [showSettings, setShowSettings] = useState(false)
+  const [showPlan, setShowPlan] = useState(false)
   const settingsTopRef = React.useRef(null)
   function openSettings() {
     setShowSettings(true)
@@ -281,7 +265,8 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     setTemplateError('')
     setAddingTemplateKey(preset.key)
     try {
-      const parts = buildTemplatePartsFromPreset(preset)
+      // [2026-10-30] 유산소는 목표가 체지방 감소·심폐 지구력일 때만 기본 포함
+      const parts = buildTemplatePartsFromPreset(preset, { withCardio: getTrainingProfile().goalIds.some((g) => g === 'fatloss' || g === 'endurance') })
       await saveRoutineTemplate(uid, { title: preset.label, parts })
       await onRoutineUpdated?.()
       setPickingSplitTemplate(false)
@@ -476,6 +461,23 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </Button>
       </Card>
 
+      {/* [2026-10-30] 홍보 페이지(/intro/) — 친구에게 앱을 소개할 때 */}
+      <SectionTitle>앱 소개</SectionTitle>
+      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-normal)' }}>
+          BodyTailor Log 소개 페이지예요. 링크를 친구에게 보내 함께 기록해 보세요.
+        </p>
+        <a
+          href="/intro/"
+          target="_blank"
+          rel="noopener"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)', textDecoration: 'none' }}
+        >
+          앱 소개 보기
+          <ExternalLink size={15} strokeWidth={2} aria-hidden="true" />
+        </a>
+      </Card>
+
       {/* [2026-08-01 신규] 온보딩 화면(Onboarding.jsx) QA/디자인 확인용 재열람 진입점.
           일반회원/VIP에게는 불필요한 개발용 기능이라 관리자 계정에만 노출한다. */}
       {userDoc?.role === '관리자' && (
@@ -570,8 +572,12 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                   </span>
                 )}
               </div>
-              {userDoc?.onboarding?.goals?.length > 0 && (
-                <div>{userDoc.onboarding.goals.join(' · ')}</div>
+              {normalizeGoals(userDoc?.onboarding?.goals).length > 0 && (
+                <div className="text-keep-all">
+                  {normalizeGoals(userDoc.onboarding.goals)
+                    .map((g, i) => (i < 3 && GOAL_LABELS.includes(g) ? `${'①②③'[i]} ${g}` : g))
+                    .join('  ')}
+                </div>
               )}
               {userDoc?.weeklyTargetDays ? <div>주 {userDoc.weeklyTargetDays}일 목표</div> : null}
             </div>
@@ -615,40 +621,13 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               </div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>운동 목표</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: addingCustomGoal ? 8 : 0 }}>
-                {GOALS.map((g) => (
-                  <Chip key={g} active={profileForm.goals.includes(g)} onClick={() => toggleProfileGoal(g)}>
-                    {g}
-                  </Chip>
-                ))}
-                {profileForm.goals
-                  .filter((g) => !GOALS.includes(g))
-                  .map((g) => (
-                    <Chip key={g} active onClick={() => toggleProfileGoal(g)}>
-                      {g}
-                    </Chip>
-                  ))}
-                <Chip active={addingCustomGoal} onClick={() => setAddingCustomGoal((v) => !v)}>
-                  기타: 자유입력
-                </Chip>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>운동 목표 (우선순위)</div>
+              {/* [2026-10-30] 목표 7종·누른 순서 = 우선순위(GoalPicker), 바꾸면 맞춤 기준 미리보기 */}
+              <GoalPicker goals={profileForm.goals} onChange={(goals) => updateProfileForm('goals', goals)} />
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 'var(--radius-md)', background: 'var(--color-bg-elevated)' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: 'var(--color-label-normal)' }}>저장하면 이렇게 맞춰져요</div>
+                <TrainingPlanSummary goals={profileForm.goals} beginner={isBeginnerAccount(userDoc)} />
               </div>
-              {addingCustomGoal && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    autoFocus
-                    value={customGoalInput}
-                    onChange={(e) => setCustomGoalInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addCustomGoal()}
-                    placeholder="목표를 직접 입력해 주세요"
-                    className="text-keep-all"
-                    style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14 }}
-                  />
-                  <Button variant="secondary" onClick={addCustomGoal}>
-                    추가
-                  </Button>
-                </div>
-              )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <Button variant="ghost" style={{ flex: 1 }} onClick={() => setEditingProfile(false)} disabled={saving}>
@@ -659,7 +638,25 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               </Button>
             </div>
           </div>
-        ) : null}
+        ) : (
+          // [2026-10-30] 목표로 맞춘 기준을 펼쳐 보기
+          <div style={{ marginTop: 12, borderTop: '1px solid var(--color-line)', paddingTop: 10 }}>
+            <button
+              type="button"
+              onClick={() => setShowPlan((v) => !v)}
+              aria-expanded={showPlan}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 36, fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-strong)' }}
+            >
+              적용 중인 맞춤 설정
+              <ChevronDown size={18} style={{ transform: showPlan ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+            </button>
+            {showPlan && (
+              <div className="bt-slide-down" style={{ marginTop: 8 }}>
+                <TrainingPlanSummary goals={userDoc?.onboarding?.goals} profile={getTrainingProfile()} />
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* [2026-10-28 리디자인] 프로필을 맨 위로, 등급은 그 아래 */}
@@ -669,13 +666,15 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       {/* [2026-10-29 등급 리뉴얼] 큰 Lv 숫자 + 단계명, 다음 Lv까지 진행 막대 */}
       <Card onClick={onShowTierInfo} style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-            <span className="bt-num" style={{ fontSize: 'calc(34px * var(--num-scale))', lineHeight: 1, color: 'var(--color-label-strong)' }}>
-              Lv <CountUp value={levelInfo.level} />
-            </span>
-            <span style={{ alignSelf: 'flex-start' }}>
-              <TierBadge label={tier.label} tierKey={tier.key} size="sm" />
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            {/* [2026-10-29] 등급 방패 엠블럼(단계별) */}
+            <TierEmblem tierKey={tier.key} size={52} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+              <span className="bt-num" style={{ fontSize: 'calc(34px * var(--num-scale))', lineHeight: 1, color: 'var(--color-label-strong)' }}>
+                Lv <CountUp value={levelInfo.level} />
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-label-normal)' }}>{tier.label}</span>
+            </div>
           </div>
           <span className="bt-num" style={{ fontSize: 'calc(18px * var(--num-scale))', color: 'var(--color-label-normal)', flexShrink: 0 }}>
             <CountUp value={xp} />
@@ -708,42 +707,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <div style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>불러오는 중…</div>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-              {[...achievements.filter((a) => a.earned), ...achievements.filter((a) => !a.earned)]
-                .slice(0, showAllAchievements ? achievements.length : 4)
-                .map((a) => (
-                  <div
-                    key={a.id}
-                    className="text-keep-all"
-                    style={{
-                      padding: '12px 12px 10px',
-                      borderRadius: 'var(--radius-md)',
-                      border: a.earned ? '1px solid var(--color-fill-strong)' : '1px solid var(--color-line)',
-                      background: a.earned ? 'var(--color-primary-bg)' : 'transparent',
-                      opacity: a.earned ? 1 : 0.72,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 4,
-                    }}
-                  >
-                    <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--color-label-strong)' }}>{a.title}</span>
-                    <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>{a.desc}</span>
-                    {!a.earned && (
-                      <div style={{ height: 4, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)', overflow: 'hidden', marginTop: 4 }}>
-                        <div style={{ width: `${a.progress * 100}%`, height: '100%', background: 'var(--color-label-neutral)' }} />
-                      </div>
-                    )}
-                    <span className="bt-num" style={{ fontSize: 11, color: a.earned ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)', fontWeight: 700 }}>
-                      {a.progressLabel}
-                    </span>
-                  </div>
-                ))}
-            </div>
-            {achievements.length > 4 && (
-              <Button variant="ghost" full style={{ marginTop: 10, fontSize: 13 }} onClick={() => setShowAllAchievements((v) => !v)}>
-                {showAllAchievements ? '접기' : `전체 보기 (${achievements.length})`}
-              </Button>
-            )}
+            <AchievementPager achievements={achievements} />
           </>
         )}
       </Card>
@@ -774,6 +738,16 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
                 {t.parts?.map((p) => p.name).join(' · ')}
               </div>
+              {/* [2026-10-30] 주당 목표 일수에 비해 파트가 많으면(부위당 주 1회 미만) 안내 */}
+              {(() => {
+                const f = perPartWeeklyFrequency(t.parts?.length, userDoc?.weeklyTargetDays || 3)
+                if (f == null || f >= 1) return null
+                return (
+                  <div className="text-keep-all" style={{ marginTop: 6, fontSize: 12, color: 'var(--color-warning)' }}>
+                    주 {userDoc?.weeklyTargetDays || 3}일에 {t.parts.length}개 파트라 한 부위를 약 {Math.round(t.parts.length / (userDoc?.weeklyTargetDays || 3) * 7)}일에 한 번 해요. 근육 성장엔 부위당 주 2회가 유리해서, 파트를 줄이거나(예: 2분할) 운동 일수를 늘려 보세요.
+                  </div>
+                )
+              })()}
             </div>
           ))
         )}
@@ -800,7 +774,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           ) : (
             <div>
               <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                트레이너들이 자주 쓰는 분할 방식이에요. 선택하면 내 루틴에 그대로 추가되고, 이후 자유롭게 수정할 수 있어요.
+                근육 성장에는 부위당 주 2회가 유리해서, 주당 운동 일수에 맞는 분할에 '추천'을 표시했어요. 선택하면 내 루틴에 추가되고, 이후 자유롭게 수정할 수 있어요.
               </p>
               {templateError && (
                 <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-danger, #e5484d)', margin: '0 0 10px' }}>
@@ -821,8 +795,13 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                       opacity: addingTemplateKey && addingTemplateKey !== preset.key ? 0.5 : 1,
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, color: 'var(--color-label-strong)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontWeight: 700, fontSize: 14, marginBottom: 2, color: 'var(--color-label-strong)' }}>
                       {preset.label} {addingTemplateKey === preset.key && '· 추가 중…'}
+                      {/* [2026-10-30] 주당 목표 일수에 맞는 분할 추천 + 부위당 주 횟수 */}
+                      {recommendedSplitKey(userDoc?.weeklyTargetDays || 3) === preset.key && (
+                        <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 11.5, fontWeight: 800 }}>주 {userDoc?.weeklyTargetDays || 3}일 추천</span>
+                      )}
+                      <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}>부위당 주 약 {perPartWeeklyFrequency(preset.parts.length, userDoc?.weeklyTargetDays || 3)}회</span>
                     </div>
                     <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
                       {preset.description}

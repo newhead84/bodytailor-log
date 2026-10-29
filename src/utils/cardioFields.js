@@ -140,10 +140,19 @@ export function cardioTimerMinutes(t) {
   return Math.round((cardioTimerMs(t) / 60000) * 10) / 10
 }
 
-// 기록 묶음의 유산소 합계: { minutes, km, byName: {종목: 분} }
+// [2026-10-30] 고강도 유산소(WHO: 고강도 1분 = 중강도 2분). 인터벌·에어바이크·배틀로프·줄넘기, 달리기는 시속 8km 이상.
+const VIGOROUS_NAMES = ['트레드밀인터벌', '에어바이크', '배틀로프', '줄넘기']
+const RUN_NAMES = ['트레드밀', '실외러닝']
+export function isVigorousCardio(name, s) {
+  if (VIGOROUS_NAMES.includes(name)) return true
+  return RUN_NAMES.includes(name) && (Number(s?.speedKmh) || 0) >= 8
+}
+
+// 기록 묶음의 유산소 합계: { minutes, km, byName: {종목: 분}, vigorousMin, effectiveMin(고강도 ×2 환산) }
 export function cardioStats(logs) {
   let minutes = 0
   let km = 0
+  let vigorousMin = 0
   const byName = {}
   ;(logs || []).forEach((log) =>
     (log.exercises || []).forEach((ex) => {
@@ -151,10 +160,11 @@ export function cardioStats(logs) {
       ;(ex.sets || []).forEach((st) => {
         const m = Number(st.durationMin) || 0
         minutes += m
+        if (isVigorousCardio(ex.name, st)) vigorousMin += m
         km += cardioDistanceKm(ex.name, st)
         byName[ex.name] = (byName[ex.name] || 0) + m
       })
     })
   )
-  return { minutes, km, byName }
+  return { minutes, km, byName, vigorousMin, effectiveMin: minutes + vigorousMin }
 }

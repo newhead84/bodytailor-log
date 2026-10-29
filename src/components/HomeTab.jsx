@@ -6,6 +6,7 @@ import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
 import { suggestNextSet, workingSetsOf } from '../utils/strength'
 import { isAssistedExercise, isBodyweightLoaded, logVolumeKg } from '../utils/load'
 import { cardioStats } from '../utils/cardioFields'
+import { getTrainingProfile } from '../utils/goals'
 import { makeExerciseKey, parseExerciseKey } from '../utils/exerciseKey'
 import { CountUp } from '../hooks/useCountUp'
 import CalendarView from './CalendarView'
@@ -271,13 +272,14 @@ export default function HomeTab({
       {/* [2026-10-29] 유산소 기록 개선: 이번 주 유산소 시간·거리 한 줄 */}
       {cardioWeek.minutes > 0 && (
         <p style={{ margin: '-6px 2px 14px', fontSize: 13, color: 'var(--color-label-normal)' }}>
-          이번 주 유산소 <span className="bt-num" style={{ fontSize: 15 }}>{Math.round(cardioWeek.minutes)}</span>분
+          이번 주 유산소 <span className="bt-num" style={{ fontSize: 15 }}>{Math.round(cardioWeek.effectiveMin)}</span>분
+          {cardioWeek.vigorousMin > 0 && <span style={{ color: 'var(--color-label-neutral)' }}>(고강도 2배)</span>}
           {cardioWeek.km > 0 && (
             <>
               {' '}· <span className="bt-num" style={{ fontSize: 15 }}>{Math.round(cardioWeek.km * 10) / 10}</span>km
             </>
           )}
-          <span style={{ color: 'var(--color-label-neutral)' }}> / 목표 150분</span>
+          <span style={{ color: 'var(--color-label-neutral)' }}> / 목표 {getTrainingProfile().cardioGoalMin}분</span>
         </p>
       )}
       {(weekLogs.length > 0 || liveExercises?.length > 0) && <MuscleSetsCard logs={weekLogs} liveExercises={liveExercises} compact title="이번 주 근육별 세트" />}

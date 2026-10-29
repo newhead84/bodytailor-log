@@ -2,15 +2,16 @@ import React, { useCallback, useState } from 'react'
 import { Button, Card, BackButton, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '../storage'
-import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset } from '../utils/exerciseLibrary'
+import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, recommendedSplitKey, perPartWeeklyFrequency } from '../utils/exerciseLibrary'
 import { useBackableScreen } from '../hooks/useBackableScreen'
+import { getTrainingProfile } from '../utils/goals'
 
 const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 
 // [2026-07-28 신규] "내 루틴"을 최대 8개까지 만들고, 각각 이름을 붙여 관리하는 화면.
 // isFirstSetup === true면 아직 루틴이 하나도 없는 상태(온보딩 직후)로,
 // 최소 1개는 만들어야 메인 화면으로 넘어갈 수 있지만, "나중에 입력"으로 건너뛸 수도 있다.
-export default function RoutineManager({ uid, templates, customExercises, onChanged, onClose, onSkip, isFirstSetup }) {
+export default function RoutineManager({ uid, templates, customExercises, onChanged, onClose, onSkip, isFirstSetup, weeklyTargetDays = 3 }) {
   const confirm = useConfirm()
   const [editingId, setEditingId] = useState(isFirstSetup ? 'new' : null) // null | 'new' | templateId
   const [error, setError] = useState('')
@@ -33,7 +34,8 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
     setError('')
     setAddingTemplateKey(preset.key)
     try {
-      const parts = buildTemplatePartsFromPreset(preset)
+      // [2026-10-30] 유산소는 목표가 체지방 감소·심폐 지구력일 때만 기본 포함
+      const parts = buildTemplatePartsFromPreset(preset, { withCardio: getTrainingProfile().goalIds.some((g) => g === 'fatloss' || g === 'endurance') })
       await saveRoutineTemplate(uid, { title: preset.label, parts })
       await onChanged()
       setPickingSplitTemplate(false)
@@ -145,7 +147,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
           ) : (
             <Card>
               <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                트레이너들이 자주 쓰는 분할 방식이에요. 선택하면 내 루틴에 그대로 추가되고, 이후 자유롭게 수정할 수 있어요.
+                근육 성장에는 부위당 주 2회가 유리해서, 주당 운동 일수에 맞는 분할에 '추천'을 표시했어요. 선택하면 내 루틴에 추가되고, 이후 자유롭게 수정할 수 있어요.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
                 {SPLIT_TEMPLATE_PRESETS.map((preset) => (
@@ -161,8 +163,13 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
                       opacity: addingTemplateKey && addingTemplateKey !== preset.key ? 0.5 : 1,
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, color: 'var(--color-label-strong)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontWeight: 700, fontSize: 14, marginBottom: 2, color: 'var(--color-label-strong)' }}>
                       {preset.label} {addingTemplateKey === preset.key && '· 추가 중…'}
+                      {/* [2026-10-30] 주당 목표 일수에 맞는 분할 추천 + 부위당 주 횟수 */}
+                      {recommendedSplitKey(weeklyTargetDays || 3) === preset.key && (
+                        <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 11.5, fontWeight: 800 }}>주 {weeklyTargetDays || 3}일 추천</span>
+                      )}
+                      <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}>부위당 주 약 {perPartWeeklyFrequency(preset.parts.length, weeklyTargetDays || 3)}회</span>
                     </div>
                     <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
                       {preset.description}

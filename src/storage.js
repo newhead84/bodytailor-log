@@ -316,11 +316,15 @@ export async function quickAddExerciseToRoutine(uid, routineTemplates, exerciseN
 // users/{uid}.seasonXp / lifetimeXp에 즉시 반영한다(혼자 운동해도 보상이 생기도록).
 // 공식은 Phase1 제안값: 기본 50xp(자유운동은 scoreWeight 0.7배) + 볼륨 보너스(최대 100) +
 // 운동시간 보너스(최대 30, 2분당 1xp). 추후 8.4 랭킹 점수식과 별도로 조정 가능.
-function computeSessionXp({ totalVolume, scoreWeight, totalDurationSec }) {
+// [2026-10-30 트레이너 관점 개선] '많이·오래'만 보상하면 대충 하는 세트·긴 휴식을 늘리게 되므로
+// 볼륨 보너스 상한을 100 → 80, 시간 보너스는 75분까지만 인정(최대 25)하고, 신기록(PR) 1개당 +10(최대 20)을 더한다.
+// 합계 최대 175 — 규칙의 1회 변경 한도(±200) 안.
+function computeSessionXp({ totalVolume, scoreWeight, totalDurationSec }, prCount = 0) {
   const base = 50 * (scoreWeight ?? 1)
-  const volumeBonus = Math.min(100, Math.round((totalVolume || 0) / 50))
-  const durationBonus = Math.min(30, Math.round((totalDurationSec || 0) / 120))
-  return Math.max(10, Math.round(base + volumeBonus + durationBonus))
+  const volumeBonus = Math.min(80, Math.round((totalVolume || 0) / 60))
+  const durationBonus = Math.min(25, Math.round(Math.min(totalDurationSec || 0, 75 * 60) / 180))
+  const prBonus = Math.min(20, (prCount || 0) * 10)
+  return Math.max(10, Math.round(base + volumeBonus + durationBonus + prBonus))
 }
 
 export async function addWorkoutLog(uid, logData, logId = null) {
@@ -386,7 +390,7 @@ export async function addWorkoutLog(uid, logData, logId = null) {
   // (PR은 실제 수행 기록이므로 반영한다.)
   let xpEarned = 0
   if (!logData.isBackfilled) {
-    xpEarned = computeSessionXp(logData)
+    xpEarned = computeSessionXp(logData, (newRecords || []).length)
     updates.lifetimeXp = increment(xpEarned)
     // 시즌 XP는 분기(시즌)마다 0부터 다시 쌓는다. 누적 XP(lifetimeXp)는 유지.
     // seasonKey가 없던 기존 계정은 이번 시즌으로 표시만 하고 초기화하지 않는다(갑작스러운 등급 하락 방지).
@@ -519,11 +523,15 @@ function getRecentWorkoutLogsCached(uid, count) {
 // 그립 필드가 없는 기록만 매칭된다.
 export async function getLastRecordForExercise(uid, exerciseName, grip = null, count = 30) {
   const recent = await getRecentWorkoutLogsCached(uid, count)
+  let first = null
   for (const log of recent) {
     const found = (log.exercises || []).find((e) => e.name === exerciseName && (e.grip || null) === (grip || null))
-    if (found) return { date: log.date, ...found }
+    if (!found) continue
+    // [2026-10-30] 그 전 기록(prev)도 함께 — 감량 추천은 두 번 연속 모자랐을 때만(strength.js suggestNextSet)
+    if (!first) first = { date: log.date, ...found }
+    else return { ...first, prev: { date: log.date, sets: found.sets || [] } }
   }
-  return null
+  return first
 }
 
 // ───────────── activeSessions/{uid} — 진행 중 운동 세션 서버 백업 ─────────────
