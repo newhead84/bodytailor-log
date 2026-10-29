@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>BodyTailor Log — PT 없이도, 다음 무게를 알려 주는 운동 기록</title>
-<meta name="description" content="세트를 기록하면 다음에 들 무게와 그 이유를 알려 주는 무료 웨이트 운동 기록 웹앱. 설치 없이 바로 시작하세요." />
+<title>BodyTailor Log — 어제의 숫자가 오늘의 목표가 돼요</title>
+<meta name="description" content="어제의 숫자가 오늘의 목표가 돼요. 세트를 기록하면 다음에 들 무게와 그 이유를 알려 주는 무료 웨이트 운동 기록 웹앱. 설치 없이 바로 시작하세요." />
 <link rel="canonical" href="https://bodytailor-log.vercel.app/intro/" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="BodyTailor Log — PT 없이도, 다음 무게를 알려 드려요" />
-<meta property="og:description" content="세트를 기록하면 다음 무게와 그 이유를 알려 주는 무료 운동 기록 웹앱" />
+<meta property="og:title" content="BodyTailor Log — 어제의 숫자가 오늘의 목표가 돼요" />
+<meta property="og:description" content="세트를 기록하면 다음 무게와 그 이유를 알려 주는 무료 웨이트 운동 기록 웹앱" />
 <meta property="og:image" content="https://bodytailor-log.vercel.app/intro/img/og.png" />
 <meta property="og:url" content="https://bodytailor-log.vercel.app/intro/" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -73,7 +73,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hero h1 .ln { display: block; overflow: hidden; padding-bottom: .04em; }
 .hero h1 .ln > span { display: inline-block; transform: translateY(105%); animation: rise .9s cubic-bezier(.2,.8,.2,1) forwards; }
 .hero h1 .ln:nth-child(2) > span { animation-delay: .1s; }
-.hero h1 .ln:nth-child(3) > span { animation-delay: .2s; }
 .hero h1 .mark { position: relative; white-space: nowrap; }
 .hero h1 .mark::after { content: ''; position: absolute; left: -2px; right: -4px; bottom: .08em; height: .32em; background: var(--lime); z-index: -1; border-radius: 3px; transform-origin: left; transform: scaleX(0); animation: sweep .7s .75s cubic-bezier(.6,0,.2,1) forwards; }
 .hero h1 .mark > span { position: relative; }
@@ -241,11 +240,10 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: s
     <div class="wrap">
       <div>
         <h1 id="hero-title">
-          <span class="ln"><span>PT 없이도,</span></span>
-          <span class="ln"><span><span class="mark"><span>다음 무게</span></span>를</span></span>
-          <span class="ln"><span>알려 드려요</span></span>
+          <span class="ln"><span>어제의 숫자가</span></span>
+          <span class="ln"><span><span class="mark"><span>오늘의 목표</span></span>가 돼요</span></span>
         </h1>
-        <p class="lede">세트를 체크하면 휴식이 시작되고, 다음 운동에서 들 무게와 그 이유까지 알려 주는 웨이트 운동 기록이에요. 혼자 운동해도 어디까지 올릴지 고민하지 않아도 돼요.</p>
+        <p class="lede">지난번 60kg × 10회를 적어 두면, 오늘은 62.5kg에 도전할 이유가 생겨요. 세트를 체크하면 다음에 들 무게와 그 이유까지 알려 주는 웨이트 운동 기록이에요.</p>
         <div class="hero-cta">
           <a class="btn btn-lime" href="/">무료로 시작하기</a>
           <small>설치 없이 브라우저에서 바로 · 구글 계정으로 로그인</small>
