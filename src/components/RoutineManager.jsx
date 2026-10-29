@@ -34,8 +34,8 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
     setError('')
     setAddingTemplateKey(preset.key)
     try {
-      // [2026-10-30] 유산소는 목표가 체지방 감소·심폐 지구력일 때만 기본 포함
-      const parts = buildTemplatePartsFromPreset(preset, { withCardio: getTrainingProfile().goalIds.some((g) => g === 'fatloss' || g === 'endurance') })
+      // [2026-10-30] 유산소는 목표가 체지방 줄이기·체력 관리일 때만 기본 포함
+      const parts = buildTemplatePartsFromPreset(preset, { withCardio: getTrainingProfile().goalIds.some((g) => g === 'fatloss' || g === 'fitness') })
       await saveRoutineTemplate(uid, { title: preset.label, parts })
       await onChanged()
       setPickingSplitTemplate(false)

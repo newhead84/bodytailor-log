@@ -4,14 +4,14 @@
 // 저장 형식: users.onboarding.goals = [목표 라벨...] (배열 순서 = 우선순위). 옛 라벨은 읽을 때 정규화한다.
 // 종목 설정(exerciseSettings)에서 사용자가 직접 바꾼 값은 항상 이 기준보다 우선한다(strength.js getRepRange 등).
 
+// [2026-10-30 정리] 프로그램이 실제로 달라지는 목표만 5종(사용자 확인): 근육량+근력 → 근육·근력 키우기,
+// 기초체력+심폐 지구력 → 체력·건강 관리. 고중량(3–6회) 위주는 종목 설정에서 목표 횟수를 바꾸면 된다.
 export const GOAL_OPTIONS = [
-  { id: 'hypertrophy', label: '근육량 늘리기' },
-  { id: 'strength', label: '근력 강화' },
-  { id: 'fatloss', label: '체지방 감소' },
-  { id: 'bone', label: '골밀도·뼈 건강' },
-  { id: 'fitness', label: '기초체력·건강 유지' },
-  { id: 'endurance', label: '심폐 지구력' },
-  { id: 'posture', label: '자세·코어 강화' },
+  { id: 'muscle', label: '근육·근력 키우기', hint: '몸을 키우고 더 무거운 무게를 들고 싶어요' },
+  { id: 'fatloss', label: '체지방 줄이기', hint: '근육은 지키면서 살을 빼고 싶어요' },
+  { id: 'fitness', label: '체력·건강 관리', hint: '덜 지치고 건강하게 꾸준히 하고 싶어요' },
+  { id: 'bone', label: '뼈·관절 건강', hint: '골밀도가 걱정돼요(중년·여성 등)' },
+  { id: 'posture', label: '자세·코어', hint: '거북목·둥근 어깨·허리가 불편해요' },
 ]
 export const GOAL_LABELS = GOAL_OPTIONS.map((g) => g.label)
 export const MAX_RANKED_GOALS = 3
@@ -19,20 +19,27 @@ export const MAX_RANKED_GOALS = 3
 // 목표별 기준: compound/iso = [하한, 상한, 휴식초], sets = 부위별 주간 세트 [하한, 상한], cardio = 주간 유산소 분
 const BASE = { compound: [6, 10, 150], iso: [10, 15, 90], sets: [10, 20], cardio: 150 }
 const PROFILES = {
-  hypertrophy: BASE,
-  strength: { compound: [3, 6, 180], iso: [8, 12, 120], sets: [6, 12], cardio: 150 },
+  muscle: BASE,
   fatloss: { compound: [8, 12, 90], iso: [12, 15, 60], sets: [8, 16], cardio: 250 },
+  fitness: { compound: [8, 12, 120], iso: [12, 15, 60], sets: [6, 12], cardio: 200 },
   bone: { compound: [5, 8, 150], iso: BASE.iso, sets: BASE.sets, cardio: 150 },
-  fitness: { compound: [8, 12, 120], iso: [12, 15, 60], sets: [6, 12], cardio: 150 },
-  endurance: { ...BASE, cardio: 300 },
   posture: { compound: [8, 12, 120], iso: [12, 15, 60], sets: [6, 12], cardio: 150 },
 }
 
 // 옛 목표 라벨(2026-10-29까지) → 새 라벨
 const LEGACY_GOALS = {
-  '근력강화·골밀도증진': ['근력 강화', '골밀도·뼈 건강'],
-  체지방감소: ['체지방 감소'],
-  기초체력증진: ['기초체력·건강 유지'],
+  // 2026-10-29까지
+  '근력강화·골밀도증진': ['근육·근력 키우기', '뼈·관절 건강'],
+  체지방감소: ['체지방 줄이기'],
+  기초체력증진: ['체력·건강 관리'],
+  // 2026-10-30 1차(7종) 라벨
+  '근육량 늘리기': ['근육·근력 키우기'],
+  '근력 강화': ['근육·근력 키우기'],
+  '체지방 감소': ['체지방 줄이기'],
+  '골밀도·뼈 건강': ['뼈·관절 건강'],
+  '기초체력·건강 유지': ['체력·건강 관리'],
+  '심폐 지구력': ['체력·건강 관리'],
+  '자세·코어 강화': ['자세·코어'],
 }
 
 export function normalizeGoals(goals) {

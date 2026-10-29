@@ -2580,7 +2580,7 @@ export function getExerciseAliases(name) {
 // [2026-10-30 트레이너 관점 재구성] 부위당 주 2회(근비대에 유리)를 기준으로 주당 일수별 분할을 고른다.
 //  - 무분할(전신): 주 2–3일 / 2분할(상체·하체): 주 4일 / 3분할(밀기·당기기·하체): 주 3일 또는 5–6일
 //  - 4·5분할은 부위당 주 1회 — 주 5–6일 운동하는 중급 이상용
-//  - 코어는 2~3개 파트에만(주 2–3회면 충분), 유산소는 목표가 체지방 감소·심폐 지구력일 때만 각 파트에 추가(withCardio)
+//  - 코어는 2~3개 파트에만(주 2–3회면 충분), 유산소는 목표가 체지방 줄이기·체력 관리일 때만 각 파트에 추가(withCardio)
 export const SPLIT_TEMPLATE_PRESETS = [
   {
     key: 'fullbody',
@@ -2670,7 +2670,7 @@ const PRESET_STARTER_EXERCISES = {
 }
 export function buildTemplatePartsFromPreset(preset, { withCardio = false } = {}) {
   return preset.parts.map((baseAtoms) => {
-    // [2026-10-30] 유산소는 목표가 체지방 감소·심폐 지구력일 때만 각 파트 끝에
+    // [2026-10-30] 유산소는 목표가 체지방 줄이기·체력 관리일 때만 각 파트 끝에
     const atoms = withCardio && !baseAtoms.includes('유산소') ? [...baseAtoms, '유산소'] : baseAtoms
     const name = buildPartName(atoms)
     const exercises = []

@@ -2,6 +2,10 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-30] 운동 목표 7종 → 5종 정리(트레이너 관점, 사용자 확인) | utils/goals.js, GoalPicker.jsx, MyPageTab.jsx, RoutineManager.jsx, CLAUDE.md
+- 근육·근력 키우기(근육량+근력 통합, 다관절 6–10) / 체지방 줄이기 / 체력·건강 관리(기초체력+심폐 통합, 유산소 200분) / 뼈·관절 건강 / 자세·코어. 고중량(3–6회) 위주는 종목 설정에서 목표 횟수 변경.
+- 목표 버튼은 한 줄씩, 이름 아래 "이런 분께" 설명. 옛 라벨(10/29 3종, 10/30 1차 7종)은 읽을 때 자동 변환 — 근력강화·골밀도증진 → ①근육·근력 ②뼈·관절(다관절 6–9회).
+
 [2026-10-30] 등급 방패 아이콘·운동 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 운동 방식 개선·미리보기 가이드 수정·앱 소개 링크(사용자 요청) | ui.jsx(TierEmblem), utils/goals.js(신규), GoalPicker.jsx(신규), AchievementPager.jsx(신규), Onboarding.jsx, MyPageTab.jsx, utils/achievements.js, utils/strength.js, storage.js, utils/cardioFields.js, InsightCards.jsx(BalanceCard 등), ReportTab.jsx, HomeTab.jsx, WorkoutInput.jsx, WorkoutGuide.jsx, DesignPreviewScreen.jsx, SetEditors.jsx, TierInfoScreen.jsx, RoutineManager.jsx, utils/exerciseLibrary.js, App.jsx, public/intro/index.html, CLAUDE.md
 - 등급 아이콘: Starter~Legend 7단계를 같은 방패 엠블럼 SVG로 통일(점 → 쉐브론 1·2·3 → 별 → 별 2개 → 왕관). 예전 쉐브론·일러스트 혼용 제거. MY 등급 카드에 큰 엠블럼, 완료 요약 카드 Lv 옆에도 표시.
 - 운동 목표: 7종(근육량 늘리기/근력 강화/체지방 감소/골밀도·뼈 건강/기초체력·건강 유지/심폐 지구력/자세·코어 강화)+기타, 누른 순서 = 우선순위(①②③). 1순위 기준 + 2순위 1/3 반영 + 3순위는 유산소 1/6 → 목표 반복·자동 휴식·부위별 주간 세트·주간 유산소 목표(goals.js). 종목 설정 값이 있으면 우선. 가입 8주 미만은 주간 세트 6–12로 낮게. 옛 목표 라벨은 읽을 때 자동 변환. 온보딩 마지막에 "이렇게 맞춰 드려요" 요약, MY 프로필 "적용 중인 맞춤 설정"·편집 중 미리보기.

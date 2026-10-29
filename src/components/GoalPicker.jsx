@@ -1,6 +1,6 @@
 // GoalPicker.jsx
 // [2026-10-30 신규] 운동 목표 선택(우선순위) — 온보딩·MY 프로필 수정 공용.
-// 누른 순서가 우선순위(①②③). 4번째부터는 리포트 체크 카드에만 반영. 다시 누르면 빠지고 뒤 순위가 당겨진다.
+// 누른 순서가 우선순위(①②③). 4번째부터는 리포트 체크 카드에만 반영. 목표 5종(2026-10-30 정리)마다 한 줄 설명. 다시 누르면 빠지고 뒤 순위가 당겨진다.
 // TrainingPlanSummary: 고른 목표로 맞춘 기준(목표 반복·휴식·주간 세트·유산소)을 보여 준다.
 import React, { useState } from 'react'
 import { Check } from 'lucide-react'
@@ -28,7 +28,7 @@ export function GoalPicker({ goals, onChange }) {
       <p className="text-keep-all" style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
         중요한 순서대로 눌러 주세요. 1순위 목표로 목표 횟수·휴식을 맞추고, 2·3순위도 일부 반영해요.
       </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {GOAL_OPTIONS.map((g) => {
           const rank = ranked.indexOf(g.label)
           const on = rank !== -1
@@ -44,7 +44,7 @@ export function GoalPicker({ goals, onChange }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                minHeight: 48,
+                minHeight: 56,
                 padding: '10px 12px',
                 borderRadius: 'var(--radius-md)',
                 border: on ? '1px solid var(--color-fill-strong)' : '1px solid var(--color-line)',
@@ -58,7 +58,10 @@ export function GoalPicker({ goals, onChange }) {
               <span aria-hidden="true" style={{ width: 18, flexShrink: 0, fontSize: 15, opacity: on ? 1 : 0.35 }}>
                 {on ? RANK_MARKS[rank] || '·' : '○'}
               </span>
-              <span>{g.label}</span>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <span>{g.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 500, opacity: on ? 0.85 : 0.7 }}>{g.hint}</span>
+              </span>
             </button>
           )
         })}
@@ -106,7 +109,7 @@ export function TrainingPlanSummary({ goals, beginner = false, profile: given = 
         </span>
       ) : (
         <span className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
-          목록의 목표를 고르지 않아 기본 기준(근육량 늘리기)으로 맞췄어요.
+          목록의 목표를 고르지 않아 기본 기준(근육·근력 키우기)으로 맞췄어요.
         </span>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

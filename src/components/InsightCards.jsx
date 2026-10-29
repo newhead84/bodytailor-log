@@ -148,7 +148,7 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
 
 // [2026-10-29] 유산소 기록 개선(A안): 이번 주 시간(150분 목표)·거리 합계·종목별 시간 + 최근 4주 시간 막대 (cardioStats는 cardioFields.js)
 export function CardioCard({ logs, liveExercises = null }) {
-  // [2026-10-30] 주간 목표는 운동 목표에 맞춰(체지방 감소 250분 등), 고강도 1분 = 2분으로 환산(WHO)
+  // [2026-10-30] 주간 목표는 운동 목표에 맞춰(체지방 줄이기 250분 등), 고강도 1분 = 2분으로 환산(WHO)
   const goal = getTrainingProfile().cardioGoalMin
   const live = Array.isArray(liveExercises) && liveExercises.some((ex) => (ex.inputType || getExerciseInputType(ex.name)) === 'cardio')
   const weeks = useMemo(
