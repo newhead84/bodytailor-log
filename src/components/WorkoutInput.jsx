@@ -55,11 +55,11 @@ import { pickSetEncouragement } from '../utils/setEncouragements'
 const REST_AUTO = 0
 const REST_OPTIONS = [
   { label: '자동', value: REST_AUTO },
-  { label: '1분', value: 60 },
-  { label: '1분30초', value: 90 },
-  { label: '2분', value: 120 },
+  { label: '1:00', value: 60 },
+  { label: '1:30', value: 90 },
+  { label: '2:00', value: 120 },
   // [2026-10-27 리뉴얼] 다관절 고중량용 3분(Singer et al. 2024: 휴식이 길수록 근비대에 유리)
-  { label: '3분', value: 180 },
+  { label: '3:00', value: 180 },
 ]
 
 // 자유 추가 운동에서는 루틴(내 루틴)에 얽매이지 않고 코어·유산소를 포함한
@@ -1572,11 +1572,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       )}
 
       {/* 휴게시간 옵션 */}
-      {/* [2026-10-28] 320px 등 좁은 화면에서 마지막 칩이 잘리지 않게 넘치면 다음 줄로 */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', flexShrink: 0 }}>휴식</span>
+      {/* [2026-10-29] 휴식 칩이 다음 줄로 넘어가던 문제(사용자 지적): 이름 + 칩 5개를 한 줄 균등 칸으로, 표기는 1:30처럼 짧게 */}
+      <div style={{ display: 'grid', gridTemplateColumns: `auto repeat(${REST_OPTIONS.length}, minmax(0, 1fr))`, gap: 6, marginBottom: 16, alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>휴식</span>
         {REST_OPTIONS.map((opt) => (
-          <Chip key={opt.value} active={restSeconds === opt.value} onClick={() => setRestSeconds(opt.value)}>
+          <Chip key={opt.value} active={restSeconds === opt.value} onClick={() => setRestSeconds(opt.value)} className="bt-num" style={{ padding: '8px 0', fontSize: 13, minWidth: 0 }}>
             {opt.label}
           </Chip>
         ))}

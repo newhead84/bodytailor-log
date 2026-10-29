@@ -2,6 +2,11 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-29] 종목 설정·휴식 선택 줄바꿈 수정(사용자 지적) | SetEditors.jsx(ExerciseSettingEditor), WorkoutInput.jsx(REST_OPTIONS·휴식 칩 줄)
+- 목표 반복: 이름은 윗줄, −/+ 버튼 4개는 한 줄 고정(최대값 + 버튼이 다음 줄로 넘어가던 문제).
+- 종목 설정 휴식 6칸·증량 단위 6칸, 상단 휴식 5칸을 한 줄 균등 칸으로. 상단 휴식 표기를 1:00/1:30/2:00/3:00으로 통일(값은 그대로).
+- 검증: 320·360·412px, 큰 글꼴(130%)에서 한 줄 유지·겹침 없음.
+
 [2026-10-29] 홍보 페이지 카피 변경 — "어제의 숫자가 오늘의 목표가 돼요"(사용자 선택) | public/intro/index.html(히어로·부제·title·OG 문구), public/intro/img/og.png
 
 [2026-10-29] 홍보 페이지 /intro 신설(플랜핏·짐워크·RISE 벤치마킹) | public/intro/index.html(신규), public/intro/img/*(앱 화면 캡처 webp·공유 이미지), CLAUDE.md

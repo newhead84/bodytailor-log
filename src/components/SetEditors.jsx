@@ -374,8 +374,9 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step 
           닫기
         </button>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', width: 64 }}>목표 반복</span>
+      {/* [2026-10-29] 좁은 화면·큰 글꼴에서 최대값 + 버튼이 다음 줄로 넘어가던 문제: 이름은 윗줄, 조절 버튼은 한 줄 고정 */}
+      <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginBottom: -4 }}>목표 반복</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
         {stepBtn('−', () => set({ repMin: Math.max(1, min - 1) }), '최소 반복 줄이기')}
         <span className="bt-num" style={{ fontSize: 16, minWidth: 20, textAlign: 'center' }}>{min}</span>
         {stepBtn('+', () => set({ repMin: Math.min(max, min + 1) }), '최소 반복 늘리기')}
@@ -389,7 +390,8 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step 
         <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
           휴식 (기본 = 상단 휴식 설정 · 자동이면 이 종목 권장 {Math.floor(defaultRestSec / 60)}:{String(defaultRestSec % 60).padStart(2, '0')})
         </span>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {/* [2026-10-29] 6칸 한 줄 균등 배치(3:00이 다음 줄로 넘어가던 문제) */}
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${REST_CHOICES.length}, minmax(0, 1fr))`, gap: 4 }}>
           {REST_CHOICES.map((c) => {
             const on = (restSec ?? null) === c.value
             return (
@@ -400,7 +402,8 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step 
                 className="bt-num"
                 style={{
                   height: 34,
-                  padding: '0 10px',
+                  padding: 0,
+                  minWidth: 0,
                   borderRadius: 'var(--radius-pill)',
                   border: on ? '1px solid var(--color-label-strong)' : '1px solid var(--color-line)',
                   background: on ? 'var(--color-label-strong)' : 'transparent',
@@ -417,7 +420,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step 
       {defaultStep != null && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>증량 단위 (기본 {defaultStep}kg)</span>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${STEP_CHOICES.length + 1}, minmax(0, 1fr))`, gap: 4 }}>
             {[null, ...STEP_CHOICES].map((v) => {
               const on = (step ?? null) === v
               return (
@@ -428,7 +431,8 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step 
                   className="bt-num"
                   style={{
                     height: 34,
-                    padding: '0 10px',
+                    padding: 0,
+                    minWidth: 0,
                     borderRadius: 'var(--radius-pill)',
                     border: on ? '1px solid var(--color-label-strong)' : '1px solid var(--color-line)',
                     background: on ? 'var(--color-label-strong)' : 'transparent',
