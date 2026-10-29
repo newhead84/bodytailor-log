@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { ChevronDown, Info } from 'lucide-react'
+import { ChevronDown, Info, X, SlidersHorizontal } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm } from './ui'
 import { CountUp } from '../hooks/useCountUp'
@@ -426,6 +426,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 세션 상태를 초기(idle)로 되돌린다(운동 완료·취소·자동 저장 공통).
   function resetSessionState() {
     setRecords({})
+    setDismissedSuggestions({})
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -663,6 +664,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setPausedAccumMs(0)
     setRestActive(false)
     setRecords({})
+    setDismissedSuggestions({})
     setCompletedExercises({})
     setHiddenToday([])
     setFreeExercises([])
@@ -896,6 +898,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // ───────── [2026-10-27 리뉴얼 W1] 세트 종류·RIR·증량 추천·웜업·종목 설정 ─────────
   // [2026-10-27] 종목 설정은 저장 응답을 기다리지 않고 즉시 반영(연속 탭·오프라인에서도 값이 유실되지 않게)
   const [settingsOverride, setSettingsOverride] = useState({})
+  // [2026-10-29] 다음 무게 추천 카드: "적용"·닫기(×)를 누르거나 본세트를 하나라도 체크하면 오늘 이 종목에서는 닫는다(사용자 요청)
+  const [dismissedSuggestions, setDismissedSuggestions] = useState({})
+  function dismissSuggestion(key) {
+    setDismissedSuggestions((d) => (d[key] ? d : { ...d, [key]: true }))
+  }
   function settingFor(key) {
     return settingsOverride[key] || exerciseSettings?.[key] || null
   }
@@ -925,9 +932,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     let idx = sets.findIndex((st) => !st.saved && st.type !== 'warmup')
     if (idx === -1) {
       setRecords((r) => ({ ...r, [key]: [...(r[key] || []), { weight: String(sug.weight), reps: String(sug.reps) }] }))
+      dismissSuggestion(key)
       return
     }
     patchSet(key, idx, { weight: String(sug.weight), reps: String(sug.reps) })
+    dismissSuggestion(key)
   }
   // 본세트 무게 기준 웜업 램프(40·60·80%)를 맨 앞에 추가(아직 저장한 세트가 없을 때만 노출)
   function addWarmupRamp(key) {
@@ -965,6 +974,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     return {
       logMode: logMode || 'list',
       suggestion: suggestionFor(key),
+      suggestionOpen: !dismissedSuggestions[key] && !(records[key] || []).some((st) => st.saved && st.type !== 'warmup'),
+      onDismissSuggestion: () => dismissSuggestion(key),
       bestE1rm: Math.max(personalRecords?.[key]?.e1rm || 0, sessionBest),
       repRange: getRepRange(name, setting),
       restSec: setting?.restSec || null,
@@ -1356,6 +1367,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     clearActiveSession(uid)
     remoteHasSessionRef.current = false
     setRecords({})
+    setDismissedSuggestions({})
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -2328,7 +2340,7 @@ export function ExerciseCard({
           )}
 
           {/* [2026-10-27 리뉴얼 W1] 이중 진행 기반 다음 세트 추천 */}
-          {isStrength && suggestion && !isDone && (
+          {isStrength && suggestion && !isDone && ext.suggestionOpen !== false && (
             <div
               className="bt-enter"
               style={{
@@ -2365,6 +2377,15 @@ export function ExerciseCard({
               >
                 적용
               </button>
+              <button
+                type="button"
+                onClick={ext.onDismissSuggestion}
+                aria-label="추천 닫기"
+                title="추천 닫기"
+                style={{ flexShrink: 0, width: 30, height: 34, marginRight: -4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)' }}
+              >
+                <X size={16} strokeWidth={2} />
+              </button>
             </div>
           )}
 
@@ -2386,12 +2407,16 @@ export function ExerciseCard({
                 </ToolChip>
               )}
               <ToolChip active={showSetting} onClick={() => setShowSetting((v) => !v)} title="목표 반복·휴식 설정">
-                목표 <span className="bt-num">{repRange?.[0]}–{repRange?.[1]}</span>회
-                {restSec ? (
-                  <>
-                    {' '}· 휴식 <span className="bt-num">{Math.floor(restSec / 60)}:{String(restSec % 60).padStart(2, '0')}</span>
-                  </>
-                ) : null}
+                {/* [2026-10-29] 켜고 끄는 버튼이 아니라 설정 창을 여는 버튼임을 아이콘으로 표시 */}
+                <SlidersHorizontal size={13} strokeWidth={2} aria-hidden="true" style={{ flexShrink: 0 }} />
+                <span>
+                  목표 <span className="bt-num">{repRange?.[0]}–{repRange?.[1]}</span>회
+                  {restSec ? (
+                    <>
+                      {' '}· 휴식 <span className="bt-num">{Math.floor(restSec / 60)}:{String(restSec % 60).padStart(2, '0')}</span>
+                    </>
+                  ) : null}
+                </span>
               </ToolChip>
             </div>
           )}
@@ -2488,6 +2513,9 @@ function ToolChip({ children, onClick, active, title }) {
       onClick={onClick}
       title={title}
       style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
         height: 32,
         padding: '0 10px',
         borderRadius: 'var(--radius-pill)',
