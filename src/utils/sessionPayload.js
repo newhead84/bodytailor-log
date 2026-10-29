@@ -5,6 +5,7 @@
 
 import { getExerciseInputType, getExerciseAtom } from './exerciseLibrary'
 import { setsVolumeKg } from './load'
+import { toSavedCardioSet } from './cardioFields'
 import { parseExerciseKey } from './exerciseKey'
 import { toLocalDateStr } from './date'
 
@@ -74,27 +75,8 @@ export function buildExercisesFromRecords(records, { includeUnchecked = false } 
       const sets = (rawSets || []).filter((st) => keepForSave(st, rawSets, includeUnchecked))
       let validSets
       if (inputType === 'cardio') {
-        // [2026-08-18] 스텝밀은 incline 대신 steps(스텝수)를 저장한다.
-        validSets =
-          name === '스텝밀'
-            ? sets
-                .filter((s) => isFilledSet(s, 'cardio'))
-                .map((s) => ({
-                  weight: 0,
-                  reps: 0,
-                  steps: Number(s.steps) || 0,
-                  speedKmh: Number(s.speedKmh) || 0,
-                  durationMin: Number(s.durationMin) || 0,
-                }))
-            : sets
-                .filter((s) => isFilledSet(s, 'cardio'))
-                .map((s) => ({
-                  weight: 0,
-                  reps: 0,
-                  incline: Number(s.incline) || 0,
-                  speedKmh: Number(s.speedKmh) || 0,
-                  durationMin: Number(s.durationMin) || 0,
-                }))
+        // [2026-10-29] 종목별 유산소 칸(기본 경사·속도·시간 / 스텝밀 스텝·레벨·시간 / 실내사이클 거리·속도·시간) — cardioFields.js
+        validSets = sets.filter((s) => isFilledSet(s, 'cardio')).map((s) => toSavedCardioSet(name, s))
       } else if (inputType === 'reps') {
         validSets = sets.filter((s) => isFilledSet(s, 'reps')).map((s) => ({ weight: 0, reps: Number(s.reps), ...setMeta(s) }))
       } else {

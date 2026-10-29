@@ -11,6 +11,7 @@ import {
   getExerciseAtom,
 } from '../utils/exerciseLibrary'
 import { getHolidaysForMonth } from '../utils/holidays'
+import { getCardioFields, formatCardioSet, makeCardioSet, toSavedCardioSet } from '../utils/cardioFields'
 import { setsVolumeKg, repsUnit, formatLoad, allowsZeroWeight, weightUnitShort } from '../utils/load'
 
 // [2026-07-30 재수정] 프레임 고정(위 CELL_HEIGHT/+N 요약) 방식이 기록 일부를 가려 오히려
@@ -123,10 +124,7 @@ function HMLabel({ seconds, unitSize = 7 }) {
 // 자체중량 종목은 횟수만, 그 외는 무게x횟수).
 // [2026-08-18 수정] 스텝밀은 경사(incline) 대신 스텝수(steps)를 기록하므로 종목명을 함께 받아 분기한다.
 function makeEmptySet(inputType, exerciseName) {
-  if (inputType === 'cardio') {
-    if (exerciseName === '스텝밀') return { steps: '', speedKmh: '', durationMin: '' }
-    return { incline: '', speedKmh: '', durationMin: '' }
-  }
+  if (inputType === 'cardio') return makeCardioSet(exerciseName)
   if (inputType === 'reps') return { reps: '' }
   return { weight: '', reps: '' }
 }
@@ -135,14 +133,7 @@ function makeEmptySet(inputType, exerciseName) {
 // 경사/속도/시간)에 맞춰, 저장된 log.exercises[].inputType 기준으로 표기 형식을 분기한다.
 // 과거(이 변경 이전)에 저장된 기록은 inputType이 없으므로 기존 "무게x횟수" 표기를 그대로 유지한다.
 function formatExerciseSets(ex) {
-  if (ex.inputType === 'cardio') {
-    if (ex.name === '스텝밀') {
-      return ex.sets.map((s) => `${s.steps || 0}스텝·레벨${s.speedKmh || 0}·${s.durationMin || 0}분`).join(' / ')
-    }
-    return ex.sets
-      .map((s) => `경사${s.incline || 0}%·시속${s.speedKmh || 0}km/h·${s.durationMin || 0}분`)
-      .join(' / ')
-  }
+  if (ex.inputType === 'cardio') return ex.sets.map((s) => formatCardioSet(ex.name, s)).join(' / ')
   if (ex.inputType === 'reps') {
     return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${s.reps}${repsUnit(ex.name)}`).join('/')
   }
@@ -267,54 +258,20 @@ function EditLogForm({
                   paddingBottom: 2,
                 }}
               >
-                {ex.inputType === 'cardio' && ex.name === '스텝밀' ? (
-                  <>
-                    <input
-                      type="number"
-                      value={s.steps}
-                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'steps', e.target.value)}
-                      style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
-                    />
-                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>스텝 ·</span>
-                    <input
-                      type="number"
-                      value={s.speedKmh}
-                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'speedKmh', e.target.value)}
-                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
-                    />
-                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>레벨 ·</span>
-                    <input
-                      type="number"
-                      value={s.durationMin}
-                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'durationMin', e.target.value)}
-                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
-                    />
-                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>분</span>
-                  </>
-                ) : ex.inputType === 'cardio' ? (
-                  <>
-                    <input
-                      type="number"
-                      value={s.incline}
-                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'incline', e.target.value)}
-                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
-                    />
-                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>% ·</span>
-                    <input
-                      type="number"
-                      value={s.speedKmh}
-                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'speedKmh', e.target.value)}
-                      style={{ width: 52, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
-                    />
-                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>km/h ·</span>
-                    <input
-                      type="number"
-                      value={s.durationMin}
-                      onChange={(e) => onUpdateSet(exIdx, setIdx, 'durationMin', e.target.value)}
-                      style={{ width: 48, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
-                    />
-                    <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>분</span>
-                  </>
+                {ex.inputType === 'cardio' ? (
+                  // [2026-10-29] 종목별 유산소 칸(cardioFields.js) — 실내사이클은 거리·속도·시간
+                  getCardioFields(ex.name).map((f, fi) => (
+                    <React.Fragment key={f.key}>
+                      <input
+                        type="number"
+                        value={s[f.key] ?? ''}
+                        aria-label={`${f.label} ${f.unit}`}
+                        onChange={(e) => onUpdateSet(exIdx, setIdx, f.key, e.target.value)}
+                        style={{ width: 50, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{f.unit}{fi < 2 ? ' ·' : ''}</span>
+                    </React.Fragment>
+                  ))
                 ) : ex.inputType === 'reps' ? (
                   <>
                     <input
@@ -781,18 +738,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       ...(ex.grip ? { grip: ex.grip } : {}),
       sets: ex.sets.map((s) => {
         if (ex.inputType === 'cardio') {
-          if (ex.name === '스텝밀') {
-            return {
-              steps: Number(s.steps) || 0,
-              speedKmh: Number(s.speedKmh) || 0,
-              durationMin: Number(s.durationMin) || 0,
-            }
-          }
-          return {
-            incline: Number(s.incline) || 0,
-            speedKmh: Number(s.speedKmh) || 0,
-            durationMin: Number(s.durationMin) || 0,
-          }
+          const { weight, reps, ...rest } = toSavedCardioSet(ex.name, s)
+          return rest
         }
         if (ex.inputType === 'reps') {
           return { reps: parseInt(s.reps, 10) || 0, ...keepMeta(s) }

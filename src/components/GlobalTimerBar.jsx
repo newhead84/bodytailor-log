@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { List, RectangleVertical } from 'lucide-react'
 
 // [2026-08-04 신규]
 // 지난 세션(7/30)에서는 "운동중" 여부만 홈탭 카드로 정적 표시했을 뿐, 실시간 타이머 숫자는
@@ -23,7 +24,7 @@ function formatElapsed(totalSeconds) {
   return hh > 0 ? `${hh}:${pad(mm)}:${pad(ss)}` : `${pad(mm)}:${pad(ss)}`
 }
 
-export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset, onAdjust, expanded, onToggleExpanded }) {
+export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset, onAdjust, expanded, onToggleExpanded, logMode, onToggleLogMode }) {
   const { sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs } = timing || {}
   const isActive = sessionPhase === 'warmup' || sessionPhase === 'main'
   const isPaused = !!pauseStartedAt
@@ -36,6 +37,18 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
     const id = setInterval(() => setNowTick(Date.now()), 1000)
     return () => clearInterval(id)
   }, [isActive, isPaused])
+
+  // [2026-10-29] 기록 방식 전환 후 1.5초 동안 바 가운데에 바뀐 방식을 알려 준다
+  const [modeNotice, setModeNotice] = useState(null)
+  const noticeTimer = useRef(null)
+  useEffect(() => () => clearTimeout(noticeTimer.current), [])
+  function handleToggleMode() {
+    const next = logMode === 'focus' ? 'list' : 'focus'
+    onToggleLogMode?.()
+    setModeNotice(next === 'focus' ? '포커스형으로 바꿨어요' : '리스트형으로 바꿨어요')
+    clearTimeout(noticeTimer.current)
+    noticeTimer.current = setTimeout(() => setModeNotice(null), 1500)
+  }
 
   if (!isActive || !sessionStartAt) return null
 
@@ -69,10 +82,41 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           fontWeight: 700,
         }}
       >
-        <span>{isPaused ? '일시정지됨' : sessionPhase === 'warmup' ? '웜업 중' : '운동 진행중'}</span>
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatElapsed(elapsedSec)}</span>
-        <span style={{ opacity: 0.75, fontWeight: 500 }}>{expanded ? '· 접기' : '· 조작하기'}</span>
+        {modeNotice ? (
+          <span>{modeNotice}</span>
+        ) : (
+          <>
+            <span>{isPaused ? '일시정지됨' : sessionPhase === 'warmup' ? '웜업 중' : '운동 진행중'}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatElapsed(elapsedSec)}</span>
+            <span style={{ opacity: 0.75, fontWeight: 500 }}>{expanded ? '· 접기' : '· 조작하기'}</span>
+          </>
+        )}
       </button>
+      {/* [2026-10-29] 왼쪽: 리스트형 ↔ 포커스형 전환(기록 탭에서만). 현재 방식 아이콘을 보여 주고 누르면 바뀐다 */}
+      {onToggleLogMode && (
+        <button
+          type="button"
+          data-guide="mode-toggle"
+          onClick={handleToggleMode}
+          aria-label={logMode === 'focus' ? '지금 포커스형 · 눌러서 리스트형으로' : '지금 리스트형 · 눌러서 포커스형으로'}
+          title={logMode === 'focus' ? '포커스형 → 리스트형으로 바꾸기' : '리스트형 → 포커스형으로 바꾸기'}
+          style={{
+            position: 'absolute',
+            left: 8,
+            top: `calc(var(--safe-top) + ${(GLOBAL_TIMER_BAR_HEIGHT - 30) / 2}px)`,
+            width: 34,
+            height: 30,
+            borderRadius: 'var(--radius-sm)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.08)',
+            color: isPaused ? 'var(--color-label-neutral)' : 'var(--color-on-fill)',
+          }}
+        >
+          {logMode === 'focus' ? <RectangleVertical size={17} strokeWidth={2.2} /> : <List size={18} strokeWidth={2.2} />}
+        </button>
+      )}
 
       {expanded && (
         <div

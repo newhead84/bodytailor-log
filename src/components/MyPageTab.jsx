@@ -226,6 +226,16 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     await updateUserProfile(uid, { fontPreference: font })
     await onProfileUpdated?.()
   }
+  // [2026-10-29] RIR(남은 여력) 기록 켜기/끄기 — 안 쓰는 사용자는 세트 줄에서 RIR 칸을 숨긴다
+  const [rirEnabled, setRirEnabledState] = useState(userDoc?.rirEnabled !== false)
+  useEffect(() => {
+    setRirEnabledState(userDoc?.rirEnabled !== false)
+  }, [userDoc?.rirEnabled])
+  async function selectRirEnabled(on) {
+    setRirEnabledState(on)
+    await updateUserProfile(uid, { rirEnabled: on })
+    await onProfileUpdated?.()
+  }
   async function selectLogMode(mode) {
     setLogModeState(mode)
     await updateUserProfile(uid, { logMode: mode })
@@ -846,7 +856,21 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             </Chip>
           </div>
           <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            {logMode === 'focus' ? '한 번에 한 세트만 크게 보여주고, 큰 버튼으로 입력해요.' : '모든 세트를 표로 한눈에 보며 입력해요.'}
+            {logMode === 'focus' ? '한 번에 한 세트만 크게 보여주고, 큰 버튼으로 입력해요.' : '모든 세트를 표로 한눈에 보며 입력해요.'} 운동 중에는 맨 위 초록 바 왼쪽 버튼으로도 바꿀 수 있어요.
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>RIR(남은 여력) 기록</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Chip active={rirEnabled} onClick={() => selectRirEnabled(true)} style={{ flex: 1, justifyContent: 'center' }}>
+              켜기
+            </Chip>
+            <Chip active={!rirEnabled} onClick={() => selectRirEnabled(false)} style={{ flex: 1, justifyContent: 'center' }}>
+              끄기
+            </Chip>
+          </div>
+          <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            세트마다 몇 개 더 할 수 있었는지(0 = 한계) 적는 칸이에요. 적으면 다음 무게 추천에 반영돼요. 끄면 세트 줄에서 칸이 사라지고, 이미 적은 기록은 그대로 남아요.
           </span>
         </div>
         </>)}

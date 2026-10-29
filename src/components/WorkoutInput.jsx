@@ -4,7 +4,8 @@ import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import RestTimer from './RestTimer'
-import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, nextSetType, nextRir } from './SetEditors'
+import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
+import WorkoutGuide, { WORKOUT_GUIDE_VERSION } from './WorkoutGuide'
 import {
   suggestNextSet,
   getRepRange,
@@ -15,7 +16,10 @@ import {
   bestE1rmOfSets,
   hasWarmupRamp,
   getProgressionIncrement,
+  SET_TYPE_LABEL,
+  SET_TYPE_DESC,
 } from '../utils/strength'
+import { getCardioFields, formatCardioSet, makeCardioSet } from '../utils/cardioFields'
 import { allowsZeroWeight, isAssistedExercise, weightCaption, repsCaption, repsUnit, formatLoad, weightUnitShort, inputHint } from '../utils/load'
 import { useExerciseGuidePress, ExerciseGuidePanel } from './ExerciseGuideToggle'
 import logoMarkTransparent from '../assets/logo-mark-transparent.png'
@@ -202,6 +206,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     exerciseSettings,
     logMode,
     seasonXp = 0, // [2026-10-29] 완료 요약 카드의 Lv 진행(저장 전 시즌 XP)
+    rirEnabled = true, // [2026-10-29] MY에서 RIR 기록 끄기
+    workoutGuideSeen = false, // [2026-10-29] 기록 화면 사용법 가이드를 본 계정
   },
   ref
 ) {
@@ -242,6 +248,27 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const [restSeconds, setRestSeconds] = useState(REST_AUTO)
   const [restKey, setRestKey] = useState(0)
   const [restActive, setRestActive] = useState(false)
+  // [2026-10-29] 처음 쓰는 사용자용 기록 화면 사용법 가이드: 본운동 중 종목 카드를 처음 열면 한 번 표시
+  const [guideEl, setGuideEl] = useState(null)
+  const guideShownRef = useRef(false)
+  const guideSkipKeys = useMemo(() => (rirEnabled ? [] : ['rir']), [rirEnabled])
+  function guideLocalKey() {
+    return `bt-workout-guide-${uid}`
+  }
+  function finishWorkoutGuide() {
+    setGuideEl(null)
+    guideShownRef.current = true
+    try {
+      localStorage.setItem(guideLocalKey(), WORKOUT_GUIDE_VERSION)
+    } catch (e) {
+      // 무시
+    }
+    if (uid) {
+      updateUserProfile(uid, { workoutGuideSeen: WORKOUT_GUIDE_VERSION })
+        .then(() => onProfileUpdated?.())
+        .catch((err) => console.error('가이드 표시 기록 실패:', err))
+    }
+  }
   // [2026-08-02 신규, 같은 날 재수정] 종목 하나를 "세트완료" 처리할 때 잠깐 뜨는 응원 멘트
   // 팝업(⑨). 처음엔 세트 하나 저장할 때마다 떴는데, 너무 잦다는 피드백으로 종목 완료 시점
   // 1회로 옮겼다. 문구는 매번 랜덤(직전과 중복 방지).
@@ -276,6 +303,24 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   // 전체 세션 진행 단계: idle(시작 전) → warmup(웜업 중) → main(본운동)
   const [sessionPhase, setSessionPhase] = useState('idle')
+  useEffect(() => {
+    if (workoutGuideSeen || guideShownRef.current || sessionPhase !== 'main' || !expandedExercise) return
+    let seenLocal = false
+    try {
+      seenLocal = !!localStorage.getItem(`bt-workout-guide-${uid}`)
+    } catch (e) {
+      // 무시
+    }
+    if (seenLocal) return
+    const t = setTimeout(() => {
+      const el = document.querySelector('[data-guide-card="open"]')
+      if (el && !guideShownRef.current) {
+        guideShownRef.current = true
+        setGuideEl(el)
+      }
+    }, 700)
+    return () => clearTimeout(t)
+  }, [workoutGuideSeen, sessionPhase, expandedExercise, uid])
   const [sessionStartAt, setSessionStartAt] = useState(null) // ms epoch, 총 운동시간 계산 기준
   // [2026-10-29] 세션 고정 ID(시작 시각 ms). 타이머 ±10초·초기화로 sessionStartAt이 바뀌어도 기록 ID·날짜는 그대로.
   const [sessionId, setSessionId] = useState(null)
@@ -815,37 +860,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         // (중량형: 가장 무거운 세트 / 어시스트: 보조가 가장 적은 세트 / 횟수형: 가장 많이 한 세트)를 기준으로 프리필
         const lastSet = inputType === 'cardio' ? last?.sets?.[last.sets.length - 1] : pickTopSet(last?.sets, name, inputType)
         if (inputType === 'cardio') {
-          // [2026-08-18 신규] 스텝밀은 경사 개념이 없는 기구라 경사%(incline) 대신
-          // 스텝수(steps, 누적 걸음/계단 수)를 기록한다. 속도(speedKmh)는 스텝밀의 경우
-          // km/h 단위가 아니라 기구 표시 레벨(단위 없는 숫자)을 그대로 입력하는 용도로 재사용한다.
-          if (name === '스텝밀') {
-            return {
-              ...r,
-              [key]: [
-                {
-                  auto: true,
-                  weight: '0',
-                  reps: '0',
-                  steps: lastSet?.steps != null ? String(lastSet.steps) : '',
-                  speedKmh: lastSet?.speedKmh != null ? String(lastSet.speedKmh) : '',
-                  durationMin: lastSet?.durationMin != null ? String(lastSet.durationMin) : '',
-                },
-              ],
-            }
-          }
-          return {
-            ...r,
-            [key]: [
-              {
-                auto: true,
-                weight: '0',
-                reps: '0',
-                incline: lastSet?.incline != null ? String(lastSet.incline) : '',
-                speedKmh: lastSet?.speedKmh != null ? String(lastSet.speedKmh) : '',
-                durationMin: lastSet?.durationMin != null ? String(lastSet.durationMin) : '',
-              },
-            ],
-          }
+          // [2026-10-29] 종목별 유산소 칸(cardioFields.js): 기본 경사·속도·시간 / 스텝밀 스텝·레벨·시간 / 실내사이클 거리·속도·시간
+          return { ...r, [key]: [{ auto: true, weight: '0', reps: '0', ...makeCardioSet(name, lastSet) }] }
         }
         if (inputType === 'reps') {
           return {
@@ -891,6 +907,21 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     })
   }
 
+  // [2026-10-29] 세트 삭제(번호 칸 길게 누르기·포커스형 "세트 삭제"): 체크한 세트는 한 번 확인
+  async function confirmRemoveSet(name, idx) {
+    const st = records[name]?.[idx]
+    if (!st) return
+    if ((records[name] || []).length <= 1) {
+      showToast('마지막 세트는 지울 수 없어요', 1500)
+      return
+    }
+    if (st.saved) {
+      const label = getExerciseInputType(parseExerciseKey(name).name) === 'sets' ? ` (${st.weight}kg × ${st.reps})` : ''
+      if (!(await confirm(`체크한 세트${label}를 삭제할까요?`, { okLabel: '삭제', cancelLabel: '취소' }))) return
+    }
+    removeSet(name, idx)
+    showToast('세트를 삭제했어요', 1300)
+  }
   function removeSet(name, idx) {
     setRecords((r) => ({ ...r, [name]: r[name].filter((_, i) => i !== idx) }))
   }
@@ -918,7 +949,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }
   function cycleSetType(key, idx) {
     const cur = records[key]?.[idx]
-    patchSet(key, idx, { type: nextSetType(cur?.type) })
+    const next = nextSetType(cur?.type)
+    patchSet(key, idx, { type: next })
+    // [2026-10-29] W·D·F가 무엇인지 바꿀 때 한 줄로 안내
+    showToast(next === 'working' ? '본세트로 바꿨어요' : `${SET_TYPE_LABEL[next]} 세트로 바꿨어요 · ${SET_TYPE_DESC[next]}`, 1800)
   }
   function cycleSetRir(key, idx) {
     const cur = records[key]?.[idx]
@@ -957,6 +991,18 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       ],
     }))
   }
+  // [2026-10-29] 웜업 세트 버튼을 켜고 끄기로: 체크 안 한 웜업 줄이 있으면 그 줄만 지운다(체크한 웜업은 기록이라 유지)
+  function toggleWarmups(key) {
+    const sets = records[key] || []
+    if (sets.some((st) => st.type === 'warmup' && !st.saved)) {
+      setRecords((r) => {
+        const left = (r[key] || []).filter((st) => !(st.type === 'warmup' && !st.saved))
+        return { ...r, [key]: left.length ? left : [{ weight: '', reps: '' }] }
+      })
+      return
+    }
+    addWarmupRamp(key)
+  }
   async function saveExerciseSetting(key, setting) {
     setSettingsOverride((prev) => ({ ...prev, [key]: setting }))
     try {
@@ -986,7 +1032,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       onCycleType: (idx) => cycleSetType(key, idx),
       onCycleRir: (idx) => cycleSetRir(key, idx),
       onApplySuggestion: () => applySuggestion(key),
-      onAddWarmups: () => addWarmupRamp(key),
+      onAddWarmups: () => toggleWarmups(key),
+      hasUnsavedWarmups: (records[key] || []).some((st) => st.type === 'warmup' && !st.saved),
+      rirEnabled,
       onSettingChange: (next) => saveExerciseSetting(key, next),
       supersetPartner: supersets[key] || null,
       onToggleSuperset: visibleExercises.length > 1 ? () => toggleSuperset(key) : null,
@@ -1463,6 +1511,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   return (
     <div ref={rootRef} style={{ padding: '16px 20px 140px' }}>
       {/* [2026-08-02 신규] 세트완료 응원 멘트 토스트(⑨). 화면 상단 고정, 1줄, 자동으로 사라짐. */}
+      {guideEl && <WorkoutGuide container={guideEl} skipKeys={guideSkipKeys} onDone={finishWorkoutGuide} />}
       {setToast && (
         <div
           key={setToast}
@@ -1679,7 +1728,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                     onFieldChange={(idx, field, v) => updateSet(name, idx, field, v)}
                     onSaveSet={(idx) => trySaveSet(name, idx)}
                     onCopySet={(idx) => copyLastSet(name, idx)}
-                    onRemoveSet={(idx) => removeSet(name, idx)}
+                    onRemoveSet={(idx) => confirmRemoveSet(name, idx)}
                     onHideToday={() => hideExerciseToday(name)}
                     onRemoveFromRoutine={() => removeExerciseFromRoutine(name)}
                     customExercises={customExercises}
@@ -1707,7 +1756,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                   onFieldChange={(idx, field, v) => updateSet(name, idx, field, v)}
                   onSaveSet={(idx) => trySaveSet(name, idx)}
                   onCopySet={(idx) => copyLastSet(name, idx)}
-                  onRemoveSet={(idx) => removeSet(name, idx)}
+                  onRemoveSet={(idx) => confirmRemoveSet(name, idx)}
                   isExtra
                   onRemoveExtra={() => removeFreeExercise(name)}
                   customExercises={customExercises}
@@ -2158,11 +2207,12 @@ export function ExerciseCard({
   const workingIndexOf = (i) => sets.slice(0, i + 1).filter((st) => st.type !== 'warmup').length
   const activeIdx = Math.max(0, sets.findIndex((st) => !st.saved))
   const activeWeight = Number(sets[focusIdx ?? activeIdx]?.weight) || Number(suggestion?.weight) || 0
-  const hasSaved = sets.some((st) => st.saved)
+  const hasSavedWorking = sets.some((st) => st.saved && st.type !== 'warmup')
+  const guideRow = Math.max(0, sets.findIndex((st) => !st.saved))
   const fmtKg = (n) => (Number.isInteger(n) ? n : Number(n).toFixed(1))
 
   return (
-    <Card ref={cardRef} style={{ padding: 0 }}>
+    <Card ref={cardRef} style={{ padding: 0 }} data-guide-card={expanded && !isDone ? 'open' : undefined}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 10px 6px', gap: 6 }}>
         {draggable && (
           <div
@@ -2320,9 +2370,7 @@ export function ExerciseCard({
               <span style={{ flexShrink: 0 }}>직전({lastRecord.date}):</span>
               <span>
                 {inputType === 'cardio'
-                  ? exName === '스텝밀'
-                    ? lastRecord.sets.map((st) => `${st.steps || 0}스텝·레벨${st.speedKmh || 0}·${st.durationMin || 0}분`).join(' / ')
-                    : lastRecord.sets.map((st) => `경사${st.incline || 0}%·시속${st.speedKmh || 0}km/h·${st.durationMin || 0}분`).join(' / ')
+                  ? lastRecord.sets.map((st) => formatCardioSet(exName, st)).join(' / ')
                   : inputType === 'reps'
                   ? lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.reps}${repsUnit(exName)}`).join('/')
                   : allowsZeroWeight(exName)
@@ -2342,6 +2390,7 @@ export function ExerciseCard({
           {/* [2026-10-27 리뉴얼 W1] 이중 진행 기반 다음 세트 추천 */}
           {isStrength && suggestion && !isDone && ext.suggestionOpen !== false && (
             <div
+              data-guide="suggest"
               className="bt-enter"
               style={{
                 display: 'flex',
@@ -2390,10 +2439,10 @@ export function ExerciseCard({
           )}
 
           {isStrength && !isDone && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {!hasSaved && ext.showWarmupRamp && (
-                <ToolChip onClick={ext.onAddWarmups} title="본세트 무게 기준 40·60·80% 웜업 세트 추가">
-                  웜업 세트
+            <div data-guide="tools" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {!hasSavedWorking && ext.showWarmupRamp && (
+                <ToolChip onClick={ext.onAddWarmups} title={ext.hasUnsavedWarmups ? '체크하지 않은 웜업 세트 빼기' : '본세트 무게 기준 웜업 세트 추가'}>
+                  {ext.hasUnsavedWarmups ? '웜업 빼기' : '웜업 세트'}
                 </ToolChip>
               )}
               {usesBarbellPlates(exName) && (
@@ -2406,7 +2455,7 @@ export function ExerciseCard({
                   {ext.supersetPartner ? '슈퍼세트 해제' : '슈퍼세트'}
                 </ToolChip>
               )}
-              <ToolChip active={showSetting} onClick={() => setShowSetting((v) => !v)} title="목표 반복·휴식 설정">
+              <ToolChip guideKey="goal" active={showSetting} onClick={() => setShowSetting((v) => !v)} title="목표 반복·휴식 설정">
                 {/* [2026-10-29] 켜고 끄는 버튼이 아니라 설정 창을 여는 버튼임을 아이콘으로 표시 */}
                 <SlidersHorizontal size={13} strokeWidth={2} aria-hidden="true" style={{ flexShrink: 0 }} />
                 <span>
@@ -2441,6 +2490,7 @@ export function ExerciseCard({
               weightLabel={weightCaption(exName)}
               repsLabel={repsCaption(exName)}
               repsUnitLabel={repsUnit(exName)}
+              rirEnabled={ext.rirEnabled !== false}
               focusIdx={focusIdx}
               onSelect={(i) => setFocusIdx(i)}
               onField={(i, field, v) => onFieldChange(i, field, v)}
@@ -2474,8 +2524,11 @@ export function ExerciseCard({
                   onSave={() => onSaveSet(idx)}
                   onCopy={() => onCopySet(idx)}
                   onRemove={sets.length > 1 ? () => onRemoveSet(idx) : null}
+                  rirEnabled={ext.rirEnabled !== false}
+                  guide={idx === guideRow}
                 />
               ))}
+              <SetTypeLegend sets={sets} />
               {inputType !== 'cardio' && sets.length > 0 && (
                 <button
                   type="button"
@@ -2497,19 +2550,22 @@ export function ExerciseCard({
             </div>
           )}
           {/* [2026-10-27] 세트 저장(V/세트 완료)과 헷갈리지 않도록 "종목 완료"로 명칭 변경 */}
-          <Button full variant="secondary" onClick={onComplete}>
-            이 종목 완료
-          </Button>
+          <div data-guide="finish">
+            <Button full variant="secondary" onClick={onComplete}>
+              이 종목 완료
+            </Button>
+          </div>
         </div>
       )}
     </Card>
   )
 }
 
-function ToolChip({ children, onClick, active, title }) {
+function ToolChip({ children, onClick, active, title, guideKey }) {
   return (
     <button
       type="button"
+      data-guide={guideKey}
       onClick={onClick}
       title={title}
       style={{
@@ -2537,11 +2593,8 @@ function ToolChip({ children, onClick, active, title }) {
 // 옆의 저장/복사 버튼과 세로 정렬이 어긋난다는 피드백을 받았다. 라벨 줄 없이도 각 인풋의
 // placeholder(중량은 "kg", 횟수는 "회" 등)로 이미 단위를 구분할 수 있어, 모든 세트가
 // 동일하게 Stepper(placeholder만 사용)를 쓰도록 통일했다.
-function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onCycleRir, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove }) {
+function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onCycleRir, onWeightChange, onRepsChange, onFieldChange, onSave, onCopy, onRemove, rirEnabled = true, guide = false }) {
   const isCardio = inputType === 'cardio'
-  // [2026-08-18 신규] 스텝밀은 경사(incline) 대신 스텝수(steps)를 입력한다. 속도는 km/h가 아닌
-  // 기구 표시 레벨(단위 없는 숫자)이라 스테퍼 증가폭을 1로 좁힌다(다른 카디오 종목은 0.5 유지).
-  const isStepmill = isCardio && exName === '스텝밀'
 
   const buttons = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: isCardio ? 0 : 'auto', flexShrink: 0 }}>
@@ -2564,26 +2617,22 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
   // 계속 겹쳐 보인다는 신고가 반복됐다. 근본 원인은 "폭이 좁다"가 아니라 "한 줄에 들어가기엔
   // 절대적으로 항목이 너무 많다"는 구조 문제였다. cardio 종목만 스텝퍼 줄과 버튼 줄을 아예
   // 분리된 두 줄로 나눠서, 두 영역이 서로 폭을 다툴 일 자체를 없앴다(가로 스크롤 불필요).
-  if (isStepmill) {
-    return (
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <Stepper value={set.steps} onChange={(v) => onFieldChange('steps', v)} step={1} placeholder="스텝수" fluid />
-          <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={1} placeholder="레벨" fluid />
-          <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" fluid />
-        </div>
-        {buttons}
-      </div>
-    )
-  }
-
   if (isCardio) {
+    // [2026-10-29] 종목별 칸(cardioFields.js) — 실내사이클은 경사 대신 거리 km
     return (
       <div style={{ marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <Stepper value={set.incline} onChange={(v) => onFieldChange('incline', v)} step={1} placeholder="경사%" fluid />
-          <Stepper value={set.speedKmh} onChange={(v) => onFieldChange('speedKmh', v)} step={0.5} placeholder="km/h" fluid />
-          <Stepper value={set.durationMin} onChange={(v) => onFieldChange('durationMin', v)} step={1} placeholder="분" fluid />
+          {getCardioFields(exName).map((f) => (
+            // 값이 채워지면 placeholder가 안 보여 어떤 칸인지 모르므로 칸 위에 이름·단위를 작게 표시
+            <div key={f.key} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 11, color: 'var(--color-label-neutral)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                {f.label} {f.unit !== f.label ? f.unit : ''}
+              </span>
+              <div style={{ display: 'flex' }}>
+                <Stepper value={set[f.key]} onChange={(v) => onFieldChange(f.key, v)} step={f.step} placeholder={f.unit} fluid minInput={38} />
+              </div>
+            </div>
+          ))}
         </div>
         {buttons}
       </div>
@@ -2603,35 +2652,31 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
     >
       {/* [2026-10-27 모션] 방금 저장한 세트만 잠깐 초록 하이라이트(카드를 다시 펼칠 때는 재생하지 않음) */}
       {justSaved && <span key={set.savedAt} aria-hidden="true" className="bt-saved-flash" style={{ position: 'absolute', inset: '-3px -4px', pointerEvents: 'none' }} />}
-      <SetTypeBadge type={set.type} index={setIndex} onClick={onCycleType} />
+      <SetTypeBadge type={set.type} index={setIndex} onClick={onCycleType} onLongPress={onRemove || undefined} guideKey={guide ? 'set-type' : undefined} />
       {/* [2026-10-28] RIR 겹침 수정: 스테퍼 묶음이 남은 폭을 차지하고(flex 1) 스테퍼도 함께 줄어든다(최소 폭까지만). 무게 칸이 조금 더 넓게(grow 1.4) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 3, flex: '1 1 0' }}>
+      <div data-guide={guide ? 'set-values' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 3, flex: '1 1 0' }}>
         {inputType === 'reps' ? (
           <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder={repsUnit(exName)} fluid minInput={28} />
         ) : (
           <>
-            <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder={weightUnitShort(exName)} fluid grow={1.4} minInput={44} />
+            <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder={weightUnitShort(exName)} fluid grow={1.25} minInput={40} />
             <span style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }}>×</span>
             <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" fluid minInput={24} />
           </>
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 'auto', flexShrink: 0 }}>
-        <RirChip rir={set.rir} onClick={onCycleRir} />
-        <IconButton title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-check-pop' : ''}>
+        {rirEnabled && <RirChip rir={set.rir} onClick={onCycleRir} guideKey={guide ? 'rir' : undefined} />}
+        <IconButton guideKey={guide ? 'set-save' : undefined} title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-check-pop' : ''}>
           <path d="M5 12l5 5L19 7" />
         </IconButton>
-        {onRemove && (
-          <IconButton title="세트 삭제" onClick={onRemove} muted>
-            <path d="M7 7l10 10M17 7L7 17" />
-          </IconButton>
-        )}
+        {/* [2026-10-29] 세트 삭제(×)는 ± 버튼 자리를 넓히려고 빼고, 번호 칸 길게 누르기로 옮김 */}
       </div>
     </div>
   )
 }
 
-function IconButton({ children, onClick, title, muted, disabled, tone, className }) {
+function IconButton({ children, onClick, title, muted, disabled, tone, className, guideKey }) {
   // [2026-08-02 변경] 세트 저장 체크 아이콘도 "시작" 버튼과 같은 골드 배경이라 대비가
   // 약하다는 피드백으로, 브라운(--color-on-gold) 대신 베이지 토큰(--color-on-gold-button)을 쓴다.
   // [2026-10-27] 저장 전(save)=채움 버튼, 저장 후(done)=초록 체크로 상태를 분명히 구분
@@ -2643,6 +2688,7 @@ function IconButton({ children, onClick, title, muted, disabled, tone, className
       : { background: muted ? 'var(--color-bg-elevated)' : 'var(--color-primary-bg)', border: '1px solid var(--color-line)', stroke: muted ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }
   return (
     <button
+      data-guide={guideKey}
       onClick={onClick}
       title={title}
       disabled={disabled}
@@ -2670,13 +2716,21 @@ function IconButton({ children, onClick, title, muted, disabled, tone, className
 // 회수 입력은 두 자리를 넘는 경우가 거의 없어 폭을 좁게(width) 지정할 수 있게 한다.
 // [2026-10-28] fluid: 고정 폭 대신 남은 폭에 맞춰 줄어드는 모드(세트 행). 고정 폭이면 좁은 화면·넓은 숫자 서체(Outfit)에서
 // 스테퍼가 줄어들지 못해 옆의 RIR 칩 밑으로 파고드는 겹침이 생겼다. width는 fluid일 때 flex-basis로 쓴다.
+// [2026-10-29] ± 버튼이 가로 14px 정도로 작아 숫자를 잘못 눌러 글자 블록이 잡히던 문제(사용자 지적):
+//  - fluid(세트 줄): 숫자 칸은 필요한 최소 폭만, 남는 폭은 ± 버튼이 나눠 가짐(최소 26·최대 40px, 높이 36px)
+//  - 버튼은 글자 선택·더블탭 확대가 일어나지 않게(user-select·touch-action), 숫자를 누르면 값 전체 선택(바로 덮어쓰기)
+const STEP_BTN_STYLE = { color: 'var(--color-label-normal)', fontSize: 18, lineHeight: 1, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }
 function Stepper({ value, onChange, step, placeholder, width = 52, fluid = false, grow = 1, minInput = 24 }) {
+  const btn = fluid
+    ? { ...STEP_BTN_STYLE, flex: '1 1 0', minWidth: 24, maxWidth: 40, height: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }
+    : { ...STEP_BTN_STYLE, padding: '8px 5px', fontSize: 16 }
   return (
     <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', ...(fluid ? { flex: `${grow} 1 0`, minWidth: 0 } : { flexShrink: 0 }) }}>
       <button
+        type="button"
         onClick={() => onChange(String(Math.max(0, Math.round(((Number(value) || 0) - step) * 100) / 100)))}
         aria-label="줄이기"
-        style={{ padding: fluid ? '8px clamp(2px, calc(1.4vw - 2px), 5px)' : '8px 5px', fontSize: 16, color: 'var(--color-label-normal)' }}
+        style={btn}
       >
         −
       </button>
@@ -2686,13 +2740,24 @@ function Stepper({ value, onChange, step, placeholder, width = 52, fluid = false
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={(e) => {
+          const el = e.target
+          setTimeout(() => {
+            try {
+              el.select()
+            } catch (err) {
+              // 일부 브라우저는 number 입력 select 미지원
+            }
+          }, 0)
+        }}
         className="record-notation"
-        style={{ ...(fluid ? { flex: '1 1 0', width: 0, minWidth: minInput } : { width }), boxSizing: 'border-box', padding: '0 2px', textAlign: 'center', border: 'none', background: 'transparent', color: 'var(--color-label-strong)', fontSize: 'calc(15px * var(--num-scale))', fontWeight: 700 }}
+        style={{ ...(fluid ? { flex: `0 0 ${minInput}px`, width: minInput, minWidth: minInput } : { width }), boxSizing: 'border-box', padding: '0 1px', textAlign: 'center', border: 'none', background: 'transparent', color: 'var(--color-label-strong)', fontSize: String(value ?? '').length >= 5 ? 'calc(13px * var(--num-scale))' : 'calc(15px * var(--num-scale))', fontWeight: 700 }}
       />
       <button
+        type="button"
         onClick={() => onChange(String(Math.round(((Number(value) || 0) + step) * 100) / 100))}
         aria-label="늘리기"
-        style={{ padding: fluid ? '8px clamp(2px, calc(1.4vw - 2px), 5px)' : '8px 5px', fontSize: 16, color: 'var(--color-label-normal)' }}
+        style={btn}
       >
         +
       </button>

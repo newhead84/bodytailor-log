@@ -20,6 +20,8 @@ import { effectiveLoad, isAssistedExercise, isBodyweightLoaded, allowsZeroWeight
 export const SET_TYPES = ['working', 'warmup', 'drop', 'failure']
 export const SET_TYPE_LABEL = { working: '본세트', warmup: '웜업', drop: '드롭', failure: '실패' }
 export const SET_TYPE_SHORT = { warmup: 'W', drop: 'D', failure: 'F' }
+// [2026-10-29] W·D·F 뜻 안내(세트 목록 아래 한 줄·종류 변경 안내)
+export const SET_TYPE_DESC = { warmup: '몸 푸는 세트, 볼륨·추천 제외', drop: '무게 낮춰 바로 이어서', failure: '한계까지' }
 
 export function isWarmupSet(s) {
   return s?.type === 'warmup'

@@ -104,6 +104,10 @@
 - 웜업(경과 타이머) → 본운동, 일시정지/재개, 상단 공통 타이머 바.
 - 기록 방식: 리스트형(세트 표) / 포커스형(한 세트씩 큰 입력).
 - 세트: 종류(본세트/웜업 W/드롭 D/실패 F — 번호 칩 탭), RIR(선택), 세트 저장(V) → 휴식 자동 시작. 휴식 우선순위: 종목별 휴식 설정 → 상단 휴식(자동/1분/1분30초/2분/3분) — "자동"(기본)이면 종목별 권장(다관절 2분30초·고립 1분30초). 저장 후 생기는 다음 행은 항상 본세트로 시작.
+- 기록 화면 사용법 가이드(`WorkoutGuide.jsx`, 대상은 `data-guide` 속성): 처음 계정만 본운동 중 첫 카드에서 1회(`users.workoutGuideSeen`), MY 미리보기 "사용법"에서 다시 보기. 버튼을 추가·이름 변경하면 가이드 단계도 맞춘다.
+- RIR 기록은 MY에서 끌 수 있음(`users.rirEnabled`, 기본 켜짐). 운동 중 상단 초록 바 왼쪽 버튼으로 리스트형 ↔ 포커스형 전환(기록 탭에서만).
+- 세트 줄: ± 버튼 24~40px(남는 폭 분배), 세트 삭제는 번호 칸 길게 누르기(체크한 세트는 확인). 웜업 세트 버튼은 "웜업 빼기"로 토글. W·D·F 뜻은 목록 아래 한 줄.
+- 유산소 칸은 `utils/cardioFields.js`: 기본 경사·속도·시간 / 스텝밀 스텝·레벨·시간 / 실내사이클 거리(distanceKm)·속도·시간.
 - 다음 무게 추천 카드: "적용"(추천값을 첫 미저장 본세트에 넣음)·×·본세트 체크 시 오늘 그 종목에서 닫힘(웜업 체크는 유지). "목표 N–M회" 버튼은 종목 설정 창을 여는 버튼(설정 아이콘).
 - 이중 진행 증량 추천: 종목별 목표 반복(다관절 6–10, 고립 10–15, 종목 설정 변경 가능) 상한을 지난번 모든 본세트에서 달성하면 증량. RIR을 적었는데 평균 1 미만이면 한 번 더 같은 무게. 하한보다 3회 이상 모자라거나 하한 미달+실패(F/RIR 0)면 약 10% 감량. 증량 단위는 종목 설정(step) → 기구별 기본(덤벨 2·머신/케이블 5·그 외 2.5, 바벨 스쿼트·힌지 ×2).
 - 다관절/고립: `strength.js isCompoundExercise` — 스쿼트·힌지·런지 패턴 또는 다른 부위 보조근이 있는 종목, 단 `ISOLATION_EXERCISES`(플라이·레이즈·페이스풀·업라이트로우 등)와 코어는 고립.
@@ -155,11 +159,12 @@ users/{uid}
   weeklyTargetDays: 2~6(주당 운동 목표, 2026-10-29)      designDefaultsVersion: string(디자인 기본값 1회 적용 표시)
   fontPreference: 'pretendard'|'paperlogy'|'nanumsquareneo'      accentPreference: 'brass'|'lime'|'cobalt'
   exerciseSettings: { [종목키]: { repMin, repMax, restSec, step? } }
+  rirEnabled?: boolean(기본 켜짐)      workoutGuideSeen?: string(사용법 가이드 본 버전)
   prs: { [종목키]: { e1rm, weight, reps, date, topWeight, topWeightReps, topWeightDate } }   // weight = 입력값, e1rm = 실제 부하 기준, topWeight는 일반 중량 종목만
   prsVersion: string(PR 계산 규칙 버전|계산에 쓴 체중 — 다르면 1회 재계산)
   seasonKey: 'season-YYYY-Q'
 workoutLogs/{uid}/logs/{logId}   // logId: session-{시작ms} 또는 자동 ID
-  exercises[]: { name, part, inputType, grip?, sets[]: { weight, reps, type?, rir?, (cardio: durationMin, speedKmh, incline|steps) } }
+  exercises[]: { name, part, inputType, grip?, sets[]: { weight, reps, type?, rir?, (cardio: durationMin, speedKmh, incline|steps|distanceKm) } }
   autoFinalized?: true
 activeSessions/{uid}: { draft: JSON 문자열, updatedAt }
 ```

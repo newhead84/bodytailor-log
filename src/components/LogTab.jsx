@@ -28,6 +28,8 @@ const LogTab = forwardRef(function LogTab(
     exerciseSettings,
     logMode,
     seasonXp,
+    rirEnabled,
+    workoutGuideSeen,
   },
   ref
 ) {
@@ -53,6 +55,8 @@ const LogTab = forwardRef(function LogTab(
       exerciseSettings={exerciseSettings}
       logMode={logMode}
       seasonXp={seasonXp}
+      rirEnabled={rirEnabled}
+      workoutGuideSeen={workoutGuideSeen}
     />
   )
 })

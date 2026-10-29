@@ -2,6 +2,14 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-29] 기록 화면 사용성 묶음(사용자 요청) — 사용법 가이드·RIR 켜고 끄기·기록 방식 전환·큰 ± 버튼·웜업 빼기·W/D/F 설명·실내사이클 칸 | WorkoutGuide.jsx(신규), utils/cardioFields.js(신규), WorkoutInput.jsx, SetEditors.jsx, GlobalTimerBar.jsx, DesignPreviewScreen.jsx, MyPageTab.jsx, LogTab.jsx, App.jsx, CalendarView.jsx, utils/strength.js·sessionPayload.js·exportCsv.js, CLAUDE.md
+- 사용법 가이드: 처음 쓰는 계정은 본운동 중 종목 카드를 처음 열면 말풍선이 세트 번호→무게×횟수→RIR→세트 완료→추천→목표→웜업·슈퍼세트→이 종목 완료→기록 방식 버튼을 순서대로 짚음(이전/다음/건너뛰기, 화면에 없는 항목은 건너뜀). 끝내면 users.workoutGuideSeen 저장. MY > 기록 화면 미리보기에 "기록 화면 사용법"(처음부터 보기·항목 골라 보기).
+- RIR: MY 디자인에 "RIR(남은 여력) 기록 켜기/끄기"(users.rirEnabled, 기본 켜짐). 끄면 세트 줄·포커스형에서 칸이 사라지고 가이드에서도 빠짐.
+- 기록 방식 전환: 운동 중 맨 위 초록 바 왼쪽 버튼(기록 탭에서만)으로 리스트형 ↔ 포커스형, 바꾼 값은 MY 설정에도 저장.
+- 세트 줄 ± 버튼: 가로 약 14px → 남는 폭을 나눠 24~40px(높이 36px), 글자 선택·더블탭 확대 방지, 숫자를 누르면 값 전체 선택. 세트 삭제(×)는 번호 칸 길게 누르기로 옮김(체크한 세트는 확인). 360px+RIR 켬에서 한 줄 유지, 320px은 두 줄.
+- 웜업 세트 버튼 켜고 끄기("웜업 빼기" — 체크 안 한 웜업 줄만 삭제). W·D·F 세트가 있으면 목록 아래 뜻 한 줄, 종류를 바꾸면 안내 토스트.
+- 실내사이클: 경사 대신 거리 km·속도 km/h·시간 분(distanceKm 필드 추가). 유산소 칸 정의를 cardioFields.js로 모음(기록·캘린더 편집·표시·CSV 공통), 칸 위에 이름·단위 표시.
+
 [2026-10-29] 다음 무게 추천 카드 닫힘 처리, 목표 버튼에 설정 아이콘(사용자 요청) | WorkoutInput.jsx(dismissedSuggestions, applySuggestion, cardExt, ExerciseCard 추천 카드, ToolChip)
 - 추천 카드: "적용"을 누르면 추천 무게·횟수를 넣고 닫힘, × 버튼으로 닫기, 적용하지 않고 본세트를 체크해도 닫힘(웜업 세트는 제외). 닫힌 뒤 오늘 이 종목에서는 다시 안 뜸(새 세션에서 다시 표시).
 - "목표 6–10회" 버튼 앞에 설정 아이콘 — 켜고 끄는 버튼이 아니라 종목 설정 창을 여는 버튼임을 표시.

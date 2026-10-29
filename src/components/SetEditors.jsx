@@ -6,7 +6,7 @@
 //  - PlatePanel: 바벨 원판 계산(한쪽 기준, 20kg 봉).
 //  - ExerciseSettingEditor: 종목별 목표 반복 범위·휴식 시간 설정.
 import React from 'react'
-import { SET_TYPES, SET_TYPE_LABEL, SET_TYPE_SHORT, platesPerSide } from '../utils/strength'
+import { SET_TYPES, SET_TYPE_LABEL, SET_TYPE_SHORT, SET_TYPE_DESC, platesPerSide } from '../utils/strength'
 
 const TYPE_COLOR = {
   warmup: 'var(--color-primary-normal)',
@@ -24,13 +24,60 @@ export function nextRir(rir) {
   return RIR_CYCLE[(i + 1) % RIR_CYCLE.length]
 }
 
-export function SetTypeBadge({ type, index, onClick, size = 30 }) {
+// [2026-10-29] 세트 목록에 W·D·F 세트가 있으면 그 뜻을 작게 한 줄로(있는 종류만)
+export function SetTypeLegend({ sets }) {
+  const present = ['warmup', 'drop', 'failure'].filter((t) => (sets || []).some((s) => s?.type === t))
+  if (present.length === 0) return null
+  return (
+    <p className="text-keep-all" style={{ margin: '2px 2px 8px', fontSize: 11.5, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
+      {present.map((t, i) => (
+        <React.Fragment key={t}>
+          {i > 0 && ' · '}
+          <b style={{ color: TYPE_COLOR[t], fontWeight: 800 }}>{SET_TYPE_SHORT[t]}</b> {SET_TYPE_LABEL[t]}({SET_TYPE_DESC[t]})
+        </React.Fragment>
+      ))}
+    </p>
+  )
+}
+
+// [2026-10-29] 길게 누르면(0.55초) onLongPress — 세트 삭제(× 버튼 대신). 길게 누른 뒤의 클릭(종류 변경)은 무시.
+export function SetTypeBadge({ type, index, onClick, onLongPress, size = 30, guideKey }) {
   const t = type || 'working'
   const label = t === 'working' ? String(index) : SET_TYPE_SHORT[t]
+  const timer = React.useRef(null)
+  const fired = React.useRef(false)
+  const startPress = () => {
+    if (!onLongPress) return
+    fired.current = false
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      fired.current = true
+      try {
+        navigator.vibrate?.(20)
+      } catch (e) {
+        // 무시
+      }
+      onLongPress()
+    }, 550)
+  }
+  const cancelPress = () => clearTimeout(timer.current)
   return (
     <button
       type="button"
-      onClick={onClick}
+      onPointerDown={startPress}
+      onPointerUp={cancelPress}
+      onPointerLeave={cancelPress}
+      onPointerCancel={cancelPress}
+      onContextMenu={(e) => onLongPress && e.preventDefault()}
+      onClick={(e) => {
+        if (fired.current) {
+          fired.current = false
+          e.preventDefault()
+          return
+        }
+        onClick?.(e)
+      }}
+      data-guide={guideKey}
       aria-label={`세트 종류: ${SET_TYPE_LABEL[t]} (눌러서 변경)`}
       title={`${SET_TYPE_LABEL[t]} · 눌러서 종류 변경`}
       className="bt-num"
@@ -46,6 +93,10 @@ export function SetTypeBadge({ type, index, onClick, size = 30 }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        touchAction: 'manipulation',
       }}
     >
       {label}
@@ -53,11 +104,12 @@ export function SetTypeBadge({ type, index, onClick, size = 30 }) {
   )
 }
 
-export function RirChip({ rir, onClick }) {
+export function RirChip({ rir, onClick, guideKey }) {
   const has = rir != null && rir !== ''
   return (
     <button
       type="button"
+      data-guide={guideKey}
       onClick={onClick}
       aria-label={has ? `남은 여력 ${rir}회 (눌러서 변경)` : '남은 여력(RIR) 입력'}
       title="남은 여력(RIR): 이 세트 뒤에 몇 회 더 할 수 있었는지"
@@ -146,7 +198,7 @@ function BigValue({ caption, value, onChange, children }) {
 }
 
 // 포커스형: sets(중량형)·reps(횟수형) 종목에서 "지금 할 세트" 하나를 크게 보여준다.
-export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무게 kg', repsLabel = '횟수', repsUnitLabel = '회', onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, onRemoveSet, workingIndexOf }) {
+export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무게 kg', repsLabel = '횟수', repsUnitLabel = '회', rirEnabled = true, onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, onRemoveSet, workingIndexOf }) {
   const idx = focusIdx != null && sets[focusIdx] ? focusIdx : Math.max(0, sets.findIndex((s) => !s.saved))
   const cur = sets[idx] || {}
   const isReps = inputType === 'reps'
@@ -227,6 +279,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <button
               type="button"
+              data-guide="set-type"
               onClick={() => onCycleType(idx)}
               style={{ fontSize: 13, fontWeight: 700, color: TYPE_COLOR[cur.type] || 'var(--color-label-strong)', padding: '6px 0' }}
             >
@@ -235,7 +288,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
             </button>
             {removeBtn}
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div data-guide="set-values" style={{ display: 'flex', gap: 10 }}>
             {!isReps && (
               <BigValue caption={weightLabel} value={cur.weight ?? ''} onChange={(v) => onField(idx, 'weight', v)}>
                 <BigStep label={`−${weightStep}`} onClick={() => onField(idx, 'weight', step(cur.weight, -weightStep))} />
@@ -247,7 +300,8 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
               <BigStep label="+1" onClick={() => onField(idx, 'reps', step(cur.reps, 1))} />
             </BigValue>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {rirEnabled && (
+          <div data-guide="rir" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>남은 여력(RIR) · 선택</span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
               {[0, 1, 2, 3].map((n) => {
@@ -273,8 +327,11 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
               })}
             </div>
           </div>
+          )}
+          <SetTypeLegend sets={sets} />
           <button
             type="button"
+            data-guide="set-save"
             onClick={() => onSave(idx)}
             style={{
               height: 56,

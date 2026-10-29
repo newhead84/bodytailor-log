@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-29] 다음 무게 추천 카드 닫힘(적용·×·본세트 체크), 목표 버튼 설정 아이콘.
- *            직전: 종목 설정·휴식 선택 줄바꿈 수정. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-29] 기록 화면 사용법 가이드·RIR 켜고 끄기·상단 바 기록 방식 전환·큰 ± 버튼·실내사이클 거리 칸.
+ *            직전: 다음 무게 추천 카드 닫힘. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -304,6 +304,22 @@ export default function App() {
     setUserDoc(doc)
   }, [authUser])
 
+  // [2026-10-29] 운동 중 상단 바 왼쪽 버튼으로 리스트형 ↔ 포커스형 바로 전환(MY 설정에도 저장)
+  const [logModeOverride, setLogModeOverride] = useState(null)
+  const effectiveLogMode = logModeOverride || userDoc?.logMode || DEFAULT_LOG_MODE
+  useEffect(() => {
+    if (logModeOverride && userDoc?.logMode === logModeOverride) setLogModeOverride(null)
+  }, [userDoc?.logMode, logModeOverride])
+  const toggleLogMode = useCallback(() => {
+    if (!authUser?.uid) return
+    const next = effectiveLogMode === 'focus' ? 'list' : 'focus'
+    setLogModeOverride(next)
+    updateUserProfile(authUser.uid, { logMode: next })
+      .then(() => refreshUserDoc())
+      .catch((err) => console.error('기록 방식 저장 실패:', err))
+  }, [authUser?.uid, effectiveLogMode, refreshUserDoc])
+
+
   // 운동기록 저장 직후 호출: 유저문서(XP/티어) 갱신 + 홈탭/캘린더 재조회 트리거를 함께 처리.
   // [2026-10-27] 기록 수정/삭제 후 PR 재계산이 끝나면 사용자 문서를 다시 불러온다
   useEffect(() => {
@@ -469,6 +485,8 @@ export default function App() {
         onAdjust={handleTimerAdjust}
         expanded={timerBarExpanded}
         onToggleExpanded={() => setTimerBarExpanded((v) => !v)}
+        logMode={effectiveLogMode}
+        onToggleLogMode={activeTab === 'log' ? toggleLogMode : null}
       />
       <div ref={homeScrollRef} style={tabWrapperStyle('home')} className={revealedTabs.has('home') ? 'bt-reveal' : ''}>
         <HomeTab
@@ -517,8 +535,10 @@ export default function App() {
           onAutoFinalized={handleAutoFinalized}
           personalRecords={userDoc.prs || null}
           exerciseSettings={userDoc.exerciseSettings || null}
-          logMode={userDoc.logMode || DEFAULT_LOG_MODE}
+          logMode={effectiveLogMode}
           seasonXp={getEffectiveSeasonXp(userDoc)}
+          rirEnabled={userDoc.rirEnabled !== false}
+          workoutGuideSeen={!!userDoc.workoutGuideSeen}
         />
       </div>
       <div ref={reportScrollRef} style={tabWrapperStyle('report')} className={revealedTabs.has('report') ? 'bt-reveal' : ''}>

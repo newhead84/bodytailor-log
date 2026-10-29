@@ -13,6 +13,7 @@ import { Button, Chip, AccentSwatches } from './ui'
 import { ExerciseCard } from './WorkoutInput'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT } from './GlobalTimerBar'
 import RestTimer from './RestTimer'
+import WorkoutGuide, { WORKOUT_GUIDE_STEPS } from './WorkoutGuide'
 import { nextSetType, nextRir } from './SetEditors'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, applyDesignAttrs } from '../utils/fonts'
@@ -97,6 +98,18 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
     return () => clearInterval(id)
   }, [restShown])
   const [panelOpen, setPanelOpen] = useState(false)
+  // [2026-10-29] 사용법: 샘플 화면 위에서 기록 화면의 각 버튼을 순서대로 설명(원하는 단계부터)
+  const rootRef = useRef(null)
+  const [guideStart, setGuideStart] = useState(null)
+  const [stepsOpen, setStepsOpen] = useState(false)
+  const rirEnabled = userDoc?.rirEnabled !== false
+  const guideSkip = useMemo(() => (rirEnabled ? [] : ['rir']), [rirEnabled])
+  function startGuide(key) {
+    setExpandedName('플랫바벨프레스')
+    setDoneNames((d) => d.filter((n) => n !== '플랫바벨프레스'))
+    setGuideStart(null)
+    setTimeout(() => setGuideStart(key || WORKOUT_GUIDE_STEPS[0].key), 250)
+  }
   const timing = useMemo(() => ({ sessionPhase: 'main', sessionStartAt: Date.now() - 23 * 60 * 1000, pauseStartedAt: null, pausedAccumMs: 0 }), [])
 
   const totalVolume = Object.values(setsByName).reduce(
@@ -146,6 +159,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
 
   return (
     <div
+      ref={rootRef}
       style={{
         '--bottom-nav-height': '0px',
         height: '100%',
@@ -155,7 +169,17 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
         paddingBottom: 'calc(var(--safe-bottom) + 180px)',
       }}
     >
-      <GlobalTimerBar timing={timing} onPress={() => {}} onTogglePause={() => {}} onReset={() => {}} onAdjust={() => {}} expanded={false} onToggleExpanded={() => {}} />
+      <GlobalTimerBar
+        timing={timing}
+        onPress={() => {}}
+        onTogglePause={() => {}}
+        onReset={() => {}}
+        onAdjust={() => {}}
+        expanded={false}
+        onToggleExpanded={() => {}}
+        logMode={logMode}
+        onToggleLogMode={() => setLogMode((m) => (m === 'focus' ? 'list' : 'focus'))}
+      />
 
       {/* 조작 영역(상단 고정): 닫기·적용 + 강조색 항상 노출, 테마·폰트·기록 방식은 펼쳐서 */}
       <div
@@ -220,6 +244,43 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
       </div>
 
       <div style={{ padding: '14px 16px 0' }}>
+        {/* [2026-10-29] 사용법 — 기록 화면 각 항목을 순서대로 안내 */}
+        <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 800, color: 'var(--color-label-strong)' }}>기록 화면 사용법</span>
+            <Button style={{ flexShrink: 0, height: 34, padding: '0 12px', fontSize: 13 }} onClick={() => startGuide(null)}>
+              처음부터 보기
+            </Button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStepsOpen((v) => !v)}
+            aria-expanded={stepsOpen}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--color-label-neutral)', padding: '2px 0', textAlign: 'left' }}
+          >
+            <span style={{ flex: 1 }}>항목을 골라 바로 보기</span>
+            <ChevronDown size={16} strokeWidth={1.8} style={{ transform: stepsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+          </button>
+          {stepsOpen && (
+            <ol className="bt-enter" style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {WORKOUT_GUIDE_STEPS.filter((st) => !guideSkip.includes(st.key)).map((st, i) => (
+                <li key={st.key}>
+                  <button
+                    type="button"
+                    onClick={() => startGuide(st.key)}
+                    style={{ width: '100%', display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 2px', textAlign: 'left', borderTop: i ? '1px solid var(--color-line)' : 'none' }}
+                  >
+                    <span className="bt-num" style={{ flexShrink: 0, width: 20, fontSize: 13, fontWeight: 800, color: 'var(--color-label-neutral)' }}>{i + 1}</span>
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-strong)' }}>{st.title}</span>
+                      <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', lineHeight: 1.5 }}>{st.body}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
         <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 'var(--fs-body2)', color: 'var(--color-label-neutral)' }}>
           샘플 기록 · 저장되지 않아요. 세트 저장(V)·펼치기를 눌러볼 수 있어요.
         </p>
@@ -265,6 +326,9 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
                   suggestion: isBench ? { kind: 'increase', weight: 62.5, reps: 6, reason: '지난번 모든 본세트에서 10회를 채웠어요. 2.5kg 올려 보세요.' } : null,
                   onApplySuggestion: () => {},
                   onAddWarmups: () => {},
+                  showWarmupRamp: true,
+                  rirEnabled,
+                  onToggleSuperset: () => {},
                   onSettingChange: () => {},
                   onCycleType: (i) => patchSet(name, i, { type: nextSetType(setsByName[name][i]?.type) }),
                   onCycleRir: (i) => patchSet(name, i, { rir: nextRir(setsByName[name][i]?.rir) }),
@@ -275,6 +339,9 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
         </div>
       </div>
 
+      {guideStart && (
+        <WorkoutGuide key={guideStart} container={rootRef.current} startKey={guideStart} skipKeys={guideSkip} onDone={() => setGuideStart(null)} />
+      )}
       {restShown && (
         <RestTimer key={restCycle} seconds={90} resetKey={restCycle} notificationEnabled={false} wakeLockEnabled={false} onFinish={() => {}} onCancel={() => setRestShown(false)} />
       )}
