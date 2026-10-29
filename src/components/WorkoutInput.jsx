@@ -6,6 +6,7 @@ import { CountUp } from '../hooks/useCountUp'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
 import WorkoutGuide, { WORKOUT_GUIDE_VERSION } from './WorkoutGuide'
+import { StretchSuggest } from './StretchGuide'
 import {
   suggestNextSet,
   getRepRange,
@@ -1349,6 +1350,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const visibleExercises =
     sessionType === 'extra' ? freeExercises : partOrder.filter((name) => !hiddenToday.includes(name))
 
+  // [2026-10-30] 오늘 할 운동 부위(웜업 스트레칭 추천용)
+  const todayAtoms = [...new Set(visibleExercises.map((n) => getExerciseAtom(parseExerciseKey(n).name)).filter(Boolean))]
+
   const isPaused = !!pauseStartedAt
   const elapsedSeconds = sessionStartAt
     ? Math.max(0, ((isPaused ? pauseStartedAt : nowTick) - sessionStartAt - pausedAccumMs) / 1000)
@@ -1483,6 +1487,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         volume: finishVolume || 0,
         workingSets: workingSetCount,
         exerciseCount: exercises.length,
+        atoms: [...new Set(exercises.map((ex) => getExerciseAtom(ex.name)).filter(Boolean))], // [2026-10-30] 쿨다운 스트레칭 추천용
         prCount,
         xpBefore,
         xpAfter: xpBefore + (xpEarned || 0),
@@ -1728,6 +1733,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           <p className="text-keep-all" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>
             준비가 됐다면 시간에 상관없이 바로 본운동을 시작할 수 있어요.
           </p>
+          {/* [2026-10-30] 오늘 운동 부위에 맞춘 동적 스트레칭 3개 */}
+          <StretchSuggest atoms={todayAtoms} phase="before" style={{ marginTop: 16 }} />
         </Card>
       )}
 
@@ -2105,6 +2112,8 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
             )}
           </div>
         )}
+        {/* [2026-10-30] 오늘 쓴 부위 쿨다운(정적) 스트레칭 3개 */}
+        {summary?.atoms?.length > 0 && <StretchSuggest atoms={summary.atoms} phase="after" title="오늘 쓴 부위 쿨다운 스트레칭" style={{ marginBottom: 12 }} />}
         {/* [2026-08-02 신규] 자유 추가 운동으로 기록한 오늘의 종목을, 화면 이동 없이 바로
             "내 루틴"에 반영할 수 있는 버튼(⑫). 이미 루틴에 있는 종목이나 부위가 애매한 종목은
             자동으로 건너뛴다. */}

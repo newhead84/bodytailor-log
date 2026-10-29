@@ -25,6 +25,7 @@ import {
 } from '../utils/exerciseLibrary'
 import { updateUserProfile, quickAddExerciseToRoutine } from '../storage'
 import ExerciseVideoLink from './ExerciseVideoLink'
+import { StretchGuide } from './StretchGuide'
 
 const MUSCLE_ROLE_LABELS = [
   { key: 'primary', label: '주동근' },
@@ -303,6 +304,8 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
   const [selectedAtom, setSelectedAtom] = useState(BODY_PART_ATOMS[0])
   const [selectedExercise, setSelectedExercise] = useState(null)
   const [query, setQuery] = useState('')
+  // [2026-10-30] 상단 전환: 운동 둘러보기 / 스트레칭
+  const [view, setView] = useState('exercise')
 
   // [2026-08-05 신규] 목록↔상세 전환은 탭 이동 없이 같은 스크롤 컨테이너 안에서 상태값만
   // 바꾸는 구조라, 목록을 스크롤한 채로 상세에 들어가면 이전 스크롤 위치가 그대로 남는다.
@@ -351,6 +354,29 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
         />
       )}
 
+      {/* [2026-10-30 신규] 운동 둘러보기 ↔ 스트레칭(불편한 부위 → 상황별) */}
+      <div role="tablist" aria-label="HOWTO 보기" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: 4, marginBottom: 16, borderRadius: 'var(--radius-md)', background: 'var(--color-bg-elevated)' }}>
+        {[
+          ['exercise', '운동 둘러보기'],
+          ['stretch', '스트레칭'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={view === id}
+            onClick={() => setView(id)}
+            style={{ minHeight: 40, borderRadius: 'var(--radius-sm)', fontSize: 14, fontWeight: 800, background: view === id ? 'var(--color-bg-card)' : 'transparent', color: view === id ? 'var(--color-label-strong)' : 'var(--color-label-neutral)', boxShadow: view === id ? 'var(--card-shadow)' : 'none' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'stretch' ? (
+        <StretchGuide />
+      ) : (
+      <>
       <SectionTitle>운동 둘러보기</SectionTitle>
 
       <div
@@ -425,6 +451,8 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
             )
           })}
         </Card>
+      )}
+      </>
       )}
     </div>
   )
