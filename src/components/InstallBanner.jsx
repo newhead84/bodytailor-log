@@ -28,6 +28,7 @@ export default function InstallBanner() {
 
   useEffect(() => {
     if (isStandalone()) return
+    if (window.__btInApp?.isInApp) return // [2026-10-30] 인앱 브라우저에서는 설치 불가 — inapp.js 안내 띠가 대신 안내
     function handler(e) {
       e.preventDefault()
       setDeferredPrompt(e)

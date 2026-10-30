@@ -9,6 +9,13 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     setError('')
+    // [2026-10-30] 카카오톡 등 인앱 브라우저에서는 구글이 로그인을 막는다(403 disallowed_useragent) → 기본 브라우저로 넘기고 안내
+    const inApp = typeof window !== 'undefined' ? window.__btInApp : null
+    if (inApp?.isInApp) {
+      inApp.openExternal?.()
+      setError('카카오톡 같은 앱 안 브라우저에서는 구글 로그인이 안 돼요. 오른쪽 위 메뉴에서 "다른 브라우저로 열기"를 눌러 크롬이나 사파리에서 열어 주세요.')
+      return
+    }
     setLoading(true)
     try {
       await loginWithGoogle()
