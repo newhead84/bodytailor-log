@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { ChevronDown, Info, X, SlidersHorizontal, Play } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card, useConfirm, TierEmblem } from './ui'
+import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
@@ -9,6 +9,8 @@ import WorkoutGuide, { WORKOUT_GUIDE_VERSION } from './WorkoutGuide'
 import { StretchSuggest } from './StretchGuide'
 import {
   suggestNextSet,
+  adviseAfterSet,
+  recommendationHistory,
   getRepRange,
   getDefaultRestSec,
   buildWarmupRamp,
@@ -474,6 +476,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function resetSessionState() {
     setRecords({})
     setDismissedSuggestions({})
+    setSetTips({})
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -729,6 +732,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRestActive(false)
     setRecords({})
     setDismissedSuggestions({})
+    setSetTips({})
     setCompletedExercises({})
     setHiddenToday([])
     setFreeExercises([])
@@ -961,6 +965,24 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function dismissSuggestion(key) {
     setDismissedSuggestions((d) => (d[key] ? d : { ...d, [key]: true }))
   }
+  // [2026-10-30 추천 고도화] 운동 중 세트 단위 조정 제안(방금 저장한 본세트가 목표 범위를 크게 벗어났을 때) — { [key]: { weight, kind, reason } }
+  const [setTips, setSetTips] = useState({})
+  function clearSetTip(key) {
+    setSetTips((t) => (t[key] ? (({ [key]: _, ...rest }) => rest)(t) : t))
+  }
+  function applySetTip(key) {
+    const tip = setTips[key]
+    if (!tip) return
+    const sets = records[key] || []
+    const idx = sets.findIndex((st) => !st.saved && st.type !== 'warmup')
+    // 무게만 바꾼 행은 아직 안 한 세트(planned)로 둔다 — 체크(V)해야 기록·볼륨에 들어감
+    setRecords((r) => {
+      const cur = r[key] || []
+      if (idx === -1) return { ...r, [key]: [...cur, { weight: String(tip.weight), reps: cur[cur.length - 1]?.reps ?? '', planned: true }] }
+      return { ...r, [key]: cur.map((st, i) => (i === idx ? { ...st, weight: String(tip.weight), auto: false, planned: true } : st)) }
+    })
+    clearSetTip(key)
+  }
   function settingFor(key) {
     return settingsOverride[key] || exerciseSettings?.[key] || null
   }
@@ -985,18 +1007,24 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const cur = records[key]?.[idx]
     patchSet(key, idx, { rir: nextRir(cur?.rir) })
   }
-  // 추천 무게·횟수를 아직 저장 안 한 첫 본세트 행에 적용
+  // 추천 무게·횟수를 아직 저장 안 한 본세트 행에 적용
+  // [2026-10-30 추천 고도화] 세트별 목표(setTargets)를 순서대로 채우고, 행이 모자라면 미리 만든 행(planned)으로 추가
   function applySuggestion(key) {
     const sug = suggestionFor(key)
     if (!sug) return
-    const sets = records[key] || []
-    let idx = sets.findIndex((st) => !st.saved && st.type !== 'warmup')
-    if (idx === -1) {
-      setRecords((r) => ({ ...r, [key]: [...(r[key] || []), { weight: String(sug.weight), reps: String(sug.reps) }] }))
-      dismissSuggestion(key)
-      return
-    }
-    patchSet(key, idx, { weight: String(sug.weight), reps: String(sug.reps) })
+    const targets = sug.setTargets?.length ? sug.setTargets : [sug.reps]
+    autoResumeIfPaused()
+    setRecords((r) => {
+      const sets = [...(r[key] || [])]
+      let t = 0
+      const next = sets.map((st) => {
+        if (st.saved || st.type === 'warmup' || t >= targets.length) return st
+        // 추천으로 채운 행은 아직 안 한 세트(planned) — 체크(V)하면 기록, 안 하면 완료 때 포함 여부를 묻는다
+        return { ...st, weight: String(sug.weight), reps: String(targets[t++]), auto: false, planned: true }
+      })
+      for (; t < targets.length; t++) next.push({ weight: String(sug.weight), reps: String(targets[t]), planned: true })
+      return { ...r, [key]: next }
+    })
     dismissSuggestion(key)
   }
   // 본세트 무게 기준 웜업 램프(40·60·80%)를 맨 앞에 추가(아직 저장한 세트가 없을 때만 노출)
@@ -1049,6 +1077,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       suggestion: suggestionFor(key),
       suggestionOpen: !dismissedSuggestions[key] && !(records[key] || []).some((st) => st.saved && st.type !== 'warmup'),
       onDismissSuggestion: () => dismissSuggestion(key),
+      setTip: setTips[key] || null,
+      onApplySetTip: () => applySetTip(key),
+      onDismissSetTip: () => clearSetTip(key),
+      recHistory: recommendationHistory(name, lastRecords[key], setting),
       bestE1rm: Math.max(personalRecords?.[key]?.e1rm || 0, sessionBest),
       repRange: getRepRange(name, setting),
       restSec: setting?.restSec || null,
@@ -1123,6 +1155,16 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         showToast(`신기록! 추정 1RM ${v}kg (+${Math.round((v - prevBest) * 10) / 10})`, 2600)
       }
       if (v > (sessionBestRef.current[name] || 0)) sessionBestRef.current[name] = v
+    }
+    // [2026-10-30 추천 고도화] 방금 저장한 본세트가 목표 범위를 크게 벗어나면 다음 세트 무게 제안(아니면 이전 제안 지움)
+    {
+      const tip = savedSet ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name)) : null
+      setSetTips((t) => {
+        if (tip) return { ...t, [name]: tip }
+        if (!t[name]) return t
+        const { [name]: _, ...rest } = t
+        return rest
+      })
     }
     // 종목별 휴식 설정이 있으면 그 시간으로, 없으면 상단 공통 휴식 시간으로.
     // [2026-10-29] 상단 휴식이 '자동'(기본값)이면 종목별 권장 휴식(다관절 2분30초 / 고립 1분30초)
@@ -1457,6 +1499,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     remoteHasSessionRef.current = false
     setRecords({})
     setDismissedSuggestions({})
+    setSetTips({})
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -2441,43 +2484,107 @@ export function ExerciseCard({
               className="bt-enter"
               style={{
                 display: 'flex',
-                alignItems: 'center',
-                gap: 10,
+                flexDirection: 'column',
+                gap: 6,
                 padding: '10px 12px',
                 borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--color-line)',
                 background: 'var(--color-primary-bg)',
               }}
             >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+                    {suggestion.kind === 'increase' ? '▲ ' : suggestion.kind === 'decrease' ? '▼ ' : ''}추천{' '}
+                    {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(suggestion.weight) === 0 ? (
+                      '맨몸'
+                    ) : (
+                      <>
+                        {isAssistedExercise(exName) ? '보조 ' : allowsZeroWeight(exName) ? '추가 ' : ''}
+                        <span className="bt-num">{fmtKg(suggestion.weight)}</span>kg
+                      </>
+                    )}{' '}
+                    × <span className="bt-num">{suggestion.setTargets?.length > 1 && new Set(suggestion.setTargets).size > 1 ? suggestion.setTargets.join('·') : suggestion.reps}</span>회
+                  </span>
+                  <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>
+                    {suggestion.reason}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={ext.onApplySuggestion}
+                  style={{ flexShrink: 0, height: 34, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line-strong)', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-strong)' }}
+                >
+                  적용
+                </button>
+                <button
+                  type="button"
+                  onClick={ext.onDismissSuggestion}
+                  aria-label="추천 닫기"
+                  title="추천 닫기"
+                  style={{ flexShrink: 0, width: 30, height: 34, marginRight: -4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)' }}
+                >
+                  <X size={16} strokeWidth={2} />
+                </button>
+              </div>
+              {/* [2026-10-30 추천 고도화] 증량까지 남은 거리 */}
+              {suggestion.progress && suggestion.progress.need > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)', overflow: 'hidden' }}>
+                    <div
+                      className="bt-bar"
+                      style={{ width: `${Math.min(100, Math.round((suggestion.progress.total / suggestion.progress.need) * 100))}%`, height: '100%', background: 'var(--color-fill-strong)' }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>
+                    증량까지 총 <span className="bt-num">{Math.max(0, suggestion.progress.need - suggestion.progress.total)}</span>회
+                  </span>
+                </div>
+              )}
+              {/* [2026-10-30 추천 고도화] 같은 무게로 3회째 제자리면 대처 방법 */}
+              {suggestion.stall && (
+                <Disclosure label={`같은 무게로 ${suggestion.stall.sessions}회째 제자리예요 · 이렇게 해 보세요`} style={{ marginTop: 2 }}>
+                  <span style={{ whiteSpace: 'pre-line' }}>{suggestion.stall.options.map((o) => `· ${o}`).join('\n')}</span>
+                </Disclosure>
+              )}
+            </div>
+          )}
+
+          {/* [2026-10-30 추천 고도화] 운동 중 세트 단위 조정 제안 */}
+          {isStrength && !isDone && ext.setTip && (
+            <div
+              className="bt-enter"
+              role="status"
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}
+            >
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-                  {suggestion.kind === 'increase' ? '▲ ' : suggestion.kind === 'decrease' ? '▼ ' : ''}추천{' '}
-                  {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(suggestion.weight) === 0 ? (
+                  {ext.setTip.kind === 'up' ? '▲ ' : '▼ '}다음 세트{' '}
+                  {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(ext.setTip.weight) === 0 ? (
                     '맨몸'
                   ) : (
                     <>
                       {isAssistedExercise(exName) ? '보조 ' : allowsZeroWeight(exName) ? '추가 ' : ''}
-                      <span className="bt-num">{fmtKg(suggestion.weight)}</span>kg
+                      <span className="bt-num">{fmtKg(ext.setTip.weight)}</span>kg
                     </>
-                  )}{' '}
-                  × <span className="bt-num">{suggestion.reps}</span>회
+                  )}
                 </span>
                 <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>
-                  {suggestion.reason}
+                  {ext.setTip.reason}
                 </span>
               </div>
               <button
                 type="button"
-                onClick={ext.onApplySuggestion}
+                onClick={ext.onApplySetTip}
                 style={{ flexShrink: 0, height: 34, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line-strong)', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-strong)' }}
               >
                 적용
               </button>
               <button
                 type="button"
-                onClick={ext.onDismissSuggestion}
-                aria-label="추천 닫기"
-                title="추천 닫기"
+                onClick={ext.onDismissSetTip}
+                aria-label="제안 닫기"
+                title="제안 닫기"
                 style={{ flexShrink: 0, width: 30, height: 34, marginRight: -4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)' }}
               >
                 <X size={16} strokeWidth={2} />
@@ -2524,6 +2631,7 @@ export function ExerciseCard({
               defaultRestSec={defaultRestSec || 90}
               step={ext.step ?? null}
               defaultStep={ext.defaultStep ?? null}
+              history={ext.recHistory || []}
               onChange={ext.onSettingChange}
               onClose={() => setShowSetting(false)}
             />

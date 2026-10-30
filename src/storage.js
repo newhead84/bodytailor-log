@@ -523,15 +523,19 @@ function getRecentWorkoutLogsCached(uid, count) {
 // 그립 필드가 없는 기록만 매칭된다.
 export async function getLastRecordForExercise(uid, exerciseName, grip = null, count = 30) {
   const recent = await getRecentWorkoutLogsCached(uid, count)
+  // [2026-10-30] 그 전 기록(prev)도 함께 — 감량 추천은 두 번 연속 모자랐을 때만(strength.js suggestNextSet)
+  // [2026-10-30 추천 고도화] 최근 수행 6회(history, 최신 순)도 함께 — 정체 감지·종목별 추천 이력용(이미 읽은 최근 기록 안에서만, 추가 읽기 없음)
+  const history = []
   let first = null
   for (const log of recent) {
     const found = (log.exercises || []).find((e) => e.name === exerciseName && (e.grip || null) === (grip || null))
     if (!found) continue
-    // [2026-10-30] 그 전 기록(prev)도 함께 — 감량 추천은 두 번 연속 모자랐을 때만(strength.js suggestNextSet)
-    if (!first) first = { date: log.date, ...found }
-    else return { ...first, prev: { date: log.date, sets: found.sets || [] } }
+    if (!first) first = found
+    history.push({ date: log.date, sets: found.sets || [] })
+    if (history.length >= 6) break
   }
-  return first
+  if (!first) return null
+  return { date: history[0].date, ...first, ...(history[1] ? { prev: history[1] } : {}), history }
 }
 
 // ───────────── activeSessions/{uid} — 진행 중 운동 세션 서버 백업 ─────────────

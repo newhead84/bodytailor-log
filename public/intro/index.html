@@ -462,8 +462,10 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: s
     if ((reps[0] >= REP_MAX && minR >= REP_MIN) || total >= 0.9 * REP_MAX * reps.length) return [`▲ 다음엔 <span class="num">${W + INC}kg</span> × ${REP_MIN}회부터`, `지난번 ${W}kg로 첫 세트 ${reps[0]}회 · 나머지도 ${REP_MIN}회 이상 → ${W + INC}kg로 ${REP_MIN}회부터`]
     if (minR <= REP_MIN - 3) return [`다음엔 <span class="num">${W}kg</span> × ${REP_MIN}회 한 번 더`, `지난번 ${W}kg에서 목표(${REP_MIN}회)보다 많이 모자랐어요 → 컨디션 탓일 수 있어 같은 무게로 한 번 더(두 번 연속이면 낮춰요)`]
     if (minR < REP_MIN) return [`다음엔 <span class="num">${W}kg</span> × ${REP_MIN}회 목표`, `지난번 ${W}kg에서 목표(${REP_MIN}회)보다 적었어요 → 같은 무게로 ${REP_MIN}회 목표`]
-    const t = Math.min(REP_MAX, minR + 1)
-    return [`다음엔 <span class="num">${W}kg</span> × ${t}회 도전`, `목표 ${REP_MIN}–${REP_MAX}회 · 같은 무게로 ${t}회 도전 (첫 세트 ${REP_MAX}회 + 나머지 ${REP_MIN}회 이상이면 증량)`]
+    // [2026-10-30] 앱과 같게: 세트마다 1회씩 더(상한까지), 총 반복이 상한×세트 수×90% 이상이면 증량
+    const t = reps.map((r) => Math.min(REP_MAX, Math.max(REP_MIN, r + 1)))
+    const need = Math.ceil(0.9 * REP_MAX * reps.length)
+    return [`다음엔 <span class="num">${W}kg</span> × ${t.join('·')}회`, `지난번 ${reps.join('·')}회(총 ${total}) → 세트마다 1회씩 더 · 총 ${need}회 이상이면 증량`]
   }
   rows.addEventListener('click', (e) => {
     const row = e.target.closest('.row'); if (!row) return

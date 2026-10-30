@@ -410,7 +410,7 @@ const REST_CHOICES = [
 // [2026-10-29] 증량 단위(step) 추가: 집에 1.25kg 원판이 있거나 케이블 스택이 2.5kg 단위인 경우 등
 // 종목별로 증량 제안 폭을 바꿀 수 있다. null = 기본(기구별 기본 단위).
 const STEP_CHOICES = [1, 1.25, 2, 2.5, 5]
-export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step = null, defaultStep = null, onChange, onClose }) {
+export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step = null, defaultStep = null, history = [], onChange, onClose }) {
   const [min, max] = repRange
   const set = (patch) => onChange({ repMin: min, repMax: max, restSec, step: step ?? null, ...patch })
   const stepBtn = (label, onClick, aria) => (
@@ -505,8 +505,27 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step 
         </div>
       )}
       <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
-        첫 세트가 상한을, 나머지 세트가 하한 이상을 채우면 다음 운동에서 증량을 추천해요. 기본값은 MY 프로필의 운동 목표에 맞춰져요.
+        첫 세트가 상한을, 나머지 세트가 하한 이상을 채우거나 총 반복이 상한×세트 수의 90% 이상이면 다음 운동에서 증량을 추천해요. 그 전까지는 세트마다 1회씩 늘리는 목표를 보여줘요. 기본값은 MY 프로필의 운동 목표에 맞춰져요.
       </span>
+      {/* [2026-10-30 추천 고도화] 최근 추천과 실제 결과(현재 설정 기준으로 다시 계산) */}
+      {history.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 8, borderTop: '1px solid var(--color-line)' }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>최근 추천과 실제 결과</span>
+          {history.map((h, i) => (
+            <div key={`${h.date}-${i}`} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 20px', gap: 8, alignItems: 'start', fontSize: 12 }}>
+              <span className="bt-num" style={{ color: 'var(--color-label-neutral)' }}>{h.date.slice(5).replace('-', '/')}</span>
+              <span className="text-keep-all" style={{ color: 'var(--color-label-normal)', whiteSpace: 'pre-line' }}>
+                추천 <span className="bt-num">{h.suggested}</span>
+                {'\n'}
+                <span style={{ color: 'var(--color-label-strong)', fontWeight: 600 }}>실제 <span className="bt-num">{h.actual}</span></span>
+              </span>
+              <span aria-label={h.hit ? '달성' : '미달성'} style={{ fontWeight: 700, textAlign: 'right', color: h.hit ? 'var(--color-success)' : 'var(--color-label-disable)' }}>
+                {h.hit ? '✓' : '–'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

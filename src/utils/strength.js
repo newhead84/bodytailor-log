@@ -17,6 +17,7 @@ import {
 import { makeExerciseKey } from './exerciseKey'
 import { effectiveLoad, isAssistedExercise, isBodyweightLoaded, allowsZeroWeight, getBodyweightKg } from './load'
 import { getTrainingProfile } from './goals'
+import { todayStr } from './date'
 
 export const SET_TYPES = ['working', 'warmup', 'drop', 'failure']
 export const SET_TYPE_LABEL = { working: '본세트', warmup: '웜업', drop: '드롭', failure: '실패' }
@@ -197,7 +198,7 @@ function roundTo(v, step) {
 //  - 맨몸+추가 종목은 추가 0kg(맨몸) 세트도 기준으로 쓴다.
 //  - RIR을 기록했는데 상한 세트의 평균 RIR이 1 미만이면(한계까지 감) 바로 올리지 않고 한 번 더 같은 무게.
 //  - 목표 하한보다 3회 이상 모자라거나, 하한 미달 + 실패(F)/RIR 0 이면 5–10% 감량 제안.
-export function suggestNextSet(name, lastRecord, setting) {
+function suggestByLastSession(name, lastRecord, setting) {
   if (getExerciseInputType(name) !== 'sets' || !lastRecord?.sets?.length) return null
   const assisted = isAssistedExercise(name)
   const zeroOk = allowsZeroWeight(name)
@@ -272,10 +273,8 @@ export function suggestNextSet(name, lastRecord, setting) {
     }
   }
   if (shortNow) {
-    // 실제 부하를 약 10% 줄인다(최소 한 단계)
-    const load = effectiveLoad(name, topW)
-    const cut = Math.max(inc, load ? roundTo(load * 0.1, unit) : inc)
-    const w = assisted ? roundTo(topW + cut, unit) : Math.max(0, roundTo(topW - cut, unit))
+    // 실제 부하를 약 10% 줄인다(최소 한 단계) — [2026-10-30] 기구 무게 단위로 반올림(덤벨 24kg → 21.5kg처럼 없는 무게가 나오던 문제)
+    const w = lighterWeight(name, topW, setting)
     if (w !== topW && (assisted || w > 0 || zeroOk)) {
       return {
         weight: w,
@@ -300,6 +299,175 @@ export function suggestNextSet(name, lastRecord, setting) {
     kind: 'reps',
     reason: `목표 ${repMin}–${repMax}회 · 같은 무게로 ${target}회 도전 (첫 세트 ${repMax}회 + 나머지 ${repMin}회 이상이면 증량)`,
   }
+}
+
+// ───────── [2026-10-30 추천 고도화] 트레이너 관점 보완 ─────────
+// suggestByLastSession(지난 1회 기준 이중 진행) 결과에 다음을 더한다.
+//  1) 세트별 목표(setTargets): "같은 무게로 횟수 늘리기"는 가장 약한 세트 +1회를 첫 세트에 넣어, 추천대로 하면 오히려
+//     목표가 내려가던 문제(9·8·7 → 8회 → 7회 …)를 고쳐 지난번 세트마다 +1회(상한까지)로 제시한다.
+//  2) 증량까지 남은 거리(progress): 최고 무게 세트 총 반복 / 증량 기준(상한×세트 수×90%).
+//  3) 정체(stall): 같은 무게로 3회째 총 반복이 처음보다 늘지 않으면 대처 방법을 함께 보여준다.
+//  4) 공백 후 복귀(comeback): 마지막 기록이 14일 이상 전이면 약 10% 가볍게 다시 시작.
+// lastRecord: { date, sets, prev?, history?(최신 순, history[0] = lastRecord) }, opts.today: 'YYYY-MM-DD'(기본 오늘)
+const COMEBACK_DAYS = 14
+function workingTop(name, sets) {
+  const assisted = isAssistedExercise(name)
+  const zeroOk = allowsZeroWeight(name)
+  const ws = (sets || []).filter(
+    (s) => !isWarmupSet(s) && s.weight !== '' && s.weight != null && (zeroOk ? Number(s.weight) >= 0 : Number(s.weight) > 0) && Number(s.reps) > 0
+  )
+  if (!ws.length) return null
+  const weights = ws.map((s) => Number(s.weight))
+  const topW = assisted ? Math.min(...weights) : Math.max(...weights)
+  const reps = ws.filter((s) => Number(s.weight) === topW).map((s) => Number(s.reps))
+  return { topW, reps, total: reps.reduce((a, b) => a + b, 0) }
+}
+function fmtW(n) {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+}
+export function loadLabel(name, w) {
+  return isAssistedExercise(name) ? `보조 ${fmtW(w)}kg` : isBodyweightLoaded(name) ? (w > 0 ? `추가 ${fmtW(w)}kg` : '맨몸') : `${fmtW(w)}kg`
+}
+function loadWith(name, w) {
+  const l = loadLabel(name, w)
+  return l === '맨몸' ? '맨몸으로' : `${l}로`
+}
+function daysBetween(a, b) {
+  const p = (d) => {
+    const [y, m, dd] = String(d || '').split('-').map(Number)
+    return y && m && dd ? new Date(y, m - 1, dd).getTime() : NaN
+  }
+  return Math.round((p(b) - p(a)) / 86400000)
+}
+// 실제 부하 약 10%만큼 가볍게(기구 무게 단위로 반올림, 최소 한 칸) — 어시스트는 보조를 늘린다
+function lighterWeight(name, w, setting) {
+  const custom = Number(setting?.step)
+  const step = custom > 0 ? custom : getWeightStep(name) || 2.5
+  const load = effectiveLoad(name, w)
+  const cut = Math.max(step, load ? roundTo(load * 0.1, step) : step)
+  return isAssistedExercise(name) ? roundTo(w + cut, 0.25) : Math.max(0, roundTo(w - cut, 0.25))
+}
+function heavierWeight(name, w, setting) {
+  const inc = getProgressionIncrement(name, setting)
+  const unit = inc >= 1 ? 0.5 : 0.25
+  return isAssistedExercise(name) ? Math.max(0, roundTo(w - inc, unit)) : roundTo(w + inc, unit)
+}
+function stallOptions(name, setting, repMin, repMax) {
+  const inc = getProgressionIncrement(name, setting)
+  const opts = []
+  if (inc > 1.25) opts.push(`증량 폭 줄이기: 종목 설정에서 증량 단위를 ${inc >= 5 ? 2.5 : inc >= 2.5 ? 1.25 : 1}kg로 바꾸면 한 번에 덜 무거워져요`)
+  if (repMin > 4) opts.push(`목표 횟수 바꾸기: 3–4주 동안 ${Math.max(3, repMin - 2)}–${Math.max(repMin, repMax - 2)}회로 조금 더 무겁게 해 보세요`)
+  opts.push('이 종목만 1주 가볍게: 무게를 약 10% 낮추고 세트를 1개 줄여 회복한 뒤 다시 올려요')
+  opts.push('비슷한 종목으로 바꾸기: 4–6주 다른 기구·그립으로 같은 부위를 자극해 보세요')
+  opts.push('잠·식사·쉬는 날이 부족하지 않은지도 살펴보세요. 자세가 걱정되면 트레이너에게 한 번 확인받는 것도 좋아요')
+  return opts
+}
+
+export function suggestNextSet(name, lastRecord, setting, opts = {}) {
+  const res = suggestByLastSession(name, lastRecord, setting)
+  if (!res) return res
+  const top = workingTop(name, lastRecord.sets)
+  if (!top) return res
+  const [repMin, repMax] = getRepRange(name, setting)
+  const n = top.reps.length
+  const need = Math.ceil(0.9 * repMax * n)
+  let out = { ...res, setTargets: Array(n).fill(res.reps) }
+
+  if (res.kind === 'reps') {
+    const targets = top.reps.map((r) => Math.min(repMax, Math.max(repMin, r + 1)))
+    out = {
+      ...out,
+      reps: targets[0],
+      setTargets: targets,
+      reason: `지난번 ${loadLabel(name, top.topW)} ${top.reps.join('·')}회(총 ${top.total}) → 세트마다 1회씩 더 · 총 ${need}회 이상이면 다음엔 증량`,
+    }
+  }
+  if (res.kind === 'reps') out.progress = { total: top.total, need }
+
+  // 정체: 같은 무게로 3회째, 최근 두 번이 그 전보다 총 반복이 늘지 않음
+  const hist = Array.isArray(lastRecord.history) ? lastRecord.history : null
+  if (hist && hist.length >= 3 && (res.kind === 'reps' || res.kind === 'hold')) {
+    const tops = hist.slice(0, 3).map((h) => workingTop(name, h.sets))
+    if (tops.every((t) => t && t.topW === top.topW && t.reps.length === n) && Math.max(tops[0].total, tops[1].total) <= tops[2].total) {
+      out.stall = { sessions: 3, options: stallOptions(name, setting, repMin, repMax) }
+    }
+  }
+
+  // 공백 후 복귀: 증량·유지 대신 약 10% 가볍게
+  const gap = daysBetween(lastRecord.date, opts.today || todayStr())
+  if (Number.isFinite(gap) && gap >= COMEBACK_DAYS) {
+    const w = lighterWeight(name, top.topW, setting)
+    const load = effectiveLoad(name, top.topW)
+    const tooBig = load > 0 && Math.abs(effectiveLoad(name, w) - load) > load * 0.2
+    const validW = isAssistedExercise(name) || w > 0 || allowsZeroWeight(name)
+    // 가벼운 무게라 한 칸만 내려도 20%를 넘으면(예: 머신 10kg → 5kg) 무게는 그대로 두고 횟수 목표를 낮춘다
+    if (w !== top.topW && (tooBig || !validW)) {
+      out = {
+        weight: top.topW,
+        reps: repMin,
+        kind: 'hold',
+        setTargets: Array(n).fill(repMin),
+        comeback: gap,
+        reason: `마지막 기록이 ${gap}일 전이에요 → 무게는 ${loadLabel(name, top.topW)} 그대로, ${repMin}회만 채우며 가볍게 시작해요(힘들면 세트를 하나 줄여도 좋아요)`,
+      }
+    } else if (w !== top.topW && validW) {
+      out = {
+        weight: w,
+        reps: repMin,
+        kind: 'decrease',
+        setTargets: Array(n).fill(repMin),
+        comeback: gap,
+        reason: `마지막 기록이 ${gap}일 전이에요 → 몸이 다시 적응하도록 ${loadWith(name, w)} ${repMin}회부터 조금 가볍게 시작해요`,
+      }
+    }
+  }
+  return out
+}
+
+// 운동 중 세트 단위 조정: 방금 저장한 본세트가 목표 범위를 크게 벗어나면 다음 세트 무게를 제안
+// → { weight, kind: 'up'|'down', reason } | null
+export function adviseAfterSet(name, set, setting) {
+  if (getExerciseInputType(name) !== 'sets' || !set || isWarmupSet(set) || set.type === 'drop') return null
+  const w = Number(set.weight)
+  const reps = Number(set.reps)
+  if (!(reps > 0) || set.weight === '' || set.weight == null || !Number.isFinite(w)) return null
+  if (!allowsZeroWeight(name) && w <= 0) return null
+  const [repMin, repMax] = getRepRange(name, setting)
+  const failure = set.type === 'failure' || (set.rir !== '' && set.rir != null && Number(set.rir) === 0)
+  if (reps >= repMax + 2 && !failure) {
+    const nw = heavierWeight(name, w, setting)
+    if (nw === w) return null
+    return { weight: nw, kind: 'up', reason: `목표(${repMax}회)보다 ${reps - repMax}회 더 했어요 → 다음 세트는 ${loadWith(name, nw)} 해 보세요` }
+  }
+  if (reps <= repMin - 2 || (reps < repMin && failure)) {
+    const nw = lighterWeight(name, w, setting)
+    if (nw === w || !(isAssistedExercise(name) || nw > 0 || allowsZeroWeight(name))) return null
+    return { weight: nw, kind: 'down', reason: `목표(${repMin}회)보다 ${repMin - reps}회 모자랐어요 → 다음 세트는 ${loadWith(name, nw)} 낮춰 ${repMin}회 이상 채워요` }
+  }
+  return null
+}
+
+// 종목별 추천 이력: 최근 기록마다 "그 전 기록으로 계산한 추천 → 실제로 한 것"(현재 종목 설정 기준으로 다시 계산)
+// → [{ date, suggested, kind, actual, hit }] 최신 순, 최대 5개
+export function recommendationHistory(name, lastRecord, setting) {
+  const hist = Array.isArray(lastRecord?.history) ? lastRecord.history : []
+  const rows = []
+  for (let i = 0; i < hist.length - 1 && rows.length < 5; i++) {
+    const base = hist.slice(i + 1)
+    const sug = suggestNextSet(name, { date: base[0].date, sets: base[0].sets, prev: base[1], history: base }, setting, { today: hist[i].date })
+    const actual = workingTop(name, hist[i].sets)
+    if (!sug || !actual) continue
+    const assisted = isAssistedExercise(name)
+    const heavyEnough = assisted ? actual.topW <= sug.weight : actual.topW >= sug.weight
+    rows.push({
+      date: hist[i].date,
+      suggested: `${loadLabel(name, sug.weight)} × ${sug.reps}회`,
+      kind: sug.kind,
+      actual: `${loadLabel(name, actual.topW)} × ${actual.reps.join('·')}회`,
+      hit: heavyEnough && actual.reps[0] >= sug.reps,
+    })
+  }
+  return rows
 }
 
 // ───────── 웜업 램프·원판 ─────────
