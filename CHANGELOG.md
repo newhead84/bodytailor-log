@@ -2,6 +2,12 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-30] 홍보 페이지 전면 개편(사용자 요청) | public/intro/index.html, public/intro/img/(photo-*·cap-* 추가, log·rest·report·done.webp 삭제), CLAUDE.md
+- 차별점 중심: "짜준 운동 대신, 내가 정한 운동을" · 내 기록이 기준(점진적 과부하). 다른 앱 이름 없이 방식만 비교하는 표.
+- 전면 사진 히어로(Unsplash, 상표 로고 지움)·사진 띠·트레이너 배경, 쓰는 법 3단계 + 리스트형/포커스형 전환(목업 데이터 앱 화면), 섹션별 다크·베이지 교차.
+- 숫자·전문용어 줄임, PT 존중 문구("어려울 땐 트레이너와 함께"), FAQ(운동을 짜주지 않나요·인터넷 약할 때 실제 동작대로), 면책·처리방침 자리.
+- 점진적 과부하 데모를 세트별 목표·증량까지 남은 횟수 규칙으로 갱신.
+
 [2026-10-30] 다음 무게 추천 트레이너 관점 고도화(사용자 요청) | utils/strength.js(suggestNextSet 래퍼·adviseAfterSet·recommendationHistory·lighterWeight), storage.js(getLastRecordForExercise history), WorkoutInput.jsx(추천 카드·적용·세트 조정 제안), SetEditors.jsx(ExerciseSettingEditor 추천 이력), WorkoutGuide.jsx, public/intro/index.html, CLAUDE.md
 - 버그 수정: "같은 무게로 횟수 늘리기" 목표가 가장 약한 세트 +1회라 첫 세트에 넣으면 지난번보다 낮아져, 추천대로 하면 목표가 계속 내려가 증량이 안 나오던 문제(예: 9·8·7 → 8회 → 7회 → 6회 고착). 세트별 목표(지난번 세트마다 +1회, 상한까지)로 바꾸고 "적용"은 세트마다 채움(아직 안 한 세트 planned로 — 체크해야 기록·볼륨에 들어감).
 - 증량까지 남은 거리 막대(최고 무게 세트 총 반복 / 상한×세트 수×90%).
