@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-30] 홍보 페이지 FAQ '운동을 짜주지는 않나요?'에 "내 몸과 컨디션은 내가 가장 잘 안다" 내용 추가(사용자 요청, 트레이너를 낮추지 않는 표현) | public/intro/index.html
+
 [2026-10-30] 카카오톡 등 인앱 브라우저 대응(사용자 요청 — 카톡 링크 홍보) | public/inapp.js(신규), index.html, public/intro/index.html, LoginScreen.jsx, InstallBanner.jsx, CLAUDE.md
 - 구글이 인앱 브라우저에서 로그인을 막아(403 disallowed_useragent) 카톡으로 연 링크에서는 가입이 안 되던 문제, 홈 화면 추가도 불가.
 - 카카오톡은 kakaotalk://web/openExternal, 라인은 openExternalBrowser=1 로 기본 브라우저에서 자동으로 다시 열기(탭당 1회).
