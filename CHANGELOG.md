@@ -2,6 +2,10 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 홍보 페이지 깨짐 수정 + 전체 QA | public/intro/index.html, CLAUDE.md
+- 말덩이 묶음(<span class="k">)이 meta description 속성과 데모 스크립트 문자열 안에도 들어가 페이지 상단에 'kg, 몇 번 할지 알려 주는 ... " />'가 그대로 보이고 데모 문구에 태그가 찍히던 문제 수정, 중첩된 묶음 2곳 정리.
+- QA: 홍보·처리방침 320/360/412/1280px(원문 태그·가로 넘침·깨진 이미지·데모 3경우), 목업 앱 흐름(가입→동의→홈→운동 시작→세트 저장→완료: activity·gymStats 기록 확인, 리포트·HOWTO·MY·설정, 320/412px 5탭 넘침), 관리자 11개 화면 412/1440px(넘침·undefined/NaN), 콘솔 오류·React 경고 없음.
+
 [2026-10-31] 관리자 대시보드 리디자인(라이트 관리도구) | styles/admin.css(신규), AdminDashboard.jsx, AdminInsights.jsx(요약), adminUi.jsx, App.jsx, InstallBanner.jsx
 - 왼쪽 메뉴·상단 바(검색)·KPI 카드·처리할 회원 표·오늘 PT·주간 운동 회원·트레이너 이번 달, 회원 목록 표, 휴대폰 ☰ 메뉴(설정·도구 탭이 화면 밖으로 밀리던 문제 해결).
 - /admin에서 동의 화면 건너뜀(앱 화면에서 동의), 설치 배너 숨김 + 설치 배너 중복 렌더 제거.
