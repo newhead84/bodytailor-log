@@ -93,7 +93,7 @@ export default function InstallBanner() {
     try {
       localStorage.setItem(DISMISS_KEY, String(Date.now()))
     } catch {
-      // localStorage 실패는 무시 — 이번 세션에서만 닫힌다
+      // localStorage 실패는 무시 - 이번 세션에서만 닫힌다
     }
   }
 

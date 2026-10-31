@@ -111,7 +111,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   const [overtime, setOvertime] = useState(false)
   const intervalRef = useRef(null)
   const endAtRef = useRef(Date.now() + seconds * 1000)
-  // [2026-10-29] 휴식 길이는 시작(resetKey) 시점 값으로 고정 — 쉬는 중에 휴식 칩을 바꾸거나 슈퍼세트 저장으로
+  // [2026-10-29] 휴식 길이는 시작(resetKey) 시점 값으로 고정 - 쉬는 중에 휴식 칩을 바꾸거나 슈퍼세트 저장으로
   // seconds가 바뀌어도 진행 중인 휴식이 처음부터 다시 시작되지 않게 한다.
   const secondsRef = useRef(seconds)
   secondsRef.current = seconds
@@ -242,7 +242,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
         bottom: 'calc(var(--bottom-nav-height) + var(--safe-bottom) + 78px)',
         zIndex: 30,
         // [2026-07-31] 평상시 배경을 --color-bg-elevated에서 전용 토큰(--color-rest-bg)으로
-        // 교체 — 두 테마 모두에서 페이지 배경과 구분이 잘 안 되던 문제 수정(휴식 초과 시의
+        // 교체 - 두 테마 모두에서 페이지 배경과 구분이 잘 안 되던 문제 수정(휴식 초과 시의
         // danger 배경과는 별개 톤).
         background: overtime ? 'var(--color-danger, #E5484D)' : 'var(--color-rest-bg)',
         color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)',

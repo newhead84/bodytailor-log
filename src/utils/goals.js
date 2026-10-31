@@ -103,7 +103,7 @@ export function buildTrainingProfile(goals, { beginner = false } = {}) {
   }
 }
 
-// 앱 전체에서 쓰는 현재 기준(App이 로그인·프로필 변경 시 setTrainingProfile로 갱신 — load.js setBodyweightKg와 같은 방식)
+// 앱 전체에서 쓰는 현재 기준(App이 로그인·프로필 변경 시 setTrainingProfile로 갱신 - load.js setBodyweightKg와 같은 방식)
 let current = buildTrainingProfile([])
 export function setTrainingProfile(goals, opts) {
   current = buildTrainingProfile(goals, opts)

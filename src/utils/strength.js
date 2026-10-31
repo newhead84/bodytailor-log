@@ -59,11 +59,11 @@ export function bestE1rmOfSets(sets, name) {
 
 // ───────── 개인 기록(PR) ─────────
 // PR 계산 규칙 버전. 바뀌면 App이 전체 기록으로 PR을 한 번 다시 계산한다(users.prsVersion).
-// [2026-10-30] 다관절은 10회 이하 세트만 PR(추정 1RM) 대상 — 반복이 많을수록 Epley 추정 오차가 커져 신기록이 부풀던 문제
+// [2026-10-30] 다관절은 10회 이하 세트만 PR(추정 1RM) 대상 - 반복이 많을수록 Epley 추정 오차가 커져 신기록이 부풀던 문제
 export const PRS_RULES_VERSION = '2026-10-30'
 export const PR_MAX_REPS_COMPOUND = 10
 // 저장 키 = 규칙 버전 + 계산에 쓴 체중(체중이 바뀌면 어시스트·맨몸+추가 종목의 실제 부하가 달라져 다시 계산)
-// PR(신기록) 판정용 추정 1RM — 다관절은 10회 이하 세트만
+// PR(신기록) 판정용 추정 1RM - 다관절은 10회 이하 세트만
 export function prE1rm(name, s, compound = isCompoundExercise(name)) {
   if (compound && (Number(s?.reps) || 0) > PR_MAX_REPS_COMPOUND) return 0
   return setE1rm(name, s)
@@ -131,7 +131,7 @@ export function recentPrList(prs, limit = 3) {
 
 // ───────── 이중 진행 증량 제안 ─────────
 // [2026-10-29] 보조근이 다른 부위라는 이유만으로 다관절로 보던 규칙 때문에 플라이·레이즈·페이스풀 등
-// 고립 종목이 6–10회·150초 휴식으로 잡히던 문제 수정 — 한 관절만 움직이는 종목을 명시해 제외하고,
+// 고립 종목이 6–10회·150초 휴식으로 잡히던 문제 수정 - 한 관절만 움직이는 종목을 명시해 제외하고,
 // 코어 종목은 반복 범위·휴식 판단에서 고립으로 본다.
 export const ISOLATION_EXERCISES = [
   '펙덱플라이',
@@ -161,7 +161,7 @@ export function isCompoundExercise(name) {
 }
 
 // 기본 목표 반복 범위: 다관절 6–10회, 고립 10–15회 (사용자가 종목별로 바꿀 수 있음)
-// [2026-10-30] 기본값은 운동 목표(우선순위)에 맞춘 기준(goals.js) — 예: 근력 1순위면 다관절 3–6회
+// [2026-10-30] 기본값은 운동 목표(우선순위)에 맞춘 기준(goals.js) - 예: 근력 1순위면 다관절 3–6회
 export function getRepRange(name, setting) {
   if (setting?.repMin && setting?.repMax) return [Number(setting.repMin), Number(setting.repMax)]
   const pr = getTrainingProfile()
@@ -228,7 +228,7 @@ function suggestByLastSession(name, lastRecord, setting) {
   const progressed = (repsAtTop[0] >= repMax && repsAtTop.every((r) => r >= repMin)) || totalAtTop >= 0.9 * repMax * repsAtTop.length
   if (progressed) {
     if (assisted && topW <= 0) {
-      return { weight: 0, reps: repMax, kind: 'hold', reason: `보조 없이 ${repMax}회 달성 — 이제 맨몸 풀업·친업이나 웨이티드로 넘어가 보세요` }
+      return { weight: 0, reps: repMax, kind: 'hold', reason: `보조 없이 ${repMax}회 달성했어요. 이제 맨몸 풀업·친업이나 웨이티드로 넘어가 보세요` }
     }
     if (avgRir != null && avgRir < 1) {
       return {
@@ -273,7 +273,7 @@ function suggestByLastSession(name, lastRecord, setting) {
     }
   }
   if (shortNow) {
-    // 실제 부하를 약 10% 줄인다(최소 한 단계) — [2026-10-30] 기구 무게 단위로 반올림(덤벨 24kg → 21.5kg처럼 없는 무게가 나오던 문제)
+    // 실제 부하를 약 10% 줄인다(최소 한 단계) - [2026-10-30] 기구 무게 단위로 반올림(덤벨 24kg → 21.5kg처럼 없는 무게가 나오던 문제)
     const w = lighterWeight(name, topW, setting)
     if (w !== topW && (assisted || w > 0 || zeroOk)) {
       return {
@@ -339,7 +339,7 @@ function daysBetween(a, b) {
   }
   return Math.round((p(b) - p(a)) / 86400000)
 }
-// 실제 부하 약 10%만큼 가볍게(기구 무게 단위로 반올림, 최소 한 칸) — 어시스트는 보조를 늘린다
+// 실제 부하 약 10%만큼 가볍게(기구 무게 단위로 반올림, 최소 한 칸) - 어시스트는 보조를 늘린다
 function lighterWeight(name, w, setting) {
   const custom = Number(setting?.step)
   const step = custom > 0 ? custom : getWeightStep(name) || 2.5
@@ -580,7 +580,7 @@ export function getWeeklySetGuide() {
   return getTrainingProfile().weeklySets || WEEKLY_SET_GUIDE
 }
 
-// 유산소 총 분(주간 150분 목표 — WHO 신체활동 지침)
+// 유산소 총 분(주간 150분 목표 - WHO 신체활동 지침)
 export function cardioMinutes(logs) {
   let m = 0
   ;(logs || []).forEach((log) =>
@@ -633,7 +633,7 @@ export function heavyCompoundSets(logs) {
   return n
 }
 
-// 골밀도 목표용: 하체에 체중 부하가 실리는 본세트 수(스쿼트·힌지·런지 패턴 — 부위가 '등'인 데드리프트 포함)
+// 골밀도 목표용: 하체에 체중 부하가 실리는 본세트 수(스쿼트·힌지·런지 패턴 - 부위가 '등'인 데드리프트 포함)
 export function lowerBodyLoadSets(logs) {
   let n = 0
   ;(logs || []).forEach((log) =>

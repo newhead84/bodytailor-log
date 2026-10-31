@@ -17,8 +17,8 @@ import ExerciseGuideToggle from './ExerciseGuideToggle'
 // 부위(BODY_PART_ATOMS)를 자유롭게 조합해 파트를 만드는 단일 루틴 편집기로 변경.
 // MY탭 "운동조합 변경"(RoutineManager)에서 새 루틴 생성/기존 루틴 수정 시 이 컴포넌트를 사용한다.
 //
-// initialTemplate: { id?, title, parts: [{name, atoms, exercises}] } — 없으면 신규 생성 모드
-// [2026-10-31 P2-3] forTrainer: 트레이너가 담당 회원의 계획을 만들 때 — 제목 문구 변경 + 회원에게 보일 메모(note) 입력.
+// initialTemplate: { id?, title, parts: [{name, atoms, exercises}] } - 없으면 신규 생성 모드
+// [2026-10-31 P2-3] forTrainer: 트레이너가 담당 회원의 계획을 만들 때 - 제목 문구 변경 + 회원에게 보일 메모(note) 입력.
 export default function RoutineSetup({ initialTemplate, customExercises, onSave, onCancel, onSkip, canCancel = true, forTrainer = null }) {
   const confirm = useConfirm()
   const isEditing = !!initialTemplate
@@ -86,7 +86,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
 
   // [2026-07-29 신규] 파트가 추가만 되고 순서를 바꿀 방법이 없다는 피드백을 반영.
   // "파트 순서" 카드에서 드래그로 순서를 바꾸면, 이름(name) 기준으로 parts 배열 자체의
-  // 순서도 함께 바뀐다 — 사이클 진행 순서·아래 파트 편집 카드 순서에 그대로 반영된다.
+  // 순서도 함께 바뀐다 - 사이클 진행 순서·아래 파트 편집 카드 순서에 그대로 반영된다.
   function handleReorderParts(orderedNames) {
     setParts((prev) => orderedNames.map((name) => prev.find((p) => p.name === name)).filter(Boolean))
   }
@@ -246,7 +246,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
 // 어느 종목이 어느 부위인지 분간이 어렵다는 피드백으로, atom(원자 부위)별로 소제목 + 부위
 // 고유 색상을 넣어 구간을 나눴다. atom 순서는 파트명 토큰 순서(getAtomsForPartName)를 그대로
 // 따른다. 종목 Chip은 (2026-08-02에 전면 삭제됐던) 롱프레스 동작 가이드 토글을 다시 붙였다
-// (ExerciseGuideToggle, 짧게 재탭하면 선택 상태 변화 없이 닫힘 — 상세는 해당 파일 주석 참고).
+// (ExerciseGuideToggle, 짧게 재탭하면 선택 상태 변화 없이 닫힘 - 상세는 해당 파일 주석 참고).
 // [2026-10-29 개편] 파트마다 70여 개 종목 칩이 한꺼번에 펼쳐져 고르기 어렵다는 점검 결과로,
 // 부위별로 "고른 종목"만 먼저 보여주고 나머지는 "+ 종목 더 보기"로 접어 두며, 파트 상단에 검색칸을 둔다.
 // 검색어가 있으면 모든 부위에서 이름이 맞는 종목만 펼쳐 보여준다.
@@ -262,7 +262,7 @@ function PartEditor({ part, customExercises, onToggle, onRemovePart, onEditAtoms
     const gripOptions = getGripOptions(name)
     if (!gripOptions) return [{ key: name, name, label: name }]
     // [2026-10-29] 분할 템플릿 기본 종목처럼 그립 없이 이름만 저장된 경우(예: '랫풀다운')는 첫 그립 칩이 그 키를 맡는다
-    // — 이전엔 어느 칩에도 선택 표시가 안 돼, 루틴에 들어 있는데도 안 보이고 '기본'을 누르면 중복으로 추가됐다.
+    // - 이전엔 어느 칩에도 선택 표시가 안 돼, 루틴에 들어 있는데도 안 보이고 '기본'을 누르면 중복으로 추가됐다.
     const plainSelected = part.exercises.includes(name)
     return gripOptions.map((g, i) => ({ key: plainSelected && i === 0 ? name : makeExerciseKey(name, g), name, label: `${name} (${g})` }))
   }

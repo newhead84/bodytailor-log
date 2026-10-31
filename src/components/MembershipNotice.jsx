@@ -1,4 +1,4 @@
-// MembershipNotice.jsx — [2026-10-31] 회원권(=앱 사용 기간) 종료 임박(D-7)·만료 안내. HOME 상단, 만료 시 NOTE 탭 대신.
+// MembershipNotice.jsx - [2026-10-31] 회원권(=앱 사용 기간) 종료 임박(D-7)·만료 안내. HOME 상단, 만료 시 NOTE 탭 대신.
 import React from 'react'
 import { Card } from './ui'
 import { membershipState, fmtYmd } from '../utils/member'

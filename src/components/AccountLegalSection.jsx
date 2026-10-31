@@ -1,4 +1,4 @@
-// AccountLegalSection.jsx — [2026-10-31 신규] MY › 설정 맨 아래 "약관·개인정보" + "계정 삭제(탈퇴)"
+// AccountLegalSection.jsx - [2026-10-31 신규] MY › 설정 맨 아래 "약관·개인정보" + "계정 삭제(탈퇴)"
 //  - 개인정보 처리방침(/privacy/), 오픈소스 라이선스 고지(/oss-licenses.txt), 건강 정보 면책
 //  - 탈퇴: 구글 로그인 재확인 → 본인 데이터 삭제(storage.deleteMyAccountData) → 구글 계정 연결(Firebase 계정) 삭제
 import React, { useState } from 'react'
@@ -31,7 +31,7 @@ export default function AccountLegalSection({ uid }) {
           <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {OSS.map(([n, l]) => (
               <li key={n} className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
-                {n} — {l}
+                {n}: {l}
               </li>
             ))}
           </ul>
@@ -48,7 +48,7 @@ export default function AccountLegalSection({ uid }) {
   )
 }
 
-// 데이터 삭제 뒤 로그인 계정(Firebase) 삭제 — 실패하면 알리고 다시 시도하게 한다(성공처럼 보이지 않게)
+// 데이터 삭제 뒤 로그인 계정(Firebase) 삭제 - 실패하면 알리고 다시 시도하게 한다(성공처럼 보이지 않게)
 async function finishAuthDeletion(setProgress, setError, setBusy) {
   try {
     setProgress('계정을 지우는 중…')

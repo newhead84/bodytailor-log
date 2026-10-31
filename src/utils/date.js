@@ -15,3 +15,11 @@ export function toLocalDateStr(date = new Date()) {
 export function todayStr() {
   return toLocalDateStr(new Date())
 }
+
+// [2026-10-31] 주 시작(월요일) 'YYYY-MM-DD' - InsightCards.startOfWeekStr과 같은 기준(관리자 통계·회원 activity)
+export function weekStartStr(d = new Date(), offsetWeeks = 0) {
+  const date = typeof d === 'string' ? new Date(`${d}T00:00:00`) : new Date(d)
+  const day = date.getDay()
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1) + offsetWeeks * 7)
+  return toLocalDateStr(date)
+}

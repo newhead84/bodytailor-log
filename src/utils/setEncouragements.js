@@ -105,7 +105,7 @@ export const SET_ENCOURAGEMENTS = [
   "오늘도 스스로를 넘어섰어요!",
 ]
 
-// 직전에 보여준 멘트와 연달아 겹치지 않게 골라준다(모듈 스코프 변수로만 관리 — 매 세트마다
+// 직전에 보여준 멘트와 연달아 겹치지 않게 골라준다(모듈 스코프 변수로만 관리 - 매 세트마다
 // 호출되는 빈도가 높아 localStorage까지 쓸 필요는 없고, 새로고침되면 자연히 리셋돼도 무방).
 let lastIdx = -1
 export function pickSetEncouragement() {

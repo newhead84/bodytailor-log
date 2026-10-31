@@ -81,7 +81,7 @@ function draftKey(uid) {
 // [2026-10-27] draft 키는 날짜별(bodytailor-draft-{uid}-{YYYY-MM-DD})이라, "오늘 운동 완료"를 누르지
 // 않고 날이 바뀌면 전날 기록을 찾지 못해 통째로 누락됐다(실사용 다발 피드백). 날짜와 상관없이
 // 이 계정의 draft 키를 모두 훑어, 진행 중 세션이 있으면 가장 최근 것을 고른다. 나머지 키는 정리한다.
-// [2026-10-31] 진행 세션 서버 백업을 곧바로 써야 하는 '중요 변화' 서명 — 세션·단계·일시정지·완료 종목·저장한 세트
+// [2026-10-31] 진행 세션 서버 백업을 곧바로 써야 하는 '중요 변화' 서명 - 세션·단계·일시정지·완료 종목·저장한 세트
 function remoteMilestoneSig(d) {
   let saved = 0
   let lastSaved = 0
@@ -227,7 +227,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     seasonXp = 0, // [2026-10-29] 완료 요약 카드의 Lv 진행(저장 전 시즌 XP)
     rirEnabled = true, // [2026-10-29] MY에서 RIR 기록 끄기
     workoutGuideSeen = false, // [2026-10-29] 기록 화면 사용법 가이드를 본 계정
-    membershipEnd = '', // [2026-10-31] 회원권 종료일(트레이너·관리자는 빈 값) — 만료 뒤 저장 실패 안내용
+    membershipEnd = '', // [2026-10-31] 회원권 종료일(트레이너·관리자는 빈 값) - 만료 뒤 저장 실패 안내용
   },
   ref
 ) {
@@ -755,12 +755,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 값(시작시각/일시정지시각/누적 일시정지시간/현재 단계)이 바뀔 때마다 상위(App.jsx)에
   // 전달한다. App.jsx는 이 값으로 자체 tick을 돌려 4탭 공통 상단 바에 경과시간을 표시한다.
   // (기록탭이 화면에 없어도 이 컴포넌트 자체는 계속 마운트돼 있으므로 이 값들은 실시간으로
-  // 갱신된다 — App.jsx 287행 주석 참고.)
+  // 갱신된다 - App.jsx 287행 주석 참고.)
   useEffect(() => {
     onSessionTimingChange?.({ sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs])
-  // [2026-10-29] 진행 중(본운동) 세션에서 체크(V)한 세트를 위로 알린다 — 근육별 주간 세트가 오늘 운동을 아직 저장 전이라 0으로 보이던 문제
+  // [2026-10-29] 진행 중(본운동) 세션에서 체크(V)한 세트를 위로 알린다 - 근육별 주간 세트가 오늘 운동을 아직 저장 전이라 0으로 보이던 문제
   useEffect(() => {
     if (!onLiveExercisesChange) return
     onLiveExercisesChange(sessionPhase === 'main' ? buildExercisesFromRecords(records) : null)
@@ -919,7 +919,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // 아직 이 종목에 값을 입력한 적이 없으면, 직전 기록의 마지막 세트 값을
     // 첫 세트의 기본값으로 미리 채워준다(그대로 저장해도 되고, 수정도 가능).
     // [2026-08-07 수정] 기존에는 "records[종목명]이 이미 존재하면" 스킵하는 가드였는데,
-    // 존재 여부만 보고 빈 배열([])도 "이미 초기화됨"으로 취급해버려서 — 어떤 경로로든 한 번
+    // 존재 여부만 보고 빈 배열([])도 "이미 초기화됨"으로 취급해버려서 - 어떤 경로로든 한 번
     // 빈 배열이 들어가면 이후 몇 번을 펼쳐도(카드는 펼쳐지는데 인풋 행이 하나도 안 뜨는 채로)
     // 영구히 복구되지 않는 버그가 있었다. "실제로 입력 세트가 1개 이상 있을 때만" 스킵하도록
     // 조건을 좁히고, 이 초기화 블록 전체를 try/catch로 감싸 중간에 예기치 못한 에러가 나도
@@ -980,7 +980,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRecords((r) => {
       const sets = r[name]
       const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, ...base } = sets[idx] || {}
-      // [2026-10-29] 미리 만든 행은 planned — 체크(V)·수정하지 않으면 완료 시 포함 여부를 묻는다(안 한 세트가 그대로 저장되던 문제).
+      // [2026-10-29] 미리 만든 행은 planned - 체크(V)·수정하지 않으면 완료 시 포함 여부를 묻는다(안 한 세트가 그대로 저장되던 문제).
       // "세트완료" 때 지워지는 auto 행과 달리 남겨 둔다.
       // 웜업·실패 세트를 복사하면 본세트로, 드롭 세트는 연속 드롭을 위해 그대로 둔다
       return { ...r, [name]: [...sets, { ...base, ...(base.type === 'warmup' || base.type === 'failure' ? { type: 'working' } : {}), planned: true }] }
@@ -1014,7 +1014,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function dismissSuggestion(key) {
     setDismissedSuggestions((d) => (d[key] ? d : { ...d, [key]: true }))
   }
-  // [2026-10-30 추천 고도화] 운동 중 세트 단위 조정 제안(방금 저장한 본세트가 목표 범위를 크게 벗어났을 때) — { [key]: { weight, kind, reason } }
+  // [2026-10-30 추천 고도화] 운동 중 세트 단위 조정 제안(방금 저장한 본세트가 목표 범위를 크게 벗어났을 때) - { [key]: { weight, kind, reason } }
   const [setTips, setSetTips] = useState({})
   function clearSetTip(key) {
     setSetTips((t) => (t[key] ? (({ [key]: _, ...rest }) => rest)(t) : t))
@@ -1024,7 +1024,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     if (!tip) return
     const sets = records[key] || []
     const idx = sets.findIndex((st) => !st.saved && st.type !== 'warmup')
-    // 무게만 바꾼 행은 아직 안 한 세트(planned)로 둔다 — 체크(V)해야 기록·볼륨에 들어감
+    // 무게만 바꾼 행은 아직 안 한 세트(planned)로 둔다 - 체크(V)해야 기록·볼륨에 들어감
     setRecords((r) => {
       const cur = r[key] || []
       if (idx === -1) return { ...r, [key]: [...cur, { weight: String(tip.weight), reps: cur[cur.length - 1]?.reps ?? '', planned: true }] }
@@ -1068,7 +1068,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       let t = 0
       const next = sets.map((st) => {
         if (st.saved || st.type === 'warmup' || t >= targets.length) return st
-        // 추천으로 채운 행은 아직 안 한 세트(planned) — 체크(V)하면 기록, 안 하면 완료 때 포함 여부를 묻는다
+        // 추천으로 채운 행은 아직 안 한 세트(planned) - 체크(V)하면 기록, 안 하면 완료 때 포함 여부를 묻는다
         return { ...st, weight: String(sug.weight), reps: String(targets[t++]), auto: false, planned: true }
       })
       for (; t < targets.length; t++) next.push({ weight: String(sug.weight), reps: String(targets[t]), planned: true })
@@ -1151,7 +1151,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   // 체크(V) 버튼으로 세트를 저장하기 전에 값을 확인한다. 값이 비어있으면(아예 입력을 안 한 경우)
   // 그대로 저장할지만 확인하던 기존 로직에 더해, [2026-07-30 신규] 무게/횟수(또는 유산소 시간)가
-  // 0이면 "0으로 완료"는 의미가 없으므로 저장 대신 그 세트를 삭제할지 확인한다(⑬) — 중량이나
+  // 0이면 "0으로 완료"는 의미가 없으므로 저장 대신 그 세트를 삭제할지 확인한다(⑬) - 중량이나
   // 수치가 0으로 완료된 세트가 그대로 DB에 남는 문제를 막는다.
   async function trySaveSet(key, idx) {
     const set = records[key]?.[idx]
@@ -1185,7 +1185,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   // 세트 저장과 동시에: 휴게타이머 시작 + 다음 세트를 자동으로 생성(직전 값 프리필)
   function saveSetAndStartRest(name, idx) {
-    // [2026-10-27 리뉴얼 W1] 신기록(추정 1RM) 감지 — 웜업 제외, 12회 이하 본세트만. 처음 하는 종목은 축하 생략.
+    // [2026-10-27 리뉴얼 W1] 신기록(추정 1RM) 감지 - 웜업 제외, 12회 이하 본세트만. 처음 하는 종목은 축하 생략.
     const savedSet = records[name]?.[idx]
     // 이미 저장된 세트를 (포커스형에서 골라) 수정 후 다시 저장: 값만 확정하고 휴식·슈퍼세트 이동은 하지 않는다
     if (savedSet?.saved) {
@@ -1220,7 +1220,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setActiveRestSec(settingFor(name)?.restSec || (restSeconds === REST_AUTO ? getDefaultRestSec(parseExerciseKey(name).name) : null))
     setRecords((r) => {
       // [2026-10-27] savedAt: 마지막 활동 시각(방치 세션 판단·자동 저장 시 운동시간 계산)용.
-      // 자동 생성되는 다음 세트 행은 auto:true — 손대지도 체크하지도 않으면 기록에서 제외된다.
+      // 자동 생성되는 다음 세트 행은 auto:true - 손대지도 체크하지도 않으면 기록에서 제외된다.
       const sets = r[name].map((s, i) => {
         if (i !== idx) return s
         // [2026-10-29] 유산소 타이머로 기록 중이면 경과 시간(분)을 채우고 타이머를 끝낸다
@@ -1238,7 +1238,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // [2026-10-27 리뉴얼 W3] 슈퍼세트: 짝 종목의 저장 세트 수가 이 종목보다 적으면 휴식 없이 짝 종목으로 이동
     const partner = supersets[name]
     if (partner && savedSet?.type !== 'warmup' && visibleExercises.includes(partner) && !completedExercises[partner]) {
-      // 웜업 세트는 번갈아 하기 대상이 아니다(각 종목 웜업은 따로) — 본세트 수만 비교
+      // 웜업 세트는 번갈아 하기 대상이 아니다(각 종목 웜업은 따로) - 본세트 수만 비교
       const workingSaved = (key) => (records[key] || []).filter((st) => st.saved && st.type !== 'warmup').length
       const mySaved = workingSaved(name) + 1
       const partnerSaved = workingSaved(partner)
@@ -1283,7 +1283,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }
 
   // "삭제": 루틴(파트) 자체는 그대로 두고, 오늘 세션 화면에서만 숨긴다 (다음에 다시 보임)
-  // [2026-10-29] 저장(V)한 세트가 있으면 먼저 확인 — 확인 없이 기록까지 지워지던 문제. 숨긴 종목의 기록은 남기지 않는다
+  // [2026-10-29] 저장(V)한 세트가 있으면 먼저 확인 - 확인 없이 기록까지 지워지던 문제. 숨긴 종목의 기록은 남기지 않는다
   // (숨김 = 오늘 안 한 종목). 다시 추가하면 완료 표시도 풀린 빈 카드로 시작.
   async function hideExerciseToday(name) {
     const savedCount = (records[name] || []).filter((st) => st.saved).length
@@ -1366,7 +1366,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // [2026-08-01 수정] 완료된 종목은 draggable=false라 자기 자신이 움직이진 않지만, 아직 완료
   // 안 한 종목을 드래그해서 완료된 종목의 자리 "위"로 넘기는 건 막혀있지 않았다(⑥). 완료된
   // 종목들은 visibleExercises 상의 인덱스가 고정되어야 하므로, 그 인덱스에 원래와 다른 이름이
-  // 오는 재배열은 거부(무시)한다 — 미완료 종목끼리만 나머지 자리에서 순서를 바꿀 수 있다.
+  // 오는 재배열은 거부(무시)한다 - 미완료 종목끼리만 나머지 자리에서 순서를 바꿀 수 있다.
   function handleReorder(nextVisibleOrder) {
     const completedFixedOk = visibleExercises.every(
       (n, i) => !completedExercises[n] || nextVisibleOrder[i] === n
@@ -1506,7 +1506,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           sessionType: sessionType === 'routine' ? 'cycle' : 'extra',
           scoreWeight: sessionType === 'extra' ? 0.7 : 1.0,
         },
-        // [2026-10-27] 세션 시작 시각 기반 고정 ID — 자동 저장과 겹쳐도 기록이 하나만 생긴다.
+        // [2026-10-27] 세션 시작 시각 기반 고정 ID - 자동 저장과 겹쳐도 기록이 하나만 생긴다.
         sessionLogId({ sessionId, sessionStartAt })
       )
       xpEarned = res.xpEarned
@@ -1515,7 +1515,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       // 저장 실패 시 무한 "저장 중"에 갇히지 않게 한다. draft(로컬+서버 백업)는 그대로 남아 있다.
       console.error('운동 기록 저장 실패:', err)
       setSaving(false)
-      // [2026-10-31] 회원권 종료일 자정을 넘긴 세션은 규칙(isApproved)이 저장을 막는다 — 이유를 알려 준다.
+      // [2026-10-31] 회원권 종료일 자정을 넘긴 세션은 규칙(isApproved)이 저장을 막는다 - 이유를 알려 준다.
       const endAt = membershipEndAt(membershipEnd)
       const expired = err?.code === 'permission-denied' && endAt && Date.now() > endAt.getTime()
       await confirm(
@@ -1598,7 +1598,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   // [2026-08-02 신규] 완료 팝업의 "오늘 운동 내루틴에 반영" 버튼 핸들러(⑫). 오늘 기록한 종목 중
   // 아직 어느 파트에도 없는 것만, 그 종목의 부위(atom)를 포함하는 첫 번째 파트에 추가한다.
-  // (사용자 확인: 오늘 뺀 종목을 자동으로 제거하지는 않음 — 추가만.)
+  // (사용자 확인: 오늘 뺀 종목을 자동으로 제거하지는 않음 - 추가만.)
   async function handleAddTodayToRoutine(pendingList, template) {
     if (!template || !pendingList?.length) return { addedCount: 0 }
     const existingKeys = new Set(template.parts.flatMap((p) => p.exercises))
@@ -1821,7 +1821,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                  트릭을 적용해 배경을 지웠으나, screen 블렌드 특성상 라이트(흰 배경) 테마에서는
                  로고의 밝은 픽셀(덤벨/화살표)까지 배경색에 수렴해버려 렌더링 시점에 따라 로고가
                  떴다 사라지는 것처럼 보이는 문제가 있었다. 배경(#0A0A0B, 단색)만 투명 처리해
-                 미리 만들어둔 logo-mark-transparent.png를 블렌드 트릭 없이 그대로 사용하도록 교체 —
+                 미리 만들어둔 logo-mark-transparent.png를 블렌드 트릭 없이 그대로 사용하도록 교체 -
                  다크/라이트 테마 배경색과 무관하게 항상 자연스럽게 보인다. */
               style={{ opacity: 0.16, filter: 'grayscale(100%)' }}
             />
@@ -2255,7 +2255,7 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
 // 튕김 방지). 대신 펼치기/접기(카드 높이 변화)로 인한 불필요한 재배치 애니메이션은
 // layoutDependency를 "종목 순서" 값에만 묶어서, 순서가 실제로 바뀔 때만 위치 애니메이션이
 // 재계산되도록 막는다.
-// [2026-07-29 추가 수정] 위 컴포넌트 상단 rootRef/layoutEnabled 설명 참고 — 탭이 다시 보이게 된
+// [2026-07-29 추가 수정] 위 컴포넌트 상단 rootRef/layoutEnabled 설명 참고 - 탭이 다시 보이게 된
 // 직후 한 프레임만 layoutEnabled=false로 내려와 layout 자체를 잠깐 끈다(드롭 애니메이션 방지).
 // [2026-08-12 수정] transition을 별도로 지정하지 않으면 framer-motion 기본 스프링(반동 있는
 // 물리값)이 그대로 적용되어, 드래그 중 다른 카드들이 자리를 옮길 때마다 실시간으로 통통
@@ -2899,7 +2899,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
   // 절대적으로 항목이 너무 많다"는 구조 문제였다. cardio 종목만 스텝퍼 줄과 버튼 줄을 아예
   // 분리된 두 줄로 나눠서, 두 영역이 서로 폭을 다툴 일 자체를 없앴다(가로 스크롤 불필요).
   if (isCardio) {
-    // [2026-10-29] 종목별 칸(cardioFields.js) — 실내사이클은 경사 대신 거리 km
+    // [2026-10-29] 종목별 칸(cardioFields.js) - 실내사이클은 경사 대신 거리 km
     return (
       <div style={{ marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>

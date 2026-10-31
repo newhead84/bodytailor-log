@@ -1,6 +1,6 @@
 import React from 'react'
 import { ACCENT_OPTIONS } from '../utils/fonts'
-// [2026-10-29] platinum.png('PLATINUM' 글자 일러스트)는 단계명 변경으로 미사용 — 파일은 보관
+// [2026-10-29] platinum.png('PLATINUM' 글자 일러스트)는 단계명 변경으로 미사용 - 파일은 보관
 
 export function Button({ children, onClick, variant = 'primary', disabled, style, type = 'button', full }) {
   const base = {
@@ -18,7 +18,7 @@ export function Button({ children, onClick, variant = 'primary', disabled, style
   }
   const variants = {
     primary: { background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)' },
-    // [2026-10-28 리디자인] 보조 버튼은 강조색 틴트(골드 바탕+골드 글자) 대신 무채색 — 강조색은 채움(primary)·선택 상태에만
+    // [2026-10-28 리디자인] 보조 버튼은 강조색 틴트(골드 바탕+골드 글자) 대신 무채색 - 강조색은 채움(primary)·선택 상태에만
     secondary: { background: 'var(--color-bg-elevated)', color: 'var(--color-label-strong)', boxShadow: 'inset 0 0 0 1px var(--color-line)' },
     ghost: { background: 'transparent', color: 'var(--color-label-normal)', border: '1px solid var(--color-line)' },
     danger: { background: 'var(--color-danger)', color: '#131316' },

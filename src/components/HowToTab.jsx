@@ -306,7 +306,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
       {comparisonGroup && (
         <Card style={{ marginBottom: 14 }}>
           <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-            비슷한 운동과 비교 — {comparisonGroup.groupLabel.replace(/\s*\([a-z-]+\)\s*$/i, '')}
+            비슷한 운동과 비교: {comparisonGroup.groupLabel.replace(/\s*\([a-z-]+\)\s*$/i, '')}
           </p>
           <p className="text-keep-all" style={{ margin: '0 0 4px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
             {comparisonGroup.intro}
@@ -355,7 +355,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
   // 바꾸는 구조라, 목록을 스크롤한 채로 상세에 들어가면 이전 스크롤 위치가 그대로 남는다.
   // 상세 콘텐츠 길이(설명 길이 등)에 따라 하단 "내 루틴에 추가" 버튼이 화면 경계에 걸쳐
   // 상단이 잘려 보이는 문제의 원인이었다. 목록↔상세 전환 시마다 맨 위로 리셋한다.
-  // (탭을 재탭했을 때 스크롤 맨 위로 되돌리는 App.jsx의 기존 동작과는 별개 — 그건 그대로 둔다.)
+  // (탭을 재탭했을 때 스크롤 맨 위로 되돌리는 App.jsx의 기존 동작과는 별개 - 그건 그대로 둔다.)
   useEffect(() => {
     scrollContainerRef?.current?.scrollTo({ top: 0 })
   }, [selectedExercise, scrollContainerRef])
@@ -371,7 +371,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
   }, [query])
 
   const baseNames = searchResults ?? EXERCISE_LIBRARY[selectedAtom] ?? []
-  // [2026-10-31] 기구 필터 — 지금 목록에 있는 기구만 칩으로(전 종목 getEquipment 태그 사용)
+  // [2026-10-31] 기구 필터 - 지금 목록에 있는 기구만 칩으로(전 종목 getEquipment 태그 사용)
   const [equip, setEquip] = useState('전체')
   const equipOptions = useMemo(() => {
     const order = ['바벨', '덤벨', '머신', '스미스머신', '케이블', '원판', '맨몸', '풀업 바', '딥스 바', '밴드', '앱롤러', '유산소 기구']

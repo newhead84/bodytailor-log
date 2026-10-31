@@ -1,6 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-31] 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
+ * 최신 변경: [2026-10-31] 관리자 대시보드 확장(요약·회원 상세·재등록·휴회·PT 정산·노쇼·통계·관리 이력), 긴 줄표 제거.
+ *            직전: 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
  *            PT 일정 모아보기·기구 필터·스트레칭 검색, 홍보 페이지 줄바꿈. 직전: 홈 화면 설치 안내. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
@@ -143,7 +144,7 @@ export default function App() {
   // 보여주는 "Chrome 아이콘 + 사이트명" 시스템 배너는 이 커스텀 알림과는 별개로, OS/브라우저가
   // 직접 그리는 것이라 웹 코드로는 문구·아이콘을 바꾸거나 숨길 수 없다. 홈 화면에 "앱으로 설치"
   // 해서 standalone으로 실행하면 그 배너 자체가 브라우저(Chrome) 대신 이 앱 고유 아이콘/이름으로
-  // 표시된다 — 이번에 추가한 설치 배너(⑧)가 이 문제의 실질적인 해결책이다.
+  // 표시된다 - 이번에 추가한 설치 배너(⑧)가 이 문제의 실질적인 해결책이다.
   const sessionNotificationRef = useRef(null)
   useEffect(() => {
     if (!userDoc?.restTimerNotificationPermission) return
@@ -165,7 +166,7 @@ export default function App() {
         silent: true,
       })
     } catch {
-      // 알림 생성 실패(권한 등)는 무시 — 세션/타이머 자체 동작에는 영향 없음
+      // 알림 생성 실패(권한 등)는 무시 - 세션/타이머 자체 동작에는 영향 없음
     }
   }, [workoutPhase, userDoc?.restTimerNotificationPermission])
 
@@ -206,7 +207,7 @@ export default function App() {
   // [2026-07-30 신규] MY탭 "화면 테마" 선택(userDoc.themePreference: 'dark'|'light')을
   // html 태그의 data-theme 속성에 반영한다. tokens.css의 html[data-theme='light'] 블록이
   // 이 속성만 보고 전체 색상 변수를 스위칭하므로 여기서는 속성만 세팅하면 된다.
-  // 적용 범위는 "로그인 이후 메인 4탭 전체"로 한정 — 로그인/온보딩 화면(userDoc이 없거나
+  // 적용 범위는 "로그인 이후 메인 4탭 전체"로 한정 - 로그인/온보딩 화면(userDoc이 없거나
   // 온보딩 미완료)에서는 항상 dark를 유지하고, 온보딩이 끝난 뒤부터만 사용자 선택을 반영한다.
   useEffect(() => {
     const theme = userDoc?.onboardingCompleted ? userDoc.themePreference || DEFAULT_THEME : 'dark'
@@ -269,7 +270,7 @@ export default function App() {
   const prsBuildRef = useRef(false)
   useEffect(() => {
     // [2026-10-29] PR 맵에 옛 종목명 키(예: 와이드그립랫풀다운)가 남아 있으면 정규화된 이름으로 한 번 다시 계산
-    // [2026-10-29] PR 계산 규칙이 바뀌면(prsVersion) 전체 기록으로 한 번 다시 계산 — 어시스트·추가 중량 종목 실제 부하 반영, 15회까지 추정
+    // [2026-10-29] PR 계산 규칙이 바뀌면(prsVersion) 전체 기록으로 한 번 다시 계산 - 어시스트·추가 중량 종목 실제 부하 반영, 15회까지 추정
     const hasLegacyPrKey = !!userDoc?.prs && Object.keys(userDoc.prs).some((k) => k.split('::')[0] in LEGACY_EXERCISE_NAME_MAP)
     // 체중이 바뀌면(어시스트·맨몸+추가 종목의 실제 부하가 달라짐) 버전 키도 달라져 다시 계산한다
     const prsKey = prsVersionKey()
@@ -422,7 +423,7 @@ export default function App() {
     return <DeletedAccountScreen />
   }
 
-  // [2026-10-31] 개인정보·신체 정보 동의 + 만 14세 이상 확인 — 새 계정은 온보딩 전, 기존 계정은 다음 접속 때 한 번
+  // [2026-10-31] 개인정보·신체 정보 동의 + 만 14세 이상 확인 - 새 계정은 온보딩 전, 기존 계정은 다음 접속 때 한 번
   if (!hasCurrentConsent(userDoc)) {
     return (
       <ConsentScreen

@@ -1,4 +1,4 @@
-// ExerciseGuideSections.jsx — [2026-10-31] 종목 구조화 가이드 표시(HOWTO 상세: 전체 / 기록 중 패널: compact)
+// ExerciseGuideSections.jsx - [2026-10-31] 종목 구조화 가이드 표시(HOWTO 상세: 전체 / 기록 중 패널: compact)
 // 데이터: utils/exerciseGuides.js(EXERCISE_GUIDES). 없는 종목은 호출부에서 기존 summary/howTo/tip을 보여준다.
 import React from 'react'
 import { Card } from './ui'

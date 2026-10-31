@@ -16,7 +16,7 @@ const COPY = {
 export default function MemberPendingScreen({ uid, userDoc, onRefresh }) {
   const [checking, setChecking] = useState(false)
   const [msg, setMsg] = useState('')
-  // 신청 정보(이름·휴대폰) 오타 수정 — 본인은 signupInfo를 고칠 수 있다(승인 상태는 관리자만)
+  // 신청 정보(이름·휴대폰) 오타 수정 - 본인은 signupInfo를 고칠 수 있다(승인 상태는 관리자만)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(userDoc?.signupInfo?.name || '')
   const [phone, setPhone] = useState('')

@@ -1,4 +1,4 @@
-// TrainerProfileView.jsx — [2026-10-31] 트레이너 프로필 표시(앱 "트레이너 소개"·담당 트레이너, 대시보드 미리보기 공용)
+// TrainerProfileView.jsx - [2026-10-31] 트레이너 프로필 표시(앱 "트레이너 소개"·담당 트레이너, 대시보드 미리보기 공용)
 import React from 'react'
 import { instagramUrl, photoList } from '../utils/trainerProfile'
 

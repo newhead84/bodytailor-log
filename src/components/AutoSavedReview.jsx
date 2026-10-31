@@ -173,7 +173,7 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved 
                     {ex.name}
                     {ex.grip ? ` (${ex.grip})` : ''}
                   </span>
-                  {ex.sets.length === 0 && <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>남은 세트 없음 — 저장하면 이 종목은 빠져요</span>}
+                  {ex.sets.length === 0 && <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>남은 세트 없음. 저장하면 이 종목은 빠져요</span>}
                   {ex.sets.map((s, si) => (
                     <div key={si} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span className="bt-num" style={{ width: 20, flexShrink: 0, fontSize: 12.5, color: 'var(--color-label-neutral)', textAlign: 'center' }}>

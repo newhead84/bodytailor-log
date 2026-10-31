@@ -1,11 +1,11 @@
 /* [2026-10-30] 인앱 브라우저(카카오톡·인스타그램·네이버 등) → 기본 브라우저로 열기
  * 왜: 구글은 인앱 브라우저(WebView)에서 구글 로그인을 막는다(403 disallowed_useragent). 홈 화면 추가(PWA 설치)도 기본 브라우저에서만 된다.
  * 동작: <head>에서 동기 로드(앱 index.html·홍보 페이지 /intro/ 공용).
- *  1) 카카오톡: kakaotalk://web/openExternal?url=… 로 기본 브라우저에서 다시 연다(비공식이지만 널리 쓰이는 스킴, 안드로이드·iOS) — 자동.
- *  2) 라인: ?openExternalBrowser=1 — 자동.
+ *  1) 카카오톡: kakaotalk://web/openExternal?url=… 로 기본 브라우저에서 다시 연다(비공식이지만 널리 쓰이는 스킴, 안드로이드·iOS) - 자동.
+ *  2) 라인: ?openExternalBrowser=1 - 자동.
  *  3) 그 외 인앱(인스타그램·네이버·밴드 등): 지원되지 않는 스킴으로 자동 이동하면 오류 화면이 뜰 수 있어 자동 이동은 하지 않고,
  *     화면 위 안내 띠의 "기본 브라우저로 열기"(안드로이드는 intent://로 크롬)·"주소 복사" 버튼으로 사용자가 직접 연다.
- *  같은 탭에서 자동 이동은 한 번만(sessionStorage) — 무한 반복 방지. window.__btInApp으로 앱(LoginScreen 등)에 노출.
+ *  같은 탭에서 자동 이동은 한 번만(sessionStorage) - 무한 반복 방지. window.__btInApp으로 앱(LoginScreen 등)에 노출.
  */
 (function () {
   var ua = (navigator.userAgent || '').toLowerCase()

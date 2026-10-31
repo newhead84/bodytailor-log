@@ -50,7 +50,7 @@ const CHART_TOOLTIP_STYLE = {
 
 // [2026-08-02 수정] date.getDay()가 일요일=0이라, 기존 코드(day만큼 그대로 빼기)는 결과적으로
 // "일~토" 기준 주간 경계가 되고 있었다(⑬으로 명시적 경계 도입했을 때도 이 부분은 못 고쳤음).
-// 요청대로 "월~일" 기준으로 바꾼다 — 일요일(0)은 6일 전 월요일로, 그 외 요일은 (day-1)일 전
+// 요청대로 "월~일" 기준으로 바꾼다 - 일요일(0)은 6일 전 월요일로, 그 외 요일은 (day-1)일 전
 // 월요일로 계산한다. 이 함수를 쓰는 출석률/부위별 추이/볼륨비교/과부하 계산이 모두 동일하게
 // 월~일 기준으로 바뀐다(일관성 유지).
 function startOfWeek(d) {
@@ -309,7 +309,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   // 보정 없이 기존과 동일하다. 유산소가 잘 안 보이는 문제는 아래 bodyPartRadar의 정규화
   // 방식(제곱근 스케일)으로 별도 완화한다.
   // [2026-08-06 (2) 신규] "가슴/등 운동 시 이두·삼두·어깨도 나름 개입되는 점을 감안해서
-  // 표시했으면 함"(사용자 확인) — EXERCISE_META의 muscleRoles.synergist를 getSynergistAtoms로
+  // 표시했으면 함"(사용자 확인) - EXERCISE_META의 muscleRoles.synergist를 getSynergistAtoms로
   // 부위(atom)로 변환해, 주동근이 아닌 부위에도 해당 세트 활동량의 30%를 secondaryScore로
   // 가산한다. 주동근 부위와 겹치는 synergist는 제외(이미 그 부위 몫으로 전부 반영됨). 유산소는
   // muscleRoles가 없어(기구 운동 특성상) 대상에서 자연히 제외된다. secondaryScore는 축 상세
@@ -540,7 +540,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
           const totalReps = workingSetsOf(ex).reduce((s, st) => s + (Number(st.reps) || 0), 0)
           return { date: log.date.slice(5), value: totalReps }
         }
-        // [2026-10-27] 중량형은 최고 중량 대신 추정 1RM(Epley, 12회 이하 본세트)으로 — 무게·횟수 향상을 함께 반영.
+        // [2026-10-27] 중량형은 최고 중량 대신 추정 1RM(Epley, 12회 이하 본세트)으로 - 무게·횟수 향상을 함께 반영.
         // 12회 초과만 한 날은 추정치가 없어 그래프에서 제외(다른 지표와 섞지 않음).
         const best = bestE1rmOfSets(ex.sets, ex.name)
         return best ? { date: log.date.slice(5), value: best } : null
@@ -693,7 +693,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
               줄였다(차트 내부 margin은 라벨 잘림 방지를 위해 그대로 유지).
               [2026-07-30 재수정] 그래도 여백이 커 보인다는 피드백 추가 반영: Card 높이 자체를
               줄였다. outerRadius(%)와 margin은 그대로 두되 컨테이너 높이만 줄이면, 반지름도
-              비례해서 함께 작아져(퍼센트 기준이므로) 라벨과의 여유 공간은 오히려 늘어난다 —
+              비례해서 함께 작아져(퍼센트 기준이므로) 라벨과의 여유 공간은 오히려 늘어난다 -
               즉 잘릴 위험 없이 전체 카드 크기만 컴팩트해진다. 여기에 margin도 그 비율만큼
               살짝 더 줄여 실제 화면상 여백을 추가로 축소했다. */}
           <SectionTitle>부위별 운동 추이</SectionTitle>

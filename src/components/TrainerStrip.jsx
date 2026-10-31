@@ -1,4 +1,4 @@
-// TrainerStrip.jsx — [2026-10-31] HOWTO 탭 맨 위 "바디테일러 트레이너" 가로 카드(사진·이름·전문 분야) → 누르면 트레이너 소개 상세
+// TrainerStrip.jsx - [2026-10-31] HOWTO 탭 맨 위 "바디테일러 트레이너" 가로 카드(사진·이름·전문 분야) → 누르면 트레이너 소개 상세
 import React, { useEffect, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { TrainerAvatar } from './TrainerProfileView'

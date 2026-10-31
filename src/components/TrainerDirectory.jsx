@@ -1,4 +1,4 @@
-// TrainerDirectory.jsx — [2026-10-31] 회원 앱 "트레이너 소개": 재직 중인 트레이너 프로필 목록 → 상세
+// TrainerDirectory.jsx - [2026-10-31] 회원 앱 "트레이너 소개": 재직 중인 트레이너 프로필 목록 → 상세
 import React, { useCallback, useEffect, useState } from 'react'
 import { BackButton, Card } from './ui'
 import TrainerProfileView, { TrainerAvatar, TrainerTags } from './TrainerProfileView'

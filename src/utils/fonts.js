@@ -37,7 +37,7 @@ export function normalizeFontId(id) {
 export function applyDesignAttrs({ style, theme, font, accent }) {
   const el = document.documentElement
   if (accent) el.setAttribute('data-accent', normalizeAccentId(accent))
-  // [2026-10-28] 스타일은 C(택타일 웜)로 고정 — 전달값과 무관하게 'c'
+  // [2026-10-28] 스타일은 C(택타일 웜)로 고정 - 전달값과 무관하게 'c'
   if (style) el.setAttribute('data-style', 'c')
   if (theme) el.setAttribute('data-theme', theme)
   if (font) el.setAttribute('data-font', normalizeFontId(font))

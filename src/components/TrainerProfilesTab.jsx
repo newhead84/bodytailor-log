@@ -1,4 +1,4 @@
-// TrainerProfilesTab.jsx — [2026-10-31] 관리자 대시보드 "트레이너 프로필"
+// TrainerProfilesTab.jsx - [2026-10-31] 관리자 대시보드 "트레이너 프로필"
 //  - 프로필(사진·직함·전문 분야·경력·자격·소개·인스타) 추가·수정·순서, 트레이너 앱 계정 연결
 //  - 퇴사 처리: 앱 소개에서 숨김(기록 유지, 재직으로 되돌리기 가능) + 담당 회원을 다른 트레이너로 옮기거나 연결 해제 + 계정 역할 정리
 import React, { useEffect, useState } from 'react'
@@ -287,7 +287,7 @@ function ProfileForm({ p, trainerAccounts, usedUids, onCancel, onSave }) {
           <label style={lab}>
             트레이너 앱 계정 연결
             <select value={f.linkedUid} onChange={set('linkedUid')} style={field}>
-              <option value="">— 연결 안 함 —</option>
+              <option value="">연결 안 함</option>
               {trainerAccounts.map((u) => (
                 <option key={u.uid} value={u.uid} disabled={usedUids.includes(u.uid)}>{nameOf(u)}{u.signupInfo?.phoneLast4 ? ` · ${u.signupInfo.phoneLast4}` : ''}{usedUids.includes(u.uid) ? ' (다른 프로필에 연결됨)' : ''}</option>
               ))}

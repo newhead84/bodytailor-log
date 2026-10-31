@@ -15,7 +15,7 @@ export const STALE_SESSION_MS = 3 * 60 * 60 * 1000
 // 세트 저장(V) 직후 앱이 자동으로 만들어 둔 "다음 세트" 행(auto)은, 사용자가 손대지도 저장하지도
 // 않았다면 실제로 수행한 세트가 아니다. 이런 행은 기록·볼륨에서 제외한다.
 // (이전에는 마지막 세트를 저장하면 생기는 복사 행까지 1세트로 저장돼 세트 수·볼륨이 부풀었다.)
-// [2026-10-27 리뉴얼 W1] 세트 종류(본세트 외에만 저장)·RIR(입력했을 때만) — 기존 기록과 하위 호환(필드 추가만)
+// [2026-10-27 리뉴얼 W1] 세트 종류(본세트 외에만 저장)·RIR(입력했을 때만) - 기존 기록과 하위 호환(필드 추가만)
 function setMeta(s) {
   const meta = {}
   if (s.type && s.type !== 'working') meta.type = s.type
@@ -69,13 +69,13 @@ export function countUncheckedAutoSets(records) {
 export function buildExercisesFromRecords(records, { includeUnchecked = false } = {}) {
   return Object.entries(records || {})
     .map(([key, rawSets]) => {
-      // key는 합성키("이름" 또는 "이름::그립") — 저장 시 실제 종목명과 그립으로 분해한다.
+      // key는 합성키("이름" 또는 "이름::그립") - 저장 시 실제 종목명과 그립으로 분해한다.
       const { name, grip } = parseExerciseKey(key)
       const inputType = getExerciseInputType(name)
       const sets = (rawSets || []).filter((st) => keepForSave(st, rawSets, includeUnchecked))
       let validSets
       if (inputType === 'cardio') {
-        // [2026-10-29] 종목별 유산소 칸(기본 경사·속도·시간 / 스텝밀 스텝·레벨·시간 / 실내사이클 거리·속도·시간) — cardioFields.js
+        // [2026-10-29] 종목별 유산소 칸(기본 경사·속도·시간 / 스텝밀 스텝·레벨·시간 / 실내사이클 거리·속도·시간) - cardioFields.js
         validSets = sets.filter((s) => isFilledSet(s, 'cardio')).map((s) => toSavedCardioSet(name, s))
       } else if (inputType === 'reps') {
         validSets = sets.filter((s) => isFilledSet(s, 'reps')).map((s) => ({ weight: 0, reps: Number(s.reps), ...setMeta(s) }))
@@ -138,7 +138,7 @@ export function isSessionStale(draft, now = Date.now()) {
 }
 
 // 같은 세션을 여러 번(여러 기기/탭) 저장해도 기록이 하나만 생기도록 세션 시작 시각 기반 고정 ID를 쓴다.
-// [2026-10-29] sessionId(시작 시 고정)를 우선 사용 — 타이머 ±10초·초기화로 sessionStartAt이 바뀌어도 ID·날짜가 그대로.
+// [2026-10-29] sessionId(시작 시 고정)를 우선 사용 - 타이머 ±10초·초기화로 sessionStartAt이 바뀌어도 ID·날짜가 그대로.
 // sessionId가 없는 옛 draft는 기존처럼 sessionStartAt을 쓴다.
 export function sessionIdentity(draft) {
   return draft?.sessionId || draft?.sessionStartAt || null

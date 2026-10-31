@@ -1,21 +1,21 @@
 <!doctype html>
-<!-- BodyTailor Log 홍보 페이지 (/intro/) — 2026-10-30 전면 개편: 사진 히어로·차별점 표·3단계·점진적 과부하 데모·기록 방식·트레이너·FAQ.
+<!-- BodyTailor Log 홍보 페이지 (/intro/) - 2026-10-30 전면 개편: 사진 히어로·차별점 표·3단계·점진적 과부하 데모·기록 방식·트레이너·FAQ.
      2026-10-31 P2-4: 트레이너 섹션을 트레이너 계획·기록 확인 흐름(트레이너/회원 화면 캡처)으로, 회원 전용·승인 안내 반영.
      앱 기능·규칙이 바뀌면 이 페이지 문구와 데모 규칙(이중 진행, utils/strength.js)도 함께 맞춘다.
      사진: Unsplash(상업 사용 가능, 로고 지움) img/photo-*.webp · 앱 화면: 목업 데이터 캡처 img/cap-*.webp
-     2026-10-31: 줄바꿈은 뜻이 바뀌는 곳에서만(.s.nl), 말덩이(.k) 중간에선 안 끊김 — 문장마다 새 줄은 줄이 너무 많아져 쓰지 않음, 과부하 데모를 '지난번 기록' 표기(횟수만 선택)로, '운동을 돕는 것들'·PT 일정·트레이너 소개·회원권 FAQ, 처리방침·라이선스 링크 -->
+     2026-10-31: 줄바꿈은 뜻이 바뀌는 곳에서만(.s.nl), 말덩이(.k) 중간에선 안 끊김 - 문장마다 새 줄은 줄이 너무 많아져 쓰지 않음, 과부하 데모를 '지난번 기록' 표기(횟수만 선택)로, '운동을 돕는 것들'·PT 일정·트레이너 소개·회원권 FAQ, 처리방침·라이선스 링크 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>BodyTailor Log — 내 운동을 기록하면 다음 목표가 보여요</title>
+<title>BodyTailor Log | 내 운동을 기록하면 다음 목표가 보여요</title>
 <meta name="description" content="혼자 하는 날도, PT 받는 날도 이어지는 운동 기록. 분할 예시나 트레이너의 루틴으로 시작하고, 지난번의 나를 기준으로 오늘 몇 kg, <span class="k">몇 번 할지</span> 알려 주는 바디테일러 PT&amp;헬스 회원용 웨이트 운동 기록 웹앱." />
 <link rel="canonical" href="https://bodytailor-log.vercel.app/intro/" />
 <!-- 카카오톡 등 인앱 브라우저 → 기본 브라우저로(구글 로그인·홈 화면 추가는 기본 브라우저에서만 됨) -->
 <script src="/inapp.js"></script>
 <meta property="og:type" content="website" />
-<meta property="og:title" content="BodyTailor Log — 내 운동을 기록하면 다음 목표가 보여요" />
-<meta property="og:description" content="혼자 하는 날도, PT 받는 날도 이어지는 운동 기록 — 세트별 목표·자동 휴식·점진적 과부하" />
+<meta property="og:title" content="BodyTailor Log | 내 운동을 기록하면 다음 목표가 보여요" />
+<meta property="og:description" content="혼자 하는 날도, PT 받는 날도 이어지는 운동 기록. 세트별 목표·자동 휴식·점진적 과부하" />
 <meta property="og:image" content="https://bodytailor-log.vercel.app/intro/img/og.png" />
 <meta property="og:url" content="https://bodytailor-log.vercel.app/intro/" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -46,7 +46,7 @@ h2{font-weight:800;font-size:clamp(30px,4.6vw,52px);line-height:1.2;letter-spaci
 .btn:active{transform:scale(.97)}
 .btn svg{width:18px;height:18px}
 
-/* 상단 바 — 히어로 위에서는 투명 */
+/* 상단 바 - 히어로 위에서는 투명 */
 nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:16px 24px;transition:background-color .3s,border-color .3s;border-bottom:1px solid transparent;color:#f5efe6}
 nav.solid{background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px);border-color:var(--line);color:var(--t1)}
 .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:17px;text-decoration:none}
@@ -415,7 +415,7 @@ function setMode(i){
 document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button'); if (b) setMode(+b.dataset.m) }
 setMode(0)
 
-// 추천 데모 — 앱 strength.js 규칙(2026-10-30)
+// 추천 데모 - 앱 strength.js 규칙(2026-10-30)
 const reps = [9, 8, 7], MIN = 6, MAX = 10, W = 60, INC = 5
 function render(){
   document.getElementById('sets').innerHTML = reps.map((r, i) =>

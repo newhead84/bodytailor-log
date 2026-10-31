@@ -71,8 +71,9 @@ export default function HomeTab({
     let alive = true
     Promise.all([listPtSchedules({ memberUid: uid }).catch(() => []), listPtSessions({ memberUid: uid }).catch(() => [])]).then(([sch, ses]) => {
       if (!alive) return
-      const items = sch.map((s) => ({ date: s.date, time: s.time, done: s.status === 'done', trainerName: s.trainerName }))
-      ses.filter((x) => !x.scheduleId).forEach((x) => items.push({ date: x.date, time: '', done: true, trainerName: x.trainerName }))
+      // 노쇼 처리한 일정은 회원 캘린더에 보이지 않게
+      const items = sch.filter((s) => s.status !== 'noshow').map((s) => ({ date: s.date, time: s.time, done: s.status === 'done', trainerName: s.trainerName }))
+      ses.filter((x) => !x.scheduleId && !x.noshow).forEach((x) => items.push({ date: x.date, time: '', done: true, trainerName: x.trainerName }))
       setPtItems(items)
     })
     return () => {
@@ -227,7 +228,7 @@ export default function HomeTab({
       {/* [2026-10-31] 회원권 종료 임박(D-7)·만료 안내 */}
       <MembershipNotice userDoc={userDoc} />
 
-      {/* [2026-10-28 리디자인] "오늘" 블록 — 카드 대신 큰 헤드라인(오늘 차례) + 보조 정보 + 버튼 */}
+      {/* [2026-10-28 리디자인] "오늘" 블록 - 카드 대신 큰 헤드라인(오늘 차례) + 보조 정보 + 버튼 */}
       <section style={{ marginBottom: 24 }}>
         <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', margin: '0 0 4px' }}>오늘</p>
         <p className="text-keep-all" style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-label-strong)', margin: '0 0 4px' }}>
@@ -298,7 +299,7 @@ export default function HomeTab({
         {[
           { v: weekStats.sessions, unit: '회', label: '이번 주 운동', d: 0 },
           { v: weekStats.sets, unit: '세트', label: '본세트', d: 0 },
-          // [2026-10-28] 1,000kg 이상도 t 대신 kg(쉼표) 그대로 — 큰 숫자 카운트업이 보이도록
+          // [2026-10-28] 1,000kg 이상도 t 대신 kg(쉼표) 그대로 - 큰 숫자 카운트업이 보이도록
           { v: Math.round(weekStats.volume), unit: 'kg', label: '총 볼륨', d: 0 },
         ].map((it, i) => (
           <div key={it.label} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: i ? 14 : 2, borderLeft: i ? '1px solid var(--color-line)' : 'none' }}>
@@ -337,7 +338,7 @@ export default function HomeTab({
         <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} onLogsChanged={onLogsChanged} ptByDate={ptByDate} />
       </div>
 
-      {/* [2026-10-28 리디자인] 월 요약 — 카드 대신 주간 요약과 같은 헤어라인 스트립, 숫자는 무채색 */}
+      {/* [2026-10-28 리디자인] 월 요약 - 카드 대신 주간 요약과 같은 헤어라인 스트립, 숫자는 무채색 */}
       {monthSummary && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', borderTop: '1px solid var(--color-line)', borderBottom: '1px solid var(--color-line)', padding: '14px 0', marginBottom: 20 }}>
           {[

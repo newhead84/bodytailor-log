@@ -2,7 +2,7 @@
 // [2026-10-29 신규] 유산소 종목별 입력 칸 정의. 종목마다 기구 특성이 달라 칸을 나눈다.
 //  - 기본(트레드밀 등): 경사%·속도 km/h·시간 분
 //  - 스텝밀: 스텝 수·레벨(단위 없는 숫자, speedKmh 필드 재사용)·시간 분 (2026-08-18)
-//  - 실내사이클·실외러닝·로잉머신·에어바이크: 거리 km·속도 km/h·시간 분 (2026-10-29 — 경사가 없는 기구)
+//  - 실내사이클·실외러닝·로잉머신·에어바이크: 거리 km·속도 km/h·시간 분 (2026-10-29 - 경사가 없는 기구)
 //  - 일립티컬·아크트레이너: 레벨·시간 / 줄넘기: 횟수·시간 / 배틀로프: 시간
 // key는 저장 필드명. 기존 기록과 호환되도록 기존 필드명(incline·steps·speedKmh·durationMin)은 그대로 쓴다.
 import { getExerciseInputType } from './exerciseLibrary'
@@ -78,7 +78,7 @@ export function makeCardioSet(name, from) {
   return out
 }
 
-// 저장용 숫자 세트(weight·reps는 0으로 — 기존 기록 형식 유지)
+// 저장용 숫자 세트(weight·reps는 0으로 - 기존 기록 형식 유지)
 export function toSavedCardioSet(name, s) {
   const out = { weight: 0, reps: 0 }
   // 옛 칸 구성 기록을 고쳐 저장하면 그 기록의 칸(경사·속도·시간) 그대로 저장
@@ -131,7 +131,7 @@ export function autoFillCardio(name, set, field) {
   return next
 }
 
-// 유산소 타이머(세트 행의 cardioTimer: { startAt, pausedAt?, pausedMs }) — 기록 draft에 같이 저장돼 새로고침해도 이어짐
+// 유산소 타이머(세트 행의 cardioTimer: { startAt, pausedAt?, pausedMs }) - 기록 draft에 같이 저장돼 새로고침해도 이어짐
 export function cardioTimerMs(t, now = Date.now()) {
   if (!t?.startAt) return 0
   return Math.max(0, (t.pausedAt || now) - t.startAt - (t.pausedMs || 0))

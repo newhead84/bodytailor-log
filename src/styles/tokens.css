@@ -1,7 +1,7 @@
 /* tokens.css
    [2026-07-29] 출처: BodyTailor_Log_디자인_가이드_v2_매트블랙골드.md
    매트블랙 배경 + 골드 포인트 톤앤매너 (v1: 화이트+블루+쿨그레이 대체)
-   변수명은 기존과 동일하게 유지하고 값만 v2 팔레트로 교체 — 컴포넌트 코드 수정 없이
+   변수명은 기존과 동일하게 유지하고 값만 v2 팔레트로 교체 - 컴포넌트 코드 수정 없이
    전체 화면에 캐스케이드로 반영되도록 함. */
 
 :root {
@@ -9,12 +9,12 @@
   --color-static-white: #ffffff;
   --color-static-black: #000000;
 
-  /* Primary (v2.1: 비비드 옐로우골드로 교체 — 2026-07-29 업데이트) */
+  /* Primary (v2.1: 비비드 옐로우골드로 교체 - 2026-07-29 업데이트) */
   --color-primary-normal: #ffc94d;
   --color-primary-strong: #b8860b;
   --color-primary-heavy: #8a6608;
   --color-primary-bg: #1c1c20;
-  /* 골드 색면(버튼 등) 위에 올라가는 텍스트 전용 색 — 흰색 대신 짙은 브라운으로 대비 확보 */
+  /* 골드 색면(버튼 등) 위에 올라가는 텍스트 전용 색 - 흰색 대신 짙은 브라운으로 대비 확보 */
   --color-on-gold: #3d2e00;
   /* [2026-08-02 신규, 디자인가이드 v2.2] "시작"/세트완료 체크 버튼처럼 눌리는 빈도가 높은
      골드 버튼에서 짙은 브라운 텍스트의 대비가 약하다는 피드백(⑧)으로, 이 두 버튼 전용으로
@@ -48,7 +48,7 @@
   --color-gold-500: #ffc94d;
   --color-gold-700: #b8860b;
 
-  /* Semantic accents (가이드 미지정, 실사용을 위해 보수적으로 추가 — 매트블랙 대비 유지) */
+  /* Semantic accents (가이드 미지정, 실사용을 위해 보수적으로 추가 - 매트블랙 대비 유지) */
   --color-success: #4ade80;
   --color-danger: #ff6e5c;
   --color-warning: #ffb84d;
@@ -99,9 +99,9 @@
   --global-timer-bar-height: 40px;
 }
 
-/* [2026-07-30 신규] MY탭 "화면 테마" — 라이트 테마(html[data-theme="light"]).
+/* [2026-07-30 신규] MY탭 "화면 테마" - 라이트 테마(html[data-theme="light"]).
    출처: 과거 대화에서 만든 v1 tokens.css(Wanted 디자인시스템 기반: Pretendard, 화이트+블루+쿨그레이).
-   변수명은 위 :root(다크/기본)와 완전히 동일하게 유지하고 값만 교체 — 컴포넌트 코드 수정 없이
+   변수명은 위 :root(다크/기본)와 완전히 동일하게 유지하고 값만 교체 - 컴포넌트 코드 수정 없이
    html 태그의 data-theme 속성만 바꾸면 전체 화면에 캐스케이드로 반영된다.
    적용 범위: 로그인/온보딩 화면은 제외, 온보딩 완료 후 메인 앱 화면부터 적용(App.jsx 참고). */
 html[data-theme='light'] {
@@ -141,13 +141,13 @@ html[data-theme='light'] {
   --color-success: #00c471;
   --color-danger: #f04452;
   --color-warning: #ff9500;
-  /* 캘린더 토요일 표기 — 라이트에서는 primary(블루)와 겹치지 않는 별도 톤 사용 */
+  /* 캘린더 토요일 표기 - 라이트에서는 primary(블루)와 겹치지 않는 별도 톤 사용 */
   --color-info: #0891b2;
-  /* 휴식타이머 카드 전용 배경 — 라이트 테마는 옅은 블루 계열로, 페이지 배경(흰색)과 확실히
+  /* 휴식타이머 카드 전용 배경 - 라이트 테마는 옅은 블루 계열로, 페이지 배경(흰색)과 확실히
      구분되게 한다. */
   --color-rest-bg: #eaf2ff;
 
-  /* Tier colors — v1 tokens.css 그대로 */
+  /* Tier colors - v1 tokens.css 그대로 */
   --tier-iron: #8b95a1;
   --tier-bronze: #b5651d;
   --tier-silver: #9aa5b1;
@@ -160,11 +160,11 @@ html[data-theme='light'] {
   --shadow-nav: 0 -2px 12px rgba(25, 31, 40, 0.06);
 }
 
-/* [2026-08-01 신규] MY탭 "화면 테마" 세 번째 옵션 — 베이지블랙(html[data-theme="beige"]).
+/* [2026-08-01 신규] MY탭 "화면 테마" 세 번째 옵션 - 베이지블랙(html[data-theme="beige"]).
    출처: PR NOTE 아이콘 이미지의 베이지 톤(#F6ECE1 계열)을 배경으로 채택. "블랙골드"(다크) 테마의
    베이지 버전 개념으로, 골드 포인트 컬러는 브랜드 일관성을 위해 그대로 유지하고 배경/텍스트만
-   라이트(베이지)로 반전한다 — "화이트+블루"(구 v1) 테마처럼 포인트 컬러 자체를 바꾸는 방식과는 다르다.
-   변수명은 위 두 블록과 완전히 동일하게 유지하고 값만 교체 — 컴포넌트 코드 수정 없이
+   라이트(베이지)로 반전한다 - "화이트+블루"(구 v1) 테마처럼 포인트 컬러 자체를 바꾸는 방식과는 다르다.
+   변수명은 위 두 블록과 완전히 동일하게 유지하고 값만 교체 - 컴포넌트 코드 수정 없이
    html 태그의 data-theme 속성만 바꾸면 전체 화면에 캐스케이드로 반영된다. */
 html[data-theme='beige'] {
   /* [2026-08-01 수정] 기존에는 gold-100/500/700을 재정의하지 않아 :root(다크)의 밝은
@@ -178,7 +178,7 @@ html[data-theme='beige'] {
   --color-primary-strong: #6b4e06;
   --color-primary-heavy: #4a3600;
   --color-primary-bg: #efe3cf;
-  /* 골드 색면 위 텍스트 — 블랙골드 테마와 동일하게 짙은 브라운으로 대비 확보 */
+  /* 골드 색면 위 텍스트 - 블랙골드 테마와 동일하게 짙은 브라운으로 대비 확보 */
   --color-on-gold: #3d2e00;
   /* [2026-08-02 신규] 베이지 테마도 다크와 동일한 브라운-온-골드 조합이라 같은 문제가 있어,
      "시작"/체크 버튼 전용으로 배경(베이지)과 같은 톤의 밝은 텍스트로 대비를 확보한다. */
@@ -201,13 +201,13 @@ html[data-theme='beige'] {
   --color-fill-strong: #3a3a3a;
   --color-on-fill: var(--color-bg);
 
-  /* Label — 베이지 배경 위 짙은 에스프레소 브라운 계열 */
+  /* Label - 베이지 배경 위 짙은 에스프레소 브라운 계열 */
   --color-label-strong: #2a2118;
   --color-label-normal: #5c5347;
   --color-label-neutral: #8a8074;
   --color-label-disable: #c9c0b0;
 
-  /* Surface / Line — 베이지 2단계 */
+  /* Surface / Line - 베이지 2단계 */
   --color-bg: #f6ece1;
   --color-bg-elevated: #fffbf3;
   --color-bg-card: #fdf6ea;
@@ -217,12 +217,12 @@ html[data-theme='beige'] {
   --color-success: #2f9e58;
   --color-danger: #e2493a;
   --color-warning: #c97a17;
-  /* 캘린더 토요일 표기 — 베이지 배경에서 골드 포인트와 겹치지 않는 별도 블루 톤 */
+  /* 캘린더 토요일 표기 - 베이지 배경에서 골드 포인트와 겹치지 않는 별도 블루 톤 */
   --color-info: #2e6fcb;
-  /* 휴식타이머 카드 전용 배경 — 베이지 배경과 확실히 구분되는 옅은 골드 틴트 */
+  /* 휴식타이머 카드 전용 배경 - 베이지 배경과 확실히 구분되는 옅은 골드 틴트 */
   --color-rest-bg: #f4e7c9;
 
-  /* Tier colors — 블랙골드 테마와 동일(대부분 채도가 높아 베이지 배경에서도 대비 유지) */
+  /* Tier colors - 블랙골드 테마와 동일(대부분 채도가 높아 베이지 배경에서도 대비 유지) */
   --tier-iron: #b8860b;
   --tier-bronze: #c97a3d;
   --tier-silver: #9aa0a8;
@@ -257,7 +257,7 @@ body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-label-strong);
-  /* [2026-10-28] 본문 폰트 5종 비교 — html[data-font]가 --font-body를 바꾼다(designStyles.css). 미지정=Pretendard */
+  /* [2026-10-28] 본문 폰트 5종 비교 - html[data-font]가 --font-body를 바꾼다(designStyles.css). 미지정=Pretendard */
   font-family: var(--font-body, 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif);
   font-size: var(--fs-body1);
   line-height: var(--lh-body1);

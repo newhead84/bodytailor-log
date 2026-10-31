@@ -115,7 +115,7 @@ export function estimateCaloriesV2(weightKg, exercises, totalDurationSec) {
       )
       resistanceKcal = kcalFromMet(weightedMet, weight, resistanceMinutes)
     } else if (cardioMinutes === 0) {
-      // 세트 기록이 전혀 없는데 세션 시간만 있는 예외 케이스 — 중강도 기본 MET으로 근사
+      // 세트 기록이 전혀 없는데 세션 시간만 있는 예외 케이스 - 중강도 기본 MET으로 근사
       resistanceKcal = kcalFromMet(PART_MET_FALLBACK, weight, resistanceMinutes)
     }
   }

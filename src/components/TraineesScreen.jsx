@@ -8,7 +8,7 @@ import { BackButton, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { useBackableScreen } from '../hooks/useBackableScreen'
-import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
+import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
 import { toLocalDateStr } from '../utils/date'
 import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
@@ -69,7 +69,7 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
   )
 }
 
-// [2026-10-31] 오늘·이번 주(오늘부터 7일) PT 일정 모아보기 — 줄을 누르면 그 회원 화면으로
+// [2026-10-31] 오늘·이번 주(오늘부터 7일) PT 일정 모아보기 - 줄을 누르면 그 회원 화면으로
 function WeekSchedules({ uid, list, onOpen }) {
   const [items, setItems] = useState(null)
   const today = toLocalDateStr(new Date())
@@ -98,6 +98,7 @@ function WeekSchedules({ uid, list, onOpen }) {
   const row = (s) => {
     const c = byMember[s.memberUid]
     const done = s.status === 'done'
+    const ns = s.status === 'noshow'
     return (
       <button
         key={s.id}
@@ -107,7 +108,7 @@ function WeekSchedules({ uid, list, onOpen }) {
       >
         <span className="bt-num" style={{ minWidth: 44, fontSize: 14, fontWeight: 700 }}>{s.time}</span>
         <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{c.memberName}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: done ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }}>{done ? '완료' : '예정'} ›</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: done ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }}>{ns ? '노쇼' : done ? '완료' : '예정'} ›</span>
       </button>
     )
   }
@@ -141,7 +142,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
   const [logs, setLogs] = useState(null)
   const [open, setOpen] = useState({})
   const [editing, setEditing] = useState(null) // null | 'new' | template
-  const [member, setMember] = useState(null) // users 문서(신체정보) — 못 읽으면 false
+  const [member, setMember] = useState(null) // users 문서(신체정보) - 못 읽으면 false
   const loadMember = useCallback(() => {
     getUserDoc(conn.memberUid)
       .then((d) => setMember(d || false))
@@ -307,7 +308,7 @@ function MemberPlans({ conn, uid, onNew, onEdit }) {
   )
 }
 
-// [2026-10-31] 회원 신체정보·목표 — 온보딩/MY 프로필 값 그대로
+// [2026-10-31] 회원 신체정보·목표 - 온보딩/MY 프로필 값 그대로
 function MemberBody({ member }) {
   if (member === null) return null
   if (member === false) return <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>회원 신체정보를 불러오지 못했어요.</p>
@@ -335,6 +336,7 @@ function MemberBody({ member }) {
 function PtCard({ member, conn, uid, trainerName, onChanged }) {
   const confirm = useConfirm()
   const [enabled, setEnabled] = useState(false)
+  const [noshowPolicy, setNoshowPolicy] = useState('off') // [2026-10-31] 관리자 설정: off | mark | deduct
   const [sessions, setSessions] = useState([])
   const [schedules, setSchedules] = useState([])
   const [busy, setBusy] = useState(false)
@@ -347,15 +349,21 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
     listPtSchedules({ memberUid: conn.memberUid, trainerUid: uid }).then(setSchedules).catch((err) => console.error('PT 일정 불러오기 실패:', err))
   }, [conn.memberUid, uid])
   useEffect(() => {
-    getAppSettings().then((s) => setEnabled(!!s?.ptDeductEnabled)).catch(() => {})
+    getAppSettings()
+      .then((s) => {
+        setEnabled(!!s?.ptDeductEnabled)
+        setNoshowPolicy(s?.noshowPolicy || 'off')
+      })
+      .catch(() => {})
     reload()
   }, [reload])
   if (!member) return null
   const total = typeof member.ptTotal === 'number' ? member.ptTotal : 0
   const left = member.ptRemaining ?? 0
   const deduct = enabled && total > 0
-  const upcoming = schedules.filter((s) => s.status !== 'done')
-  const doneNoSession = schedules.filter((s) => s.status === 'done' && !sessions.some((x) => x.scheduleId === s.id)).slice(-3).reverse()
+  const upcoming = schedules.filter((s) => s.status === 'scheduled')
+  const doneNoSession = schedules.filter((s) => (s.status === 'done' || s.status === 'noshow') && !sessions.some((x) => x.scheduleId === s.id)).slice(-3).reverse()
+  const noshowDeduct = noshowPolicy === 'deduct' && deduct
   async function run(fn, failMsg) {
     setBusy(true)
     try {
@@ -377,6 +385,11 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
     if (deduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 완료로 바꿀까요?${deduct ? ` 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ''}`, { okLabel: '완료', cancelLabel: '취소' }))) return
     run(() => trainerCompleteSchedule(s, trainer, deduct), '완료 처리하지 못했어요')
+  }
+  async function noshow(s) {
+    if (noshowDeduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+    if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 노쇼로 처리할까요?${noshowDeduct ? ` 노쇼도 1회 차감돼 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ' 남은 횟수는 그대로예요.'}`, { okLabel: '노쇼 처리', cancelLabel: '취소' }))) return
+    run(() => trainerNoShowSchedule(s, trainer, noshowDeduct), '노쇼 처리하지 못했어요')
   }
   async function remove(s) {
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT 일정을 삭제할까요? 회원 캘린더에서도 사라져요.`, { okLabel: '삭제', cancelLabel: '취소' }))) return
@@ -413,6 +426,7 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
           </span>
           <span style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
             <button type="button" disabled={busy} onClick={() => complete(s)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>완료</button>
+            {noshowPolicy !== 'off' && <button type="button" disabled={busy} onClick={() => noshow(s)} style={{ fontSize: 13, color: 'var(--color-warning)' }}>노쇼</button>}
             <button type="button" disabled={busy} onClick={() => remove(s)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>삭제</button>
           </span>
         </div>
@@ -428,13 +442,13 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
           <p style={{ margin: '16px 0 6px', fontSize: 14, fontWeight: 700 }}>최근 완료</p>
           {sessions.slice(0, 5).map((s, i) => (
             <div key={s.id} style={rowStyle}>
-              <span>{fmtDay(s.date)} PT 완료{s.scheduleId ? '' : ' (일정 없이)'}</span>
+              <span>{fmtDay(s.date)} {s.noshow ? '노쇼(1회 차감)' : `PT 완료${s.scheduleId ? '' : ' (일정 없이)'}`}</span>
               {i === 0 && enabled ? <button type="button" disabled={busy} onClick={() => undo(s)} style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>되돌리기</button> : null}
             </div>
           ))}
           {doneNoSession.map((s) => (
             <div key={s.id} style={rowStyle}>
-              <span>{fmtDay(s.date)} {s.time} PT 완료</span>
+              <span>{fmtDay(s.date)} {s.time} {s.status === 'noshow' ? '노쇼' : 'PT 완료'}</span>
               <button type="button" disabled={busy} onClick={() => run(() => trainerReopenSchedule(s.id), '되돌리지 못했어요')} style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>되돌리기</button>
             </div>
           ))}

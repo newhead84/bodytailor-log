@@ -37,7 +37,7 @@ export function logout() {
   return signOut(auth)
 }
 
-// [2026-10-31] 계정 삭제(탈퇴) — 구글 로그인을 한 번 더 확인(최근 로그인 필요 규칙)한 뒤 데이터를 지우고 마지막에 계정을 지운다.
+// [2026-10-31] 계정 삭제(탈퇴) - 구글 로그인을 한 번 더 확인(최근 로그인 필요 규칙)한 뒤 데이터를 지우고 마지막에 계정을 지운다.
 export function reauthWithGoogle() {
   if (!auth.currentUser) return Promise.reject(new Error('로그인 상태가 아니에요.'))
   return reauthenticateWithPopup(auth.currentUser, googleProvider)

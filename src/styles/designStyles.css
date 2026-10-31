@@ -116,7 +116,7 @@ html[data-style='c'][data-theme='light'] {
 /* ───────── [2026-10-28 신규] 강조색 팔레트 3종 × 테마 3종 (html[data-accent][data-theme]) ─────────
    테마(다크/베이지/라이트)는 바탕·글자, 팔레트는 강조색만 담당. 테마 블록보다 뒤에 두어 강조 토큰을 덮어쓴다.
    --color-fill-strong/--color-on-fill = 채움 버튼·선택 칩(모든 테마에서 강조색 채움)
-   --color-primary-normal/strong = 글자로 쓰는 강조색(모든 스타일·테마 표면 대비 4.5:1 이상 — 생성 스크립트로 검사)
+   --color-primary-normal/strong = 글자로 쓰는 강조색(모든 스타일·테마 표면 대비 4.5:1 이상 - 생성 스크립트로 검사)
    lime 볼트 라임 / cobalt 코발트 / brass 브라스(기존 골드를 낮은 채도로, 기본값) */
 html[data-accent='lime'][data-theme='dark'] {
   --color-primary-normal: #c8f53c;
@@ -279,7 +279,7 @@ input[type='number'] {
   appearance: textfield;
 }
 
-/* ───────── [2026-10-27 리뉴얼] 모션 — 짧고 절제된 효과(0.15~0.35s, 반동 없음) ───────── */
+/* ───────── [2026-10-27 리뉴얼] 모션 - 짧고 절제된 효과(0.15~0.35s, 반동 없음) ───────── */
 :root {
   --ease-out: cubic-bezier(0.2, 0.7, 0.3, 1);
 }

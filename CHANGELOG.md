@@ -2,6 +2,13 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 관리자 대시보드 확장 | AdminDashboard.jsx, AdminInsights.jsx·AdminMemberDetail.jsx·AdminPtTab.jsx·adminUi.jsx(신규), storage.js, firestore.rules, TraineesScreen.jsx, HomeTab.jsx, utils/member.js·date.js, public/privacy
+- 요약 홈, 회원 상세(회원권·PT·휴회·출석 요약·PT/트레이너/관리 이력·관리자 메모), 재등록 관리(연락 결과·재등록률), 회원 CSV, PT 관리(월 정산·노쇼·일정 캘린더·소진 예상·CSV), 이용 통계, 관리 이력.
+- 노쇼 처리 설정(쓰지 않음·표시만·1회 차감) + 트레이너 PT 일정 '노쇼' 버튼. 운동 저장 때 users.activity(마지막 운동일·주별 일수·부위)와 익명 gymStats 갱신. 처리방침에 관리 항목 추가.
+
+[2026-10-31] 긴 줄표 전면 제거 | src 전체, public/intro·privacy, 문서, CLAUDE.md 5(규칙 추가)
+- 화면 문구는 콜론·쉼표·마침표·가운뎃점으로 문맥에 맞게, 주석·문서는 하이픈으로. 제3자 라이선스 원문은 그대로.
+
 [2026-10-31] 관리자도 회원권·PT·트레이너 연결 대상 | utils/member.js, AdminDashboard.jsx, MembershipNotice.jsx, HomeTab.jsx, MyPageTab.jsx
 - 관리자: 회원권 기간·PT 횟수 설정, 트레이너 연결(역할은 관리자 유지), MY 회원권·담당 트레이너 카드, 홈 캘린더 PT 표시. 회원권이 끝나도 기록은 막지 않음(표시만). 트레이너만 제외.
 
@@ -14,7 +21,7 @@
 
 [2026-10-31] 법적 정비 | ConsentScreen.jsx(신규), AccountLegalSection.jsx(신규), utils/legal.js(신규), App.jsx, LoginScreen.jsx, ReportTab.jsx, HowToTab.jsx, StretchGuide.jsx, firebase.js, storage.js, firestore.rules, public/privacy/index.html(신규), public/oss-licenses.txt(신규), LICENSE(신규), docs/ASSET_SOURCES.md(신규), docs/gen-oss-licenses.cjs(신규)
 - 동의 화면: 만 14세 이상·개인정보·신체 정보(별도)·국외 이전(필수), 랭킹 공개·건강 면책 안내. 국외 이전은 '구글 클라우드에 보관하기 때문 · 판매·광고에 쓰지 않음'을 펼치지 않아도 보이게(처리방침 5항도 같은 설명).
-- 탈퇴 표시 deletedAccounts/{uid}(같은 uid 재생성 차단 — users만 지웠다 다시 만들어 거절·회원권 필드를 초기화하는 우회 방지), 로그인 계정 삭제 실패 시 오류·재시도 + '탈퇴한 계정이에요' 화면, 탈퇴 후 기기 캐시(IndexedDB) 정리. users.consents(CONSENT_VERSION) — 새 계정은 온보딩 전, 기존 계정은 다음 접속 때 1회.
+- 탈퇴 표시 deletedAccounts/{uid}(같은 uid 재생성 차단 - users만 지웠다 다시 만들어 거절·회원권 필드를 초기화하는 우회 방지), 로그인 계정 삭제 실패 시 오류·재시도 + '탈퇴한 계정이에요' 화면, 탈퇴 후 기기 캐시(IndexedDB) 정리. users.consents(CONSENT_VERSION) - 새 계정은 온보딩 전, 기존 계정은 다음 접속 때 1회.
 - 개인정보 처리방침 /privacy/(로그인 화면·설정·홍보 페이지에서 링크), 오픈소스 라이선스 고지(133개, 설정에서 요약+전문), 건강 면책 문구(HOWTO 종목 상세·스트레칭·동의·설정).
 - 계정 삭제(탈퇴): 구글 재로그인 → 기록·루틴·랭킹·문의·사용자 문서 삭제, 트레이너 연결 종료 → 로그인 계정 삭제. rules: 본인 users 삭제 허용, 기록·루틴·랭킹 삭제는 승인 여부 무관(본인).
 - 랭킹 화면에 닉네임·점수 공개 안내. 출처 불명 tier-icons PNG 삭제. rules XP 주석 180→175.
@@ -37,10 +44,10 @@
 - 설치 버튼(크롬·엣지·삼성인터넷 최신) 외에 아이폰 사파리·크롬(공유 → 홈 화면에 추가), 기타 iOS 브라우저(사파리로 열기), 안드로이드 삼성인터넷·파이어폭스·웨일·크롬 메뉴 경로, 맥 사파리(Dock에 추가)를 상단 띠 + "방법" 단계로 안내. 닫으면 7일 뒤 다시 표시, 설치되면 숨김.
 
 [2026-10-31] 보안 규칙 검토 반영 | firestore.rules
-- XP(seasonXp·lifetimeXp·seasonKey) 변경은 승인된(회원권 유효) 회원만 — 대기·만료 계정의 XP 부풀리기 방지. 그 외 검토 결과 권한 상승·위조·연결 종료 후 접근 문제 없음.
+- XP(seasonXp·lifetimeXp·seasonKey) 변경은 승인된(회원권 유효) 회원만 - 대기·만료 계정의 XP 부풀리기 방지. 그 외 검토 결과 권한 상승·위조·연결 종료 후 접근 문제 없음.
 
 [2026-10-31] 운동 가이드 전 종목(138) 구조화 + 트레이너 가이드 수정 | utils/exerciseGuidesMore.js·guideOverrides.js·GuideEditor.jsx(신규), exerciseGuides.js, HowToTab.jsx, ExerciseGuideToggle.jsx, storage.js, firestore.rules, CLAUDE.md
-- 나머지 106종목(유산소 12 포함) 가이드 추가 — 기구 세팅·하는 법·호흡·핵심 포인트·흔한 실수·주의·대체 운동·난이도. 트레이너 관점으로 새로 작성.
+- 나머지 106종목(유산소 12 포함) 가이드 추가 - 기구 세팅·하는 법·호흡·핵심 포인트·흔한 실수·주의·대체 운동·난이도. 트레이너 관점으로 새로 작성.
 - 트레이너·관리자: HOWTO 종목 상세 "가이드 수정" → 모든 항목 + "바디테일러 메모"(회원에게 맨 위 표시, 기록 중 패널에도) 저장, "기본으로 되돌리기". 고친 가이드엔 "○○ 트레이너가 다듬은 가이드" 표시.
 
 [2026-10-31] HOWTO 트레이너 소개 + PT 일정(홈 캘린더) + 문의 버그 수정·삭제 + 운동 가이드 구조화 1단계 | TrainerStrip.jsx·ExerciseGuideSections.jsx·utils/exerciseGuides.js(신규), HowToTab.jsx, ExerciseGuideToggle.jsx, TrainerDirectory.jsx, TraineesScreen.jsx, HomeTab.jsx, CalendarView.jsx, InquiryScreen.jsx, InquiryAdminScreen.jsx, storage.js, firestore.rules, App.jsx, CLAUDE.md
@@ -85,7 +92,7 @@
 - vercel.json: SPA 리라이트(/admin 등 직접 접속·새로고침 404 해결, /api 제외).
 - 리뷰 반영: '전화번호' 열이 회원번호로 잡히던 자동 추정 수정·같은 열 선택 차단, 번호만 일치 시 명단 연결 확인, 관리자 작업 실패 안내.
 
-[2026-10-31] 버그 수정: 홍보 페이지를 /intro(끝 슬래시 없음)로 열면 배경 사진·앱 화면 이미지가 안 나오던 문제 — 상대 경로(img/…)가 /img/…로 풀려 앱 화면(index.html)이 응답됨 → 절대 경로(/intro/img/…) | public/intro/index.html, CLAUDE.md
+[2026-10-31] 버그 수정: 홍보 페이지를 /intro(끝 슬래시 없음)로 열면 배경 사진·앱 화면 이미지가 안 나오던 문제 - 상대 경로(img/…)가 /img/…로 풀려 앱 화면(index.html)이 응답됨 → 절대 경로(/intro/img/…) | public/intro/index.html, CLAUDE.md
 
 [2026-10-31] 홍보 페이지 문구 정리(사용자 요청) | public/intro/index.html, CLAUDE.md
 - "짜준 운동 대신" 등 계획을 낮추는 표현 삭제 → "혼자 하는 날도, PT 받는 날도 이어지는 운동 기록", 흐름 표(계획은 나 또는 트레이너가·기준은 내 기록).
@@ -94,10 +101,10 @@
 
 [2026-10-30] 홍보 페이지 FAQ '운동을 짜주지는 않나요?'에 "내 몸과 컨디션은 내가 가장 잘 안다" 내용 추가(사용자 요청, 트레이너를 낮추지 않는 표현) | public/intro/index.html
 
-[2026-10-30] 카카오톡 등 인앱 브라우저 대응(사용자 요청 — 카톡 링크 홍보) | public/inapp.js(신규), index.html, public/intro/index.html, LoginScreen.jsx, InstallBanner.jsx, CLAUDE.md
+[2026-10-30] 카카오톡 등 인앱 브라우저 대응(사용자 요청 - 카톡 링크 홍보) | public/inapp.js(신규), index.html, public/intro/index.html, LoginScreen.jsx, InstallBanner.jsx, CLAUDE.md
 - 구글이 인앱 브라우저에서 로그인을 막아(403 disallowed_useragent) 카톡으로 연 링크에서는 가입이 안 되던 문제, 홈 화면 추가도 불가.
 - 카카오톡은 kakaotalk://web/openExternal, 라인은 openExternalBrowser=1 로 기본 브라우저에서 자동으로 다시 열기(탭당 1회).
-- 그 외 인앱(인스타그램·네이버·밴드 등)은 오류 화면 위험 때문에 자동 이동 없이 상단 안내 띠(기본 브라우저로 열기 — 안드로이드 intent://크롬, 주소 복사).
+- 그 외 인앱(인스타그램·네이버·밴드 등)은 오류 화면 위험 때문에 자동 이동 없이 상단 안내 띠(기본 브라우저로 열기 - 안드로이드 intent://크롬, 주소 복사).
 - 로그인 버튼: 인앱이면 팝업 대신 기본 브라우저로 넘기고 안내 문구. 설치 배너는 인앱에서 숨김.
 
 [2026-10-30] 홍보 페이지 보완(사용자 지적) | public/intro/index.html, public/intro/img/cap-*.webp(캘린더·리포트 추가, 전체 재캡처)
@@ -112,7 +119,7 @@
 - 점진적 과부하 데모를 세트별 목표·증량까지 남은 횟수 규칙으로 갱신.
 
 [2026-10-30] 다음 무게 추천 트레이너 관점 고도화(사용자 요청) | utils/strength.js(suggestNextSet 래퍼·adviseAfterSet·recommendationHistory·lighterWeight), storage.js(getLastRecordForExercise history), WorkoutInput.jsx(추천 카드·적용·세트 조정 제안), SetEditors.jsx(ExerciseSettingEditor 추천 이력), WorkoutGuide.jsx, public/intro/index.html, CLAUDE.md
-- 버그 수정: "같은 무게로 횟수 늘리기" 목표가 가장 약한 세트 +1회라 첫 세트에 넣으면 지난번보다 낮아져, 추천대로 하면 목표가 계속 내려가 증량이 안 나오던 문제(예: 9·8·7 → 8회 → 7회 → 6회 고착). 세트별 목표(지난번 세트마다 +1회, 상한까지)로 바꾸고 "적용"은 세트마다 채움(아직 안 한 세트 planned로 — 체크해야 기록·볼륨에 들어감).
+- 버그 수정: "같은 무게로 횟수 늘리기" 목표가 가장 약한 세트 +1회라 첫 세트에 넣으면 지난번보다 낮아져, 추천대로 하면 목표가 계속 내려가 증량이 안 나오던 문제(예: 9·8·7 → 8회 → 7회 → 6회 고착). 세트별 목표(지난번 세트마다 +1회, 상한까지)로 바꾸고 "적용"은 세트마다 채움(아직 안 한 세트 planned로 - 체크해야 기록·볼륨에 들어감).
 - 증량까지 남은 거리 막대(최고 무게 세트 총 반복 / 상한×세트 수×90%).
 - 정체: 같은 무게로 3회째 총 반복이 늘지 않으면 대처 방법(증량 폭 줄이기·목표 횟수 바꾸기·1주 가볍게·종목 교체·회복/트레이너 확인) 펼침.
 - 공백 후 복귀: 마지막 기록이 14일 이상 전이면 약 10% 가볍게(한 칸이 20%를 넘는 가벼운 무게·0kg가 되는 경우는 무게 유지 + 하한 횟수).
@@ -125,14 +132,14 @@
 - QA 체크리스트에 목업 하네스 전 흐름 점검·규칙 변경 시 안내 문구/홍보 페이지 동기화 추가, git 잠금 파일 처리 방법 추가.
 - 7.6에 다음 작업 인계(스트레칭 검색·YouTube 개선, 법적 정비, rules 주석, 홍보 페이지 보강).
 
-[2026-10-30] 스트레칭 가이드 신규(사용자 요청) — 불편한 부위 → 상황별 스트레칭, 운동 웜업·쿨다운 연결 | utils/stretches.js(신규), StretchGuide.jsx(신규), HowToTab.jsx, WorkoutInput.jsx, CLAUDE.md
+[2026-10-30] 스트레칭 가이드 신규(사용자 요청) - 불편한 부위 → 상황별 스트레칭, 운동 웜업·쿨다운 연결 | utils/stretches.js(신규), StretchGuide.jsx(신규), HowToTab.jsx, WorkoutInput.jsx, CLAUDE.md
 - HOWTO 상단 "운동 둘러보기 / 스트레칭" 전환. 스트레칭: "어디가 뻐근하거나 불편하세요?" 9부위(설명 한 줄) + 상황(운동 전 / 운동 후·뻐근할 때 / 오래 앉아 있었을 때) → 34종 카드(이럴 때 좋아요·방법 단계·시간·주의·YouTube 검색 링크).
 - 원칙: 운동 전 동적 8–12회(정적 60초 이상은 직후 근력 저하), 운동 후 정적 30초×2–3, 폼롤러 30–60초.
 - 운동 연결: 웜업 화면에 오늘 운동 부위 동적 스트레칭 3개, 완료 요약에 오늘 쓴 부위 쿨다운 3개(접힘, 눌러서 방법). 저장하지 않는 정보 기능.
 
 [2026-10-30] 운동 목표 7종 → 5종 정리(트레이너 관점, 사용자 확인) | utils/goals.js, GoalPicker.jsx, MyPageTab.jsx, RoutineManager.jsx, CLAUDE.md
 - 근육·근력 키우기(근육량+근력 통합, 다관절 6–10) / 체지방 줄이기 / 체력·건강 관리(기초체력+심폐 통합, 유산소 200분) / 뼈·관절 건강 / 자세·코어. 고중량(3–6회) 위주는 종목 설정에서 목표 횟수 변경.
-- 목표 버튼은 한 줄씩, 이름 아래 "이런 분께" 설명. 옛 라벨(10/29 3종, 10/30 1차 7종)은 읽을 때 자동 변환 — 근력강화·골밀도증진 → ①근육·근력 ②뼈·관절(다관절 6–9회).
+- 목표 버튼은 한 줄씩, 이름 아래 "이런 분께" 설명. 옛 라벨(10/29 3종, 10/30 1차 7종)은 읽을 때 자동 변환 - 근력강화·골밀도증진 → ①근육·근력 ②뼈·관절(다관절 6–9회).
 
 [2026-10-30] 등급 방패 아이콘·운동 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 운동 방식 개선·미리보기 가이드 수정·앱 소개 링크(사용자 요청) | ui.jsx(TierEmblem), utils/goals.js(신규), GoalPicker.jsx(신규), AchievementPager.jsx(신규), Onboarding.jsx, MyPageTab.jsx, utils/achievements.js, utils/strength.js, storage.js, utils/cardioFields.js, InsightCards.jsx(BalanceCard 등), ReportTab.jsx, HomeTab.jsx, WorkoutInput.jsx, WorkoutGuide.jsx, DesignPreviewScreen.jsx, SetEditors.jsx, TierInfoScreen.jsx, RoutineManager.jsx, utils/exerciseLibrary.js, App.jsx, public/intro/index.html, CLAUDE.md
 - 등급 아이콘: Starter~Legend 7단계를 같은 방패 엠블럼 SVG로 통일(점 → 쉐브론 1·2·3 → 별 → 별 2개 → 왕관). 예전 쉐브론·일러스트 혼용 제거. MY 등급 카드에 큰 엠블럼, 완료 요약 카드 Lv 옆에도 표시.
@@ -148,10 +155,10 @@
 
 [2026-10-29] 자동 저장 기록 검토 팝업·MY 설정 화면 분리·캘린더 운동 시간 편집·앱 전반 점검(사용자 요청) | AutoSavedReview.jsx(신규), App.jsx, WorkoutInput.jsx(자동 저장 알림에 세트·시간 포함), CalendarView.jsx(운동 시간 칸·durationPayload), MyPageTab.jsx(설정 화면·프로필 카드 수정 버튼), utils/cardioFields.js, HomeTab.jsx, RestTimer.jsx, CLAUDE.md
 - "오늘 운동 완료"를 누르지 않아 자동 저장된 기록은 다음에 앱을 열면 팝업으로 표시(홈 배너 대체): 웜업·본운동 시간(분)과 세트 무게·횟수(유산소는 칸별 값)를 고치고 세트 삭제, 저장/그대로 둘게요/기록 삭제(XP 되돌림). 저장 시 볼륨·시간·칼로리 재계산(XP는 그대로).
-- 캘린더 기록 편집에 "운동 시간"(웜업·본운동 분) 칸 — 칸을 채운 경우에만 시간·칼로리 갱신.
+- 캘린더 기록 편집에 "운동 시간"(웜업·본운동 분) 칸 - 칸을 채운 경우에만 시간·칼로리 갱신.
 - MY: 디자인·알림·데이터(관리자는 개발자 도구)를 우상단 설정 아이콘의 "설정" 화면으로 옮김(뒤로 가기). 프로필 수정 버튼은 프로필 카드 안 아바타 아래로.
 - 확대 점검: 유산소 칸을 다른 기구에도 맞춤(실외러닝·로잉머신·에어바이크 거리·속도·시간 / 일립티컬·아크트레이너 레벨·시간 / 줄넘기 횟수·시간 / 배틀로프 시간). 예전 경사 기록은 기본 칸으로 표시하고 편집해도 옛 값 유지. HOME 이번 주 통계에 진행 중 세션 포함. 휴식 타이머 "건너뛰기" 누르는 영역 확대.
-- 리뷰 반영: 옛 유산소 기록(경사·속도·시간)은 표시·편집·거리 합계 모두 옛 칸 기준(isLegacyCardioSet·getCardioFieldsForSet) — 주간 거리 누락·레벨 오표시 방지. 팝업·캘린더에서 시간 칸을 고치지 않으면 초 단위 시간·칼로리를 그대로 둠. 팝업에서 무게 칸을 비운 세트는 0kg로 저장하지 않고 뺌.
+- 리뷰 반영: 옛 유산소 기록(경사·속도·시간)은 표시·편집·거리 합계 모두 옛 칸 기준(isLegacyCardioSet·getCardioFieldsForSet) - 주간 거리 누락·레벨 오표시 방지. 팝업·캘린더에서 시간 칸을 고치지 않으면 초 단위 시간·칼로리를 그대로 둠. 팝업에서 무게 칸을 비운 세트는 0kg로 저장하지 않고 뺌.
 
 [2026-10-29] 유산소 기록 개선(A안, 탭 추가 없음) | WorkoutInput.jsx(CardioTimerPanel·updateSet·세트 저장), utils/cardioFields.js(autoFillCardio·cardioDistanceKm·cardioStats·타이머), InsightCards.jsx(CardioCard), ReportTab.jsx, HomeTab.jsx
 - NOTE 유산소 카드 "타이머로 기록": 큰 경과 시간·일시정지/재개·종료하면 시간(분) 칸 자동 입력. 타이머를 켠 채 세트를 저장해도 시간이 채워짐. 타이머 상태는 세트 행(cardioTimer)에 있어 새로고침해도 이어짐(저장 기록에는 안 남음).
@@ -162,24 +169,24 @@
 - 오늘 운동 중 체크한 세트가 저장 전이라 근육별 주간 세트에 0으로 보이던 문제: 이번 주 보기에 진행 중 세트를 더하고 "오늘 진행 중인 운동(체크한 세트) 포함" 표시. 저장하면 실제 기록으로 대체.
 - 0세트 부위도 이번 주 '진행 중', 지난주 '부족'으로 표시(코어 제외).
 
-[2026-10-29] 기록 화면 사용성 묶음(사용자 요청) — 사용법 가이드·RIR 켜고 끄기·기록 방식 전환·큰 ± 버튼·웜업 빼기·W/D/F 설명·실내사이클 칸 | WorkoutGuide.jsx(신규), utils/cardioFields.js(신규), WorkoutInput.jsx, SetEditors.jsx, GlobalTimerBar.jsx, DesignPreviewScreen.jsx, MyPageTab.jsx, LogTab.jsx, App.jsx, CalendarView.jsx, utils/strength.js·sessionPayload.js·exportCsv.js, CLAUDE.md
+[2026-10-29] 기록 화면 사용성 묶음(사용자 요청) - 사용법 가이드·RIR 켜고 끄기·기록 방식 전환·큰 ± 버튼·웜업 빼기·W/D/F 설명·실내사이클 칸 | WorkoutGuide.jsx(신규), utils/cardioFields.js(신규), WorkoutInput.jsx, SetEditors.jsx, GlobalTimerBar.jsx, DesignPreviewScreen.jsx, MyPageTab.jsx, LogTab.jsx, App.jsx, CalendarView.jsx, utils/strength.js·sessionPayload.js·exportCsv.js, CLAUDE.md
 - 사용법 가이드: 처음 쓰는 계정은 본운동 중 종목 카드를 처음 열면 말풍선이 세트 번호→무게×횟수→RIR→세트 완료→추천→목표→웜업·슈퍼세트→이 종목 완료→기록 방식 버튼을 순서대로 짚음(이전/다음/건너뛰기, 화면에 없는 항목은 건너뜀). 끝내면 users.workoutGuideSeen 저장. MY > 기록 화면 미리보기에 "기록 화면 사용법"(처음부터 보기·항목 골라 보기).
 - RIR: MY 디자인에 "RIR(남은 여력) 기록 켜기/끄기"(users.rirEnabled, 기본 켜짐). 끄면 세트 줄·포커스형에서 칸이 사라지고 가이드에서도 빠짐.
 - 기록 방식 전환: 운동 중 맨 위 초록 바 왼쪽 버튼(기록 탭에서만)으로 리스트형 ↔ 포커스형, 바꾼 값은 MY 설정에도 저장.
 - 세트 줄 ± 버튼: 가로 약 14px → 남는 폭을 나눠 24~40px(높이 36px), 글자 선택·더블탭 확대 방지, 숫자를 누르면 값 전체 선택. 세트 삭제(×)는 번호 칸 길게 누르기로 옮김(체크한 세트는 확인). 360px+RIR 켬에서 한 줄 유지, 320px은 두 줄.
-- 웜업 세트 버튼 켜고 끄기("웜업 빼기" — 체크 안 한 웜업 줄만 삭제). W·D·F 세트가 있으면 목록 아래 뜻 한 줄, 종류를 바꾸면 안내 토스트.
+- 웜업 세트 버튼 켜고 끄기("웜업 빼기" - 체크 안 한 웜업 줄만 삭제). W·D·F 세트가 있으면 목록 아래 뜻 한 줄, 종류를 바꾸면 안내 토스트.
 - 실내사이클: 경사 대신 거리 km·속도 km/h·시간 분(distanceKm 필드 추가). 유산소 칸 정의를 cardioFields.js로 모음(기록·캘린더 편집·표시·CSV 공통), 칸 위에 이름·단위 표시.
 
 [2026-10-29] 다음 무게 추천 카드 닫힘 처리, 목표 버튼에 설정 아이콘(사용자 요청) | WorkoutInput.jsx(dismissedSuggestions, applySuggestion, cardExt, ExerciseCard 추천 카드, ToolChip)
 - 추천 카드: "적용"을 누르면 추천 무게·횟수를 넣고 닫힘, × 버튼으로 닫기, 적용하지 않고 본세트를 체크해도 닫힘(웜업 세트는 제외). 닫힌 뒤 오늘 이 종목에서는 다시 안 뜸(새 세션에서 다시 표시).
-- "목표 6–10회" 버튼 앞에 설정 아이콘 — 켜고 끄는 버튼이 아니라 종목 설정 창을 여는 버튼임을 표시.
+- "목표 6–10회" 버튼 앞에 설정 아이콘 - 켜고 끄는 버튼이 아니라 종목 설정 창을 여는 버튼임을 표시.
 
 [2026-10-29] 종목 설정·휴식 선택 줄바꿈 수정(사용자 지적) | SetEditors.jsx(ExerciseSettingEditor), WorkoutInput.jsx(REST_OPTIONS·휴식 칩 줄)
 - 목표 반복: 이름은 윗줄, −/+ 버튼 4개는 한 줄 고정(최대값 + 버튼이 다음 줄로 넘어가던 문제).
 - 종목 설정 휴식 6칸·증량 단위 6칸, 상단 휴식 5칸을 한 줄 균등 칸으로. 상단 휴식 표기를 1:00/1:30/2:00/3:00으로 통일(값은 그대로).
 - 검증: 320·360·412px, 큰 글꼴(130%)에서 한 줄 유지·겹침 없음.
 
-[2026-10-29] 홍보 페이지 카피 변경 — "어제의 숫자가 오늘의 목표가 돼요"(사용자 선택) | public/intro/index.html(히어로·부제·title·OG 문구), public/intro/img/og.png
+[2026-10-29] 홍보 페이지 카피 변경 - "어제의 숫자가 오늘의 목표가 돼요"(사용자 선택) | public/intro/index.html(히어로·부제·title·OG 문구), public/intro/img/og.png
 
 [2026-10-29] 홍보 페이지 /intro 신설(플랜핏·짐워크·RISE 벤치마킹) | public/intro/index.html(신규), public/intro/img/*(앱 화면 캡처 webp·공유 이미지), CLAUDE.md
 - 같은 Vercel 주소 아래 정적 페이지(앱 번들과 분리, 앱 코드 변경 없음). 주소: /intro/
@@ -193,7 +200,7 @@
 - 어시스트 풀업·친업: 보조를 줄이는 것이 증량(제안·PR·과부하·볼륨 = 체중 − 보조), 웜업 램프 없음. 웨이티드 풀업·딥스·원레그힙쓰러스트: 0kg(맨몸) 세트 저장 허용, 추정 1RM·볼륨 = 체중 + 추가.
 - 다관절 판정에서 플라이·레이즈·페이스풀·업라이트로우·JM프레스·스트레이트암풀다운·코어 제외(6–10회·150초 휴식으로 잡히던 문제).
 - 증량 제안: 바벨 스쿼트·힌지(데드리프트 포함) 5kg, 종목별 증량 단위 설정 추가, 크게 모자라면 약 10% 감량 제안, RIR 0이면 한 번 더 같은 무게, 다음 세트 프리필은 직전 기록의 가장 무거운 본세트 기준.
-- 휴식: 상단 휴식에 "자동"(기본) 추가 — 종목별 권장 휴식 적용. 저장 후 생기는 다음 행은 드롭·실패가 아닌 본세트로.
+- 휴식: 상단 휴식에 "자동"(기본) 추가 - 종목별 권장 휴식 적용. 저장 후 생기는 다음 행은 드롭·실패가 아닌 본세트로.
 - 추정 1RM 15회까지(고립 10–15회 사용자도 PR·정체 신호), PR 규칙 변경 시 1회 재계산(users.prsVersion).
 - 리포트: 근육별 주간 세트 하체 앞/뒤 분리·'부족'은 4세트 미만만·코어는 범위 없음, 정체는 직전 3–6회와 비교, 디로드는 정체나 RIR 0–1 비율이 높을 때만, 골밀도 하체 세트에 데드리프트 포함.
 - 볼륨 비교(랭킹 볼륨 점수 기준 4주·홈 주간 볼륨·디로드 판단)는 저장된 totalVolume 대신 세트에서 새 규칙으로 다시 계산(규칙 변경 전 기록과 섞여 점수가 부풀던 위험). 캘린더에 표시되는 과거 기록의 총 볼륨은 저장 당시 값 그대로.
@@ -201,16 +208,16 @@
 - 검증: 목업으로 취소·재시작·새로고침·일시정지·미체크 완료·자동 저장 시나리오 재실행, 특수 종목 시나리오(웨이티드 0kg 저장·보조 표시·초 단위), 증량·PR·볼륨 규칙 단위 테스트, 320·360·412px 겹침 검사.
 
 [2026-10-29] 온보딩 닉네임·주당 운동 목표 추가, 디자인 기본값(베이지·볼트 라임·페이퍼로지·리스트형) 일괄 적용, MY 디자인 접기 | Onboarding.jsx, App.jsx, storage.js(saveOnboarding), MyPageTab.jsx, ReportTab.jsx, TierInfoScreen.jsx, utils/fonts.js, CLAUDE.md
-- 온보딩 첫 단계 닉네임(구글 이름 미리 채움, 30자 — 랭킹에 실명 노출 방지), 마지막 단계 주당 운동 목표 2~6일(users.weeklyTargetDays). MY 프로필 수정에도 주당 목표 추가.
+- 온보딩 첫 단계 닉네임(구글 이름 미리 채움, 30자 - 랭킹에 실명 노출 방지), 마지막 단계 주당 운동 목표 2~6일(users.weeklyTargetDays). MY 프로필 수정에도 주당 목표 추가.
 - 출석 목표 = weeklyTargetDays(없으면 첫 루틴 파트 수), 2~6일. 리포트·등급 안내 문구 갱신.
 - 디자인 기본값 DEFAULT_*(fonts.js), users.designDefaultsVersion이 없는 계정은 로그인 시 한 번 기본값으로 덮어씀(사용자 결정: 기존 계정 포함). 이후 변경은 유지.
 - MY "디자인"은 현재 조합 한 줄 + "설정 바꾸기"로 펼침(기본 접힘). 저장값이 바뀌면 선택 표시도 동기화.
 
-[2026-10-29] 전면 점검 반영 — 버그 수정·사용성 개선·등급 Lv 리뉴얼 | WorkoutInput.jsx, SetEditors(영향 없음), RestTimer.jsx, GlobalTimerBar.jsx, ui.jsx, LogTab.jsx, App.jsx, ReportTab.jsx, CalendarView.jsx, MyPageTab.jsx, TierInfoScreen.jsx, HomeTab.jsx, InsightCards.jsx, RoutineSetup.jsx, storage.js, firestore.rules, utils/tier.js·achievements.js(신규)·sessionPayload.js·exerciseLibrary.js·holidays.js·exportCsv.js, api/holidays.js, CLAUDE.md
+[2026-10-29] 전면 점검 반영 - 버그 수정·사용성 개선·등급 Lv 리뉴얼 | WorkoutInput.jsx, SetEditors(영향 없음), RestTimer.jsx, GlobalTimerBar.jsx, ui.jsx, LogTab.jsx, App.jsx, ReportTab.jsx, CalendarView.jsx, MyPageTab.jsx, TierInfoScreen.jsx, HomeTab.jsx, InsightCards.jsx, RoutineSetup.jsx, storage.js, firestore.rules, utils/tier.js·achievements.js(신규)·sessionPayload.js·exerciseLibrary.js·holidays.js·exportCsv.js, api/holidays.js, CLAUDE.md
 - 기록: 휴식 종료 알림을 서비스워커 showNotification으로(안드로이드에서 안 뜨고 소리 한 번 더 울리던 문제), 쉬는 중 휴식 칩 변경 시 타이머 재시작 안 함 / "+ 세트 추가"·웜업 세트 행도 체크 안 하면 완료 시 포함 여부 확인 / 완료 확인창 바깥 누르면 저장 안 하고 계속 / 저장한 세트가 있는 종목 숨기기·지우기 전 확인 / 같은 앱 실행 중 다음 세션의 직전 기록 갱신 / 기록 ID·날짜를 시작 시 고정(sessionId, ±10초·초기화로 중복 기록 생기던 위험) / 일시정지 중 −10초 연타·재개 직후 00:00 튐 수정 / 세션 신기록 비교를 현재 기록에서 계산.
 - 점수·리포트: 볼륨 기준 기간(4주) 수정, 연속 출석 보너스 16주 조회(최대 +20), 점수 갱신 실패 시 버튼 멈춤 해소, 닉네임 30자 제한, 출석 = 운동한 날 수 / 목표 일수(루틴 파트 수 2~5일)로 랭킹·리포트 통일.
 - 캘린더 편집: 다른 날짜로 복사 후 저장하면 원래 기록까지 옮겨지던 문제, 빈 세트(0회) 저장·빈 기록 남는 문제(삭제 확인), 추가 종목 part 저장, 같은 종목 다른 그립 key 충돌, 자정 지나도 어제를 오늘로 표시.
-- 데이터: 옛 종목명(그립 통합 전 이름 포함)을 읽을 때 새 이름+그립으로 정규화, PR 맵 옛 키 있으면 1회 재계산. 자동 저장 되돌리기 시 XP도 차감(규칙: XP 1회 변경 −200~+200, 0 이상 — Firebase 콘솔 게시 필요).
+- 데이터: 옛 종목명(그립 통합 전 이름 포함)을 읽을 때 새 이름+그립으로 정규화, PR 맵 옛 키 있으면 1회 재계산. 자동 저장 되돌리기 시 XP도 차감(규칙: XP 1회 변경 −200~+200, 0 이상 - Firebase 콘솔 게시 필요).
 - 기타: 공휴일 오류 응답은 캐시 안 함·서비스키 인코딩 양쪽 대응, CSV 수식 주입 방지·\r 처리·파일명 로컬 날짜, HOME 최근 기록 "10/26(월)", 이번 주 근육 세트 기준 미만은 '진행 중'.
 - 사용성: 운동 중엔 운동방식·파트·휴식 선택줄을 한 줄 요약(누르면 펼침)으로, 가이드 안내도 한 줄로. 루틴 수정은 부위별 고른 종목만 먼저·나머지 "+ 종목 더 보기"·검색칸, 그립 없이 저장된 기본 종목(랫풀다운 등)이 선택 표시 안 되던 문제.
 - 등급: 단계명 Starter~Legend + Lv(단계당 5, Legend 이후 1500XP마다), MY 등급 카드·등급 안내·리포트 랭킹에 Lv 표시, 운동 완료 요약 카드(시간·볼륨·본세트·신기록·XP·Lv 진행·레벨 업/단계 달성), 성취 10종(MY). 'PLATINUM' 글자 일러스트는 Elite 단계와 안 맞아 쉐브론 아이콘으로.
@@ -223,7 +230,7 @@
 - 종목 카드 머리줄 "추정 1RM 80kg"·"증량 추천"을 항목 단위로 줄바꿈, 휴식 칩 줄 넘치면 줄바꿈, HOME 주간 요약 큰 숫자 화면 폭 비례 상한.
 - 검증: 목업 Firebase로 앱을 띄워 320·340·360·375·393·412px × 기본/넓은 숫자 서체에서 겹침·넘침 자동 검사 + 화면 캡처 확인(HOME·HOWTO·NOTE 리스트/포커스·유산소·REPORT·MY·미리보기).
 
-[2026-10-28] 디자인 확정 — 스타일 C 택타일 웜 고정, 강조색·폰트 3종으로 축소 | designStyles.css, fonts.js, App.jsx, MyPageTab.jsx, DesignPreviewScreen.jsx, ui.jsx(주석), index.html, CLAUDE.md
+[2026-10-28] 디자인 확정 - 스타일 C 택타일 웜 고정, 강조색·폰트 3종으로 축소 | designStyles.css, fonts.js, App.jsx, MyPageTab.jsx, DesignPreviewScreen.jsx, ui.jsx(주석), index.html, CLAUDE.md
 - 스타일 A 에디토리얼·B 인스트루먼트 토큰 삭제, C를 :root 기본으로. App.jsx·applyDesignAttrs가 data-style을 항상 'c'로 세팅(저장된 stylePreference 무시). MY·미리보기의 스타일 선택 칩 제거.
 - 숫자 서체 Barlow Condensed·IBM Plex Mono 로드 중단(index.html, Outfit만).
 - 강조색 탠저린·민트, 폰트 원티드 산스·SUIT 삭제. 이미 저장된 값은 normalizeAccentId/normalizeFontId가 브라스/프리텐다드로 표시(데이터 일괄 수정 없음). 테마 3종은 유지.
@@ -231,7 +238,7 @@
 [2026-10-28] 포커스형 기록 세트 삭제 추가 | SetEditors.jsx(FocusSetPanel), WorkoutInput.jsx(ExerciseCard)
 - 포커스형에서 추가한 세트를 지울 방법이 없던 문제: 선택 세트 줄 오른쪽에 "세트 삭제" 버튼(세트 2개 이상일 때만, 리스트형과 동일). 모든 세트 저장 후에도 칩을 골라 삭제 가능. 삭제 후 선택 해제.
 
-[2026-10-28] 전 화면 리디자인 2단계 — 강조색 팔레트 5종 + HOME/REPORT/MY/등급/HOWTO/로그인/온보딩/스플래시 | designStyles.css, tokens.css, ui.jsx, utils/fonts.js, App.jsx, index.html, DesignPreviewScreen.jsx, MyPageTab.jsx, HomeTab.jsx, InsightCards.jsx, ReportTab.jsx, TierInfoScreen.jsx, HowToTab.jsx, ExerciseGuideToggle.jsx, LoginScreen.jsx, Onboarding.jsx, SplashScreen.jsx, utils/setEncouragements.js
+[2026-10-28] 전 화면 리디자인 2단계 - 강조색 팔레트 5종 + HOME/REPORT/MY/등급/HOWTO/로그인/온보딩/스플래시 | designStyles.css, tokens.css, ui.jsx, utils/fonts.js, App.jsx, index.html, DesignPreviewScreen.jsx, MyPageTab.jsx, HomeTab.jsx, InsightCards.jsx, ReportTab.jsx, TierInfoScreen.jsx, HowToTab.jsx, ExerciseGuideToggle.jsx, LoginScreen.jsx, Onboarding.jsx, SplashScreen.jsx, utils/setEncouragements.js
 - 강조색 팔레트 5종(브라스=기본·볼트 라임·코발트·탠저린·민트): html[data-accent][data-theme] 토큰, users/{uid}.accentPreference(필드 추가, 미지정=브라스).
   테마는 바탕·글자, 팔레트는 강조색만 담당. 채움 버튼·선택 칩은 모든 테마에서 강조색 채움. 글자 강조색은 스타일 3×테마 3 모든 표면에서 4.5:1 이상(생성 스크립트 검사),
   채움 위 글자도 4.5:1 이상. 미리보기 화면·MY 디자인에 색 견본 선택 추가. 로그인/온보딩은 브라스 고정.
@@ -243,7 +250,7 @@
 - MY: 프로필을 맨 위·등급을 그 아래로, XP 큰 숫자·얇은 강조색 막대, 버튼 크기 축소. 등급 화면: 순위 무채색 큰 숫자, 점수 막대 강조색.
 - HOWTO: 안내 카드 무채색+정보 아이콘, 종목 목록을 종목별 카드 → 한 목록+헤어라인 구분, 팁 이모지 → 전구 라인 아이콘(기록 중 가이드 패널 동일).
 - 로그인: 큰 헤드라인 중심 구성(상단 로고·하단 버튼). 온보딩: 선택지 = 강조색 채움, 진행 막대 강조색. 스플래시: "불러오는 중…" → 얇은 진행 막대. 세트 응원 문구 이모지 제거.
-- 변경 없음: 기록(NOTE) 화면 구조, 데이터·기능, 탭 숨김(visibility) 방식, 드래그 재정렬 설정, firestore.rules(users 필드 화이트리스트 없음 — accentPreference 쓰기 허용됨).
+- 변경 없음: 기록(NOTE) 화면 구조, 데이터·기능, 탭 숨김(visibility) 방식, 드래그 재정렬 설정, firestore.rules(users 필드 화이트리스트 없음 - accentPreference 쓰기 허용됨).
 
 [2026-10-28] 기록 화면 미리보기 + 본문 폰트 5종 비교, 큰 숫자 카운트업 확장, 운동 GIF 소스 삭제 → YouTube 영상 링크 | DesignPreviewScreen.jsx(신규), ExerciseVideoLink.jsx(신규), utils/fonts.js(신규), App.jsx, MyPageTab.jsx, WorkoutInput.jsx, HomeTab.jsx, HowToTab.jsx, ExerciseGuideToggle.jsx, ReportTab.jsx, TierInfoScreen.jsx, hooks/useCountUp.js, designStyles.css, tokens.css, exerciseLibrary.js(주석), ExerciseGuideImage.jsx·utils/exerciseImageApi.js·utils/exerciseImageMap.js(삭제)
 - 기록 화면 미리보기(MY → 디자인 → "기록 화면 미리보기"): 샘플 기록으로 실제 종목 카드(WorkoutInput ExerciseCard export)·상단 타이머 바·휴식 타이머·하단 완료 바를
@@ -267,17 +274,17 @@
 - 확인 팝업 배경 페이드 + 살짝 확대 등장, 자동 저장 안내 배너 위에서 내려옴.
 - "동작 줄이기"(prefers-reduced-motion) 사용자는 모든 애니메이션 제거(스타일 최하단).
 - 유지: 탭 숨김 visibility 방식, 종목 드래그 재정렬(Reorder) 설정, 캘린더 월 슬라이드.
-- 계획 대비 변경: 탭 전환 시 "살짝 올라오는" 움직임은 넣지 않음 — 탭 컨테이너에 transform을 주면 그 안의 고정 위치 요소
+- 계획 대비 변경: 탭 전환 시 "살짝 올라오는" 움직임은 넣지 않음 - 탭 컨테이너에 transform을 주면 그 안의 고정 위치 요소
   (하단 완료 바·휴식 타이머·팝업)가 전환 중 제자리를 벗어나므로 기존 페이드만 유지.
 
-[2026-10-27] 전면 리뉴얼 W1~W3 — 디자인 A/B/C·기록 고도화·인사이트·점수 | designStyles.css(신규), SetEditors.jsx(신규), InsightCards.jsx(신규), utils/strength.js(신규), utils/exportCsv.js(신규), WorkoutInput.jsx, ReportTab.jsx, HomeTab.jsx, MyPageTab.jsx, CalendarView.jsx, App.jsx, storage.js, ui.jsx, GlobalTimerBar.jsx, scoring.js, sessionPayload.js, exerciseLibrary.js, index.html, main.jsx, 전 컴포넌트 borderRadius 토큰화
+[2026-10-27] 전면 리뉴얼 W1~W3 - 디자인 A/B/C·기록 고도화·인사이트·점수 | designStyles.css(신규), SetEditors.jsx(신규), InsightCards.jsx(신규), utils/strength.js(신규), utils/exportCsv.js(신규), WorkoutInput.jsx, ReportTab.jsx, HomeTab.jsx, MyPageTab.jsx, CalendarView.jsx, App.jsx, storage.js, ui.jsx, GlobalTimerBar.jsx, scoring.js, sessionPayload.js, exerciseLibrary.js, index.html, main.jsx, 전 컴포넌트 borderRadius 토큰화
 - **디자인(사용자 확정: 앱 안 A/B/C 전환 후 실사용 비교)**: MY탭 "디자인"에서 스타일 A 에디토리얼(헤어라인·컨덴스드 숫자)
   / B 인스트루먼트(각진 표·모노 숫자) / C 택타일 웜(둥근 타일·둥근 숫자) × 테마 다크/베이지/라이트 9종. html[data-style]
   [data-theme] 토큰 오버레이, 9종 모두 본문·강조 텍스트 대비 4.5:1 이상 검증. 인라인 borderRadius를 --radius-sm/md/lg/pill
   토큰으로 일괄 치환. 운동 카드 좌측 굵은 색 띠 → 작은 부위 색 점. 숫자 서체 Barlow Condensed/IBM Plex Mono/Outfit 추가.
   상단 타이머 바·"시작" 버튼은 채움 토큰(--color-fill-strong/--color-on-fill)으로 통일. 노티바 색은 현재 배경색을 따름.
 - **기록 방식**: 리스트형(기존 표) / 포커스형(한 세트씩 큰 숫자·큰 버튼, RIR 4단 선택, "세트 완료") 선택(MY탭).
-- **세트 데이터(필드 추가만, 기존 기록 호환)**: 세트 종류 type(웜업 W/드롭 D/실패 F — 번호 칩 탭으로 전환), RIR(선택).
+- **세트 데이터(필드 추가만, 기존 기록 호환)**: 세트 종류 type(웜업 W/드롭 D/실패 F - 번호 칩 탭으로 전환), RIR(선택).
   웜업 세트는 볼륨·XP·과부하·근육별 세트·PR에서 제외. 캘린더 과거 기록 수정 시 그립·부위·종류·RIR 보존(기존엔 그립 유실 버그).
 - **증량 추천(이중 진행)**: 종목별 목표 반복 범위(다관절 6–10 / 고립 10–15, 종목 설정에서 변경)의 상한을 지난번 모든 본세트에서
   달성하면 다음 무게(덤벨 2·바벨 2.5·머신 5kg, 바벨 하체 다관절 5kg)를 추천하고 그 값으로 프리필. 아니면 같은 무게로 +1회.
@@ -292,7 +299,7 @@
   종목별 추이 그래프는 최고 중량 → 추정 1RM. 홈에 이번 주 운동 횟수·본세트·볼륨 요약, 근육별 세트 상위 5, 최근 PR 2.
 - **점수/시즌**: 연속 출석 주 보너스(4주마다 +5, 최대 +20)를 랭킹 점수에 연결. 시즌 XP 분기 초기화(seasonKey, 기존 계정은
   이번 시즌부터 기준 시작·누적 XP 유지), 화면 표시는 지난 시즌 값이 남아 있으면 0으로.
-- **데이터 내보내기**: MY탭 "운동 기록 내보내기(CSV)" — 세트 단위, 엑셀 한글 호환(UTF-8 BOM).
+- **데이터 내보내기**: MY탭 "운동 기록 내보내기(CSV)" - 세트 단위, 엑셀 한글 호환(UTF-8 BOM).
 - **명칭**: 종목 단위 완료 버튼 "세트완료" → "이 종목 완료"(세트 저장과 혼동 방지).
 - **독립 리뷰 반영**: 사용자 문서 읽기 실패 시 시즌 키·PR을 건드리지 않고 XP 증가만 반영 / 숨김·삭제·완료된 짝 종목은 슈퍼세트
   자동 해제(휴식이 안 시작되던 문제) / 종목 설정을 FieldPath 단건 갱신 + 즉시 반영(연속 탭 유실·다른 종목 덮어쓰기 방지) /
@@ -301,7 +308,7 @@
 - **범위 밖(다음 단계)**: WorkoutInput.jsx 대규모 파일 분리, 랭킹 점수 서버(Cloud Functions) 계산(무료 플랜 유지 결정),
   충격운동(점프) 기록, Apple 건강/Health Connect(PWA 불가).
 
-[2026-10-27] "오늘 운동 완료" 미입력 시 기록 누락 방지 — 진행 세션 서버 백업 + 방치 세션 자동 저장 | WorkoutInput.jsx, storage.js, utils/sessionPayload.js(신규), App.jsx, HomeTab.jsx, LogTab.jsx, ui.jsx, firestore.rules
+[2026-10-27] "오늘 운동 완료" 미입력 시 기록 누락 방지 - 진행 세션 서버 백업 + 방치 세션 자동 저장 | WorkoutInput.jsx, storage.js, utils/sessionPayload.js(신규), App.jsx, HomeTab.jsx, LogTab.jsx, ui.jsx, firestore.rules
 - **배경**: 세트를 기록해 두고 "오늘 운동 완료"를 누르지 않은 채 다음날이 되면 기록이 통째로 사라지는
   사례가 많았다(진행 중 기록이 날짜별 localStorage 키에만 있어 날이 바뀌면 찾지 못함).
 - **서버 백업**: 진행 중 세션을 activeSessions/{uid}에 2.5초 디바운스로 백업(브라우저 데이터 삭제·
@@ -318,7 +325,7 @@
 - **기타**: 완료 저장 실패 시 무한 "저장 중"에 갇히던 문제 방어(재시도 안내, 입력 내용 유지).
   confirm 팝업에 버튼 문구 옵션 추가. StrictMode 이중 실행에도 복원 상태가 덮어써지지 않게 1회 실행 가드.
 
-[2026-10-27] 전면 리뉴얼 W0 — 보안·버그·성능 안정화 | firestore.rules, storage.js, firebase.js, WorkoutInput.jsx, ReportTab.jsx, App.jsx, vite.config.js
+[2026-10-27] 전면 리뉴얼 W0 - 보안·버그·성능 안정화 | firestore.rules, storage.js, firebase.js, WorkoutInput.jsx, ReportTab.jsx, App.jsx, vite.config.js
 - **보안(치명)**: users 문서에서 role/roleRequestStatus/tier/lifetimeBadges/trainerProfile을
   본인이 직접 바꾸지 못하게 잠금(이전엔 role:'관리자' 자가 부여로 전체 문의 열람 가능했음).
   XP는 1회 증가폭 0~200만 허용(시즌 전환 시 리셋 허용). leaderboard 필드 화이트리스트+점수 0~200,
@@ -357,7 +364,7 @@
   계산했다. 풀업·푸시업·딥스처럼 실제 전신 체중에 가까운 하중이 걸리는 종목엔 맞는
   방식이지만, 플랭크·크런치류처럼 몸통/다리 일부 질량만 움직이는 코어 종목까지 똑같이
   전신 체중을 곱해 다른 부위 대비 비정상적으로 커졌다(예: 체중 70kg·크런치 15회×3세트
-  = bwVolume 3,150 — 벤치프레스 60kg×10회×3세트의 볼륨 1,800보다 높음).
+  = bwVolume 3,150 - 벤치프레스 60kg×10회×3세트의 볼륨 1,800보다 높음).
 - **원인 2(유산소 저평가)**: 레이더 정규화가 `score / 최댓값`의 선형 비율이라, 원인1로
   부풀려진 코어(수천 단위)가 최댓값이 되면서 절대값 자체가 작은 유산소(kcal, 수십~수백
   단위)가 0%에 가깝게 눌렸다.
@@ -386,7 +393,7 @@
   `SortableExerciseItem`).
 - **범위**: 이번 요청은 "노트탭"(기록탭 `WorkoutInput.jsx`)에 한정. `RoutineSetup.jsx`(MY탭
   "내 루틴" 파트 순서 카드)도 동일하게 transition 미지정 상태라 같은 증상이 있을 수 있으나,
-  이번 패치 범위 밖으로 남겨둠 — 필요하면 별도 요청으로 진행.
+  이번 패치 범위 밖으로 남겨둠 - 필요하면 별도 요청으로 진행.
 
 [2026-08-10] 그립옵션 종목 2개 이상 동시 추가 지원 + 이지바컬 그립옵션 추가
 - **요구사항**: 그립옵션이 있는 종목(랫풀다운 등)을 그립을 다르게 해서 "내 루틴"/기록탭
@@ -415,13 +422,13 @@
     변경. "다른 유저들이 즐겨찾는 운동"(`popularTop`, 크로스유저 인기 집계)은 그립 구분 없이
     기존 종목명 기준 그대로 유지(범위 밖으로 명시적으로 남겨둠).
   - `utils/exerciseLibrary.js`: 이지바컬에 `gripOptions: ["언더핸드", "오버핸드"]` 추가
-    (바벨컬과 동일 — 사용자 확인).
+    (바벨컬과 동일 - 사용자 확인).
 - **범위 밖으로 남겨둔 부분(참고)**: 캘린더뷰의 과거 기록 편집 화면(`CalendarView.jsx`)은
   여전히 `ex.name` 단독을 키/중복판정 기준으로 쓴다(기존에도 "커스텀 운동 prop 연결 미반영"
   으로 플래그된 미완성 영역). 이번 변경으로 같은 이름의 그립 변형 2개가 한 로그에 저장되는
   경우가 새로 생기므로, 그 로그를 캘린더에서 편집할 때 React key 중복 경고 및 "이미 있는
   종목" 오판(중복 추가 차단)이 발생할 수 있다. 사용자 요청 범위(기록탭 세션 + 내 루틴)에는
-  포함되지 않아 이번 패치에서는 손대지 않았다 — 필요하면 별도 요청으로 진행.
+  포함되지 않아 이번 패치에서는 손대지 않았다 - 필요하면 별도 요청으로 진행.
 - **기존 저장 데이터 호환**: 사용자 확인에 따라 마이그레이션하지 않음. 그립옵션 종목이
   과거에 그립 없이 저장돼 있었다면 계속 그립 없는 단일 항목으로 남는다.
 
@@ -442,7 +449,7 @@
   없어 레거시 매핑 없이 삭제하고, 필요하면 추후 커스텀 종목으로 재추가하는 방식으로 처리.
 - **행잉니레이즈 삭제 + 대체**: 이미지 데이터셋에 기본형 GIF가 끝내 없어 종목 자체를 삭제하고
   `행잉레그레이즈`로 대체(`LEGACY_EXERCISE_NAME_MAP`에 매핑 추가). 단, HOWTO 비교군
-  "레그레이즈 계열" 표(정적 텍스트 테이블)에는 정보 제공 목적으로 그대로 남겨뒀다(사용자 확인 —
+  "레그레이즈 계열" 표(정적 텍스트 테이블)에는 정보 제공 목적으로 그대로 남겨뒀다(사용자 확인 -
   선택 가능한 종목 목록에서만 빠지고, 비교 설명에서는 제외하지 않음).
 - **데드리프트/스모데드리프트 하체 중복 등재**: 루마니안데드리프트와 동일한 기존 패턴대로,
   "등"뿐 아니라 "하체" 카테고리에도 동일 이름으로 등재해 하체 탐색에서도 보이게 했다.
@@ -459,7 +466,7 @@
 - **아크트레이너 신규 추가**: 일립티컬과 궤적이 달라 별도 기구로 취급, "유산소" 카테고리에
   독립 종목으로 추가(사용자 확인: 병기가 아닌 별도 항목). 이미지 데이터셋에 대응 GIF가 없어
   "이미지 준비중"으로 표시된다.
-- **리포트탭 레이더차트 — 보조근(synergist) 개입 반영(신규)**: "가슴/등 운동 시 이두·삼두·
+- **리포트탭 레이더차트 - 보조근(synergist) 개입 반영(신규)**: "가슴/등 운동 시 이두·삼두·
   어깨도 나름 개입되는 점을 감안해서 표시" 요청 반영. `EXERCISE_META.muscleRoles.synergist`를
   8개 원자 부위로 매핑하는 `getSynergistAtoms()`를 신규 추가하고, 주동근 외 부위에 해당 세트
   활동량의 30%를 가산(`SYNERGIST_WEIGHT`)한다. 직접 기록이 없어도(sets=0) 보조근 개입만으로
@@ -467,7 +474,7 @@
   했고, 축 상세 텍스트는 직접 기록이 없는 경우 "보조근 개입만"으로 구분 표시해 실제 수행
   볼륨과 혼동되지 않게 했다. 유산소는 muscleRoles가 없어 대상에서 자연히 제외된다.
   (`exerciseLibrary.js`, `ReportTab.jsx`)
-- **HOWTO 검색 — 다건 별칭 지원(신규)**: 기존 `alias`(종목당 1개, 화면 표시용)와 별개로
+- **HOWTO 검색 - 다건 별칭 지원(신규)**: 기존 `alias`(종목당 1개, 화면 표시용)와 별개로
   검색 전용 `aliases` 배열을 추가해 국내 통용 줄임말(예: 사레레→덤벨사이드레터럴레이즈,
   데드→데드리프트, 힙쓰→바벨힙쓰러스트 등)로도 찾을 수 있게 했다. 1차로 28개 종목에 흔한
   별칭을 등록(사용자 확인 목록 기준). `getExerciseAliases()` 신규 함수 추가, `HowToTab.jsx`
@@ -495,7 +502,7 @@
 - **리포트탭 부위별 운동추이 텍스트 잘림 수정**: 볼륨/kcal/체중볼륨+세트수를 " · "로 한
   줄에 모두 이어붙이면 지표가 2개 이상 섞인 부위에서 문자열이 길어져 레이더 차트 좌우
   프레임 밖으로 잘렸다. 지표 줄과 세트수 줄을 분리해 각 줄 길이를 줄였다. (`ReportTab.jsx`)
-- **점진적 과부하 — 코어/유산소 별도 산식(표시 전용)**: 기존 `computeOverloadByOccurrence`가
+- **점진적 과부하 - 코어/유산소 별도 산식(표시 전용)**: 기존 `computeOverloadByOccurrence`가
   중량×횟수(topWeight/totalVolume)만으로 향상 여부를 판단해, 무게 필드가 없는 reps형(맨몸)·
   cardio형(유산소) 종목은 항상 0으로 계산되어 향상 판정이 사실상 불가능했다(근본원인 확인).
   신규 `computeOverloadByOccurrenceForDisplay`(inputType별로 sets=중량/볼륨, reps=총 횟수,
@@ -516,7 +523,7 @@
   않고 분류 시점에서만 정규화한다. (`exerciseLibrary.js`)
 - **한계 안내**: 이번 보강은 과거 개명 이력에 대한 소급 보정이다. 앞으로 종목명을 또
   바꾸는 세션에서 `LEGACY_EXERCISE_NAME_MAP` 갱신을 빠뜨리면 그 이름은 다시 "기타"로
-  분류될 수 있다 — 향후 종목명 변경 작업 시 QA 체크리스트에 "레거시 이름 매핑 갱신 확인"
+  분류될 수 있다 - 향후 종목명 변경 작업 시 QA 체크리스트에 "레거시 이름 매핑 갱신 확인"
   항목을 추가해 이 재발을 방지하기로 함(프로젝트 지침 2번 QA 체크리스트에 반영 권장).
 | src/styles/tokens.css, src/components/ExerciseGuideToggle.jsx, src/components/WorkoutInput.jsx,
   src/components/ui.jsx, src/components/ReportTab.jsx, src/utils/scoring.js,
@@ -553,7 +560,7 @@
   기록 조회(`getLastRecordForExercise`, Firestore 비동기 호출)가 실패하면 그 이후 세트
   초기화 코드까지 도달하지 못해 인풋이 아예 생성되지 않았다. 조회 실패 시 `last`를
   `null`로 폴백해 세트 초기화가 항상 진행되도록 방어 코드 추가. (`WorkoutInput.jsx`)
-- **부위별 운동 추이(리포트 탭 레이더) — 유산소/맨몸 부위 누락 수정**: 기존에는 활동량을
+- **부위별 운동 추이(리포트 탭 레이더) - 유산소/맨몸 부위 누락 수정**: 기존에는 활동량을
   "무게×횟수(볼륨)" 단일 지표로만 계산해, 유산소·맨몸 위주 부위(코어 플랭크, 풀업 등)는
   볼륨이 항상 0이 되어 표시 자체가 안 됐다. 종목 유형별로 지표를 분리해 누적(근력=볼륨,
   유산소=세트별 소모 칼로리, 맨몸/횟수전용=체중×횟수)하고, 표시 여부 기준도 `볼륨>0`에서
@@ -585,7 +592,7 @@
   (그립 옵션이 없는 종목은 필드 자체가 없음, 기존 저장된 기록과 호환). (`WorkoutInput.jsx`,
   `storage.js` 주석 갱신)
 
-[2026-08-05 (7)] 버그수정 — HOWTO 탭 "내 루틴에 추가" 버튼이 하단 네비에 가려 잘리는 문제
+[2026-08-05 (7)] 버그수정 - HOWTO 탭 "내 루틴에 추가" 버튼이 하단 네비에 가려 잘리는 문제
 - **원인 재분석**: (6)-①에서 고친 "목록→상세 스크롤 미리셋" 문제와는 별개로, `HowToTab.jsx`
   콘텐츠 wrapper(목록/상세 공통)가 하단 패딩을 `32px`로만 잡고 있었음. HOME/MY 등 다른 탭은
   전부 하단 패딩 `100px`로 고정 `BottomNav`(약 60px + 세이프에어리어) 높이를 여유 있게
@@ -613,7 +620,7 @@
   "그립 옵션" 카드에 옵션 칩 아래로 노출. (`exerciseLibrary.js`: `EXERCISE_GRIP_NOTES` +
   `getGripOptionNotes()` 신규, `HowToTab.jsx`: 카드에 렌더링 추가)
 
-[2026-08-05 (5)] 버그수정 — 오늘 임시 숨김 처리한 종목이 "종목추가" 목록에서 안 보임
+[2026-08-05 (5)] 버그수정 - 오늘 임시 숨김 처리한 종목이 "종목추가" 목록에서 안 보임
 - **재현**: 내 루틴 운동 목록에서 종목을 "오늘만 숨기기"한 뒤, 종목추가 패널을 열어도(열려있던
   상태든 새로 열든 무관) 방금 숨긴 종목이 후보로 나타나지 않아 오늘 세션 중에는 다시 꺼낼
   방법이 없었음.
@@ -630,12 +637,12 @@
 - **하단 네비 5탭 + 영문 라벨 전환**: `BottomNav.jsx`에 HOWTO 탭(BookOpen 아이콘)을 홈
   오른쪽에 신설하고, 라벨 전체를 한글(홈/기록/리포트)에서 영문(HOME/HOWTO/NOTE/REPORT/MY)
   으로 변경. "기록" 탭은 라벨만 NOTE로 바뀌고 기능·데이터 구조는 그대로. (`BottomNav.jsx`)
-- **`HowToTab.jsx` 신규**: ① 최상단 온보딩 가이드 카드 — "다시 안 보기" 버튼을 눌러야
+- **`HowToTab.jsx` 신규**: ① 최상단 온보딩 가이드 카드 - "다시 안 보기" 버튼을 눌러야
   사라지며, `users/{uid}.howtoOnboardingDismissed`에 서버 저장(기기 바뀌어도 유지)
-  ② 부위별(8개 칩) 운동 탐색 + 이름/별칭 검색 ③ 종목 탭 시 상세 화면 — 동작 가이드
+  ② 부위별(8개 칩) 운동 탐색 + 이름/별칭 검색 ③ 종목 탭 시 상세 화면 - 동작 가이드
   이미지(기존 ExerciseGuideImage 재사용, 별도 장비 사진 소스 없이 그대로 활용), 설명
   (summary/howTo/tip), 그립 옵션, 근육 역할(주동/보조/안정/길항), 유사군 비교표(있는
-  경우) 표시 ④ "내 루틴에 추가" 버튼 — 원클릭 즉시 추가(확인 모달 없음). (`HowToTab.jsx`,
+  경우) 표시 ④ "내 루틴에 추가" 버튼 - 원클릭 즉시 추가(확인 모달 없음). (`HowToTab.jsx`,
   `App.jsx`)
 - **`quickAddExerciseToRoutine()` 신규**: 가장 먼저 만든 루틴(order 기준)에서 종목의
   부위(atom)를 포함하는 파트를 찾아 추가하고, 없으면 첫 파트에 폴백. 이미 있으면 중복
@@ -645,7 +652,7 @@
   MY탭에서 파트 이동 가능. 그립 선택 UI는 이번에도 `WorkoutInput.jsx` SetRow에는 아직
   연결하지 않음(다음 세션).
 
-[2026-08-05 (3)] 버그수정 — 그립 통합 이전 종목명이 저장된 내 루틴에서 "숨기기 → 종목추가 재선택" 불가 문제
+[2026-08-05 (3)] 버그수정 - 그립 통합 이전 종목명이 저장된 내 루틴에서 "숨기기 → 종목추가 재선택" 불가 문제
 - **근본원인**: 오늘 낮 세션에서 `exerciseLibrary.js`를 96→143개로 재구축하며 그립 통합
   8종목(랫풀다운/시티드케이블로우/풀업/케이블푸시다운/바벨컬/케이블컬/플랫바벨프레스/푸시업)에
   흡수된 옛 종목명(예: "리버스그립랫풀다운", "와이드그립풀업" 등 10개, 명칭 정리 2건 포함
@@ -656,7 +663,7 @@
 - **수정**: `exerciseLibrary.js`에 `LEGACY_EXERCISE_NAME_MAP`(옛 이름→새 이름, 14건) +
   `normalizeExerciseName()`/`normalizeExerciseNames()` 신규 추가. `storage.js`의
   `getRoutineTemplates()`가 Firestore에서 템플릿을 읽어올 때마다 `parts[].exercises` 배열을
-  이 함수로 정규화하도록 변경 — 별도 일괄 마이그레이션 스크립트 없이, 읽는 시점에 항상 최신
+  이 함수로 정규화하도록 변경 - 별도 일괄 마이그레이션 스크립트 없이, 읽는 시점에 항상 최신
   이름 기준으로 동작한다(이후 사용자가 정상적으로 저장/재정렬하면 Firestore 데이터 자체도
   자연스럽게 새 이름으로 갱신됨). (`utils/exerciseLibrary.js`, `storage.js`)
 
@@ -671,25 +678,25 @@
 - **그립 통합 8종목**: 랫풀다운/시티드케이블로우/풀업/케이블푸시다운/바벨컬/케이블컬/
   플랫바벨프레스/푸시업은 `EXERCISE_META[name].gripOptions` 배열 보유. 신규 헬퍼
   `getGripOptions()`/`getMuscleRoles()`/`getExerciseAlias()` 추가(실제 그립 선택 UI는
-  다음 세션에서 `WorkoutInput.jsx` SetRow에 반영 예정 — 이번엔 데이터 레이어만).
+  다음 세션에서 `WorkoutInput.jsx` SetRow에 반영 예정 - 이번엔 데이터 레이어만).
 - **명칭 정리**: "루마니안데드리프트(하체)"→"루마니안데드리프트", "덤벨플로어프레스(삼두)"→
   "덤벨플로어프레스"(부위명 접미사 제거, 상위 카테고리로 이미 구분). "계단오르기머신"은
   스텝밀과 중복 판단되어 삭제(11개 유산소 종목).
 - **HOWTO 탭용 데이터 신규 추가**: 143개 전 종목 설명(summary/howTo/tip, `EXERCISE_DESCRIPTIONS`
   + `getExerciseDescription()`)과 헷갈리기 쉬운 유사군 8개 비교 데이터(`EXERCISE_COMPARISON_GROUPS`
   + `getComparisonGroupForExercise()`) 추가. HOWTO 탭 UI 자체(5탭 구조, 온보딩 가이드,
-  부위별 탐색 화면)는 다음 세션에서 구현 예정 — 이번엔 데이터만 준비.
+  부위별 탐색 화면)는 다음 세션에서 구현 예정 - 이번엔 데이터만 준비.
 - **연쇄 수정**: `exerciseImageMap.js`에서 그립 통합으로 소멸된 종목명 키(리버스그립랫풀다운/
   내로우그립랫풀다운/리버스바벨컬/로프케이블푸시다운) 정리, "스트레이트바케이블푸시다운"→
   "케이블푸시다운" 키 이름 변경. `calories.js`에서 "계단오르기머신" 죽은 키 삭제, 신규
   "트레드밀인터벌" MET 근사값 추가. (`utils/exerciseImageMap.js`, `utils/calories.js`)
 - **주의(TODO)**: "루마니안데드리프트"는 등/하체 두 부위에 동일 이름으로 존재하는 유일한
   의도된 중복 사례. `getExerciseAtom()`은 현재 항상 먼저 매칭되는 "등"을 반환하므로,
-  하체 화면에서 추가한 기록도 통계상 "등"으로 집계될 수 있다 — 정확한 구분이 필요해지면
+  하체 화면에서 추가한 기록도 통계상 "등"으로 집계될 수 있다 - 정확한 구분이 필요해지면
   exerciseId(이름-부위) 기반 저장으로 전환 필요(신규 종목 47개의 GIF 이미지 매핑도 미반영,
   다음 세션 과제).
 
-[2026-08-05] 리포트 탭 — 누적 볼륨 막대 + 부위별 운동추이 레이더 통합, 종목별 중량 추이 섹션 제거
+[2026-08-05] 리포트 탭 - 누적 볼륨 막대 + 부위별 운동추이 레이더 통합, 종목별 중량 추이 섹션 제거
 - **"누적 볼륨(부위별)" 가로 막대 차트 삭제, "부위별 운동 추이" 레이더 차트로 통합**:
   두 섹션이 사실상 같은 정보(부위별 볼륨)를 중복 표시한다는 피드백. 레이더 차트가 이제
   누적 볼륨 데이터를 그린다. 관련 계산도 `cumulativeVolumeByPart`/`bodyPartWeekTotals`
@@ -711,7 +718,7 @@
   `App.jsx`가 `logTabRef`를 통해 `GlobalTimerBar`에 연결. 상단바가 펼쳐진 만큼 탭
   콘텐츠 상단 여백(`tabWrapperStyle`)도 함께 늘어나도록 처리.
   (`App.jsx`, `GlobalTimerBar.jsx`, `WorkoutInput.jsx`)
-- **[재확인] 내 루틴 종목추가 재노출 안 되던 문제 — 근본원인 재정정**: 이전 세션의
+- **[재확인] 내 루틴 종목추가 재노출 안 되던 문제 - 근본원인 재정정**: 이전 세션의
   "경쟁 상태" 수정과는 별개로, 실제 원인은 아이콘 오인이었음. "오늘만 숨기기"(임시,
   X자 아이콘)와 "완전히 삭제"(영구, 휴지통 아이콘)가 둘 다 인접해 있는데 시각적으로
   구분이 잘 안 돼, 사용자가 임시 숨김을 눌러놓고 "삭제했는데 종목추가 목록에 안
@@ -724,16 +731,16 @@
 - **홈탭 랜덤 문구 300개 전면 교체**: 길이가 제각각이라 1줄 표시 영역에서 말줄임표로
   잘리는 문구가 있었음. 22자 이내로만 구성한 문구 300개로 전면 교체해 항상 한 줄에
   온전히 표시되도록 함. (`utils/quotes.js`)
-- **리포트 탭 — 출석률: 루틴 무관 "7일 중 운동한 날짜 수" 기준으로 변경**: 기존
+- **리포트 탭 - 출석률: 루틴 무관 "7일 중 운동한 날짜 수" 기준으로 변경**: 기존
   "이번주 세션수/루틴 분할 기준 목표 횟수"를 없애고, 이번 주(월~일) 7일 중 실제로
   운동을 완료한 날짜 수(같은 날 중복 기록은 1일로 카운트) / 7로 단순화.
   랭킹 점수 계산용 `computeAttendanceScore`(scoring.js)는 이번 변경 대상이 아니라
-  건드리지 않음 — 화면 표시용 `attendanceRate`만 변경. (`ReportTab.jsx`)
-- **리포트 탭 — "주간 총 볼륨(지난주 vs 이번주)" → "누적 볼륨(부위별)"**: 두 주
+  건드리지 않음 - 화면 표시용 `attendanceRate`만 변경. (`ReportTab.jsx`)
+- **리포트 탭 - "주간 총 볼륨(지난주 vs 이번주)" → "누적 볼륨(부위별)"**: 두 주
   비교는 편차가 커서 의미가 적다는 피드백으로, 서비스 시작 이후 전체 누적 볼륨을
   부위별(6색 파트, `getPartColor`) 가로 막대로 보여주는 형태로 교체. 별도 섹션인
   "부위별 운동 추이"(주간 레이더 차트)는 변경 없이 유지. (`ReportTab.jsx`)
-- **리포트 탭 — 점진적 과부하: 부위별 그룹 + 종목별 중량 추이 연동**: 종목명만
+- **리포트 탭 - 점진적 과부하: 부위별 그룹 + 종목별 중량 추이 연동**: 종목명만
   나열하던 리스트를 부위별로 묶어서 표시하고, 각 회차를 누르면 그 자리에서 바로
   중량 추이 미니 라인차트가 펼쳐지도록 함(기존 "종목별 중량 추이" 섹션과
   `selectedExercise` 상태를 공유해, 두 UI가 같은 종목 선택을 즉시 반영). (`ReportTab.jsx`)
@@ -774,7 +781,7 @@
 - **응원 멘트 타이밍 변경**: 세트 하나 저장할 때마다 뜨던 응원 토스트를, 종목 하나를
   "세트완료"로 마칠 때 1회만 뜨도록 변경(`WorkoutInput.jsx` `completeExercise()`).
 - **[근본원인 재분석] 트레드밀 입력 겹침**: 폭/간격 조정으로 세 차례 패치했는데도 반복
-  재발 — "한 줄에 항목이 너무 많다"는 구조적 원인으로 판단, cardio 종목만 스텝퍼 줄/
+  재발 - "한 줄에 항목이 너무 많다"는 구조적 원인으로 판단, cardio 종목만 스텝퍼 줄/
   버튼 줄을 아예 2줄로 분리(`WorkoutInput.jsx` `SetRow`). 가로 스크롤 의존 제거.
 - **세트 저장(✓) 아이콘 색상**: 골드 배경 위 브라운(`--color-on-gold`) → 베이지
   (`--color-on-gold-button`)로 변경, "시작" 버튼과 동일 처리(`IconButton`).
@@ -790,7 +797,7 @@
   편집 화면 롱프레스 이미지 토글, 안내문구) 양쪽에서 관련 코드 전부 제거.
 - **(보류) 운동 종목 DB 9필드 재구축**: 부위 8개 유지 + 종목별 세부부위/장비/운동패턴/
   단측여부/기본단위/난이도 구조화 작업은 사용자가 첨부한 표준 DB(144종)와 병합 검토 중.
-  다음 세션에서 이어서 확정 예정 — 이번 반영분에는 포함되지 않음.
+  다음 세션에서 이어서 확정 예정 - 이번 반영분에는 포함되지 않음.
 
 [2026-08-02] 홈/캘린더/기록/리포트/MY 버그수정+기능개선 (18건 요청 중 16건 코드 반영, 1건 보류, 1건 설계문서만)
 - **[근본원인 수정] 날짜 UTC 버그**: `new Date().toISOString().slice(0,10)`가 UTC 기준이라
@@ -820,7 +827,7 @@
   타이머 자체는 이미 Date.now() 기반(벽시계 계산)이라 탭 전환에 안전했음을 확인.
 - **운동 시작 알림**: 알림 설정이 켜져 있고 권한이 허용된 경우, 운동 시작 시 OS 알림 발송.
 - **골드버튼 텍스트 대비**: "시작"/세트완료 체크 버튼 전용 신규 토큰
-  `--color-on-gold-button`(베이지) 추가(디자인가이드 v2.2, 별도 문서 전달 — 프로젝트
+  `--color-on-gold-button`(베이지) 추가(디자인가이드 v2.2, 별도 문서 전달 - 프로젝트
   지식의 디자인가이드 문서 갱신 필요).
 - **세트완료 체크 색상**: "시작" 버튼과 구분이 잘 안 되던 문제로, 완료 표시를
   `--color-success`(초록)+흰색으로 확실히 구분.
@@ -834,7 +841,7 @@
   루틴에 없는 것만, 별도 화면 이동 없이 완료 팝업 안에서 바로 해당 부위 파트에 추가.
 - **MY탭 등급 카드**: "탭하면 티어 체계와 XP 안내를 볼 수 있어요" 안내문구를 카드 안에서
   섹션 타이틀 옆으로 옮겨 카드 높이 축소.
-- **exercise DB 재설계 (설계만, 미착수)**: `docs/EXERCISE_DB_DESIGN_v1.md` 신규 — 9개 필수
+- **exercise DB 재설계 (설계만, 미착수)**: `docs/EXERCISE_DB_DESIGN_v1.md` 신규 - 9개 필수
   필드 + 선택필드안, 네이밍 규칙([각도/그립]+[장비명]+[운동명], 하체는 접두사 없음, 상체/팔만
   "원암"), 마이그레이션 체크리스트. 실제 라이브러리 데이터 구축은 다음 세션.
 - **보류**: 계정연동 온보딩 구조변경(#16)은 이번 세션에서 다루지 않음.
@@ -842,7 +849,7 @@
   MyPageTab.jsx, src/utils/date.js(신규), src/utils/setEncouragements.js(신규),
   src/styles/tokens.css, docs/EXERCISE_DB_DESIGN_v1.md(신규)
 
-[2026-08-01] 운동 종목명 표기 정리 (22건) — 부위 세분화는 보류, 명칭 일관성만 정리
+[2026-08-01] 운동 종목명 표기 정리 (22건) - 부위 세분화는 보류, 명칭 일관성만 정리
 - 부위 체계(BODY_PART_ATOMS 8개)는 그대로 유지하기로 결정, ExerciseGymGifsDB 기준
   세분화 재구성은 보류.
 - 대신 덤벨/바벨/머신/스미스/케이블 등 장비명 표기가 종목마다 제각각이던 문제를 정리:
@@ -861,21 +868,21 @@
   (예: 백스쿼트, 데드리프트, 클로즈그립벤치프레스는 변경 없음).
 - 부수 효과: getWeightStep()이 종목명에 "덤벨"/"머신"/"케이블" 포함 여부로 증량 단위를
   정하는데, 위 종목들은 이름에 장비 단어가 없어 전부 기본 2.5kg으로 잘못 처리되고
-  있었음 — 이번 개명으로 증량 단위도 자동으로 올바르게 반영됨(덤벨 계열 2kg 등).
+  있었음 - 이번 개명으로 증량 단위도 자동으로 올바르게 반영됨(덤벨 계열 2kg 등).
 - 기존 저장된 기록의 종목명은 과거 값 그대로 유지되며, 과거 기록과의 자동 매칭은
   신경쓰지 않기로 함(2026-07-28 정책과 동일).
 | src/utils/exerciseLibrary.js, src/utils/exerciseImageMap.js
 
-[2026-08-01] 로고/앱 아이콘 전면 교체 — 여백 최소화 + 배경 정리
+[2026-08-01] 로고/앱 아이콘 전면 교체 - 여백 최소화 + 배경 정리
 - 기존 app-icon-mark.png·public/icon-*.png 계열이 전부 원형 플레이트 로고 주변에
   베이지색(#FAF1E7) 정사각 배경이 이미지 자체에 구워져 있어, 둥근 컨테이너에 넣었을 때
   원 바깥 여백이 "박스 테두리"처럼 보이던 문제를 확인. 사용자가 제공한 고해상도
   배경투명 원본(1080x1080)으로 전량 교체.
 - "any" 용도 아이콘(app-icon-mark.png, logo-mark-transparent.png, icon-192.png,
   icon-512.png, apple-touch-icon.png, favicon-32.png)은 여백 최소화한 배경투명 PNG로
-  통일 — 로그인 화면 등 다크 배경 위에 그대로 얹혀도 예전처럼 박스 테두리가 보이지 않음.
+  통일 - 로그인 화면 등 다크 배경 위에 그대로 얹혀도 예전처럼 박스 테두리가 보이지 않음.
 - 마스커블 아이콘(icon-192-maskable.png, icon-512-maskable.png)만 예외적으로 안전영역
-  확보를 위해 로고를 캔버스의 72%로 축소 배치 — 배경색은 manifest.json
+  확보를 위해 로고를 캔버스의 72%로 축소 배치 - 배경색은 manifest.json
   background_color/SplashScreen.jsx와 동일한 베이지(#FAF1E7)를 유지해, 기존에 이미
   해결해둔 "OS 스플래시 vs 인앱 스플래시 배경 불일치" 문제가 재발하지 않도록 함.
 | src/assets/app-icon-mark.png, src/assets/logo-mark-transparent.png,
@@ -890,7 +897,7 @@
 - 이미지 연동 방식 전면 교체: free-exercise-db(정지 이미지) → ExerciseGymGifsDB(GIF, jsDelivr
   CDN). URL을 muscle/slug로 직접 조립하는 방식이라 더 이상 전체 데이터셋을 fetch/캐싱할
   필요가 없어져 exerciseImageApi.js가 단순해짐. 약 75개 종목 매핑을 새 데이터셋 기준으로
-  재작성(⑤) — 라이선스가 free-exercise-db(Unlicense)만큼 깨끗하진 않다는 점 확인 후
+  재작성(⑤) - 라이선스가 free-exercise-db(Unlicense)만큼 깨끗하진 않다는 점 확인 후
   사용자 확인 하에 진행 | exerciseImageMap.js, exerciseImageApi.js, ExerciseGuideImage.jsx
 - 기록탭: 완료된 종목의 자리는 고정하고, 미완료 종목을 드래그해 완료된 종목 자리 "위"로
   넘기지 못하도록 handleReorder에 제약 추가(⑥) | WorkoutInput.jsx
@@ -923,7 +930,7 @@
   강하다는 피드백. 앱 아이콘(덤벨 플레이트)의 짙은 회색을 배경으로, 베이지를 텍스트로
   쓰는 새 토큰(--color-fill-strong/--color-on-fill) 추가. primary-normal/on-gold(리포트
   숫자·차트 등 텍스트 강조용)는 그대로 둬서 영향받지 않고, ui.jsx 버튼(primary)과
-  CalendarView 선택 날짜 배경/뱃지 텍스트만 새 토큰을 쓰도록 변경 — 캘린더에서 날짜
+  CalendarView 선택 날짜 배경/뱃지 텍스트만 새 토큰을 쓰도록 변경 - 캘린더에서 날짜
   선택 시 배지가 안 보이던 문제도 같이 해결됨 | tokens.css, ui.jsx, CalendarView.jsx
 - 노티바(브라우저 상태표시줄 theme-color)가 베이지 테마에서도 다크와 같은 쨍한 골드
   (#FFC94D)를 쓰고 있던 것을 확인, 베이지는 위 짙은 회색(#3A3A3A)을 쓰도록 분기 추가 |
@@ -964,7 +971,7 @@
   "화이트+블루" 표기에서 변경) | tokens.css, App.jsx, MyPageTab.jsx, storage.js(주석)
 - 프로필 사진 크롭 모달 신규: 사진 선택 시 바로 업로드하지 않고, 원형 뷰포트 안에서
   드래그로 위치를 옮기고 슬라이더로 확대/축소해 원하는 영역만 잘라 업로드할 수 있도록
-  변경(기존에는 원본 전체를 비율만 유지한 채 축소해 업로드 — 실질적인 "크롭"이 아니었음).
+  변경(기존에는 원본 전체를 비율만 유지한 채 축소해 업로드 - 실질적인 "크롭"이 아니었음).
   새 npm 의존성 추가 없이 canvas + pointer 이벤트만으로 구현. 확정 시 나온 정사각형
   Blob은 기존 uploadProfilePhoto/resizeImageForProfile 파이프라인에 그대로 전달되어
   512px 이하로 재압축됨(용량 문제 추가 개선) | PhotoCropModal.jsx(신규), MyPageTab.jsx
@@ -1008,7 +1015,7 @@
 - 업로드한 사진이 있을 때만 "사진 삭제" 버튼 노출 → 확인 팝업 후 Storage 파일 삭제 +
   profilePhotoURL을 null로 되돌려 구글 사진/플레이스홀더로 복귀 | MyPageTab.jsx, storage.js
 - 이 프로젝트 최초로 Firebase Storage 연동: firebase.js에 getStorage 추가, 저장소
-  루트에 storage.rules 신규 생성(본인 uid 경로만 쓰기/삭제, 5MB·이미지 타입 검증 —
+  루트에 storage.rules 신규 생성(본인 uid 경로만 쓰기/삭제, 5MB·이미지 타입 검증 -
   firestore.rules와 별도로 `firebase deploy --only storage:rules`로 배포 필요) |
   firebase.js, storage.rules
 - 데이터 모델(8.5) users/{uid}에 profilePhotoURL 필드 추가
@@ -1088,7 +1095,7 @@
   있음을 확인, 별도 코드 수정 없이 남겨둠(배포본이 PWA 서비스워커 캐시로 최신 빌드를
   못 받아온 것일 가능성 있어 재확인 권장) | exerciseLibrary.js(변경 없음, 검증만)
 - 참고: getMyInquiries가 where(uid==)+orderBy(createdAt) 복합 쿼리를 쓰므로, 최초 실행
-  시 Firebase 콘솔에 복합 인덱스 생성 안내(링크)가 뜰 수 있음 — 뜨면 그 링크로 인덱스
+  시 Firebase 콘솔에 복합 인덱스 생성 안내(링크)가 뜰 수 있음 - 뜨면 그 링크로 인덱스
   생성 필요
 - 참고: "문의 관리" 화면을 쓰려면 본인 계정의 Firestore users/{uid}.role을 '관리자'로
   직접 한 번 바꿔줘야 함(관리자 지정 화면은 아직 없음, Phase2 대상)
@@ -1099,7 +1106,7 @@
   터치(touchstart/mousedown)하는 즉시 닫히도록 변경. click 완료를 기다리지 않고 터치 시작
   시점에 바로 닫힘 | RoutineSetup.jsx
 - 위 요건을 만족하기 위해 파트(PartEditor)별로 따로 관리하던 열림 상태(Set)를 화면 전체
-  기준 단일 상태(openGuideName)로 상위 컴포넌트(RoutineSetup)에 끌어올림 — 화면 전체에서
+  기준 단일 상태(openGuideName)로 상위 컴포넌트(RoutineSetup)에 끌어올림 - 화면 전체에서
   이미지는 한 번에 하나만 열릴 수 있음 | RoutineSetup.jsx
 - 시작/종료 자세 토글 버튼 영역에 data-guide-toggle-controls 속성을 추가해, 이 영역만
   "바깥 터치" 판정에서 제외되도록 처리 | ExerciseGuideImage.jsx
@@ -1124,7 +1131,7 @@
   렌더링 시점에 따라 로고가 떴다 사라지는 것처럼 보이는 문제가 재발함
 - icon-512.png의 배경색(#0A0A0B, 단색 RGBA(10,10,11,255))만 정확히 투명 처리한
   새 워터마크 전용 이미지(src/assets/logo-mark-transparent.png, 신규)를 생성하고,
-  mixBlendMode/grayscale 블렌드 트릭을 제거한 뒤 이 이미지를 그대로 사용하도록 교체 —
+  mixBlendMode/grayscale 블렌드 트릭을 제거한 뒤 이 이미지를 그대로 사용하도록 교체 -
   다크/라이트 테마 배경색과 무관하게 항상 자연스럽게 보임. 위치/크기(168x168)/
   opacity(0.16)/pointerEvents:none 등 기존 연출은 유지 | WorkoutInput.jsx,
   src/assets/logo-mark-transparent.png(신규)
@@ -1201,7 +1208,7 @@
 - 배지/부위 텍스트가 같은 px값인데도 다르게 커 보이던 문제의 원인이 모바일 크롬의 자동
   텍스트 확대(font boosting)로 파악되어 전역으로 text-size-adjust:100% 적용 | tokens.css
 - 날짜 선택 시 그 날짜 셀(data-caldate 속성)을 화면(홈탭 스크롤 컨테이너) 상단으로
-  scrollIntoView — 같은 행(週)의 나머지 날짜도 함께 상단에 오게 되어 하단 상세 정보가
+  scrollIntoView - 같은 행(週)의 나머지 날짜도 함께 상단에 오게 되어 하단 상세 정보가
   바로 보임 | CalendarView.jsx
 - 캘린더 좌우 스와이프로 월 이동 추가(가로/세로 이동량 비교로 판정, 기존 ‹›버튼과 병행) |
   CalendarView.jsx
@@ -1213,14 +1220,14 @@
   변경마다 tag 고정으로 교체). RestTimer의 휴식종료 알림에도 동일하게 아이콘 지정 |
   App.jsx, RestTimer.jsx
   - 참고: 안드로이드 Chrome이 보여주는 "Chrome 아이콘+사이트명" 시스템 백그라운드 배너는
-    OS/브라우저가 직접 그리는 것이라 웹 코드로 문구·아이콘을 바꾸거나 숨길 수 없음 —
+    OS/브라우저가 직접 그리는 것이라 웹 코드로 문구·아이콘을 바꾸거나 숨길 수 없음 -
     "홈 화면에 추가(설치)" 후 standalone 실행 시에만 그 배너 자체가 앱 고유 아이콘/이름으로
     바뀐다(아래 설치 배너가 실질적 해결책).
 - PWA 미설치 상태로 최초 접속 시 상단에 "홈 화면에 추가" 유도 배너 표시
   (beforeinstallprompt 활용, 닫으면 재노출 안 함) | src/components/InstallBanner.jsx(신규),
   main.jsx(배너 마운트 + 서비스워커 등록), public/sw.js(신규, 설치가능성 조건 충족용)
 - 리포트탭 "부위별 운동 추이" 레이더차트 카드 여백 추가 축소(height 380→300,
-  padding 6px→2px, 차트 내부 margin 34→26 — outerRadius(%)는 그대로 둬 컨테이너가
+  padding 6px→2px, 차트 내부 margin 34→26 - outerRadius(%)는 그대로 둬 컨테이너가
   작아지면 반지름도 비례 축소되어 라벨 잘림 위험 없이 여백만 줄어드는 방식) | ReportTab.jsx
 
 [2026-07-30] 홈탭/기록탭/리포트탭 UI 정리·버그수정 6건 반영
@@ -1230,7 +1237,7 @@
   "웜N분 본N분" 한 줄 표기로 축약, 단위(분/세트) 폰트를 8px→7px로 추가 축소 | CalendarView.jsx
 - 홈탭(캘린더): 날짜에 기록 추가/수정 폼을 연 상태에서 캘린더의 다른 날짜를 다시 선택하면
   상단 선택 날짜(selectedDate)만 바뀌고 폼 안 날짜 인풋(editDraft.date)은 이전 날짜에
-  머물러 있던 버그 수정 — selectedDate 변경 시 열려 있는 폼의 날짜 인풋도 함께 동기화 |
+  머물러 있던 버그 수정 - selectedDate 변경 시 열려 있는 폼의 날짜 인풋도 함께 동기화 |
   CalendarView.jsx
 - 기록탭: 웜업 시작 전 하단 로고 워터마크가 너무 어둡게(opacity 0.07) 보이던 문제로 밝기
   상향(0.07→0.16, 그레이스케일은 유지) | WorkoutInput.jsx
@@ -1342,7 +1349,7 @@
   아이콘 버튼과 숫자 스테퍼 입력창의 세로 정렬 기준을 통일(높이 28→34px, 정렬 flex-end→center)
   | WorkoutInput.jsx
 
-[2026-07-29] 디자인 가이드 v2(매트블랙골드) 전면 적용 — 배경/아이콘/파트 컬러/앱 아이콘 교체
+[2026-07-29] 디자인 가이드 v2(매트블랙골드) 전면 적용 - 배경/아이콘/파트 컬러/앱 아이콘 교체
 - (1) tokens.css: 화이트+블루+쿨그레이(v1) → 매트블랙+골드(v2) 팔레트로 값 교체. 변수명은
   유지하고 값만 교체해 컴포넌트 코드 변경 없이 전체 화면에 캐스케이드 적용
   | tokens.css
@@ -1603,7 +1610,7 @@ CHANGELOG
   |    재구현. 세트완료/오늘만 숨김 등 기존 동작은 그대로 유지
   | 4) CalendarView.jsx: 세션 타입 표기 '사이클 운동' → '내 루틴 운동'으로 통일
 
-[2026-07-28] 홈/MY/기록 탭 개편 3건 (사용자 요청 반영, 확정 스펙 변경 포함 — 사전 확인 후 진행)
+[2026-07-28] 홈/MY/기록 탭 개편 3건 (사용자 요청 반영, 확정 스펙 변경 포함 - 사전 확인 후 진행)
   | 1) MY탭 '운동방식' 전면 교체: 고정 5분할(무분할~5분할) 프리셋을 없애고, 공식 7개 부위
   |    (가슴/등/팔/어깨/코어/하체/유산소, exerciseLibrary.js BODY_PART_ATOMS)를 자유 조합해
   |    "내 루틴"을 최대 5개까지 만들고 각각 이름을 붙이는 구조로 전환.
@@ -1655,7 +1662,7 @@ CHANGELOG
 [2026-07-30] 홈/기록/MY/리포트탭 UX 개선 9건 (사용자 피드백)
   | 1) CalendarView.jsx: 캘린더 셀에 "오늘" 표시를 선택/기록 여부와 무관하게 항상 유지(테두리).
   | 2) CalendarView.jsx: daySummary()에서 웜업/본운동 시간을 분리 표시(기존에 저장만 되고 화면에
-  |    안 쓰이던 WorkoutInput.jsx의 warmupActualSec 필드를 활용 — 데이터 구조 변경 없음, 값이
+  |    안 쓰이던 WorkoutInput.jsx의 warmupActualSec 필드를 활용 - 데이터 구조 변경 없음, 값이
   |    없는 과거 기록은 기존처럼 합산 표시). 유산소는 세트수 대신 누적 시간(분)으로, 근력 부위는
   |    "OO세트" 단위를 붙여 표기.
   | 3) CalendarView.jsx, ui.jsx: 운동 추가 시 부위 선택에 따라 종목 칩에 PART_COLORS 색상 적용,
@@ -1667,7 +1674,7 @@ CHANGELOG
   | 5) WorkoutInput.jsx, LogTab.jsx, App.jsx: 내 루틴 템플릿이 0개일 때 안내 문구(내 루틴이 뭔지,
   |    왜 쓰는지) + "MY 탭에서 내 루틴 만들기" 버튼 추가. 버튼은 onGoToRoutineSetup prop을 통해
   |    App.jsx의 setManagingRoutines(true)를 호출해 루틴 설정 화면으로 바로 이동시킨다.
-  | 6) exerciseLibrary.js: SPLIT_TEMPLATE_PRESETS 전면 개편 — 2/3/4분할 모두 각 파트 끝에
+  | 6) exerciseLibrary.js: SPLIT_TEMPLATE_PRESETS 전면 개편 - 2/3/4분할 모두 각 파트 끝에
   |    코어·유산소를 기본 포함하도록 재구성하고, 3분할은 등&이두 / 가슴&삼두 / 하체&어깨 조합으로
   |    교체. 5분할 프리셋 신규 추가(기존에는 2/3/4분할만 존재).
   | 7) storage.js: MAX_ROUTINE_TEMPLATES 8 → 5로 축소. saveRoutineTemplate의 신규 생성 분기에서만

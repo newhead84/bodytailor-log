@@ -1,4 +1,4 @@
-# 셀프 PT 로그 — 독립 웹앱
+# 셀프 PT 로그 - 독립 웹앱
 
 Claude 아티팩트로 만든 운동 기록 앱을 실제 배포 가능한 웹앱(PWA)으로 바꾼 버전입니다.
 데이터는 Firebase(Firestore)에 저장되고, Firebase Hosting 또는 Vercel로 배포하면
@@ -94,7 +94,7 @@ git push -u origin main
 
 `.env`는 `.gitignore`에 포함되어 있어 GitHub에는 올라가지 않습니다 (안전).
 
-## 5. 배포하기 — 둘 중 하나 선택
+## 5. 배포하기 - 둘 중 하나 선택
 
 ### 옵션 A: Firebase Hosting (Firebase에 다 몰아서 관리하고 싶을 때)
 

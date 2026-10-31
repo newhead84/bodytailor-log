@@ -95,7 +95,7 @@ export function getLevelInfo(xp) {
   }
 }
 
-// 단계(티어)별 Lv 범위 — 등급 안내 화면용
+// 단계(티어)별 Lv 범위 - 등급 안내 화면용
 export function stageLevelRange(tierKey) {
   const idx = TIERS.findIndex((t) => t.key === tierKey)
   if (idx < 0) return null

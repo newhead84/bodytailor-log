@@ -1,5 +1,5 @@
 // StretchGuide.jsx
-// [2026-10-30 신규] 스트레칭 가이드 — "어디가 불편해요?" → 상황(운동 전/후/오래 앉아 있었을 때) → 스트레칭 카드.
+// [2026-10-30 신규] 스트레칭 가이드 - "어디가 불편해요?" → 상황(운동 전/후/오래 앉아 있었을 때) → 스트레칭 카드.
 //  - StretchGuide: HOWTO 탭 "스트레칭" 화면
 //  - StretchSuggest: 운동 화면(웜업 중 동적 3개) · 완료 요약(쿨다운 정적 3개)용 작은 카드
 // 데이터는 utils/stretches.js(저장하지 않음). 영상은 YouTube 검색 링크로만 연결(이미지·영상 미탑재).
@@ -70,7 +70,7 @@ export function StretchCard({ s, defaultOpen = false, compact = false }) {
 export function StretchGuide() {
   const [area, setArea] = useState(null)
   const [situation, setSituation] = useState(null)
-  const [query, setQuery] = useState('') // [2026-10-31] 검색(이름·통용 명칭·부위) — 입력하면 부위·상황 선택 대신 검색 결과
+  const [query, setQuery] = useState('') // [2026-10-31] 검색(이름·통용 명칭·부위) - 입력하면 부위·상황 선택 대신 검색 결과
   const searching = query.trim().length > 0
   const list = useMemo(() => (searching ? searchStretches(query) : getStretches({ area, situation })), [searching, query, area, situation])
   const areaInfo = STRETCH_AREAS.find((a) => a.id === area)
@@ -140,8 +140,8 @@ export function StretchGuide() {
       <Card style={{ padding: '4px 16px 4px' }}>
         <div style={{ padding: '10px 0 8px', fontSize: 12.5, color: 'var(--color-label-neutral)' }} className="text-keep-all">
           {searching
-            ? `"${query.trim()}" 검색 결과 ${list.length}개 — 눌러서 방법 보기`
-            : `${areaInfo ? `${areaInfo.label}` : '모든 부위'} · ${situation ? STRETCH_SITUATIONS.find((x) => x.id === situation)?.label : '모든 상황'} · ${list.length}개 — 눌러서 방법 보기`}
+            ? `"${query.trim()}" 검색 결과 ${list.length}개 · 눌러서 방법 보기`
+            : `${areaInfo ? `${areaInfo.label}` : '모든 부위'} · ${situation ? STRETCH_SITUATIONS.find((x) => x.id === situation)?.label : '모든 상황'} · ${list.length}개 · 눌러서 방법 보기`}
         </div>
         {list.length === 0 ? (
           <div className="text-keep-all" style={{ padding: '12px 0 14px', borderTop: '1px solid var(--color-line)', fontSize: 13, color: 'var(--color-label-neutral)' }}>

@@ -41,7 +41,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const [themePreference, setThemePreferenceState] = useState(userDoc?.themePreference || DEFAULT_THEME)
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
-  // [2026-10-31 Phase2 P2-2] 담당 트레이너(활성 연결) — PT회원에게 표시, 회원이 직접 해제 가능
+  // [2026-10-31 Phase2 P2-2] 담당 트레이너(활성 연결) - PT회원에게 표시, 회원이 직접 해제 가능
   const [trainerConn, setTrainerConn] = useState(null)
   const [trainerProfile, setTrainerProfile] = useState(null) // [2026-10-31] 담당 트레이너 프로필(사진)
   useEffect(() => {
@@ -64,7 +64,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const [pickingSplitTemplate, setPickingSplitTemplate] = useState(false)
   const [addingTemplateKey, setAddingTemplateKey] = useState(null)
   const [templateError, setTemplateError] = useState('')
-  // [2026-07-30 신규] MY탭 "내 커스텀 종목" — 부위별로 나만 보이는 운동명을 추가/삭제.
+  // [2026-07-30 신규] MY탭 "내 커스텀 종목" - 부위별로 나만 보이는 운동명을 추가/삭제.
   const [customExercisePart, setCustomExercisePart] = useState(BODY_PART_ATOMS[0])
   const [customExerciseInput, setCustomExerciseInput] = useState('')
   const [savingCustomExercise, setSavingCustomExercise] = useState(false)
@@ -88,7 +88,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   // [2026-10-29 등급 리뉴얼] Lv 숫자 + 단계명
   const levelInfo = getLevelInfo(xp)
 
-  // [2026-10-29 신규] 이름 붙은 성취 — 전체 기록에서 계산(저장 안 함). Firestore 읽기를 아끼려고 MY 탭을 볼 때만,
+  // [2026-10-29 신규] 이름 붙은 성취 - 전체 기록에서 계산(저장 안 함). Firestore 읽기를 아끼려고 MY 탭을 볼 때만,
   // 그리고 새 기록이 생겼을 때(lifetimeXp 변화)만 다시 읽는다.
   const [achievementLogs, setAchievementLogs] = useState(null)
   const [achievementsXpKey, setAchievementsXpKey] = useState(null)
@@ -243,7 +243,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     await updateUserProfile(uid, { fontPreference: font })
     await onProfileUpdated?.()
   }
-  // [2026-10-29] RIR(남은 여력) 기록 켜기/끄기 — 안 쓰는 사용자는 세트 줄에서 RIR 칸을 숨긴다
+  // [2026-10-29] RIR(남은 여력) 기록 켜기/끄기 - 안 쓰는 사용자는 세트 줄에서 RIR 칸을 숨긴다
   const [rirEnabled, setRirEnabledState] = useState(userDoc?.rirEnabled !== false)
   useEffect(() => {
     setRirEnabledState(userDoc?.rirEnabled !== false)
@@ -279,7 +279,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     await onProfileUpdated?.()
   }
 
-  // "분할운동 템플릿" — 트레이너들이 자주 쓰는 2/3/4분할 프리셋을 그대로
+  // "분할운동 템플릿" - 트레이너들이 자주 쓰는 2/3/4분할 프리셋을 그대로
   // 새 "내 루틴"으로 추가한다. 파트/종목은 이후 MY탭 "운동조합 변경"에서 자유롭게 수정 가능.
   async function handleAddSplitTemplate(preset) {
     if ((routineTemplates || []).filter(isOwnRoutine).length >= MAX_ROUTINE_TEMPLATES) {
@@ -351,7 +351,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)' }}>설정</span>
         </div>
       {/* [2026-10-28] 스타일 C 택타일 웜 고정(선택 없음). 테마 3종·강조색·폰트·기록 방식만 선택. */}
-      {/* [2026-10-29] 기본은 접힌 상태 — 현재 조합 한 줄 + "설정 바꾸기"를 눌러야 선택지가 열린다(사용자 요청). */}
+      {/* [2026-10-29] 기본은 접힌 상태 - 현재 조합 한 줄 + "설정 바꾸기"를 눌러야 선택지가 열린다(사용자 요청). */}
       <SectionTitle>디자인</SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <button
@@ -474,7 +474,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </div>
       </Card>
 
-      {/* [2026-10-27 리뉴얼 W2] 내 기록 내보내기(CSV) — 데이터는 언제든 내 것 */}
+      {/* [2026-10-27 리뉴얼 W2] 내 기록 내보내기(CSV) - 데이터는 언제든 내 것 */}
       <SectionTitle>데이터</SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-normal)' }}>
@@ -485,7 +485,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </Button>
       </Card>
 
-      {/* [2026-10-30] 홍보 페이지(/intro/) — 친구에게 앱을 소개할 때 */}
+      {/* [2026-10-30] 홍보 페이지(/intro/) - 친구에게 앱을 소개할 때 */}
       <SectionTitle>앱 소개</SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-normal)' }}>
@@ -537,7 +537,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       <SectionTitle>프로필</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
-          {/* [2026-10-29] 프로필 수정 버튼은 카드 안(사진 아래)으로 — 우상단 자리는 설정 아이콘 */}
+          {/* [2026-10-29] 프로필 수정 버튼은 카드 안(사진 아래)으로 - 우상단 자리는 설정 아이콘 */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
             {profilePhotoURL ? (

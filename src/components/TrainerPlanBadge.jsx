@@ -1,4 +1,4 @@
-// TrainerPlanBadge.jsx — [2026-10-31 Phase2 P2-3] 트레이너가 만든 계획(routineTemplates.byTrainer) 표시
+// TrainerPlanBadge.jsx - [2026-10-31 Phase2 P2-3] 트레이너가 만든 계획(routineTemplates.byTrainer) 표시
 import React from 'react'
 
 export default function TrainerPlanBadge({ t }) {

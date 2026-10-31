@@ -1,10 +1,10 @@
-// legal.js — [2026-10-31 신규] 개인정보 동의·면책 문구·운영자 정보(한곳에서 관리)
+// legal.js - [2026-10-31 신규] 개인정보 동의·면책 문구·운영자 정보(한곳에서 관리)
 // 동의 문구나 처리방침이 크게 바뀌면 CONSENT_VERSION을 올린다 → 모든 계정이 다음 접속 때 한 번 다시 동의한다.
 // 처리방침 전문은 public/privacy/index.html(로그인 없이 열림). 운영자 정보가 바뀌면 두 곳을 함께 고친다.
 
 export const CONSENT_VERSION = '2026-10-31'
 
-// 운영자 정보 — 개인정보 보호책임자 이름·연락처는 운영자가 확정해 채운다(처리방침 public/privacy/index.html도 같이).
+// 운영자 정보 - 개인정보 보호책임자 이름·연락처는 운영자가 확정해 채운다(처리방침 public/privacy/index.html도 같이).
 export const OPERATOR = {
   service: 'BodyTailor Log',
   name: '바디테일러 PT&헬스',

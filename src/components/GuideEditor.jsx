@@ -1,4 +1,4 @@
-// GuideEditor.jsx — [2026-10-31] 트레이너·관리자용 운동 가이드 수정 화면(HOWTO 종목 상세 → "가이드 수정")
+// GuideEditor.jsx - [2026-10-31] 트레이너·관리자용 운동 가이드 수정 화면(HOWTO 종목 상세 → "가이드 수정")
 // 한 줄에 하나씩 입력. 핵심 포인트는 "핵심 | 느낌", 흔한 실수는 "실수 | 이유 | 고치는 법" 형식. 저장하면 회원 앱 전체에 바로 반영.
 import React, { useState } from 'react'
 import { Button, Card, useConfirm } from './ui'
@@ -93,7 +93,7 @@ export default function GuideEditor({ name, guide, hasOverride, editor, allNames
         </label>
         <label style={lab}>난이도
           <select value={f.level} onChange={set('level')} style={field}>
-            <option value="">— 표시 안 함 —</option>
+            <option value="">표시 안 함</option>
             {['초급', '중급', '고급'].map((l) => <option key={l}>{l}</option>)}
           </select>
         </label>

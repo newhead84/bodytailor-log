@@ -115,7 +115,7 @@ export function inputHint(name) {
 
 // 기록(log) 1건의 볼륨을 세트에서 다시 계산(웜업 제외, 중량형만). 저장된 log.totalVolume은 저장 당시 규칙이라
 // [2026-10-29] 덤벨·한쪽씩 ×2, 보조·추가 중량 반영 이전 기록과 섞어 비교하면(랭킹 볼륨 점수·디로드·주간 볼륨)
-// 새 규칙 기록만 커 보인다 — 비교용 합계는 항상 이 함수로 같은 규칙에서 계산한다.
+// 새 규칙 기록만 커 보인다 - 비교용 합계는 항상 이 함수로 같은 규칙에서 계산한다.
 export function logVolumeKg(log) {
   return (log?.exercises || []).reduce((sum, ex) => {
     const type = ex.inputType || getExerciseInputType(ex.name)

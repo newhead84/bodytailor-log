@@ -1,12 +1,12 @@
 <!doctype html>
-<!-- BodyTailor Log 개인정보 처리방침 (/privacy/) — 2026-10-31 신규(법적 정비). 로그인 없이 열리는 정적 페이지.
+<!-- BodyTailor Log 개인정보 처리방침 (/privacy/) - 2026-10-31 신규(법적 정비). 로그인 없이 열리는 정적 페이지.
      앱 동의 화면(src/components/ConsentScreen.jsx)·utils/legal.js와 내용을 함께 맞춘다. 크게 바뀌면 legal.js CONSENT_VERSION을 올린다.
      TODO(운영자): 아래 "개인정보 보호책임자"의 이름·연락처를 채운다. -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>개인정보 처리방침 — BodyTailor Log</title>
+<title>개인정보 처리방침 | BodyTailor Log</title>
 <meta name="robots" content="index,follow" />
 <link rel="icon" href="/favicon-32.png" sizes="32x32" />
 <style>
@@ -38,7 +38,7 @@ a{color:var(--t1)}
 
 <h2>1. 처리 목적</h2>
 <ul>
-<li>헬스장 회원 확인과 가입 승인, 회원권(앱 사용 기간) 관리</li>
+<li>헬스장 회원 확인과 가입 승인, 회원권(앱 사용 기간)·휴회·재등록 상담 관리</li>
 <li>운동 기록 저장, 통계·리포트·다음 무게 추천, 등급·성취 제공</li>
 <li>목표·신체 정보에 맞춘 반복·휴식·세트 기준 계산</li>
 <li>랭킹(닉네임·점수) 제공</li>
@@ -49,18 +49,20 @@ a{color:var(--t1)}
 <h2>2. 처리하는 개인정보 항목</h2>
 <div class="wrap-x"><table>
 <tr><th>구분</th><th>항목</th></tr>
-<tr><td>필수 — 계정</td><td>구글 계정 이메일·이름·계정 식별값(로그인), 닉네임</td></tr>
-<tr><td>필수 — 회원 확인</td><td>이름, 휴대폰 번호(원문은 저장하지 않고 변환값(해시)과 뒤 4자리만 저장), 헬스장 회원번호·회원권 기간(헬스장 명단 대조 시)</td></tr>
-<tr><td>필수 — 신체 정보(별도 동의)</td><td>성별, 나이, 몸무게, 키, 운동 목표, 주당 운동 일수</td></tr>
-<tr><td>필수 — 이용 기록</td><td>운동 기록(종목·무게·횟수·시간 등), 루틴, 랭킹 점수, 앱 설정</td></tr>
+<tr><td>필수: 계정</td><td>구글 계정 이메일·이름·계정 식별값(로그인), 닉네임</td></tr>
+<tr><td>필수: 회원 확인</td><td>이름, 휴대폰 번호(원문은 저장하지 않고 변환값(해시)과 뒤 4자리만 저장), 헬스장 회원번호·회원권 기간(헬스장 명단 대조 시)</td></tr>
+<tr><td>필수: 신체 정보(별도 동의)</td><td>성별, 나이, 몸무게, 키, 운동 목표, 주당 운동 일수</td></tr>
+<tr><td>필수: 이용 기록</td><td>운동 기록(종목·무게·횟수·시간 등), 루틴, 랭킹 점수, 앱 설정</td></tr>
 <tr><td>선택</td><td>1:1 문의 내용</td></tr>
-<tr><td>PT 회원</td><td>PT 일정·남은 횟수·이용 날짜(담당 트레이너가 기록)</td></tr>
+<tr><td>PT 회원</td><td>PT 일정·남은 횟수·이용 날짜·노쇼 여부(담당 트레이너가 기록)</td></tr>
+<tr><td>헬스장 관리</td><td>회원권·휴회 기간, 마지막 운동일·주별 운동 일수·마지막 운동 부위(운동 기록 내용은 아님), 관리자 메모·재등록 상담 결과, 관리 변경 이력(누가 언제 무엇을 바꿨는지)</td></tr>
 </table></div>
 <p>운영자는 만 14세 미만 아동의 개인정보를 받지 않습니다. 가입할 때 만 14세 이상인지 확인합니다.</p>
 
 <h2>3. 보유·이용 기간과 파기</h2>
 <ul>
 <li>탈퇴(앱 MY › 설정 › 계정 삭제)할 때까지 보관하고, 탈퇴하면 운동 기록·루틴·랭킹·문의·프로필(신체 정보 포함)을 즉시 지웁니다.</li>
+<li>관리자 메모·상담 결과·관리 변경 이력은 헬스장 회원 관리 기간 동안 보관한 뒤 지웁니다.</li>
 <li>PT 이용 기록(날짜·횟수)과 헬스장 출입 명단 대조 정보는 헬스장 회원 계약·정산을 위해 헬스장 회원 관리 기간 동안 보관한 뒤 지웁니다.</li>
 <li>개인 식별 정보가 없는 부위별 인기 운동 집계 수치는 남을 수 있습니다.</li>
 <li>같은 계정 식별값이 다시 쓰이지 않도록 탈퇴한 계정의 식별값(무작위 문자열)과 탈퇴 시각만 남깁니다(이름·연락처 등 다른 정보 없음).</li>
@@ -68,6 +70,7 @@ a{color:var(--t1)}
 </ul>
 
 <h2>4. 제3자 제공</h2>
+<p>헬스장 관리자는 회원 관리를 위해 회원권·PT 정보와 운동 요약(마지막 운동일·주별 운동 일수·부위)을 볼 수 있지만, 운동 기록 내용(종목·무게·세트)은 보지 않습니다. 관리자 메모와 상담 결과는 관리자만 봅니다. 요일·시간대별 이용 통계는 누가 운동했는지 알 수 없는 익명 집계로만 만듭니다.</p>
 <p>운영자는 이용자의 개인정보를 제3자에게 제공하지 않습니다. 다만 법령에 따라 요구되는 경우는 예외로 합니다. PT 회원의 신체 정보·운동 목표·운동 기록은 같은 헬스장의 담당 트레이너가 PT 진행을 위해 볼 수 있으며(읽기 전용), 트레이너 연결이 끝나면 바로 볼 수 없게 됩니다.</p>
 
 <h2>5. 처리 위탁과 국외 이전</h2>
@@ -81,7 +84,7 @@ a{color:var(--t1)}
 <tr><td>Google LLC (Firebase Authentication · Cloud Firestore)</td><td>미국 등 Google 데이터센터 국가</td><td>로그인, 위 2번의 모든 항목 저장</td></tr>
 <tr><td>Vercel Inc.</td><td>미국 등 Vercel 서버 국가</td><td>앱 화면 제공(접속 기록은 Vercel이 서비스 운영을 위해 처리)</td></tr>
 </table></div>
-<p>연락처: Google — <a href="https://support.google.com/policies" rel="noopener">support.google.com/policies</a> · Vercel — <a href="https://vercel.com/legal/privacy-policy" rel="noopener">vercel.com/legal/privacy-policy</a></p>
+<p>연락처: Google: <a href="https://support.google.com/policies" rel="noopener">support.google.com/policies</a> · Vercel: <a href="https://vercel.com/legal/privacy-policy" rel="noopener">vercel.com/legal/privacy-policy</a></p>
 
 <h2>6. 이용자의 권리와 행사 방법</h2>
 <ul>

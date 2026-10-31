@@ -28,8 +28,9 @@ import {
 import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises } from './utils/exerciseLibrary'
 import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey } from './utils/strength'
 import { getSeasonPeriod } from './utils/season'
+import { weekStartStr } from './utils/date'
 
-// ───────────── exercisePopularity/{atom} — 부위별 "다른 유저 즐겨찾는 운동" 공개 집계 ─────────────
+// ───────────── exercisePopularity/{atom} - 부위별 "다른 유저 즐겨찾는 운동" 공개 집계 ─────────────
 // [2026-07-31 신규] 개인정보 없이 "부위(atom) → 종목명 → 수행 횟수"만 담는 공개 집계 문서.
 // 라이브러리에 등록된 종목(getExerciseAtom이 null이 아닌 경우)만 집계하고, 사용자가 직접 추가한
 // 커스텀 종목명은 제외한다(롱테일 방지). 로그 저장 시마다 호출되며 실패해도 기록 저장 자체는
@@ -93,7 +94,7 @@ async function fetchExercisePopularityByAtom(atoms) {
   return results
 }
 
-// ───────────── inquiries/{inquiryId} — MY탭 1:1 문의 + 관리자 답변 ─────────────
+// ───────────── inquiries/{inquiryId} - MY탭 1:1 문의 + 관리자 답변 ─────────────
 // [2026-07-31 신규] 이메일 대신 앱 안에서 문의를 남기고 답변을 확인할 수 있게 한다.
 // 관리자(role === '관리자') 계정만 전체 문의를 열람하고 답변을 남길 수 있다.
 export async function submitInquiry(uid, nickname, content) {
@@ -118,7 +119,7 @@ export async function getMyInquiries(uid) {
   const snap = await getDocs(query(col, where('uid', '==', uid)))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt))
 }
-// [2026-10-31] 문의 삭제 — 본인 문의 또는 관리자
+// [2026-10-31] 문의 삭제 - 본인 문의 또는 관리자
 export async function deleteInquiry(inquiryId) {
   await deleteDoc(doc(db, 'inquiries', inquiryId))
 }
@@ -157,7 +158,7 @@ const DEFAULT_USER_DOC = {
   roleRequestStatus: 'none',
   nickname: '',
   profile: { name: '', phone: '', gymMemberNo: '' },
-  onboarding: null, // { gender, age, weightKg, heightCm, goals: [] } — [2026-07-28] level(운동 수준) 질문 제거
+  onboarding: null, // { gender, age, weightKg, heightCm, goals: [] } - [2026-07-28] level(운동 수준) 질문 제거
   onboardingCompleted: false,
   physicalInfoSharedWithTrainer: false,
   restTimerNotificationPermission: false,
@@ -186,7 +187,7 @@ export async function ensureUserDoc(uid, seed = {}) {
   const ref = doc(db, 'users', uid)
   const snap = await getDoc(ref)
   if (!snap.exists()) {
-    // [2026-10-31] 탈퇴 도중 로그인 계정 삭제가 안 된 uid — 새로 만들지 않고 '탈퇴 마치기' 화면으로
+    // [2026-10-31] 탈퇴 도중 로그인 계정 삭제가 안 된 uid - 새로 만들지 않고 '탈퇴 마치기' 화면으로
     const gone = await getDoc(doc(db, 'deletedAccounts', uid)).catch(() => null)
     if (gone?.exists?.()) return { __deleted: true }
     const initial = { ...DEFAULT_USER_DOC, ...seed, createdAt: serverTimestamp() }
@@ -220,7 +221,7 @@ export async function updateUserProfile(uid, partial) {
   await updateDoc(doc(db, 'users', uid), partial)
 }
 
-// [2026-10-27 신규] 종목별 설정(목표 반복·휴식) 한 종목만 갱신 — 종목키에 특수문자가 있어도 안전하게 FieldPath 사용,
+// [2026-10-27 신규] 종목별 설정(목표 반복·휴식) 한 종목만 갱신 - 종목키에 특수문자가 있어도 안전하게 FieldPath 사용,
 // 다른 종목 설정을 덮어쓰지 않는다. 오프라인이면 로컬 대기열에 넣고 진행.
 export function updateExerciseSetting(uid, key, setting) {
   return settleOrTimeout(updateDoc(doc(db, 'users', uid), new FieldPath('exerciseSettings', key), setting))
@@ -231,7 +232,7 @@ export async function setThemePreference(uid, theme) {
   await updateDoc(doc(db, 'users', uid), { themePreference: theme })
 }
 
-// ───────────── users/{uid}.customExercises — 계정 전용 커스텀 종목 ─────────────
+// ───────────── users/{uid}.customExercises - 계정 전용 커스텀 종목 ─────────────
 // [2026-07-30 신규] MY탭에서 부위(atom)별로 사용자가 직접 추가하는 운동명. 전체 사용자
 // 공통 라이브러리(exerciseLibrary.js)에는 영향을 주지 않고, 이 계정에서만 선택 가능하다.
 // Firestore 중첩 필드 경로(`customExercises.${atom}`)에 arrayUnion/arrayRemove로 반영하며,
@@ -256,7 +257,7 @@ export async function removeCustomExercise(uid, atom, name) {
 // 사용자가 부위(BODY_PART_ATOMS)를 자유 조합해 만드는 "내 루틴"을 최대 8개까지 저장하는 구조로 전환.
 // template: { title, order, parts: [{ name, atoms: string[], exercises: string[] }] }
 // (기존 splitType/splitParts/isActive/cycleCount/lastCycleCompletedAt/weeklyFrequencyLog/
-//  favoriteExercises 필드는 더 이상 사용하지 않음 — 사용자 승인 하에 전면 교체)
+//  favoriteExercises 필드는 더 이상 사용하지 않음 - 사용자 승인 하에 전면 교체)
 
 // [2026-07-30] 8개는 많다는 피드백으로 5개로 축소. 이미 5개를 초과해 저장해 둔 기존 사용자가
 // 있어도 강제 삭제는 하지 않고(saveRoutineTemplate의 신규 생성 분기에서만 제한을 검사하므로
@@ -313,7 +314,7 @@ export async function saveTrainerPlan(memberUid, trainer, plan) {
   const byTrainer = { uid: trainer.uid, name: trainer.name || '' }
   const note = String(plan.note || '').slice(0, 300)
   if (plan.id) {
-    // 수정은 updateDoc — 회원이 그사이 지운 계획이면 실패(merge로 order 없는 문서가 되살아나 목록에서 안 보이는 문제 방지)
+    // 수정은 updateDoc - 회원이 그사이 지운 계획이면 실패(merge로 order 없는 문서가 되살아나 목록에서 안 보이는 문제 방지)
     await updateDoc(doc(col, plan.id), { title: plan.title, parts: plan.parts, note, byTrainer, updatedAt: serverTimestamp() })
     return plan.id
   }
@@ -334,7 +335,7 @@ export async function deleteRoutineTemplate(uid, templateId) {
   await deleteDoc(doc(db, 'routineTemplates', uid, 'templates', templateId))
 }
 
-// [2026-08-05 신규] HOWTO 탭 "내 루틴에 추가" 버튼용 — 원클릭 즉시 추가(확인 모달 없음, 사용자 확인).
+// [2026-08-05 신규] HOWTO 탭 "내 루틴에 추가" 버튼용 - 원클릭 즉시 추가(확인 모달 없음, 사용자 확인).
 // 여러 루틴(최대 5개)이 있을 수 있으나, 어떤 루틴/파트에 넣을지 매번 물어보면 "원클릭"의 의미가
 // 없어지므로 order가 가장 앞선(가장 먼저 만든) 루틴을 기본 대상으로 삼는다. 그 루틴 안에서
 // 종목의 부위(atom)를 포함하는 파트를 찾아 넣고, 없으면 첫 번째 파트에 넣는다(폴백).
@@ -371,7 +372,7 @@ export async function quickAddExerciseToRoutine(uid, routineTemplates, exerciseN
 // 운동시간 보너스(최대 30, 2분당 1xp). 추후 8.4 랭킹 점수식과 별도로 조정 가능.
 // [2026-10-30 트레이너 관점 개선] '많이·오래'만 보상하면 대충 하는 세트·긴 휴식을 늘리게 되므로
 // 볼륨 보너스 상한을 100 → 80, 시간 보너스는 75분까지만 인정(최대 25)하고, 신기록(PR) 1개당 +10(최대 20)을 더한다.
-// 합계 최대 175 — 규칙의 1회 변경 한도(±200) 안.
+// 합계 최대 175 - 규칙의 1회 변경 한도(±200) 안.
 function computeSessionXp({ totalVolume, scoreWeight, totalDurationSec }, prCount = 0) {
   const base = 50 * (scoreWeight ?? 1)
   const volumeBonus = Math.min(80, Math.round((totalVolume || 0) / 60))
@@ -458,21 +459,51 @@ export async function addWorkoutLog(uid, logData, logId = null) {
       if (!u.seasonKey) updates.seasonKey = season
     }
   }
+  // [2026-10-31] 관리자 대시보드용 활동 요약(기록 내용 없이 마지막 운동일·주별 운동 일수) - 관리자가 기록 문서를 읽지 않게
+  if (readOk && logData.date) {
+    const a = u.activity || {}
+    const weeks = { ...(a.weeks || {}) }
+    if (!logData.isBackfilled && logData.date !== a.lastDate) {
+      const wk = weekStartStr(logData.date)
+      weeks[wk] = (weeks[wk] || 0) + 1
+    }
+    const keep = Object.keys(weeks).sort().slice(-12)
+    const newer = !a.lastDate || logData.date >= a.lastDate
+    updates.activity = {
+      lastDate: newer ? logData.date : a.lastDate,
+      // 마지막 운동의 부위(종목·무게는 남기지 않음)
+      lastParts: newer ? [...new Set((logData.exercises || []).map((e) => e.part || getExerciseAtom(e.name)).filter(Boolean))].slice(0, 8) : a.lastParts || [],
+      weeks: Object.fromEntries(keep.map((k) => [k, weeks[k]])),
+    }
+  }
   if (Object.keys(updates).length > 0) {
     await settleOrTimeout(updateDoc(userRef, updates))
   }
+  if (!logData.isBackfilled) bumpGymStats(logId)
 
   return { id: ref.id, xpEarned, newRecords }
+}
+
+// [2026-10-31] 익명 이용 집계 gymStats/{주 시작일}: 요일·시간대별 운동 시작 횟수(누가 했는지는 없음). 실패해도 무시.
+function bumpGymStats(logId) {
+  const m = /^session-(\d+)$/.exec(logId || '')
+  const start = new Date(m ? Number(m[1]) : Date.now())
+  const wk = weekStartStr(start)
+  setDoc(
+    doc(db, 'gymStats', wk),
+    { sessions: increment(1), hours: { [String(start.getHours())]: increment(1) }, days: { [String(start.getDay())]: increment(1) } },
+    { merge: true }
+  ).catch(() => {})
 }
 
 // [2026-10-27 신규] 개인 기록(PR) 맵이 없는 계정은 전체 기록에서 한 번 계산해 저장한다.
 // 기록을 수정/삭제했을 때도 다시 계산한다(PR이 지워진 기록에 남지 않도록).
 export async function rebuildPersonalRecords(uid) {
   const prsVersion = prsVersionKey()
-  // [2026-10-31] 전체 기록 읽기를 세션 캐시(getAllWorkoutLogs)와 공유 — MY 성취·CSV와 같은 읽기를 다시 하지 않게
+  // [2026-10-31] 전체 기록 읽기를 세션 캐시(getAllWorkoutLogs)와 공유 - MY 성취·CSV와 같은 읽기를 다시 하지 않게
   const prs = computePrsFromLogs(await getAllWorkoutLogs(uid))
   await settleOrTimeout(updateDoc(doc(db, 'users', uid), { prs, prsVersion }))
-  // 화면(App.jsx)이 사용자 문서를 다시 불러오도록 알림 — 삭제된 기록의 PR이 남아 보이지 않게
+  // 화면(App.jsx)이 사용자 문서를 다시 불러오도록 알림 - 삭제된 기록의 PR이 남아 보이지 않게
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('bt-prs-updated'))
   return prs
 }
@@ -527,7 +558,7 @@ export async function getWorkoutLogsInRange(uid, fromDateStr, toDateStr) {
   return snap.docs.map(readLogDoc)
 }
 
-// [2026-10-29] 기록을 읽을 때 옛 종목명을 새 이름(+그립)으로 정규화 — PR·추이·정체·직전 기록이 하나로 이어지게
+// [2026-10-29] 기록을 읽을 때 옛 종목명을 새 이름(+그립)으로 정규화 - PR·추이·정체·직전 기록이 하나로 이어지게
 function readLogDoc(d) {
   return normalizeLogExercises({ id: d.id, ...d.data() })
 }
@@ -589,8 +620,8 @@ function getRecentWorkoutLogsCached(uid, count) {
 // 그립 필드가 없는 기록만 매칭된다.
 export async function getLastRecordForExercise(uid, exerciseName, grip = null, count = 30) {
   const recent = await getRecentWorkoutLogsCached(uid, count)
-  // [2026-10-30] 그 전 기록(prev)도 함께 — 감량 추천은 두 번 연속 모자랐을 때만(strength.js suggestNextSet)
-  // [2026-10-30 추천 고도화] 최근 수행 6회(history, 최신 순)도 함께 — 정체 감지·종목별 추천 이력용(이미 읽은 최근 기록 안에서만, 추가 읽기 없음)
+  // [2026-10-30] 그 전 기록(prev)도 함께 - 감량 추천은 두 번 연속 모자랐을 때만(strength.js suggestNextSet)
+  // [2026-10-30 추천 고도화] 최근 수행 6회(history, 최신 순)도 함께 - 정체 감지·종목별 추천 이력용(이미 읽은 최근 기록 안에서만, 추가 읽기 없음)
   const history = []
   let first = null
   for (const log of recent) {
@@ -610,7 +641,7 @@ export async function adminListUsers() {
   const snap = await getDocs(collection(db, 'users'))
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }))
 }
-// patch: { memberStatus?, role?, memberNo?, rosterId? } — 승인 시 승인자·시각을 함께 남긴다
+// patch: { memberStatus?, role?, memberNo?, rosterId? } - 승인 시 승인자·시각을 함께 남긴다
 export async function adminUpdateMember(uid, patch, adminUid) {
   const data = { ...patch, statusUpdatedAt: serverTimestamp() }
   if (patch.memberStatus === 'approved') {
@@ -632,7 +663,61 @@ export async function adminSetMembership(uid, { start = '', end = '', ptTotal, p
   if (ptTotal !== undefined || ptRemaining !== undefined) data.ptUpdatedAt = serverTimestamp()
   await updateDoc(doc(db, 'users', uid), data)
 }
-// 앱 설정(settings/app): { ptDeductEnabled } — 읽기 로그인 사용자, 쓰기 관리자
+// ───────────── [2026-10-31] 관리자 대시보드 확장 ─────────────
+// 관리 이력(adminLogs) - 관리자만 생성·조회, 수정·삭제 불가. action: 'approve'|'status'|'role'|'membership'|'pt'|'pause'|'connect'|'disconnect'|'renewal'|'settings'
+export async function logAdmin(admin, { action, targetUid = '', targetName = '', detail = '' }) {
+  await addDoc(collection(db, 'adminLogs'), {
+    at: serverTimestamp(),
+    byUid: admin.uid,
+    byName: String(admin.name || '').slice(0, 30),
+    action,
+    targetUid,
+    targetName: String(targetName || '').slice(0, 30),
+    detail: String(detail || '').slice(0, 300),
+  }).catch((err) => console.error('관리 이력 저장 실패:', err))
+}
+export async function adminListLogs({ targetUid = '', count = 300 } = {}) {
+  const col = collection(db, 'adminLogs')
+  const snap = targetUid ? await getDocs(query(col, where('targetUid', '==', targetUid))) : await getDocs(query(col, orderBy('at', 'desc'), limit(count)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => tsMs(b.at) - tsMs(a.at))
+}
+// 관리자 메모·재등록 연락(adminNotes/{uid}) - 관리자만(회원 본인도 못 봄)
+export async function adminListNotes() {
+  const snap = await getDocs(collection(db, 'adminNotes'))
+  return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))
+}
+export async function adminSaveNote(uid, patch, adminUid) {
+  await setDoc(doc(db, 'adminNotes', uid), { ...patch, updatedAt: serverTimestamp(), updatedBy: adminUid }, { merge: true })
+}
+// 휴회: 기간을 남기고 그 일수만큼 회원권 종료일을 늘린다(newEnd는 화면에서 계산)
+export async function adminSetPause(uid, { pauseStart, pauseEnd, newEnd }) {
+  const data = { pauseStart: pauseStart || '', pauseEnd: pauseEnd || '', statusUpdatedAt: serverTimestamp() }
+  if (newEnd) {
+    data.membershipEnd = newEnd
+    data.membershipEndAt = new Date(`${newEnd}T23:59:59+09:00`)
+  }
+  await updateDoc(doc(db, 'users', uid), data)
+}
+// 회원의 트레이너 연결 이력(종료 포함)
+export async function adminListMemberConnections(memberUid) {
+  const snap = await getDocs(query(collection(db, 'connections'), where('memberUid', '==', memberUid)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => tsMs(b.startedAt) - tsMs(a.startedAt))
+}
+// 기간(날짜 문자열) PT 기록·일정 - 정산·캘린더·소진 예상
+export async function adminListPtSessionsRange(from, to) {
+  const snap = await getDocs(query(collection(db, 'ptSessions'), where('date', '>=', from), where('date', '<=', to)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+export async function adminListPtSchedulesRange(from, to) {
+  const snap = await getDocs(query(collection(db, 'ptSchedules'), where('date', '>=', from), where('date', '<=', to)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+}
+export async function adminGetGymStats(weekKeys) {
+  const snaps = await Promise.all(weekKeys.map((k) => getDoc(doc(db, 'gymStats', k)).catch(() => null)))
+  return Object.fromEntries(weekKeys.map((k, i) => [k, snaps[i]?.exists?.() ? snaps[i].data() : null]))
+}
+
+// 앱 설정(settings/app): { ptDeductEnabled, noshowPolicy } - 읽기 로그인 사용자, 쓰기 관리자
 export async function getAppSettings() {
   const snap = await getDoc(doc(db, 'settings', 'app'))
   return snap.exists() ? snap.data() : {}
@@ -647,7 +732,7 @@ export async function trainerUsePt(memberUid, trainer, dateStr) {
   batch.set(doc(collection(db, 'ptSessions')), { memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: dateStr, at: serverTimestamp() })
   await batch.commit()
 }
-// session: { id, scheduleId? } — 일정에서 완료한 기록이면 일정도 '예정'으로 되돌린다
+// session: { id, scheduleId? } - 일정에서 완료한 기록이면 일정도 '예정'으로 되돌린다
 export async function trainerUndoPt(memberUid, session) {
   const batch = writeBatch(db)
   batch.update(doc(db, 'users', memberUid), { ptRemaining: increment(1), ptUpdatedAt: serverTimestamp() })
@@ -656,7 +741,7 @@ export async function trainerUndoPt(memberUid, session) {
   await batch.commit()
 }
 
-// ───────────── [2026-10-31] PT 일정(ptSchedules/{id}) — 트레이너가 등록, 회원 홈 캘린더에 표시 ─────────────
+// ───────────── [2026-10-31] PT 일정(ptSchedules/{id}) - 트레이너가 등록, 회원 홈 캘린더에 표시 ─────────────
 // { memberUid, trainerUid, trainerName, date:'YYYY-MM-DD', time:'HH:MM', status:'scheduled'|'done', createdAt, doneAt? }
 export async function listPtSchedules({ memberUid, trainerUid }) {
   const conds = [where('memberUid', '==', memberUid)]
@@ -664,7 +749,7 @@ export async function listPtSchedules({ memberUid, trainerUid }) {
   const snap = await getDocs(query(collection(db, 'ptSchedules'), ...conds))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
 }
-// [2026-10-31] 트레이너 '오늘·이번 주 PT 일정' 모아보기 — 날짜 목록(최대 10일)과 트레이너 uid로만 조회(복합 색인 없이)
+// [2026-10-31] 트레이너 '오늘·이번 주 PT 일정' 모아보기 - 날짜 목록(최대 10일)과 트레이너 uid로만 조회(복합 색인 없이)
 export async function listTrainerSchedulesByDates(trainerUid, dates) {
   const sortFn = (a, b) => (a.date + a.time).localeCompare(b.date + b.time)
   try {
@@ -694,6 +779,16 @@ export async function trainerCompleteSchedule(s, trainer, deduct) {
   }
   await batch.commit()
 }
+// [2026-10-31] 노쇼(settings/app.noshowPolicy: 'off'|'mark'|'deduct') - deduct면(차감 켜짐일 때) 남은 횟수 -1 + ptSessions(noshow)
+export async function trainerNoShowSchedule(s, trainer, deduct) {
+  const batch = writeBatch(db)
+  batch.update(doc(db, 'ptSchedules', s.id), { status: 'noshow', doneAt: serverTimestamp() })
+  if (deduct) {
+    batch.update(doc(db, 'users', s.memberUid), { ptRemaining: increment(-1), ptUpdatedAt: serverTimestamp() })
+    batch.set(doc(collection(db, 'ptSessions')), { memberUid: s.memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: s.date, at: serverTimestamp(), scheduleId: s.id, noshow: true })
+  }
+  await batch.commit()
+}
 export async function trainerReopenSchedule(id) {
   await updateDoc(doc(db, 'ptSchedules', id), { status: 'scheduled', doneAt: null })
 }
@@ -705,7 +800,7 @@ export async function listPtSessions({ memberUid, trainerUid }) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (String(b.date) + (b.at?.seconds || 0)).localeCompare(String(a.date) + (a.at?.seconds || 0)))
 }
 
-// ───────────── [2026-10-31] 트레이너 프로필(trainerProfiles/{id}) — 대시보드 관리, 앱에서 소개 ─────────────
+// ───────────── [2026-10-31] 트레이너 프로필(trainerProfiles/{id}) - 대시보드 관리, 앱에서 소개 ─────────────
 // { name, title, photo(data URL, 작게 줄여 저장), specialties[], career[], certs[], intro, instagram, order, active, linkedUid?, leftAt? }
 export async function listTrainerProfiles() {
   const snap = await getDocs(collection(db, 'trainerProfiles'))
@@ -725,7 +820,7 @@ export async function adminDeleteTrainerProfile(id) {
   await deleteDoc(doc(db, 'trainerProfiles', id))
 }
 
-// ───────────── [2026-10-31] 운동 가이드 수정본(exerciseGuides/{종목명}) — 트레이너·관리자 수정, 로그인 사용자 읽기 ─────────────
+// ───────────── [2026-10-31] 운동 가이드 수정본(exerciseGuides/{종목명}) - 트레이너·관리자 수정, 로그인 사용자 읽기 ─────────────
 export async function listGuideOverrides() {
   const snap = await getDocs(collection(db, 'exerciseGuides'))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
@@ -741,7 +836,7 @@ export async function adminGetRoster() {
   const snap = await getDocs(collection(db, 'gymRoster'))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 }
-// rows: [{ id, name, phoneHash, phoneLast4, memberNo, expireDate }] — 400개씩 나눠 일괄 저장(merge: 연결 정보 유지)
+// rows: [{ id, name, phoneHash, phoneLast4, memberNo, expireDate }] - 400개씩 나눠 일괄 저장(merge: 연결 정보 유지)
 export async function adminSaveRoster(rows) {
   for (let i = 0; i < rows.length; i += 400) {
     const batch = writeBatch(db)
@@ -756,7 +851,7 @@ export async function adminLinkRoster(rosterId, uid) {
 }
 
 // ───────────── [2026-10-31 Phase2 P2-2] 트레이너–회원 연결(connections/{trainerUid_memberUid}) ─────────────
-// 활성 트레이너는 회원당 1명 — 새로 연결하면 그 회원의 기존 활성 연결은 종료(이력 유지). 연결 시 일반회원은 PT회원으로.
+// 활성 트레이너는 회원당 1명 - 새로 연결하면 그 회원의 기존 활성 연결은 종료(이력 유지). 연결 시 일반회원은 PT회원으로.
 // rules: 생성·재활성은 관리자, 종료(status 'ended')는 관리자·해당 트레이너·해당 회원, 읽기는 관리자·당사자.
 const connId = (trainerUid, memberUid) => `${trainerUid}_${memberUid}`
 const memberLabel = (u) => (u?.signupInfo?.name || u?.nickname || '').slice(0, 30)
@@ -795,9 +890,9 @@ export async function getMyTrainerConnection(memberUid) {
   return d ? { id: d.id, ...d.data() } : null
 }
 
-// ───────────── [2026-10-31] 계정 삭제(탈퇴) — 본인 데이터 전부 삭제 ─────────────
+// ───────────── [2026-10-31] 계정 삭제(탈퇴) - 본인 데이터 전부 삭제 ─────────────
 // 지우는 것: 운동 기록·루틴(트레이너 계획 포함)·진행 세션 백업·랭킹(최근 3년 시즌)·문의·사용자 문서. 트레이너 연결은 '종료'로 바꾼다.
-// 남는 것: 부위별 인기 운동 집계(개인 식별 없음), 헬스장이 관리하는 PT 이용 기록(ptSessions·ptSchedules — 날짜·횟수)과 출입 명단.
+// 남는 것: 부위별 인기 운동 집계(개인 식별 없음), 헬스장이 관리하는 PT 이용 기록(ptSessions·ptSchedules - 날짜·횟수)과 출입 명단.
 // firestore.rules가 승인 여부와 관계없이 본인 삭제를 허용해야 한다(대기·만료 계정도 탈퇴 가능).
 async function deleteAllDocs(colRef, onProgress, label) {
   let total = 0
@@ -841,7 +936,7 @@ export async function deleteMyAccountData(uid, onProgress) {
   ])
   await Promise.all([...asMember.docs, ...asTrainer.docs].map((d) => updateDoc(d.ref, { status: 'ended', endedAt: serverTimestamp(), endedBy: uid })))
   onProgress?.('계정 정보를 지우는 중…')
-  // 진행 세션 백업은 사용자 문서 바로 앞에서 지운다(그 사이 백업 타이머가 다시 만드는 것 방지 — 사용자 문서가 없으면 규칙이 거부)
+  // 진행 세션 백업은 사용자 문서 바로 앞에서 지운다(그 사이 백업 타이머가 다시 만드는 것 방지 - 사용자 문서가 없으면 규칙이 거부)
   await deleteDoc(doc(db, 'activeSessions', uid))
   const mark = doc(db, 'deletedAccounts', uid)
   if (!(await getDoc(mark)).exists()) await setDoc(mark, { deletedAt: serverTimestamp() }) // 다시 시도할 때는 이미 있음(수정 불가 규칙)
@@ -853,7 +948,7 @@ export async function deleteMyAccountData(uid, onProgress) {
   }
 }
 
-// ───────────── activeSessions/{uid} — 진행 중 운동 세션 서버 백업 ─────────────
+// ───────────── activeSessions/{uid} - 진행 중 운동 세션 서버 백업 ─────────────
 // [2026-10-27 신규] "오늘 운동 완료"를 누르지 않고 다음날이 되면 기록이 사라지던 문제 대응.
 // 진행 중 세션(draft)을 기기 localStorage뿐 아니라 서버에도 보관해, 브라우저 데이터 삭제·기기 변경
 // 후에도 남게 하고, 방치된 세션은 다음 접속 시 자동으로 운동기록으로 저장한다(WorkoutInput.jsx).

@@ -1,5 +1,5 @@
 // InsightCards.jsx
-// [2026-10-27 신규, 리뉴얼 W2] 근거 기반 인사이트 카드 — 리포트 탭·홈 탭 공용.
+// [2026-10-27 신규, 리뉴얼 W2] 근거 기반 인사이트 카드 - 리포트 탭·홈 탭 공용.
 //  - MuscleSetsCard: 근육(부위)별 주간 "분수 세트"(직접 1.0 / 보조 0.5)와 권장 범위(주 10–20세트)
 //  - CardioCard: 이번 주 유산소 분 / 150분(WHO 신체활동 지침)
 //  - RecoveryCard: 정체 종목(최근 3회 추정 1RM 정체) + 연속 고강도 주 → 디로드 제안
@@ -52,7 +52,7 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
   const atoms = BODY_PART_ATOMS.filter((a) => a !== '유산소').flatMap((a) => (a === '하체' ? [LEG_FRONT, LEG_BACK] : [a]))
   const rows = compact ? atoms.filter((a) => (sets[a] || 0) > 0).sort((a, b) => (sets[b] || 0) - (sets[a] || 0)).slice(0, 5) : atoms
   const scaleMax = 25
-  // [2026-10-30] 목표·가입 기간에 맞춘 기준(goals.js) — 예: 근력 1순위 6–12, 처음 8주는 낮게
+  // [2026-10-30] 목표·가입 기간에 맞춘 기준(goals.js) - 예: 근력 1순위 6–12, 처음 8주는 낮게
   const WEEKLY_SET_GUIDE = getWeeklySetGuide()
   const bandLeft = (WEEKLY_SET_GUIDE.min / scaleMax) * 100
   const bandWidth = ((WEEKLY_SET_GUIDE.max - WEEKLY_SET_GUIDE.min) / scaleMax) * 100
@@ -196,7 +196,7 @@ export function CardioCard({ logs, liveExercises = null }) {
             ))}
           </div>
         )}
-        {/* 최근 4주 유산소 시간(고강도 ×2 환산) — 점선 = 주간 목표 */}
+        {/* 최근 4주 유산소 시간(고강도 ×2 환산) - 점선 = 주간 목표 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, alignItems: 'end', height: 92, position: 'relative', marginTop: 4 }}>
           <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: `calc(${(goal / maxWeek) * 60}px + 26px)`, borderTop: '1px dashed var(--color-line-strong)' }} />
           {weeks.map((w, k) => (
@@ -430,7 +430,7 @@ export function BalanceCard({ logs, posture = false }) {
             : ratio > 2
             ? `최근 2주 당기기가 밀기의 ${ratio.toFixed(1)}배예요. 자세에는 좋지만 가슴·어깨 밀기 운동도 챙기면 균형이 더 좋아져요.`
             : ok
-            ? `최근 2주 당기기가 밀기의 ${ratio.toFixed(1)}배 — 균형이 좋아요.`
+            ? `최근 2주 당기기가 밀기의 ${ratio.toFixed(1)}배로 균형이 좋아요.`
             : `최근 2주 당기기가 밀기의 ${ratio.toFixed(1)}배예요. 로우·랫풀다운·페이스풀을 늘려 0.8배 이상을 맞춰 보세요.`}
         </span>
         {posture && (

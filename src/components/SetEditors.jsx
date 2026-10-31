@@ -2,7 +2,7 @@
 // [2026-10-27 신규, 리뉴얼 W1] 기록 화면 세트 입력 보조 컴포넌트 모음.
 //  - SetTypeBadge: 세트 번호 칩. 탭하면 본세트 → 웜업(W) → 드롭(D) → 실패(F) 순환.
 //  - RirChip: 남은 여력(RIR, Reps In Reserve) 원탭 입력. 미입력 → 3 → 2 → 1 → 0 순환(선택 사항).
-//  - FocusSetPanel: "포커스형" 기록 방식 — 한 번에 한 세트를 큰 숫자·큰 버튼으로 입력.
+//  - FocusSetPanel: "포커스형" 기록 방식 - 한 번에 한 세트를 큰 숫자·큰 버튼으로 입력.
 //  - PlatePanel: 바벨 원판 계산(한쪽 기준, 20kg 봉).
 //  - ExerciseSettingEditor: 종목별 목표 반복 범위·휴식 시간 설정.
 import React from 'react'
@@ -40,7 +40,7 @@ export function SetTypeLegend({ sets }) {
   )
 }
 
-// [2026-10-29] 길게 누르면(0.55초) onLongPress — 세트 삭제(× 버튼 대신). 길게 누른 뒤의 클릭(종류 변경)은 무시.
+// [2026-10-29] 길게 누르면(0.55초) onLongPress - 세트 삭제(× 버튼 대신). 길게 누른 뒤의 클릭(종류 변경)은 무시.
 export function SetTypeBadge({ type, index, onClick, onLongPress, size = 30, guideKey }) {
   const t = type || 'working'
   const label = t === 'working' ? String(index) : SET_TYPE_SHORT[t]

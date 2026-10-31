@@ -1,4 +1,4 @@
-// exerciseGuidesMore.js — [2026-10-31] 구조화 가이드 2단계: 기본 32종목 외 나머지 전 종목(106개, 유산소 포함)
+// exerciseGuidesMore.js - [2026-10-31] 구조화 가이드 2단계: 기본 32종목 외 나머지 전 종목(106개, 유산소 포함)
 // 트레이너 관점으로 새로 작성(외부 문구 미사용). 형식은 exerciseGuides.js와 같다. 트레이너·관리자가 HOWTO에서 고치면 exerciseGuides/{종목명} 수정본이 우선.
 export const MORE_GUIDES = {
  "원암랫풀다운": {

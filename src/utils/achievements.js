@@ -62,7 +62,7 @@ function maxTopWeight(prs) {
   return Object.values(prs || {}).reduce((m, p) => Math.max(m, Number(p?.topWeight) || 0), 0)
 }
 
-// [2026-10-30] 성취 30종(단계형) — 출석·연속 주·누적 볼륨·신기록 종목·체중 대비 힘·유산소·주간 목표·균형.
+// [2026-10-30] 성취 30종(단계형) - 출석·연속 주·누적 볼륨·신기록 종목·체중 대비 힘·유산소·주간 목표·균형.
 function cardioMinutesTotal(logs) {
   return logs.reduce(
     (sum, l) =>

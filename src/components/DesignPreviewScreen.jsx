@@ -1,7 +1,7 @@
 // DesignPreviewScreen.jsx
-// [2026-10-28 신규] 기록 화면 미리보기 — 실제 운동 중에 스타일을 하나하나 바꿔 보기 어렵다는 피드백으로,
+// [2026-10-28 신규] 기록 화면 미리보기 - 실제 운동 중에 스타일을 하나하나 바꿔 보기 어렵다는 피드백으로,
 // 샘플 데이터로 채운 기록(NOTE) 화면에서 테마 × 강조색 × 본문 폰트 × 기록 방식을 즉시 바꿔 비교한다.
-// [2026-10-28] 스타일은 C 택타일 웜으로 고정(A/B 삭제) — 스타일 선택 칩 제거.
+// [2026-10-28] 스타일은 C 택타일 웜으로 고정(A/B 삭제) - 스타일 선택 칩 제거.
 //   - 종목 카드는 WorkoutInput.jsx의 실제 ExerciseCard, 상단 타이머 바(GlobalTimerBar)·휴식 타이머(RestTimer)도
 //     실제 컴포넌트를 그대로 써서 모양이 기록 화면과 같다. 하단 완료 바만 같은 마크업으로 재현.
 //   - 미리보기 중 바꾼 값은 html 속성에만 임시 반영. 닫으면 원래 값으로 되돌리고, "이 조합으로 적용"을 눌러야
@@ -85,7 +85,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
     }
   }, [initial])
 
-  // 샘플 기록(로컬 상태만 — 저장되지 않음)
+  // 샘플 기록(로컬 상태만 - 저장되지 않음)
   const [setsByName, setSetsByName] = useState(SAMPLE_SETS)
   const [expandedName, setExpandedName] = useState('플랫바벨프레스')
   const [doneNames, setDoneNames] = useState(['덤벨사이드레터럴레이즈'])
@@ -143,7 +143,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
     }
   }
 
-  // 칩 줄(넘치면 다음 줄로 — 선택지가 모두 보이게)
+  // 칩 줄(넘치면 다음 줄로 - 선택지가 모두 보이게)
   const chipRow = (options, value, onPick) => (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flex: 1, minWidth: 0 }}>
       {options.map((o) => (
@@ -204,7 +204,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
             {applying ? '적용 중…' : '이 조합으로 적용'}
           </Button>
         </div>
-        {/* [2026-10-28] 강조색 팔레트 — 색 견본으로 항상 노출 */}
+        {/* [2026-10-28] 강조색 팔레트 - 색 견본으로 항상 노출 */}
         <AccentSwatches value={accent} onPick={setAccent} />
         <button
           type="button"
@@ -244,7 +244,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
       </div>
 
       <div style={{ padding: '14px 16px 0' }}>
-        {/* [2026-10-29] 사용법 — 기록 화면 각 항목을 순서대로 안내 */}
+        {/* [2026-10-29] 사용법 - 기록 화면 각 항목을 순서대로 안내 */}
         <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 800, color: 'var(--color-label-strong)' }}>기록 화면 사용법</span>

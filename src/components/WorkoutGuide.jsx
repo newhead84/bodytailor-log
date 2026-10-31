@@ -23,7 +23,7 @@ export const WORKOUT_GUIDE_STEPS = [
 
 const GLOBAL_KEYS = ['mode-toggle']
 function findTarget(container, key) {
-  // [2026-10-30] 범위(container)가 있으면 그 안에서만 찾는다 — 미리보기 뒤에 깔린 실제 운동 화면의 같은 버튼을 짚지 않게
+  // [2026-10-30] 범위(container)가 있으면 그 안에서만 찾는다 - 미리보기 뒤에 깔린 실제 운동 화면의 같은 버튼을 짚지 않게
   // 단, 카드 밖 상단 바에 있는 버튼(mode-toggle)은 범위 안에 없을 때 화면 전체에서 찾는다(운동 중 가이드)
   const el = (container || document).querySelector(`[data-guide="${key}"]`) || (container && GLOBAL_KEYS.includes(key) ? document.querySelector(`[data-guide="${key}"]`) : null)
   if (!el) return null

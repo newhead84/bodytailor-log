@@ -22,13 +22,13 @@ import { setsVolumeKg, repsUnit, formatLoad, allowsZeroWeight, weightUnitShort, 
 // 그 날짜의 운동시간/칼로리 합계와, 부위별 세트수(유산소는 누적 시간)를 계산한다
 // (달력 칸에 색상+텍스트로 표시하기 위함).
 // [2026-07-30 수정] ① 웜업/본운동 시간을 분리 집계(warmupActualSec은 WorkoutInput.jsx에서
-//   본운동 시작 시점에 이미 계산·저장되던 값인데, 그동안 화면에는 안 쓰이고 있었다 — 이번에
+//   본운동 시작 시점에 이미 계산·저장되던 값인데, 그동안 화면에는 안 쓰이고 있었다 - 이번에
 //   달력 표시에만 반영, 저장 구조 변경은 없음). warmupActualSec이 없는 과거 기록은 분리 불가하므로
 //   hasWarmupData로 구분해 그 경우 기존처럼 합산 시간만 보여준다.
 // ② 유산소는 세트 개수 대신 실제 수행 시간(분)을 누적해서 보여준다(세트수로는 무의미했음).
 // [2026-07-30 재수정] ③ 상위 3개로 자르던 것을 없애고 그날 수행한 부위 전체를 보여준다.
 //   ④ "많이 한 순서"(세트수 내림차순) 대신, 로그에 기록된 실제 수행 순서(부위가 처음 등장한
-//   순서) 그대로 보여준다 — 유산소는 세트수 대신 "분"이라 숫자가 커서 순서가 뒤바뀌던 문제도
+//   순서) 그대로 보여준다 - 유산소는 세트수 대신 "분"이라 숫자가 커서 순서가 뒤바뀌던 문제도
 //   함께 해결된다.
 function daySummary(logs) {
   let totalDurationSec = 0
@@ -72,7 +72,7 @@ function pad(n) {
   return String(n).padStart(2, '0')
 }
 
-// hex 컬러(#RRGGBB)를 낮은 투명도 rgba로 변환 — 부위별 뱃지 배경색에 사용.
+// hex 컬러(#RRGGBB)를 낮은 투명도 rgba로 변환 - 부위별 뱃지 배경색에 사용.
 function hexToRgba(hex, alpha) {
   const h = String(hex).replace('#', '')
   const r = parseInt(h.substring(0, 2), 16)
@@ -213,7 +213,7 @@ function EditLogForm({
   const justCopied = !!copiedToDate
   return (
     <Card style={{ marginBottom: 10 }}>
-      {/* [2026-10-29] 운동 시간(웜업·본운동 분) — 저장하면 총 운동 시간·칼로리도 다시 계산 */}
+      {/* [2026-10-29] 운동 시간(웜업·본운동 분) - 저장하면 총 운동 시간·칼로리도 다시 계산 */}
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-label-neutral)' }}>운동 시간</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -283,7 +283,7 @@ function EditLogForm({
                 }}
               >
                 {ex.inputType === 'cardio' ? (
-                  // [2026-10-29] 종목별 유산소 칸(cardioFields.js) — 실내사이클은 거리·속도·시간
+                  // [2026-10-29] 종목별 유산소 칸(cardioFields.js) - 실내사이클은 거리·속도·시간
                   getCardioFieldsForSet(ex.name, s).map((f, fi) => (
                     <React.Fragment key={f.key}>
                       <input
@@ -450,7 +450,7 @@ function EditLogForm({
   )
 }
 
-// [2026-10-31] ptByDate: { 'YYYY-MM-DD': [{ time, done, trainerName }] } — PT 일정(예정: 테두리 'PT'+시간, 완료: 채운 '✓PT')
+// [2026-10-31] ptByDate: { 'YYYY-MM-DD': [{ time, done, trainerName }] } - PT 일정(예정: 테두리 'PT'+시간, 완료: 채운 '✓PT')
 export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsChanged, ptByDate = null }) {
   const confirm = useConfirm()
   const [cursor, setCursor] = useState(() => {
@@ -759,7 +759,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       ...(s.type && s.type !== 'working' ? { type: s.type } : {}),
       ...(s.rir !== undefined && s.rir !== null && s.rir !== '' ? { rir: Number(s.rir) } : {}),
     })
-    // [2026-10-29] 비어 있는 세트(횟수·시간 0)는 저장하지 않는다 — 0×0 세트가 근육별 세트·캘린더에 집계되던 문제.
+    // [2026-10-29] 비어 있는 세트(횟수·시간 0)는 저장하지 않는다 - 0×0 세트가 근육별 세트·캘린더에 집계되던 문제.
     // 세트가 하나도 안 남은 종목도 뺀다.
     const isFilled = (ex, s) => (ex.inputType === 'cardio' ? Number(s.durationMin) > 0 : parseInt(s.reps, 10) > 0)
     const cleanedExercises = draft.exercises
@@ -886,7 +886,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       setLogsByDate(grouped)
       onLogsChanged?.()
       setCopiedToDate(targetDate)
-      // [2026-10-29] 복사에 쓴 날짜 칸을 원래 기록 날짜로 되돌린다 — 이어서 "저장"을 누르면 원래 기록까지
+      // [2026-10-29] 복사에 쓴 날짜 칸을 원래 기록 날짜로 되돌린다 - 이어서 "저장"을 누르면 원래 기록까지
       // 복사한 날짜로 옮겨지던 문제(원래 날짜는 비고 새 날짜에 기록이 두 개).
       setEditDraft((prev) => (prev?.originalDate ? { ...prev, date: prev.originalDate } : prev))
       setTimeout(() => setCopiedToDate((cur) => (cur === targetDate ? null : cur)), 1500)
@@ -939,7 +939,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       setCopiedLogId(log.id)
       setTimeout(() => setCopiedLogId((cur) => (cur === log.id ? null : cur)), 1500)
     } catch (e) {
-      // 클립보드 접근이 막힌 환경(권한 거부 등)은 조용히 무시 — 버튼 라벨이 안 바뀌는 것으로
+      // 클립보드 접근이 막힌 환경(권한 거부 등)은 조용히 무시 - 버튼 라벨이 안 바뀌는 것으로
       // 실패를 알 수 있어 별도 에러 UI는 두지 않는다.
     }
     // [2026-08-02 신규] 텍스트 복사와 별개로, 종목/세트 데이터를 그대로 앱 내부 클립보드에
@@ -1177,7 +1177,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                         </span>
                       )
                     }
-                    // atom — 유산소는 이름 텍스트 없이 h/m 값만, 나머지 부위는 "이름 N set" 뱃지
+                    // atom - 유산소는 이름 텍스트 없이 h/m 값만, 나머지 부위는 "이름 N set" 뱃지
                     const partColor = getPartColor(row.atom) || 'var(--color-primary-normal)'
                     if (row.atom === '유산소') {
                       return (

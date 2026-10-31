@@ -63,7 +63,7 @@ export function computeOverloadByOccurrence(sortedLogs, periodStart) {
       // [2026-10-29] 실제 부하 기준(어시스트는 보조를 줄일수록 향상)
       const topWeight = Math.max(...wsets.map((s) => effectiveLoad(ex.name, s.weight) || 0), 0)
       const totalVolume = setsVolumeKg(ex.name, wsets)
-      // [2026-08-10 변경] 그립이 다르면 완전히 별개 종목처럼 집계한다(사용자 확인) — 이름만으로
+      // [2026-08-10 변경] 그립이 다르면 완전히 별개 종목처럼 집계한다(사용자 확인) - 이름만으로
       // 묶으면 그립이 다른 두 수행을 같은 종목의 연속 수행으로 오인해 향상 여부가 왜곡된다.
       const key = makeExerciseKey(ex.name, ex.grip)
       const prev = lastSeen[key]
@@ -85,7 +85,7 @@ export function computeOverloadByOccurrence(sortedLogs, periodStart) {
 }
 
 // [2026-08-06 (2) 신규] 리포트 탭 "점진적 과부하 진행상황" 화면 표시(그래프/퍼센트) 전용
-// 함수. ⚠️ 랭킹 점수 계산에는 쓰이지 않는다 — 랭킹 점수(overloadScore, ReportTab.jsx
+// 함수. ⚠️ 랭킹 점수 계산에는 쓰이지 않는다 - 랭킹 점수(overloadScore, ReportTab.jsx
 // handleRefreshMyScore)는 여전히 위 computeOverloadByOccurrence(중량×횟수 기준)만 그대로
 // 사용한다(사용자 확인: "그래프 표시에만 반영", 랭킹 점수 산식은 미변경).
 //
