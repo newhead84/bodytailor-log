@@ -2,6 +2,9 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 보안 규칙 검토 반영 | firestore.rules
+- XP(seasonXp·lifetimeXp·seasonKey) 변경은 승인된(회원권 유효) 회원만 — 대기·만료 계정의 XP 부풀리기 방지. 그 외 검토 결과 권한 상승·위조·연결 종료 후 접근 문제 없음.
+
 [2026-10-31] 운동 가이드 전 종목(138) 구조화 + 트레이너 가이드 수정 | utils/exerciseGuidesMore.js·guideOverrides.js·GuideEditor.jsx(신규), exerciseGuides.js, HowToTab.jsx, ExerciseGuideToggle.jsx, storage.js, firestore.rules, CLAUDE.md
 - 나머지 106종목(유산소 12 포함) 가이드 추가 — 기구 세팅·하는 법·호흡·핵심 포인트·흔한 실수·주의·대체 운동·난이도. 트레이너 관점으로 새로 작성.
 - 트레이너·관리자: HOWTO 종목 상세 "가이드 수정" → 모든 항목 + "바디테일러 메모"(회원에게 맨 위 표시, 기록 중 패널에도) 저장, "기본으로 되돌리기". 고친 가이드엔 "○○ 트레이너가 다듬은 가이드" 표시.

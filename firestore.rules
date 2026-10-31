@@ -86,7 +86,9 @@ service cloud.firestore {
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(lockedUserKeys()) &&
           (resource.data.get('memberStatus', 'approved') in ['pending', 'rejected'] || !('signupInfo' in resource.data) ||
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signupInfo'])) &&
-          seasonXpOk() && xpDeltaOk('lifetimeXp')) ||
+          seasonXpOk() && xpDeltaOk('lifetimeXp') &&
+          // [2026-10-31] XP는 승인된(회원권 유효) 회원만 바꿀 수 있다 — 대기·만료 계정의 XP 부풀리기 방지
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['seasonXp', 'lifetimeXp', 'seasonKey']) || isApproved())) ||
         (isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(adminUserKeys()) &&
           request.resource.data.get('role', '일반회원') in ['일반회원', 'PT회원', '트레이너', '관리자'] &&
