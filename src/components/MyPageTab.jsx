@@ -45,7 +45,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const [trainerConn, setTrainerConn] = useState(null)
   const [trainerProfile, setTrainerProfile] = useState(null) // [2026-10-31] 담당 트레이너 프로필(사진)
   useEffect(() => {
-    if (!uid || !isActive || userDoc?.role === '트레이너' || userDoc?.role === '관리자') return
+    if (!uid || !isActive || userDoc?.role === '트레이너') return // [2026-10-31] 관리자도 담당 트레이너를 가질 수 있음
     let alive = true
     getMyTrainerConnection(uid)
       .then(async (c) => {

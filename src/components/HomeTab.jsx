@@ -64,7 +64,8 @@ export default function HomeTab({
   const [monthSummary, setMonthSummary] = useState(null)
   // [2026-10-31] PT 일정(트레이너 등록) + 일정 없이 완료한 PT → 캘린더 표시, "다음 PT"
   const [ptItems, setPtItems] = useState([])
-  const isStaff = userDoc?.role === '트레이너' || userDoc?.role === '관리자'
+  // [2026-10-31] 관리자도 PT를 받을 수 있어 트레이너만 제외
+  const isStaff = userDoc?.role === '트레이너'
   useEffect(() => {
     if (!uid || isStaff) return
     let alive = true

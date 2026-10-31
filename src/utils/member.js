@@ -123,13 +123,15 @@ function dayDiff(a, b) {
 export function membershipState(u, today) {
   const t = today || new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
   if (!u) return { kind: 'none' }
-  if (u.role === '트레이너' || u.role === '관리자') return { kind: 'exempt', start: u.membershipStart || '', end: u.membershipEnd || '' }
+  // [2026-10-31] 관리자도 헬스장 회원이면 회원권·PT를 가진다 — 기간은 계산해 보여 주되 막지는 않는다(isMembershipExpired). 트레이너만 제외.
+  if (u.role === '트레이너') return { kind: 'exempt', start: u.membershipStart || '', end: u.membershipEnd || '' }
   const end = u.membershipEnd || ''
   if (!end) return { kind: 'none', start: u.membershipStart || '' }
   const daysLeft = dayDiff(t, end)
   return { kind: daysLeft < 0 ? 'expired' : daysLeft <= MEMBERSHIP_SOON_DAYS ? 'soon' : 'active', start: u.membershipStart || '', end, daysLeft }
 }
-export const isMembershipExpired = (u, today) => membershipState(u, today).kind === 'expired'
+// 기록을 막는지 — 관리자는 회원권이 끝나도 막지 않는다(rules isApproved도 관리자 항상 허용)
+export const isMembershipExpired = (u, today) => u?.role !== '관리자' && membershipState(u, today).kind === 'expired'
 // 'YYYY-MM-DD' + n개월(말일 보정)
 export function addMonths(dateStr, n) {
   const [y, m, d] = dateStr.split('-').map(Number)

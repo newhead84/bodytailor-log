@@ -6,6 +6,7 @@ import { membershipState, fmtYmd } from '../utils/member'
 export default function MembershipNotice({ userDoc, full = false }) {
   const ms = membershipState(userDoc)
   if (ms.kind !== 'soon' && ms.kind !== 'expired') return null
+  if (userDoc?.role === '관리자') return null // [2026-10-31] 관리자는 막히지 않으니 '기록이 막혀요' 안내 대신 MY 회원권 카드로만
   const expired = ms.kind === 'expired'
   const card = (
     <Card style={{ marginBottom: full ? 0 : 20, border: `1px solid ${expired ? 'var(--color-danger)' : 'var(--color-warning)'}` }}>

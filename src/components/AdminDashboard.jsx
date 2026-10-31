@@ -438,7 +438,8 @@ function MembersTab({ users, matchOf, busy, onStatus, onRole, selfUid, onMembers
                 <option key={r} value={r}>{r}{u.uid === selfUid && r === '관리자' ? ' (나)' : ''}</option>
               ))}
             </select>
-            {statusOf(u) !== 'pending' && u.role !== '관리자' && u.role !== '트레이너' && (
+            {/* [2026-10-31] 관리자도 회원권·PT 대상(트레이너만 제외) */}
+            {(statusOf(u) !== 'pending' || u.role === '관리자') && u.role !== '트레이너' && (
               <Button variant="ghost" style={{ padding: '8px 12px', fontSize: 13 }} onClick={() => setEditing(editing === u.uid ? '' : u.uid)}>회원권·PT</Button>
             )}
           </div>
@@ -461,9 +462,10 @@ function MembersTab({ users, matchOf, busy, onStatus, onRole, selfUid, onMembers
 }
 
 function ConnectTab({ users, conns, onConnect, onEnd }) {
-  const approved = users.filter((u) => statusOf(u) === 'approved')
+  const approved = users.filter((u) => statusOf(u) === 'approved' || u.role === '관리자') // 관리자는 승인 상태와 무관하게 사용
   const trainers = approved.filter((u) => u.role === '트레이너')
-  const members = approved.filter((u) => !u.role || u.role === '일반회원' || u.role === 'PT회원')
+  // [2026-10-31] 관리자도 트레이너와 연결할 수 있다(역할은 관리자 그대로 — adminConnect는 일반회원만 PT회원으로 바꿈)
+  const members = approved.filter((u) => !u.role || u.role === '일반회원' || u.role === 'PT회원' || u.role === '관리자')
   const active = conns.filter((c) => c.status === 'active')
   const [memberUid, setMemberUid] = useState('')
   const [trainerUid, setTrainerUid] = useState('')
