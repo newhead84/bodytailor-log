@@ -58,14 +58,14 @@ export function toCsv(rows) {
 }
 
 // 관리 이력 한 줄
-export const ACTION = { approve: '승인', status: '상태', role: '역할', membership: '회원권·PT', pause: '휴회', connect: '트레이너 연결', disconnect: '연결 해제', renewal: '재등록 연락', settings: '설정', memo: '메모' }
+export const ACTION = { approve: '승인', status: '상태', role: '역할', membership: '회원권·PT', pause: '휴회', connect: '트레이너 연결', disconnect: '연결 해제', renewal: '재등록 연락', settings: '설정', memo: '메모', profile: '트레이너 프로필', roster: '명단', inquiry: '문의', pt: 'PT(트레이너)', withdraw: '탈퇴' }
 export function LogRow({ l, first }) {
   return (
     <div style={{ padding: '10px 0', borderTop: first ? 'none' : '1px solid var(--color-line)' }}>
       <p style={{ margin: 0, fontSize: 15, color: 'var(--color-label-strong)' }}>
         <Badge>{ACTION[l.action] || l.action}</Badge> <b>{l.targetName || '-'}</b> <span className="text-keep-all">{l.detail}</span>
       </p>
-      <p style={{ ...muted, margin: '3px 0 0' }}>{fmtDateTime(l.at)} · {l.byName || '관리자'}</p>
+      <p style={{ ...muted, margin: '3px 0 0' }}>{fmtDateTime(l.at)} · {l.action === 'withdraw' ? '회원 본인' : l.byName || '관리자'}{l.action === 'pt' ? ' (트레이너)' : ''}</p>
     </div>
   )
 }

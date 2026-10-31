@@ -2,6 +2,12 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 관리 이력 범위 확대 + 홍보 페이지 데모·기록 방식·배경 전환 | storage.js(setLogActor·logAction·탈퇴 기록), App.jsx, TrainerProfilesTab.jsx, AdminDashboard.jsx(명단), InquiryAdminScreen.jsx, TraineesScreen.jsx, adminUi.jsx, firestore.rules, public/intro/index.html
+- 관리 이력: 트레이너 프로필(등록·수정·순서·재직·퇴사·삭제), 명단 가져오기, 문의 답변·삭제, 트레이너 PT 작업(완료·노쇼·일정 등록·삭제·되돌리기, 담당 트레이너만), 탈퇴(이름 없이 '회원 1명 탈퇴'). rules: adminLogs 생성은 관리자 + 담당 트레이너 pt + 본인 withdraw만.
+- 홍보 데모: 숫자 직접 선택 대신 예시 4가지(목표 범위 안·채운 날·조금 모자란 날·많이 모자란 날)를 4.5초마다 자동 전환, 누르면 그 예시로(화면에 보일 때만, 움직임 줄이기 설정이면 자동 없음).
+- 기록 방식: 휴대폰은 탭 → 화면 미리보기 → 설명 순서, 탭을 누르면 미리보기가 보이게 스크롤.
+- 배경: 섹션마다 자기 색, 색이 바뀌는 경계에 그라데이션(경계당 하나, 사진 섹션은 사진 아래쪽을 다음 색으로 흐림).
+
 [2026-10-31] 관리자 대시보드 페이퍼로지체·글자 크기 키움 | styles/admin.css, Admin*.jsx, adminUi.jsx, TrainerProfilesTab.jsx, InquiryAdminScreen.jsx
 - 대시보드 폰트를 앱 기본과 같은 페이퍼로지로, 글자 크기 전반 1~1.5px 키움(본문 15.5px, 표 14.5px, 보조 글 14px), 메뉴 폭 248px, 막대그래프 숫자 잘림 수정.
 

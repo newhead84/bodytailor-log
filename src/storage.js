@@ -676,6 +676,15 @@ export async function logAdmin(admin, { action, targetUid = '', targetName = '',
     detail: String(detail || '').slice(0, 300),
   }).catch((err) => console.error('관리 이력 저장 실패:', err))
 }
+// [2026-10-31] 지금 로그인한 관리자·트레이너(App이 세팅) - 화면마다 이름을 넘기지 않고 이력을 남기기 위해
+let logActor = null
+export function setLogActor(actor) {
+  logActor = actor && actor.uid ? { uid: actor.uid, name: String(actor.name || '').slice(0, 30) } : null
+}
+export function logAction(entry) {
+  if (!logActor) return Promise.resolve()
+  return logAdmin(logActor, entry)
+}
 export async function adminListLogs({ targetUid = '', count = 300 } = {}) {
   const col = collection(db, 'adminLogs')
   const snap = targetUid ? await getDocs(query(col, where('targetUid', '==', targetUid))) : await getDocs(query(col, orderBy('at', 'desc'), limit(count)))
@@ -938,6 +947,8 @@ export async function deleteMyAccountData(uid, onProgress) {
   onProgress?.('계정 정보를 지우는 중…')
   // 진행 세션 백업은 사용자 문서 바로 앞에서 지운다(그 사이 백업 타이머가 다시 만드는 것 방지 - 사용자 문서가 없으면 규칙이 거부)
   await deleteDoc(doc(db, 'activeSessions', uid))
+  // 관리 이력에는 이름 없이 '회원 1명 탈퇴'만 남긴다(개인정보 삭제가 목적)
+  await addDoc(collection(db, 'adminLogs'), { at: serverTimestamp(), byUid: uid, byName: '', action: 'withdraw', targetUid: '', targetName: '', detail: '회원 1명 탈퇴' }).catch(() => {})
   const mark = doc(db, 'deletedAccounts', uid)
   if (!(await getDoc(mark)).exists()) await setDoc(mark, { deletedAt: serverTimestamp() }) // 다시 시도할 때는 이미 있음(수정 불가 규칙)
   await deleteDoc(doc(db, 'users', uid))

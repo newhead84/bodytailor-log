@@ -8,7 +8,7 @@ import { BackButton, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { useBackableScreen } from '../hooks/useBackableScreen'
-import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
+import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
 import { toLocalDateStr } from '../utils/date'
 import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
@@ -364,10 +364,13 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
   const upcoming = schedules.filter((s) => s.status === 'scheduled')
   const doneNoSession = schedules.filter((s) => (s.status === 'done' || s.status === 'noshow') && !sessions.some((x) => x.scheduleId === s.id)).slice(-3).reverse()
   const noshowDeduct = noshowPolicy === 'deduct' && deduct
-  async function run(fn, failMsg) {
+  // [2026-10-31] 트레이너 PT 작업도 관리 이력에 남긴다(정산·확인용)
+  const ptLog = (detail) => logAction({ action: 'pt', targetUid: conn.memberUid, targetName: conn.memberName, detail })
+  async function run(fn, failMsg, logDetail) {
     setBusy(true)
     try {
       await fn()
+      if (logDetail) await ptLog(logDetail)
       onChanged()
       reload()
     } catch (err) {
@@ -379,25 +382,25 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
   }
   async function use() {
     if (!(await confirm(`${conn.memberName}님 PT 1회를 완료로 기록할까요? 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.`, { okLabel: '1회 완료', cancelLabel: '취소' }))) return
-    run(() => trainerUsePt(conn.memberUid, trainer, today), '기록하지 못했어요')
+    run(() => trainerUsePt(conn.memberUid, trainer, today), '기록하지 못했어요', `일정 없이 PT 1회 완료(차감 ${left}→${left - 1})`)
   }
   async function complete(s) {
     if (deduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 완료로 바꿀까요?${deduct ? ` 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ''}`, { okLabel: '완료', cancelLabel: '취소' }))) return
-    run(() => trainerCompleteSchedule(s, trainer, deduct), '완료 처리하지 못했어요')
+    run(() => trainerCompleteSchedule(s, trainer, deduct), '완료 처리하지 못했어요', `${s.date} ${s.time} PT 완료${deduct ? `(차감 ${left}→${left - 1})` : ''}`)
   }
   async function noshow(s) {
     if (noshowDeduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 노쇼로 처리할까요?${noshowDeduct ? ` 노쇼도 1회 차감돼 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ' 남은 횟수는 그대로예요.'}`, { okLabel: '노쇼 처리', cancelLabel: '취소' }))) return
-    run(() => trainerNoShowSchedule(s, trainer, noshowDeduct), '노쇼 처리하지 못했어요')
+    run(() => trainerNoShowSchedule(s, trainer, noshowDeduct), '노쇼 처리하지 못했어요', `${s.date} ${s.time} 노쇼${noshowDeduct ? `(차감 ${left}→${left - 1})` : ''}`)
   }
   async function remove(s) {
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT 일정을 삭제할까요? 회원 캘린더에서도 사라져요.`, { okLabel: '삭제', cancelLabel: '취소' }))) return
-    run(() => trainerDeleteSchedule(s.id), '삭제하지 못했어요')
+    run(() => trainerDeleteSchedule(s.id), '삭제하지 못했어요', `${s.date} ${s.time} PT 일정 삭제`)
   }
   async function undo(s) {
     if (!(await confirm(`${fmtDay(s.date)} PT 완료를 되돌릴까요? 남은 횟수가 1회 늘어요.`, { okLabel: '되돌리기', cancelLabel: '취소' }))) return
-    run(() => trainerUndoPt(conn.memberUid, s), '되돌리지 못했어요')
+    run(() => trainerUndoPt(conn.memberUid, s), '되돌리지 못했어요', `${s.date} ${s.noshow ? '노쇼' : 'PT 완료'} 되돌리기(남은 횟수 +1)`)
   }
   const field = { padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 14, fontFamily: 'inherit', minWidth: 0 }
   const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13.5, padding: '7px 0', borderTop: '1px solid var(--color-line)' }
@@ -434,7 +437,7 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
       <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
         <input type="date" value={newDate} min={today} onChange={(e) => setNewDate(e.target.value)} aria-label="PT 날짜" style={{ ...field, flex: '1 1 140px' }} />
         <input type="time" value={newTime} step="600" onChange={(e) => setNewTime(e.target.value)} aria-label="PT 시간" style={{ ...field, flex: '1 1 100px' }} />
-        <Button disabled={busy || !newDate || !newTime} onClick={() => run(() => trainerAddSchedule(conn.memberUid, trainer, newDate, newTime.slice(0, 5)), '일정을 등록하지 못했어요')} style={{ flex: '0 0 auto' }}>일정 추가</Button>
+        <Button disabled={busy || !newDate || !newTime} onClick={() => run(() => trainerAddSchedule(conn.memberUid, trainer, newDate, newTime.slice(0, 5)), '일정을 등록하지 못했어요', `${newDate} ${newTime.slice(0, 5)} PT 일정 등록`)} style={{ flex: '0 0 auto' }}>일정 추가</Button>
       </div>
 
       {(sessions.length > 0 || doneNoSession.length > 0) && (
@@ -449,7 +452,7 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
           {doneNoSession.map((s) => (
             <div key={s.id} style={rowStyle}>
               <span>{fmtDay(s.date)} {s.time} {s.status === 'noshow' ? '노쇼' : 'PT 완료'}</span>
-              <button type="button" disabled={busy} onClick={() => run(() => trainerReopenSchedule(s.id), '되돌리지 못했어요')} style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>되돌리기</button>
+              <button type="button" disabled={busy} onClick={() => run(() => trainerReopenSchedule(s.id), '되돌리지 못했어요', `${s.date} ${s.time} ${s.status === 'noshow' ? '노쇼' : '완료'} 되돌리기`)} style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>되돌리기</button>
             </div>
           ))}
         </>

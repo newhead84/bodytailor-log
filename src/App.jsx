@@ -9,7 +9,7 @@
 import React, { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { watchAuthState } from './firebase'
 import { LEGACY_EXERCISE_NAME_MAP } from './utils/exerciseLibrary'
-import { ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLogAndRevertXp, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
+import { setLogActor, ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLogAndRevertXp, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
 import { prsVersionKey } from './utils/strength'
 import { setBodyweightKg } from './utils/load'
 import { setTrainingProfile, isBeginnerAccount } from './utils/goals'
@@ -252,6 +252,12 @@ export default function App() {
   }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.designDefaultsVersion])
 
   // [2026-10-31 Phase2 P2-1] 관리자가 아닌 계정이 /admin 으로 들어오면 주소를 / 로 되돌리고 일반 화면
+  // [2026-10-31] 관리 이력에 남길 '지금 작업하는 사람'(관리자·트레이너만)
+  useEffect(() => {
+    const staff = userDoc && (userDoc.role === '관리자' || userDoc.role === '트레이너')
+    setLogActor(staff ? { uid: authUser?.uid, name: userDoc.signupInfo?.name || userDoc.nickname || '' } : null)
+  }, [authUser?.uid, userDoc?.role, userDoc?.signupInfo?.name, userDoc?.nickname])
+
   // [2026-10-31] 설치 배너(main.jsx)가 /admin 여부를 알 수 있게 화면 전환을 알린다
   useEffect(() => {
     window.dispatchEvent(new Event('bt-route'))

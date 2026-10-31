@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
 import TrainerProfileView, { TrainerAvatar, TrainerTags } from './TrainerProfileView'
-import { listTrainerProfiles, adminSaveTrainerProfile, adminDeleteTrainerProfile, adminConnect, endConnection, adminUpdateMember } from '../storage'
+import { listTrainerProfiles, adminSaveTrainerProfile, adminDeleteTrainerProfile, adminConnect, endConnection, adminUpdateMember, logAction } from '../storage'
 import { DEFAULT_TRAINER_PROFILES, resizePhoto, splitLines, splitTags, photoList, MAX_TRAINER_PHOTOS } from '../utils/trainerProfile'
 import { todayStr } from '../utils/date'
 
@@ -42,6 +42,7 @@ export default function TrainerProfilesTab({ users, conns, adminUid, onChanged }
     setBusy(true)
     try {
       for (const [i, p] of DEFAULT_TRAINER_PROFILES.entries()) await adminSaveTrainerProfile({ hours: '', instagram: '', ...p, order: i, active: true })
+      await logAction({ action: 'profile', detail: `기본 트레이너 프로필 ${DEFAULT_TRAINER_PROFILES.length}명 등록` })
       await load()
     } catch (err) {
       await fail(err, '기본 프로필 등록')
@@ -57,6 +58,7 @@ export default function TrainerProfilesTab({ users, conns, adminUid, onChanged }
     try {
       await adminSaveTrainerProfile({ id: p.id, order: idx + dir })
       await adminSaveTrainerProfile({ id: other.id, order: idx })
+      await logAction({ action: 'profile', targetName: p.name, detail: `소개 순서 ${dir < 0 ? '위로' : '아래로'}` })
       // 나머지도 0..n으로 정리
       await Promise.all(active.map((x, i) => (x.id !== p.id && x.id !== other.id && Number(x.order) !== i ? adminSaveTrainerProfile({ id: x.id, order: i }) : null)))
       await load()
@@ -70,6 +72,7 @@ export default function TrainerProfilesTab({ users, conns, adminUid, onChanged }
     if (!(await confirm(`${p.name} 트레이너를 다시 재직으로 바꿀까요? 앱 트레이너 소개에 다시 보여요.`, { okLabel: '재직으로', cancelLabel: '취소' }))) return
     try {
       await adminSaveTrainerProfile({ id: p.id, active: true, leftAt: '', order: active.length })
+      await logAction({ action: 'profile', targetName: p.name, detail: '재직으로 변경' })
       await load()
     } catch (err) {
       await fail(err, '재직 변경')
@@ -79,6 +82,7 @@ export default function TrainerProfilesTab({ users, conns, adminUid, onChanged }
     if (!(await confirm(`${p.name} 프로필을 완전히 삭제할까요? 되돌릴 수 없어요. 퇴사라면 '퇴사 처리'를 쓰면 기록이 남아요.`, { okLabel: '삭제', cancelLabel: '취소' }))) return
     try {
       await adminDeleteTrainerProfile(p.id)
+      await logAction({ action: 'profile', targetName: p.name, detail: '프로필 삭제' })
       await load()
     } catch (err) {
       await fail(err, '삭제')
@@ -96,6 +100,7 @@ export default function TrainerProfilesTab({ users, conns, adminUid, onChanged }
         onSave={async (data) => {
           try {
             await adminSaveTrainerProfile(editing === 'new' ? { ...data, order: active.length, active: true } : { id: editing.id, ...data })
+            await logAction({ action: 'profile', targetUid: data.linkedUid || '', targetName: data.name, detail: editing === 'new' ? '프로필 새로 등록' : '프로필 수정' })
             setEditing(null)
             await load()
           } catch (err) {
@@ -125,6 +130,7 @@ export default function TrainerProfilesTab({ users, conns, adminUid, onChanged }
             }
             if (demote && leaving.linkedUid) await adminUpdateMember(leaving.linkedUid, { role: '일반회원' }, adminUid)
             await adminSaveTrainerProfile({ id: leaving.id, active: false, leftAt: todayStr() })
+            await logAction({ action: 'profile', targetUid: leaving.linkedUid || '', targetName: leaving.name, detail: `퇴사 처리 · 담당 회원 ${mine.length}명 ${target ? `${leaving.name} → ${target.signupInfo?.name || target.nickname} 이관` : '연결 해제'}${demote ? ' · 역할 일반회원' : ''}` })
             setLeaving(null)
             await load()
             await onChanged?.()

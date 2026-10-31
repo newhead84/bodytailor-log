@@ -30,8 +30,8 @@
 @font-face{font-family:'Paperlogy';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2') format('woff2');font-weight:600;font-display:swap}
 @font-face{font-family:'Paperlogy';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-7Bold.woff2') format('woff2');font-weight:800;font-display:swap}
 /* 앱 designStyles.css(C 스타일 + 볼트 라임) 토큰 */
-.dark{--bg:#141210;--card:#1e1b18;--elev:#26221e;--line:#2c2824;--t1:#f5efe6;--t2:#cfc6b8;--t3:#a39b8f;--acc:#c8f53c;--fill:#c8f53c;--onfill:#11170a;--accbg:#252c13}
-.beige{--bg:#f4ece1;--card:#fff9f1;--elev:#ffffff;--line:#e3d3bb;--t1:#2a2118;--t2:#5c5347;--t3:#6b6156;--acc:#4c6600;--fill:#c8f53c;--onfill:#11170a;--accbg:#ebedc7}
+.dark,[data-tone="dark"]{--bg:#141210;--card:#1e1b18;--elev:#26221e;--line:#2c2824;--t1:#f5efe6;--t2:#cfc6b8;--t3:#a39b8f;--acc:#c8f53c;--fill:#c8f53c;--onfill:#11170a;--accbg:#252c13}
+.beige,[data-tone="beige"]{--bg:#f4ece1;--card:#fff9f1;--elev:#ffffff;--line:#e3d3bb;--t1:#2a2118;--t2:#5c5347;--t3:#6b6156;--acc:#4c6600;--fill:#c8f53c;--onfill:#11170a;--accbg:#ebedc7}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:'Paperlogy',system-ui,sans-serif;background:var(--bg);color:var(--t1);word-break:keep-all;overflow-wrap:break-word;transition:background-color .35s ease,color .35s ease;-webkit-font-smoothing:antialiased}
@@ -39,6 +39,12 @@ body{font-family:'Paperlogy',system-ui,sans-serif;background:var(--bg);color:var
 a{color:inherit}
 .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
 section{padding:110px 0}
+/* [2026-10-31] 섹션마다 자기 색을 갖고, 색이 바뀌는 경계는 그라데이션(.fade)으로 부드럽게 이어 준다(스크립트가 경계에 넣음) */
+[data-tone]{position:relative;background-color:var(--bg);color:var(--t1)}
+[data-tone]>.wrap{position:relative;z-index:2}
+.fade{position:absolute;left:0;right:0;height:var(--fade-h,100px);pointer-events:none;z-index:1}
+.fade.t{top:0;background:linear-gradient(to bottom,var(--from),transparent)}
+.fade.b{bottom:0;background:linear-gradient(to top,var(--to),transparent)}
 .label{font:700 13px 'Outfit','Paperlogy',sans-serif;letter-spacing:.04em;color:var(--acc)}
 h2{font-weight:800;font-size:clamp(30px,4.6vw,52px);line-height:1.2;letter-spacing:-.025em;margin-top:14px}
 .lead{font-size:clamp(16px,1.7vw,19px);line-height:1.75;color:var(--t2);margin-top:18px;max-width:620px}
@@ -58,7 +64,7 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
 .hero .bg{position:absolute;inset:0;background:#141210 center/cover no-repeat;transform:scale(1.04);transition:transform 1.2s ease}
 .hero.in .bg{transform:scale(1)}
 .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,18,16,.25) 0%,rgba(20,18,16,.35) 40%,rgba(20,18,16,.92) 100%)}
-.hero .wrap{position:relative;z-index:1;width:100%;padding-bottom:clamp(48px,9vh,96px)}
+.hero .wrap{position:relative;z-index:2;width:100%;padding-bottom:clamp(48px,9vh,96px)}
 .hero .label{color:#c8f53c}
 .hero h1{font-weight:800;font-size:clamp(40px,7.4vw,92px);line-height:1.08;letter-spacing:-.03em;margin-top:16px}
 .hero h1 span{color:#c8f53c}
@@ -80,7 +86,7 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
 .band{position:relative;min-height:62vh;display:flex;align-items:center;color:#f5efe6;padding:0;overflow:hidden}
 .band .bg{position:absolute;inset:-8% 0;background:#141210 center/cover no-repeat;will-change:transform}
 .band::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(20,18,16,.88) 0%,rgba(20,18,16,.55) 55%,rgba(20,18,16,.2) 100%)}
-.band .wrap{position:relative;z-index:1;width:100%}
+.band .wrap{position:relative;z-index:2;width:100%}
 .band h2{color:#f5efe6;max-width:720px}
 .band .label{color:#c8f53c}
 
@@ -145,7 +151,8 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
 .demo .foot{grid-column:1/-1;padding:16px 28px;font-size:13px;color:var(--t3);border-top:1px solid var(--line);background:var(--card)}
 
 /* 기록 방식 */
-.modes{display:grid;grid-template-columns:auto 1fr;gap:56px;align-items:center;margin-top:48px}
+.modes{display:grid;grid-template-columns:auto 1fr;grid-template-areas:'phone tabs' 'phone info';column-gap:56px;row-gap:22px;align-content:center;margin-top:48px}
+.modes .tabs{grid-area:tabs;align-self:end}.modes .mshot{grid-area:phone;align-self:center}.modes .minfo{grid-area:info;align-self:start}
 .mshot{width:min(300px,74vw);margin:0 auto}
 .mshot.phone{margin-top:0}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--line)}
@@ -161,7 +168,7 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
 .pt{position:relative;color:#f5efe6;overflow:hidden}
 .pt .bg{position:absolute;inset:0;background:#141210 center/cover no-repeat}
 .pt::after{content:'';position:absolute;inset:0;background:rgba(14,13,12,.82)}
-.pt .wrap{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+.pt .wrap{position:relative;z-index:2;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
 .pt h2{color:#f5efe6}.pt .label{color:#c8f53c}.pt .lead{color:#d9d1c5}
 .pt dl{display:flex;flex-direction:column}
 .pt dt{font-size:18px;font-weight:800;padding-top:20px}
@@ -200,9 +207,17 @@ h1,h2,h3{text-wrap:balance}
 p,dd,.why,.foot{text-wrap:pretty}
 /* 데모: 지난번 기록은 기록처럼(입력 화면 아님), 횟수만 눌러서 바꿔 보기 */
 .set .rec{margin-left:auto;font:700 17px 'Outfit','Paperlogy',sans-serif;display:flex;align-items:center;gap:4px}
-.set select{appearance:none;-webkit-appearance:none;font:800 18px 'Outfit',sans-serif;color:var(--t1);background:transparent;border:0;border-bottom:2px dashed var(--acc);border-radius:0;padding:0 16px 1px 4px;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--acc) 50%),linear-gradient(135deg,var(--acc) 50%,transparent 50%);background-position:right 5px center,right 1px center;background-size:4px 4px;background-repeat:no-repeat}
-.set select:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
 .demo .hint{font-size:12.5px;color:var(--t3);margin:-6px 0 10px}
+/* 예시 자동 전환(4가지, 4.5초마다) - 누르면 그 예시로 */
+.dsteps{display:flex;flex-wrap:wrap;gap:8px;margin-top:36px}
+.dsteps button{position:relative;overflow:hidden;font:700 14px 'Paperlogy',sans-serif;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--t2);cursor:pointer}
+.dsteps button.on{color:var(--onfill);background:var(--fill);border-color:var(--fill)}
+.dsteps button.on.run::after{content:'';position:absolute;left:0;bottom:0;height:3px;background:var(--onfill);opacity:.35;animation:dfill 4.5s linear forwards}
+@keyframes dfill{from{width:0}to{width:100%}}
+.demo{margin-top:16px}
+.demo .sets,.demo .big,.demo .why{transition:opacity .25s ease}
+.demo.swap .sets,.demo.swap .big,.demo.swap .why{opacity:0}
+.set .rec .num{font-weight:800;font-size:19px}
 /* 더 있어요(가이드·스트레칭·목표 맞춤·회원권) */
 .more{margin-top:44px;border-top:2px solid var(--t1)}
 .more .r{display:grid;grid-template-columns:200px 1fr;gap:20px;padding:22px 0;border-bottom:1px solid var(--line);align-items:baseline}
@@ -219,7 +234,8 @@ p,dd,.why,.foot{text-wrap:pretty}
   .compare .r.h .q{display:none}
   .steps{grid-template-columns:1fr;gap:56px}
   .demo{grid-template-columns:1fr}
-  .modes{grid-template-columns:1fr;gap:28px}
+  .modes{grid-template-columns:1fr;grid-template-areas:'tabs' 'phone' 'info';row-gap:24px}
+  .fade{--fade-h:70px}
   .pt .wrap{grid-template-columns:1fr;gap:36px}
   .ptshots{gap:12px}.ptshots figure:nth-child(2){margin-top:36px}
   .ptshots .phone{width:43vw;border-radius:26px;padding:6px}.ptshots .phone .screen{border-radius:21px}
@@ -286,9 +302,10 @@ p,dd,.why,.foot{text-wrap:pretty}
   <div class="wrap">
     <div class="label rv">점진적 과부하</div>
     <h2 class="rv d1">감이 아니라<br>지난번의 나를 기준으로</h2>
-    <p class="lead rv d2"><span class="s"><span class="k">예시: 스쿼트 60kg,</span> <span class="k">목표 6–10회.</span></span><span class="s"><span class="k">지난번 횟수를 바꿔 보면</span> <span class="k">오늘 목표가 달라져요.</span></span></p>
-    <div class="demo rv">
-      <div class="in"><div class="q">지난번 기록</div><p class="hint">밑줄 친 횟수를 눌러 바꿔 보세요</p><div class="sets" id="sets"></div></div>
+    <p class="lead rv d2"><span class="s"><span class="k">예시: 스쿼트 60kg,</span> <span class="k">목표 6–10회.</span></span><span class="s"><span class="k">지난번에 몇 번 했는지에 따라</span> <span class="k">오늘 목표가 이렇게 달라져요.</span></span></p>
+    <div class="dsteps rv" id="dsteps" role="tablist" aria-label="예시 고르기"></div>
+    <div class="demo rv" id="demo">
+      <div class="in"><div class="q">지난번 기록</div><div class="sets" id="sets"></div></div>
       <div class="out"><div class="t">앱이 알려 주는 오늘 목표</div><div class="big" id="recBig"></div><div class="why" id="recWhy"></div><div class="bar" id="recBar"><i></i></div><div class="barlabel" id="recBarLabel"></div></div>
       <div class="foot"><span class="s">세트마다 <span class="k">1회씩</span> 늘리다가 목표를 채우면 무게를 올려요.</span><span class="s"><span class="k">많이 모자라면 같은 무게로 한 번 더,</span> <span class="k">두 번 연속이면 약 10% 내려요.</span></span></div>
     </div>
@@ -306,10 +323,10 @@ p,dd,.why,.foot{text-wrap:pretty}
 <section id="modes" data-tone="dark" style="padding-top:80px">
   <div class="wrap">
     <div class="modes">
-      <div class="mshot phone rv"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-list.webp" alt="리스트형 기록 화면"><img loading="lazy" src="/intro/img/cap-focus.webp" alt="포커스형 기록 화면"></div></div>
+      <div class="tabs rv" role="tablist"><button class="on" data-m="0" role="tab" aria-selected="true">리스트형</button><button data-m="1" role="tab" aria-selected="false">포커스형</button></div>
+      <div class="mshot phone rv" id="mshot"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-list.webp" alt="리스트형 기록 화면"><img loading="lazy" src="/intro/img/cap-focus.webp" alt="포커스형 기록 화면"></div></div>
       <div class="minfo rv d1">
-        <div class="tabs" role="tablist"><button class="on" data-m="0" role="tab" aria-selected="true">리스트형</button><button data-m="1" role="tab" aria-selected="false">포커스형</button></div>
-        <p id="mDesc"></p>
+        <p id="mDesc" style="margin-top:0"></p>
         <ul id="mList"></ul>
         <p class="extra"><span class="s">운동 중에도 상단 버튼으로 바로 바꿀 수 있어요.</span><span class="s">화면 색(다크·베이지·라이트)과 강조색도 설정에서 골라요.</span></p>
       </div>
@@ -395,6 +412,20 @@ function onScroll(){
   if (!reduce) para.forEach(bg => { const r = bg.parentElement.getBoundingClientRect(); const p = (r.top + r.height / 2 - innerHeight / 2) / innerHeight; bg.style.transform = `translateY(${p * -40}px)` })
 }
 addEventListener('scroll', onScroll, { passive: true }); onScroll()
+// 섹션 색이 바뀌는 경계: 아래 섹션 위쪽에 앞 섹션 색 → 투명 그라데이션, 사진 섹션 다음이 같은 색이면 사진 아래쪽을 그 색으로 흐리게
+const TONE_BG = { dark: '#141210', beige: '#f4ece1' }
+toned.forEach((el, i) => {
+  const prev = toned[i - 1], next = toned[i + 1]
+  const photo = el.querySelector(':scope > .bg')
+  // 경계 하나에 그라데이션 하나만: 앞이 사진 섹션이면 그 사진의 아래쪽 흐림이 맡는다
+  const prevPhoto = prev && prev.querySelector(':scope > .bg')
+  if (prev && !prevPhoto && prev.dataset.tone !== el.dataset.tone) {
+    const f = document.createElement('div'); f.className = 'fade t'; f.style.setProperty('--from', TONE_BG[prev.dataset.tone]); f.setAttribute('aria-hidden', 'true'); el.prepend(f)
+  }
+  if (photo && next) {
+    const f = document.createElement('div'); f.className = 'fade b'; f.style.setProperty('--to', TONE_BG[next.dataset.tone]); f.setAttribute('aria-hidden', 'true'); el.append(f)
+  }
+})
 requestAnimationFrame(() => hero.classList.add('in'))
 
 const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) } }), { threshold: .15 })
@@ -406,20 +437,27 @@ const MODES = [
   { d: '지금 할 세트 하나만 큰 숫자와 큰 버튼으로 보여 줘요.|땀 묻은 손으로도 누르기 쉬워요.', l: ['큰 숫자, 큰 버튼', '무게·횟수를 큰 ± 버튼으로', '저장하면 다음 세트로 자동 이동'] },
 ]
 const mImgs = document.querySelectorAll('.mshot img')
+let userPick = false
 function setMode(i){
   document.querySelectorAll('.tabs button').forEach((b, k) => { b.classList.toggle('on', k === i); b.setAttribute('aria-selected', k === i) })
   mImgs.forEach((im, k) => im.classList.toggle('on', k === i))
+  // 휴대폰에서 화면 미리보기가 위로 지나가 있으면 보이게 끌어온다(바뀌는 걸 알아채도록)
+  const shot = document.getElementById('mshot').getBoundingClientRect()
+  if (userPick && innerWidth <= 820 && (shot.top < 60 || shot.bottom > innerHeight)) document.querySelector('.modes .tabs').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
   document.getElementById('mDesc').innerHTML = MODES[i].d.split('|').map(x => `<span class="s">${x}</span>`).join('')
   document.getElementById('mList').innerHTML = MODES[i].l.map(x => `<li>${x}</li>`).join('')
 }
-document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button'); if (b) setMode(+b.dataset.m) }
+document.querySelector('.modes .tabs').onclick = e => { const b = e.target.closest('button'); if (b) { userPick = true; setMode(+b.dataset.m) } }
 setMode(0)
 
 // 추천 데모 - 앱 strength.js 규칙(2026-10-30)
-const reps = [9, 8, 7], MIN = 6, MAX = 10, W = 60, INC = 5
+// [2026-10-31] 숫자를 직접 고르던 방식 대신 예시 4가지를 자동으로 바꿔 보여 준다(누르면 그 예시로)
+const SCEN = [{ t: '목표 범위 안', reps: [9, 8, 7] }, { t: '목표를 채운 날', reps: [10, 10, 9] }, { t: '조금 모자란 날', reps: [7, 6, 5] }, { t: '많이 모자란 날', reps: [6, 4, 3] }]
+let reps = SCEN[0].reps.slice(), si = 0
+const MIN = 6, MAX = 10, W = 60, INC = 5
 function render(){
   document.getElementById('sets').innerHTML = reps.map((r, i) =>
-    `<div class="set"><span class="sk">${i + 1}세트</span><span class="rec">${W}kg ×<select data-i="${i}" aria-label="지난번 ${i + 1}세트 횟수">${Array.from({ length: 15 }, (_, k) => `<option${k + 1 === r ? ' selected' : ''}>${k + 1}</option>`).join('')}</select>회</span></div>`).join('')
+    `<div class="set"><span class="sk">${i + 1}세트</span><span class="rec">${W}kg × <span class="num">${r}</span>회</span></div>`).join('')
   const total = reps.reduce((a, b) => a + b, 0), need = Math.ceil(0.9 * MAX * reps.length), minR = Math.min(...reps)
   const big = document.getElementById('recBig'), why = document.getElementById('recWhy'), bar = document.getElementById('recBar'), bl = document.getElementById('recBarLabel')
   let showBar = false
@@ -431,8 +469,25 @@ function render(){
   bar.querySelector('i').style.width = Math.min(100, total / need * 100) + '%'
   bl.textContent = `증량까지 총 ${Math.max(0, need - total)}회 (지난번 ${total} / ${need}회)`
 }
-document.getElementById('sets').onchange = e => { const sel = e.target.closest('select'); if (!sel) return; reps[+sel.dataset.i] = +sel.value; render() }
-render()
+const stepsEl = document.getElementById('dsteps'), demoEl = document.getElementById('demo')
+stepsEl.innerHTML = SCEN.map((x, i) => `<button type="button" role="tab" data-i="${i}">${i + 1}. ${x.t}</button>`).join('')
+let timer = null, visible = false
+function show(i, animate = true) {
+  si = i
+  ;[...stepsEl.children].forEach((b, k) => { b.classList.toggle('on', k === i); b.setAttribute('aria-selected', k === i); b.classList.remove('run') })
+  const apply = () => { reps = SCEN[i].reps.slice(); render(); demoEl.classList.remove('swap') }
+  if (animate && !reduce) { demoEl.classList.add('swap'); setTimeout(apply, 250) } else apply()
+  schedule()
+}
+function schedule() {
+  clearTimeout(timer)
+  if (reduce || !visible) return
+  const b = stepsEl.children[si]; void b.offsetWidth; b.classList.add('run')
+  timer = setTimeout(() => show((si + 1) % SCEN.length), 4500)
+}
+stepsEl.onclick = (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.i) }
+new IntersectionObserver((es) => { visible = es[0].isIntersecting; if (visible) schedule(); else { clearTimeout(timer); stepsEl.children[si]?.classList.remove('run') } }, { threshold: 0.4 }).observe(demoEl)
+show(0, false)
 </script>
 </body>
 </html>

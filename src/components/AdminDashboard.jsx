@@ -10,7 +10,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
 import { LayoutDashboard, UserPlus, Users, RefreshCw, CalendarDays, Link2, UserRound, BarChart3, History, FileUp, Settings, ArrowLeft, Menu, Search } from 'lucide-react'
 import '../styles/admin.css'
-import { adminListUsers, adminUpdateMember, adminGetRoster, adminSaveRoster, adminLinkRoster, adminListConnections, adminConnect, endConnection, adminSetMembership, getAppSettings, adminSaveSettings, adminListNotes, getAllInquiries, logAdmin } from '../storage'
+import { adminListUsers, adminUpdateMember, adminGetRoster, adminSaveRoster, adminLinkRoster, adminListConnections, adminConnect, endConnection, adminSetMembership, getAppSettings, adminSaveSettings, adminListNotes, getAllInquiries, logAdmin, logAction } from '../storage'
 import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId, membershipState, addMonths, fmtYmd, memberName } from '../utils/member'
 import TrainerProfilesTab from './TrainerProfilesTab'
 import AdminMemberDetail from './AdminMemberDetail'
@@ -809,6 +809,7 @@ function RosterTab({ roster, users, onSaved }) {
           }
         }
       }
+      await logAction({ action: 'roster', detail: `명단 ${list.length}명 가져오기${synced ? ` · 회원권 종료일 ${synced}명 반영` : ''}${invalid ? ` · ${invalid}줄 건너뜀` : ''}` })
       setResult(`${list.length}명을 저장했어요.${synced ? ` 연결된 회원 ${synced}명의 회원권 종료일을 새 만료일로 바꿨어요.` : ''}${invalid ? ` 형식이 맞지 않은 ${invalid}줄은 건너뛰었어요.` : ''}`)
       setRows(null)
       await onSaved?.()

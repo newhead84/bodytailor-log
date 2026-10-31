@@ -3,7 +3,7 @@
 // 전체 사용자 문의를 미답변 우선으로 보여주고, 각 문의에 답변을 입력해 등록할 수 있다.
 import React, { useEffect, useState } from 'react'
 import { Card, Button, BackButton, EmptyState, useConfirm } from './ui'
-import { getAllInquiries, replyToInquiry, deleteInquiry } from '../storage'
+import { getAllInquiries, replyToInquiry, deleteInquiry, logAction } from '../storage'
 
 function InquiryRow({ q, onReplied }) {
   const confirm = useConfirm()
@@ -17,6 +17,7 @@ function InquiryRow({ q, onReplied }) {
     setSaving(true)
     try {
       await replyToInquiry(q.id, trimmed)
+      await logAction({ action: 'inquiry', targetUid: q.uid || '', targetName: q.nickname || '', detail: `문의 ${isAnswered ? '답변 수정' : '답변'}: ${trimmed.slice(0, 60)}` })
       onReplied?.()
     } finally {
       setSaving(false)
@@ -35,6 +36,7 @@ function InquiryRow({ q, onReplied }) {
               if (!(await confirm('이 문의를 삭제할까요? 회원 화면에서도 사라져요.', { okLabel: '삭제', cancelLabel: '취소' }))) return
               try {
                 await deleteInquiry(q.id)
+                await logAction({ action: 'inquiry', targetUid: q.uid || '', targetName: q.nickname || '', detail: `문의 삭제: ${String(q.content || '').slice(0, 60)}` })
                 onReplied?.()
               } catch (err) {
                 console.error('문의 삭제 실패:', err)
