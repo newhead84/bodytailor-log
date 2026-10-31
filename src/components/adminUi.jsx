@@ -25,24 +25,24 @@ export function Badge({ tone = 'neutral', children }) {
     neutral: { color: 'var(--color-label-neutral)', border: 'var(--color-line-strong)' },
   }[tone]
   return (
-    <span style={{ display: 'inline-block', fontSize: 11.5, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-pill)', border: `1px solid ${tones.border}`, color: tones.color, whiteSpace: 'nowrap' }}>{children}</span>
+    <span style={{ display: 'inline-block', fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-pill)', border: `1px solid ${tones.border}`, color: tones.color, whiteSpace: 'nowrap' }}>{children}</span>
   )
 }
 
-export const selectStyle = { padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 13, fontFamily: 'inherit' }
-export const sectionTitle = { margin: '0 0 10px', fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }
-export const muted = { fontSize: 12.5, color: 'var(--color-label-neutral)' }
+export const selectStyle = { padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 14.5, fontFamily: 'inherit' }
+export const sectionTitle = { margin: '0 0 10px', fontSize: 16.5, fontWeight: 800, color: 'var(--color-label-strong)' }
+export const muted = { fontSize: 14, color: 'var(--color-label-neutral)' }
 
 // 세로 막대 묶음(주간 추이 등). items: [{ label, value }]
 export function Bars({ items, height = 90, unit = '' }) {
   const max = Math.max(1, ...items.map((x) => x.value || 0))
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: height + 46, paddingTop: 4, overflowX: 'auto' }} role="img" aria-label={items.map((x) => `${x.label} ${x.value}${unit}`).join(', ')}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: height + 60, overflowX: 'auto' }} role="img" aria-label={items.map((x) => `${x.label} ${x.value}${unit}`).join(', ')}>
       {items.map((x) => (
         <div key={x.label} style={{ flex: '1 0 18px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 18 }}>
-          <span className="bt-num" style={{ fontSize: 10.5, color: 'var(--color-label-normal)' }}>{x.value || ''}</span>
+          <span className="bt-num" style={{ fontSize: 12, color: 'var(--color-label-normal)' }}>{x.value || ''}</span>
           <div style={{ width: '70%', height: Math.max(2, ((x.value || 0) / max) * height), background: x.highlight ? 'var(--color-fill-strong)' : 'var(--color-label-neutral)', opacity: x.highlight ? 1 : 0.55, borderRadius: 3 }} />
-          <span style={{ fontSize: 10, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>{x.label}</span>
+          <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>{x.label}</span>
         </div>
       ))}
     </div>
@@ -62,7 +62,7 @@ export const ACTION = { approve: '승인', status: '상태', role: '역할', mem
 export function LogRow({ l, first }) {
   return (
     <div style={{ padding: '10px 0', borderTop: first ? 'none' : '1px solid var(--color-line)' }}>
-      <p style={{ margin: 0, fontSize: 13.5, color: 'var(--color-label-strong)' }}>
+      <p style={{ margin: 0, fontSize: 15, color: 'var(--color-label-strong)' }}>
         <Badge>{ACTION[l.action] || l.action}</Badge> <b>{l.targetName || '-'}</b> <span className="text-keep-all">{l.detail}</span>
       </p>
       <p style={{ ...muted, margin: '3px 0 0' }}>{fmtDateTime(l.at)} · {l.byName || '관리자'}</p>

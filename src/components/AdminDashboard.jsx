@@ -233,9 +233,9 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
           <span className="adm-me"><span className="adm-av" aria-hidden="true">{(admin.name || '관')[0]}</span><span>{admin.name}</span></span>
         </header>
         <div className="adm-content">
-        {loadError && <Card style={{ marginBottom: 12, color: 'var(--color-danger)', fontSize: 14 }}>{loadError}</Card>}
+        {loadError && <Card style={{ marginBottom: 12, color: 'var(--color-danger)', fontSize: 15.5 }}>{loadError}</Card>}
         {users === null ? (
-          <p style={{ color: 'var(--color-label-neutral)', fontSize: 14 }}>불러오는 중…</p>
+          <p style={{ color: 'var(--color-label-neutral)', fontSize: 15.5 }}>불러오는 중…</p>
         ) : tab === 'summary' ? (
           <SummaryTab
             users={users}
@@ -339,8 +339,8 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
             <Card>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>트레이너 PT 횟수 차감</p>
-                  <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>켜면 담당 트레이너가 수업 후 '내 회원'에서 "PT 1회 완료"를 눌러 남은 횟수를 줄여요(되돌리기 가능). 끄면 관리자만 '회원' 탭에서 횟수를 고쳐요.</p>
+                  <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>트레이너 PT 횟수 차감</p>
+                  <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 14.5, color: 'var(--color-label-neutral)' }}>켜면 담당 트레이너가 수업 후 '내 회원'에서 "PT 1회 완료"를 눌러 남은 횟수를 줄여요(되돌리기 가능). 끄면 관리자만 '회원' 탭에서 횟수를 고쳐요.</p>
                 </div>
                 <Button
                   variant={settings.ptDeductEnabled ? 'primary' : 'ghost'}
@@ -361,8 +361,8 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
               </div>
             </Card>
             <Card>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>PT 노쇼 처리</p>
-              <p className="text-keep-all" style={{ margin: '4px 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>예약했는데 오지 않은 PT를 트레이너가 '노쇼'로 처리하는 방식이에요. PT 관리 정산에 노쇼 횟수가 따로 나와요.</p>
+              <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>PT 노쇼 처리</p>
+              <p className="text-keep-all" style={{ margin: '4px 0 10px', fontSize: 14.5, color: 'var(--color-label-neutral)' }}>예약했는데 오지 않은 PT를 트레이너가 '노쇼'로 처리하는 방식이에요. PT 관리 정산에 노쇼 횟수가 따로 나와요.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {NOSHOW.map(([k, label, desc]) => {
                   const on = (settings.noshowPolicy || 'off') === k
@@ -385,22 +385,22 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
                     >
                       <span aria-hidden="true" style={{ flexShrink: 0, marginTop: 3, width: 14, height: 14, borderRadius: 7, border: `4px solid ${on ? 'var(--color-fill-strong)' : 'var(--color-line-strong)'}` }} />
                       <span>
-                        <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>{label}</span>
-                        <span className="text-keep-all" style={{ display: 'block', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>{desc}</span>
+                        <span style={{ display: 'block', fontSize: 15.5, fontWeight: 700 }}>{label}</span>
+                        <span className="text-keep-all" style={{ display: 'block', fontSize: 14, color: 'var(--color-label-neutral)' }}>{desc}</span>
                       </span>
                     </button>
                   )
                 })}
               </div>
-              {settings.noshowPolicy === 'deduct' && !settings.ptDeductEnabled && <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--color-warning)' }}>PT 횟수 차감이 꺼져 있어 지금은 표시만 돼요. 위에서 차감을 켜 주세요.</p>}
+              {settings.noshowPolicy === 'deduct' && !settings.ptDeductEnabled && <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--color-warning)' }}>PT 횟수 차감이 꺼져 있어 지금은 표시만 돼요. 위에서 차감을 켜 주세요.</p>}
             </Card>
             <Card onClick={onOpenInquiries}>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>문의 관리</p>
-              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>회원이 남긴 문의를 확인하고 답변해요.</p>
+              <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>문의 관리</p>
+              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 14.5, color: 'var(--color-label-neutral)' }}>회원이 남긴 문의를 확인하고 답변해요.</p>
             </Card>
             <Card onClick={onOpenOnboardingPreview}>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>온보딩 화면 미리보기</p>
-              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>가입할 때 보이는 화면을 다시 열어봐요. 입력해도 저장되지 않아요.</p>
+              <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>온보딩 화면 미리보기</p>
+              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 14.5, color: 'var(--color-label-neutral)' }}>가입할 때 보이는 화면을 다시 열어봐요. 입력해도 저장되지 않아요.</p>
             </Card>
           </div>
         )}
@@ -413,10 +413,10 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
 function MemberLine({ u, match }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-        {u.signupInfo?.name || '(이름 없음)'} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {u.nickname || '닉네임 없음'}</span>
+      <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+        {u.signupInfo?.name || '(이름 없음)'} <span style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {u.nickname || '닉네임 없음'}</span>
       </p>
-      <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--color-label-neutral)', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
         {u.signupInfo?.phoneLast4 ? <span>휴대폰 끝 <span className="bt-num">{u.signupInfo.phoneLast4}</span></span> : null}
         {u.createdAt ? <span>가입 {fmtDate(u.createdAt)}</span> : null}
         {match ? (
@@ -440,7 +440,7 @@ function MembershipLine({ u }) {
   if (ms.kind === 'exempt' && !pt) return null
   const tone = ms.kind === 'expired' ? 'bad' : ms.kind === 'soon' ? 'warn' : ms.kind === 'none' ? 'neutral' : 'ok'
   return (
-    <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--color-label-normal)', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+    <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--color-label-normal)', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
       {ms.kind !== 'exempt' && (
         <>
           <Badge tone={tone}>{ms.kind === 'expired' ? '회원권 만료' : ms.kind === 'soon' ? `D-${ms.daysLeft}` : ms.kind === 'none' ? '기간 미설정' : '이용 중'}</Badge>
@@ -464,32 +464,32 @@ function MembershipEditor({ u, busy, onSave, onClose }) {
     setEnd(addMonths(base, n))
   }
   const bad = start && end && end < start
-  const inputStyle = { ...selectStyle, padding: '9px 10px', fontSize: 14, minWidth: 0 }
-  const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--color-label-neutral)' }
+  const inputStyle = { ...selectStyle, padding: '9px 10px', fontSize: 15.5, minWidth: 0 }
+  const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }
   return (
     <div style={{ width: '100%', padding: '4px 0' }}>
-      <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700 }}>회원권 기간 = 앱 사용 기간</p>
+      <p style={{ margin: '0 0 8px', fontSize: 14.5, fontWeight: 700 }}>회원권 기간 = 앱 사용 기간</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
         <label style={lab}>시작일<input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={inputStyle} /></label>
         <label style={lab}>종료일<input type="date" value={end} onChange={(e) => setEnd(e.target.value)} style={inputStyle} /></label>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
         {[1, 3, 6, 12].map((n) => (
-          <Chip key={n} onClick={() => extend(n)} style={{ padding: '6px 12px', fontSize: 13 }}>+{n}개월</Chip>
+          <Chip key={n} onClick={() => extend(n)} style={{ padding: '6px 12px', fontSize: 14.5 }}>+{n}개월</Chip>
         ))}
-        {end && <Chip onClick={() => { setEnd(''); setStart('') }} style={{ padding: '6px 12px', fontSize: 13 }}>기간 제한 없음</Chip>}
+        {end && <Chip onClick={() => { setEnd(''); setStart('') }} style={{ padding: '6px 12px', fontSize: 14.5 }}>기간 제한 없음</Chip>}
       </div>
-      <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 12, color: bad ? 'var(--color-danger)' : 'var(--color-label-neutral)' }}>
+      <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13.5, color: bad ? 'var(--color-danger)' : 'var(--color-label-neutral)' }}>
         {bad ? '종료일이 시작일보다 빨라요.' : '종료일이 지나면 새 운동 기록이 막혀요(지난 기록은 볼 수 있어요). 연장 버튼은 남은 기간 뒤에 이어 붙여요.'}
       </p>
-      <p style={{ margin: '14px 0 8px', fontSize: 13, fontWeight: 700 }}>PT 횟수 <span style={{ fontWeight: 400, color: 'var(--color-label-neutral)' }}>(회원권과 별도)</span></p>
+      <p style={{ margin: '14px 0 8px', fontSize: 14.5, fontWeight: 700 }}>PT 횟수 <span style={{ fontWeight: 400, color: 'var(--color-label-neutral)' }}>(회원권과 별도)</span></p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
         <label style={lab}>총 횟수<input type="number" min="0" max="999" inputMode="numeric" value={ptTotal} onChange={(e) => setPtTotal(e.target.value)} style={inputStyle} /></label>
         <label style={lab}>남은 횟수<input type="number" min="0" max="999" inputMode="numeric" value={ptRemaining} onChange={(e) => setPtRemaining(e.target.value)} style={inputStyle} /></label>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
         {[10, 20, 30].map((n) => (
-          <Chip key={n} onClick={() => { setPtTotal(String((Number(ptTotal) || 0) + n)); setPtRemaining(String((Number(ptRemaining) || 0) + n)) }} style={{ padding: '6px 12px', fontSize: 13 }}>+{n}회 등록</Chip>
+          <Chip key={n} onClick={() => { setPtTotal(String((Number(ptTotal) || 0) + n)); setPtRemaining(String((Number(ptRemaining) || 0) + n)) }} style={{ padding: '6px 12px', fontSize: 14.5 }}>+{n}회 등록</Chip>
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
@@ -508,12 +508,12 @@ function MembershipEditor({ u, busy, onSave, onClose }) {
 function PendingTab({ pending, matchOf, busy, onApprove, onReject, onApproveAll, rosterCount }) {
   const matchedCount = pending.filter((u) => matchOf(u)?.nameOk).length
   if (!pending.length) {
-    return <Card><p style={{ margin: 0, fontSize: 14, color: 'var(--color-label-neutral)' }}>승인을 기다리는 회원이 없어요.</p></Card>
+    return <Card><p style={{ margin: 0, fontSize: 15.5, color: 'var(--color-label-neutral)' }}>승인을 기다리는 회원이 없어요.</p></Card>
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {rosterCount === 0 && (
-        <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-warning)' }}>아직 헬스장 명단이 없어 일치 여부를 확인할 수 없어요. '명단 가져오기'에서 먼저 올려 주세요.</p>
+        <p className="text-keep-all" style={{ margin: 0, fontSize: 14.5, color: 'var(--color-warning)' }}>아직 헬스장 명단이 없어 일치 여부를 확인할 수 없어요. '명단 가져오기'에서 먼저 올려 주세요.</p>
       )}
       {matchedCount > 0 && (
         <Button onClick={onApproveAll}>명단 일치 {matchedCount}명 모두 승인</Button>
@@ -566,7 +566,7 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {STATUS_FILTERS.map((f) => (
-          <Chip key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)} style={{ padding: '6px 12px', fontSize: 13 }}>
+          <Chip key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)} style={{ padding: '6px 12px', fontSize: 14.5 }}>
             {f.label} <span className="bt-num">{users.filter((u) => filterOf(u, f.key, today)).length}</span>
           </Chip>
         ))}
@@ -600,7 +600,7 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
                     <tr className="adm-click" onClick={() => onOpen(u)}>
                       <td>
                         <b>{memberName(u)}</b>
-                        <span style={{ display: 'block', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                        <span style={{ display: 'block', fontSize: 13.5, color: 'var(--color-label-neutral)' }}>
                           {u.nickname || '닉네임 없음'}{u.signupInfo?.phoneLast4 ? ` · ${u.signupInfo.phoneLast4}` : ''}{m ? (m.nameOk ? ' · 명단 일치' : ' · 번호만 일치') : ''}
                         </span>
                       </td>
@@ -653,9 +653,9 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
             </tbody>
           </table>
         </div>
-        {!list.length && <p style={{ margin: 0, padding: 16, fontSize: 14, color: 'var(--color-label-neutral)' }}>조건에 맞는 회원이 없어요.</p>}
+        {!list.length && <p style={{ margin: 0, padding: 16, fontSize: 15.5, color: 'var(--color-label-neutral)' }}>조건에 맞는 회원이 없어요.</p>}
       </div>
-      <p style={{ margin: 0, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>줄을 누르면 회원 상세(휴회·출석·이력·메모)가 열려요.</p>
+      <p style={{ margin: 0, fontSize: 14, color: 'var(--color-label-neutral)' }}>줄을 누르면 회원 상세(휴회·출석·이력·메모)가 열려요.</p>
     </div>
   )
 }
@@ -683,22 +683,22 @@ function ConnectTab({ users, conns, onConnect, onEnd }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <Card>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>회원에게 담당 트레이너 연결</p>
-        <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
+        <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>회원에게 담당 트레이너 연결</p>
+        <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
           연결하면 트레이너가 그 회원의 운동 기록과 신체정보·목표를 보고(수정은 못 해요) 운동 계획을 보낼 수 있어요. 회원당 담당 트레이너는 1명이라, 새로 연결하면 이전 연결은 자동으로 끝나요. 일반회원은 PT회원으로 바뀌어요. 트레이너는 '회원' 탭에서 역할을 '트레이너'로 바꾸면 여기에 나타나요.
         </p>
         {trainers.length === 0 ? (
-          <p style={{ margin: '12px 0 0', fontSize: 13, color: 'var(--color-warning)' }}>아직 트레이너가 없어요. '회원' 탭에서 트레이너 계정의 역할을 '트레이너'로 바꿔 주세요.</p>
+          <p style={{ margin: '12px 0 0', fontSize: 14.5, color: 'var(--color-warning)' }}>아직 트레이너가 없어요. '회원' 탭에서 트레이너 계정의 역할을 '트레이너'로 바꿔 주세요.</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginTop: 12, alignItems: 'end' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }}>
               회원
               <select value={memberUid} onChange={(e) => setMemberUid(e.target.value)} style={selectStyle}>
                 <option value="">회원 선택</option>
                 {members.map((u) => <option key={u.uid} value={u.uid}>{label(u)}</option>)}
               </select>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }}>
               트레이너
               <select value={trainerUid} onChange={(e) => setTrainerUid(e.target.value)} style={selectStyle}>
                 <option value="">트레이너 선택</option>
@@ -708,22 +708,22 @@ function ConnectTab({ users, conns, onConnect, onEnd }) {
             <Button disabled={!memberUid || !trainerUid || saving || current?.trainerUid === trainerUid} onClick={handle}>{current ? '트레이너 변경' : '연결'}</Button>
           </div>
         )}
-        {current && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>지금 담당: {current.trainerName}</p>}
+        {current && <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--color-label-neutral)' }}>지금 담당: {current.trainerName}</p>}
       </Card>
-      <p style={{ margin: '4px 0 0', fontSize: 14, fontWeight: 700 }}>연결된 회원 <span className="bt-num">{active.length}</span>명</p>
+      <p style={{ margin: '4px 0 0', fontSize: 15.5, fontWeight: 700 }}>연결된 회원 <span className="bt-num">{active.length}</span>명</p>
       {trainers.map((t) => {
         const list = active.filter((c) => c.trainerUid === t.uid)
         return (
           <Card key={t.uid}>
-            <p style={{ margin: 0, fontSize: 14.5, fontWeight: 700 }}>{t.signupInfo?.name || t.nickname} 트레이너 · <span className="bt-num">{list.length}</span>명</p>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{t.signupInfo?.name || t.nickname} 트레이너 · <span className="bt-num">{list.length}</span>명</p>
             {list.length === 0 ? (
-              <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>담당 회원이 없어요.</p>
+              <p style={{ margin: '6px 0 0', fontSize: 14.5, color: 'var(--color-label-neutral)' }}>담당 회원이 없어요.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
                 {list.map((c) => (
                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)' }}>
-                    <span style={{ fontSize: 14 }}>{c.memberName}{c.memberNickname ? <span style={{ color: 'var(--color-label-neutral)', fontSize: 12.5 }}> · {c.memberNickname}</span> : null}{c.startedAt ? <span style={{ color: 'var(--color-label-neutral)', fontSize: 12.5 }}> · {fmtDate(c.startedAt)}부터</span> : null}</span>
-                    <button type="button" onClick={() => onEnd(c)} style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-danger)', padding: '6px 4px', flexShrink: 0 }}>해제</button>
+                    <span style={{ fontSize: 15.5 }}>{c.memberName}{c.memberNickname ? <span style={{ color: 'var(--color-label-neutral)', fontSize: 14 }}> · {c.memberNickname}</span> : null}{c.startedAt ? <span style={{ color: 'var(--color-label-neutral)', fontSize: 14 }}> · {fmtDate(c.startedAt)}부터</span> : null}</span>
+                    <button type="button" onClick={() => onEnd(c)} style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--color-danger)', padding: '6px 4px', flexShrink: 0 }}>해제</button>
                   </div>
                 ))}
               </div>
@@ -823,22 +823,22 @@ function RosterTab({ roster, users, onSaved }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <Card>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>현재 명단 <span className="bt-num">{roster.length}</span>명</p>
-        <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
+        <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>현재 명단 <span className="bt-num">{roster.length}</span>명</p>
+        <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
           출입관리 프로그램에서 회원 명단을 엑셀로 내보낸 뒤, 엑셀에서 "다른 이름으로 저장 → CSV"로 저장해 올려 주세요. 파일은 이 브라우저 안에서만 읽고, 이름·회원번호·만료일과 휴대폰 번호의 변환값·뒤 4자리만 저장해요. 다시 올리면 같은 회원은 새 정보로 바뀌고, 앱 회원과 연결된 사람은 회원권 종료일(=앱 사용 기간)도 새 만료일로 바뀌어요.
         </p>
         <label style={{ display: 'inline-block', marginTop: 12 }}>
           <input type="file" accept=".csv,text/csv" onChange={handleFile} style={{ display: 'none' }} />
-          <span style={{ display: 'inline-block', padding: '11px 16px', borderRadius: 'var(--radius-md)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>CSV 파일 고르기</span>
+          <span style={{ display: 'inline-block', padding: '11px 16px', borderRadius: 'var(--radius-md)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontWeight: 700, fontSize: 15.5, cursor: 'pointer' }}>CSV 파일 고르기</span>
         </label>
       </Card>
-      {result && <p className="text-keep-all" style={{ margin: 0, fontSize: 14, color: 'var(--color-label-strong)' }}>{result}</p>}
+      {result && <p className="text-keep-all" style={{ margin: 0, fontSize: 15.5, color: 'var(--color-label-strong)' }}>{result}</p>}
       {rows && (
         <Card>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>{fileName} · <span className="bt-num">{body.length}</span>줄</p>
+          <p style={{ margin: 0, fontSize: 15.5, fontWeight: 700 }}>{fileName} · <span className="bt-num">{body.length}</span>줄</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, marginTop: 12 }}>
             {FIELDS.map((f) => (
-              <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+              <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }}>
                 {f.label}{f.required ? ' (필수)' : ''}
                 <select value={map[f.key] ?? -1} onChange={(e) => setMap((m) => ({ ...m, [f.key]: Number(e.target.value) }))} style={selectStyle}>
                   <option value={-1}>없음</option>
@@ -849,10 +849,10 @@ function RosterTab({ roster, users, onSaved }) {
               </label>
             ))}
           </div>
-          {sameCol && <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--color-danger)' }}>회원번호 열이 휴대폰 번호 열과 같아요. 회원번호 열을 다시 골라 주세요(없으면 '없음').</p>}
+          {sameCol && <p style={{ margin: '10px 0 0', fontSize: 14.5, color: 'var(--color-danger)' }}>회원번호 열이 휴대폰 번호 열과 같아요. 회원번호 열을 다시 골라 주세요(없으면 '없음').</p>}
           {ready && (
             <div style={{ marginTop: 14, overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14.5 }}>
                 <thead>
                   <tr>{FIELDS.map((f) => <th key={f.key} style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--color-line)', color: 'var(--color-label-neutral)', fontWeight: 600, whiteSpace: 'nowrap' }}>{f.label}</th>)}</tr>
                 </thead>
@@ -867,7 +867,7 @@ function RosterTab({ roster, users, onSaved }) {
                   ))}
                 </tbody>
               </table>
-              <p style={{ margin: '8px 0 0', fontSize: 12.5, color: invalid ? 'var(--color-warning)' : 'var(--color-label-neutral)' }}>
+              <p style={{ margin: '8px 0 0', fontSize: 14, color: invalid ? 'var(--color-warning)' : 'var(--color-label-neutral)' }}>
                 앞 5줄 미리보기{invalid ? ` · 이름이 없거나 휴대폰 번호 형식이 맞지 않는 ${invalid}줄은 건너뛰어요` : ''}
               </p>
             </div>

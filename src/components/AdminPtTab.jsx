@@ -105,16 +105,16 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <Button variant="ghost" onClick={() => setYm(shiftMonth(ym, -1))} style={{ padding: '7px 12px' }} aria-label="이전 달">‹</Button>
-        <span className="bt-num" style={{ fontSize: 17, fontWeight: 800, minWidth: 90, textAlign: 'center' }}>{y}.{m}</span>
+        <span className="bt-num" style={{ fontSize: 18, fontWeight: 800, minWidth: 90, textAlign: 'center' }}>{y}.{m}</span>
         <Button variant="ghost" onClick={() => setYm(shiftMonth(ym, 1))} style={{ padding: '7px 12px' }} aria-label="다음 달">›</Button>
-        {data && <Button variant="secondary" onClick={exportCsv} style={{ marginLeft: 'auto', padding: '8px 12px', fontSize: 13 }}>이 달 CSV</Button>}
+        {data && <Button variant="secondary" onClick={exportCsv} style={{ marginLeft: 'auto', padding: '8px 12px', fontSize: 14.5 }}>이 달 CSV</Button>}
       </div>
 
       <Card>
         <p style={sectionTitle}>트레이너별 정산</p>
         {!data ? <p style={muted}>불러오는 중…</p> : !rows.length ? <p style={muted}>트레이너가 없어요.</p> : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
               <thead>
                 <tr style={{ color: 'var(--color-label-neutral)', textAlign: 'right' }}>
                   <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>트레이너</th>
@@ -143,7 +143,7 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
       <Card>
         <p style={sectionTitle}>PT 일정 캘린더</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-          {DAY.map((d, i) => <div key={d} style={{ ...muted, textAlign: 'center', fontSize: 11.5, color: i === 0 ? 'var(--color-danger)' : i === 6 ? 'var(--color-info, var(--color-label-neutral))' : undefined }}>{d}</div>)}
+          {DAY.map((d, i) => <div key={d} style={{ ...muted, textAlign: 'center', fontSize: 13, color: i === 0 ? 'var(--color-danger)' : i === 6 ? 'var(--color-info, var(--color-label-neutral))' : undefined }}>{d}</div>)}
           {cells.map((c, i) => {
             if (!c) return <div key={`e${i}`} />
             const list = schByDay[c] || []
@@ -156,11 +156,11 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
                 aria-label={`${Number(c.slice(8))}일 PT ${list.length}건`}
                 style={{ minHeight: 54, padding: '4px 3px', borderRadius: 'var(--radius-sm)', border: `1px solid ${day === c ? 'var(--color-fill-strong)' : 'var(--color-line)'}`, background: c === today ? 'var(--color-bg-elevated)' : 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 2, color: 'var(--color-label-strong)' }}
               >
-                <span className="bt-num" style={{ fontSize: 11.5, fontWeight: c === today ? 800 : 500, textAlign: 'left' }}>{Number(c.slice(8))}</span>
+                <span className="bt-num" style={{ fontSize: 13, fontWeight: c === today ? 800 : 500, textAlign: 'left' }}>{Number(c.slice(8))}</span>
                 <span style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                   {list.slice(0, 6).map((s) => <span key={s.id} style={{ width: 7, height: 7, borderRadius: 4, background: color[s.trainerUid] || 'var(--color-label-neutral)', opacity: s.status === 'noshow' ? 0.35 : 1 }} />)}
                 </span>
-                {list.length > 0 && <span className="bt-num" style={{ fontSize: 10.5, color: 'var(--color-label-neutral)', textAlign: 'left' }}>{list.length}건</span>}
+                {list.length > 0 && <span className="bt-num" style={{ fontSize: 12, color: 'var(--color-label-neutral)', textAlign: 'left' }}>{list.length}건</span>}
               </button>
             )
           })}
@@ -170,9 +170,9 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
         </div>
         {day && (
           <div style={{ marginTop: 12 }}>
-            <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700 }}>{fmtYmd(day)}({DAY[new Date(`${day}T00:00:00`).getDay()]})</p>
+            <p style={{ margin: '0 0 4px', fontSize: 15.5, fontWeight: 700 }}>{fmtYmd(day)}({DAY[new Date(`${day}T00:00:00`).getDay()]})</p>
             {!(schByDay[day] || []).length ? <p style={muted}>일정이 없어요.</p> : schByDay[day].map((s) => (
-              <button key={s.id} type="button" onClick={() => byUid[s.memberUid] && onOpenMember(byUid[s.memberUid])} style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)', fontSize: 13.5, color: 'var(--color-label-strong)', textAlign: 'left' }}>
+              <button key={s.id} type="button" onClick={() => byUid[s.memberUid] && onOpenMember(byUid[s.memberUid])} style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)', fontSize: 15, color: 'var(--color-label-strong)', textAlign: 'left' }}>
                 <span><b className="bt-num">{s.time}</b> {memberName(byUid[s.memberUid])}</span>
                 <span style={muted}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: color[s.trainerUid], marginRight: 4 }} />{tName(s.trainerUid, s.trainerName)} · {s.status === 'done' ? '완료' : s.status === 'noshow' ? '노쇼' : '예정'}</span>
               </button>
@@ -184,7 +184,7 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
       <Card>
         <p style={sectionTitle}>PT 소진 예상 <span style={{ ...muted, fontWeight: 500 }}>(최근 8주 진행 속도 기준)</span></p>
         {!burn ? <p style={muted}>불러오는 중…</p> : !burn.length ? <p style={muted}>PT가 등록된 회원이 없어요.</p> : burn.map((b, i) => (
-          <button key={b.u.uid} type="button" onClick={() => onOpenMember(b.u)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 8, padding: '9px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 13.5, color: 'var(--color-label-strong)', textAlign: 'left' }}>
+          <button key={b.u.uid} type="button" onClick={() => onOpenMember(b.u)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 8, padding: '9px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 15, color: 'var(--color-label-strong)', textAlign: 'left' }}>
             <span><b>{memberName(b.u)}</b> <span style={muted}>남은 {b.left}/{b.u.ptTotal}회</span></span>
             <span style={{ ...muted, textAlign: 'right' }}>
               {b.left === 0 ? <Badge tone="bad">소진</Badge> : b.weeks === null ? '최근 8주 이용 없음' : <>주 {b.perWeek.toFixed(1)}회 · 약 {Math.max(1, Math.round(b.weeks))}주 뒤 ({fmtYmd(b.date)}) {b.weeks <= 3 ? <Badge tone="warn">상담 시기</Badge> : null}</>}

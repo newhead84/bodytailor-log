@@ -64,13 +64,13 @@ export default function AdminMemberDetail({ u, note, admin, onBack, onChanged, o
       setPauseMsg('저장하지 못했어요.')
     }
   }
-  const inputStyle = { ...selectStyle, padding: '9px 10px', fontSize: 14, minWidth: 0 }
-  const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--color-label-neutral)' }
+  const inputStyle = { ...selectStyle, padding: '9px 10px', fontSize: 15.5, minWidth: 0 }
+  const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <button type="button" onClick={onBack} style={{ alignSelf: 'flex-start', fontSize: 14, fontWeight: 700, color: 'var(--color-label-normal)' }}>‹ 회원 목록</button>
+      <button type="button" onClick={onBack} style={{ alignSelf: 'flex-start', fontSize: 15.5, fontWeight: 700, color: 'var(--color-label-normal)' }}>‹ 회원 목록</button>
       <Card>
-        <p style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{memberName(u)} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {u.nickname || '닉네임 없음'}</span></p>
+        <p style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{memberName(u)} <span style={{ fontSize: 15.5, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {u.nickname || '닉네임 없음'}</span></p>
         <p style={{ ...muted, margin: '6px 0 0', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <Badge tone={statusOf(u) === 'approved' ? 'ok' : 'neutral'}>{MEMBER_STATUS[statusOf(u)]}</Badge>
           <span>{u.role || '일반회원'}</span>
@@ -83,12 +83,12 @@ export default function AdminMemberDetail({ u, note, admin, onBack, onChanged, o
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <p style={{ ...sectionTitle, margin: 0 }}>회원권·PT</p>
-          <Button variant="ghost" onClick={onEditMembership} style={{ padding: '7px 12px', fontSize: 13 }}>수정·연장</Button>
+          <Button variant="ghost" onClick={onEditMembership} style={{ padding: '7px 12px', fontSize: 14.5 }}>수정·연장</Button>
         </div>
-        <p style={{ margin: '8px 0 0', fontSize: 14 }}>
+        <p style={{ margin: '8px 0 0', fontSize: 15.5 }}>
           {u.membershipEnd ? <>회원권 {u.membershipStart ? fmtYmd(u.membershipStart) : ''} ~ {fmtYmd(u.membershipEnd)} {ms.kind === 'expired' ? <Badge tone="bad">만료</Badge> : ms.kind === 'soon' ? <Badge tone="warn">D-{ms.daysLeft}</Badge> : null}</> : '회원권 기간 미설정'}
         </p>
-        <p style={{ margin: '4px 0 0', fontSize: 14 }}>{(u.ptTotal || 0) > 0 ? `PT ${u.ptRemaining ?? 0} / ${u.ptTotal}회 남음` : 'PT 등록 없음'}{pt?.upcoming?.length ? ` · 예정 ${pt.upcoming.length}건(다음 ${fmtYmd(pt.upcoming[0].date)} ${pt.upcoming[0].time})` : ''}</p>
+        <p style={{ margin: '4px 0 0', fontSize: 15.5 }}>{(u.ptTotal || 0) > 0 ? `PT ${u.ptRemaining ?? 0} / ${u.ptTotal}회 남음` : 'PT 등록 없음'}{pt?.upcoming?.length ? ` · 예정 ${pt.upcoming.length}건(다음 ${fmtYmd(pt.upcoming[0].date)} ${pt.upcoming[0].time})` : ''}</p>
       </Card>
 
       <Card>
@@ -110,7 +110,7 @@ export default function AdminMemberDetail({ u, note, admin, onBack, onChanged, o
 
       <Card>
         <p style={sectionTitle}>운동 출석 <span style={{ ...muted, fontWeight: 500 }}>(주별 운동한 날 수, 기록 내용은 보지 않아요)</span></p>
-        <p style={{ margin: '0 0 8px', fontSize: 14 }}>
+        <p style={{ margin: '0 0 8px', fontSize: 15.5 }}>
           마지막 운동 {u.activity?.lastDate ? `${fmtYmd(u.activity.lastDate)} (${daysBetween(u.activity.lastDate, today)}일 전)` : '기록 없음'}
           {u.activity?.lastParts?.length ? ` · ${u.activity.lastParts.join('·')}` : ''}
         </p>
@@ -120,7 +120,7 @@ export default function AdminMemberDetail({ u, note, admin, onBack, onChanged, o
       <Card>
         <p style={sectionTitle}>PT 이용 이력</p>
         {!pt ? <p style={muted}>불러오는 중…</p> : !pt.items.length ? <p style={muted}>아직 없어요.</p> : pt.items.slice(0, 20).map((x, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '7px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 13.5 }}>
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '7px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 15 }}>
             <span>{fmtYmd(x.date)} {x.label}</span>
             <span style={muted}>{x.trainer}{x.deducted ? ' · 차감' : ''}</span>
           </div>
@@ -130,7 +130,7 @@ export default function AdminMemberDetail({ u, note, admin, onBack, onChanged, o
       <Card>
         <p style={sectionTitle}>담당 트레이너 이력</p>
         {!conns ? <p style={muted}>불러오는 중…</p> : !conns.length ? <p style={muted}>연결된 적 없어요.</p> : conns.map((c, i) => (
-          <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '7px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 13.5 }}>
+          <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '7px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 15 }}>
             <span><b>{c.trainerName}</b> {c.status === 'active' ? <Badge tone="ok">현재</Badge> : null}</span>
             <span style={muted}>{fmtDate(c.startedAt)} ~ {c.status === 'active' ? '' : fmtDate(c.endedAt)}</span>
           </div>

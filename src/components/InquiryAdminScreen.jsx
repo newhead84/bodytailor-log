@@ -26,7 +26,7 @@ function InquiryRow({ q, onReplied }) {
   return (
     <Card style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-label-neutral)' }}>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>
           {q.nickname || '(닉네임 없음)'}
           {/* [2026-10-31] 문의 삭제(테스트 문의 정리 등) */}
           <button
@@ -40,14 +40,14 @@ function InquiryRow({ q, onReplied }) {
                 console.error('문의 삭제 실패:', err)
               }
             }}
-            style={{ marginLeft: 10, fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)', textDecoration: 'underline' }}
+            style={{ marginLeft: 10, fontSize: 13.5, fontWeight: 500, color: 'var(--color-label-neutral)', textDecoration: 'underline' }}
           >
             삭제
           </button>
         </span>
         <span
           style={{
-            fontSize: 11,
+            fontSize: 12.5,
             fontWeight: 700,
             padding: '2px 8px',
             borderRadius: 'var(--radius-sm)',
@@ -58,7 +58,7 @@ function InquiryRow({ q, onReplied }) {
           {isAnswered ? '답변완료' : '답변 대기중'}
         </span>
       </div>
-      <p className="text-keep-all" style={{ fontSize: 14, margin: '0 0 10px', whiteSpace: 'pre-line' }}>
+      <p className="text-keep-all" style={{ fontSize: 15.5, margin: '0 0 10px', whiteSpace: 'pre-line' }}>
         {q.content}
       </p>
       <textarea
@@ -73,7 +73,7 @@ function InquiryRow({ q, onReplied }) {
           border: '1px solid var(--color-line)',
           borderRadius: 'var(--radius-sm)',
           padding: 10,
-          fontSize: 13,
+          fontSize: 14.5,
           fontFamily: 'inherit',
           background: 'var(--color-bg)',
           color: 'var(--color-label-strong)',
@@ -108,12 +108,12 @@ export default function InquiryAdminScreen({ onClose }) {
       <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
         문의 관리
       </h1>
-      <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
+      <p className="text-keep-all" style={{ fontSize: 15.5, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         답변을 남기면 작성자가 MY탭 &ldquo;문의하기&rdquo; 화면에서 바로 확인할 수 있어요.
       </p>
 
       {loading ? (
-        <p style={{ textAlign: 'center', color: 'var(--color-label-neutral)', fontSize: 13 }}>불러오는 중…</p>
+        <p style={{ textAlign: 'center', color: 'var(--color-label-neutral)', fontSize: 14.5 }}>불러오는 중…</p>
       ) : inquiries.length === 0 ? (
         <EmptyState title="문의 없음" description="아직 접수된 문의가 없어요." style={{ padding: '20px 20px' }} />
       ) : (

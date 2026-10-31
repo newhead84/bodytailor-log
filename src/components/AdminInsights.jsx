@@ -125,7 +125,7 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, on
             <div className="adm-panel-h"><b>오늘 PT</b><button type="button" className="adm-link" onClick={() => onGo('pt')}>PT 관리</button></div>
             <div style={{ padding: '4px 16px 10px' }}>
               {!month ? <p style={muted}>불러오는 중…</p> : !todayPt.length ? <p style={{ ...muted, margin: '10px 0' }}>오늘 잡힌 PT가 없어요.</p> : todayPt.map((s, i) => (
-                <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '48px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 0', borderTop: i ? '1px dashed var(--color-line)' : 'none', fontSize: 13 }}>
+                <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '48px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 0', borderTop: i ? '1px dashed var(--color-line)' : 'none', fontSize: 14.5 }}>
                   <b className="bt-num">{s.time}</b>
                   <span><b>{memberName(byUid[s.memberUid])}</b> <span style={muted}>· {s.trainerName}</span></span>
                   <Badge tone={s.status === 'done' ? 'ok' : s.status === 'noshow' ? 'bad' : 'neutral'}>{s.status === 'done' ? '완료' : s.status === 'noshow' ? '노쇼' : '예정'}</Badge>
@@ -152,7 +152,7 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, on
     </div>
   )
 }
-const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: '1px solid var(--color-line)', fontSize: 14 }
+const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: '1px solid var(--color-line)', fontSize: 15.5 }
 
 // ───────── 재등록 관리 ─────────
 const RENEWAL = { none: '연락 전', called: '통화함', renewed: '재등록', declined: '안 함' }
@@ -189,7 +189,7 @@ export function RenewalTab({ users, notes, admin, onOpenMember, onSaved }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         {[7, 14, 30].map((n) => (
-          <Chip key={n} active={win === n} onClick={() => setWin(n)} style={{ padding: '6px 12px', fontSize: 13 }}>{n}일 이내 만료</Chip>
+          <Chip key={n} active={win === n} onClick={() => setWin(n)} style={{ padding: '6px 12px', fontSize: 14.5 }}>{n}일 이내 만료</Chip>
         ))}
         <span style={{ ...muted, marginLeft: 'auto' }}>
           재등록률 {rate === null ? '-' : <b className="bt-num" style={{ color: 'var(--color-label-strong)' }}>{rate}%</b>} <span>(재등록·안 함으로 정해진 {counted.length}명 기준)</span>
@@ -203,7 +203,7 @@ export function RenewalTab({ users, notes, admin, onOpenMember, onSaved }) {
           <Card key={x.u.uid} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
               <button type="button" onClick={() => onOpenMember(x.u)} style={{ textAlign: 'left', color: 'var(--color-label-strong)' }}>
-                <span style={{ fontSize: 15, fontWeight: 700 }}>{memberName(x.u)}</span>{' '}
+                <span style={{ fontSize: 16.5, fontWeight: 700 }}>{memberName(x.u)}</span>{' '}
                 <Badge tone={x.d < 0 ? 'bad' : x.d <= 7 ? 'warn' : 'neutral'}>{x.d < 0 ? `${-x.d}일 지남` : x.d === 0 ? '오늘 만료' : `D-${x.d}`}</Badge>
                 <span style={{ ...muted, display: 'block', marginTop: 3 }}>
                   ~{fmtYmd(x.u.membershipEnd)}
@@ -223,7 +223,7 @@ export function RenewalTab({ users, notes, admin, onOpenMember, onSaved }) {
               placeholder="연락 메모(예: 다음 주 다시 연락). 건강·질병 정보는 적지 마세요"
               maxLength={200}
               aria-label="연락 메모"
-              style={{ ...selectStyle, padding: '9px 10px', fontSize: 13.5 }}
+              style={{ ...selectStyle, padding: '9px 10px', fontSize: 15 }}
             />
             {x.r?.at && <span style={muted}>{x.r.at} {x.r.by} 기록</span>}
           </Card>
@@ -300,10 +300,10 @@ export function LogsTab() {
   const list = logs.filter((l) => (!act || l.action === act) && (!q || `${l.targetName}${l.byName}${l.detail}`.includes(q.trim())))
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="회원·관리자 이름, 내용 검색" aria-label="이력 검색" style={{ ...selectStyle, padding: '11px 12px', fontSize: 14 }} />
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="회원·관리자 이름, 내용 검색" aria-label="이력 검색" style={{ ...selectStyle, padding: '11px 12px', fontSize: 15.5 }} />
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <Chip active={!act} onClick={() => setAct('')} style={{ padding: '6px 12px', fontSize: 13 }}>전체</Chip>
-        {Object.entries(ACTION).map(([k, v]) => <Chip key={k} active={act === k} onClick={() => setAct(k)} style={{ padding: '6px 12px', fontSize: 13 }}>{v}</Chip>)}
+        <Chip active={!act} onClick={() => setAct('')} style={{ padding: '6px 12px', fontSize: 14.5 }}>전체</Chip>
+        {Object.entries(ACTION).map(([k, v]) => <Chip key={k} active={act === k} onClick={() => setAct(k)} style={{ padding: '6px 12px', fontSize: 14.5 }}>{v}</Chip>)}
       </div>
       <Card style={{ padding: '4px 16px' }}>
         {!list.length && <p style={{ ...muted, padding: '10px 0' }}>기록이 없어요. 이 기능을 켠 뒤(2026-10-31)부터 쌓여요.</p>}
