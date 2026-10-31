@@ -6,13 +6,14 @@
 //  - 문의·도구: 기존 문의 관리 화면, 온보딩 화면 미리보기
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
-import { adminListUsers, adminUpdateMember, adminGetRoster, adminSaveRoster, adminLinkRoster } from '../storage'
+import { adminListUsers, adminUpdateMember, adminGetRoster, adminSaveRoster, adminLinkRoster, adminListConnections, adminConnect, endConnection } from '../storage'
 import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId } from '../utils/member'
 import { todayStr } from '../utils/date'
 
 const TABS = [
   { key: 'pending', label: '승인 대기' },
   { key: 'members', label: '회원' },
+  { key: 'connect', label: '트레이너 연결' },
   { key: 'roster', label: '명단 가져오기' },
   { key: 'etc', label: '문의·도구' },
 ]
@@ -42,15 +43,17 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
   const [tab, setTab] = useState('pending')
   const [users, setUsers] = useState(null)
   const [roster, setRoster] = useState([])
+  const [conns, setConns] = useState([])
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState('')
 
   async function load() {
     setLoadError('')
     try {
-      const [u, r] = await Promise.all([adminListUsers(), adminGetRoster()])
+      const [u, r, c] = await Promise.all([adminListUsers(), adminGetRoster(), adminListConnections()])
       setUsers(u)
       setRoster(r)
+      setConns(c)
     } catch (err) {
       console.error('관리자 데이터 불러오기 실패:', err)
       setLoadError('불러오지 못했어요. 관리자 계정인지, Firebase 규칙이 게시됐는지 확인해 주세요.')
@@ -168,6 +171,28 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
           <PendingTab pending={pending} matchOf={matchOf} busy={busy} onApprove={approve} onReject={(u) => setStatus(u, 'rejected')} onApproveAll={approveAllMatched} rosterCount={roster.length} />
         ) : tab === 'members' ? (
           <MembersTab users={users} matchOf={matchOf} busy={busy} onStatus={setStatus} onRole={setRole} selfUid={uid} />
+        ) : tab === 'connect' ? (
+          <ConnectTab
+            users={users}
+            conns={conns}
+            onConnect={async (member, trainer) => {
+              try {
+                await adminConnect(member, trainer, uid)
+              } catch (err) {
+                await fail(err, '트레이너 연결')
+              }
+              await load()
+            }}
+            onEnd={async (c) => {
+              if (!(await confirm(`${c.trainerName} 트레이너와 ${c.memberName}님의 연결을 해제할까요? 트레이너는 더 이상 이 회원의 기록을 볼 수 없어요(기록은 그대로).`, { okLabel: '해제', cancelLabel: '취소' }))) return
+              try {
+                await endConnection(c.id, uid)
+              } catch (err) {
+                await fail(err, '연결 해제')
+              }
+              await load()
+            }}
+          />
         ) : tab === 'roster' ? (
           <RosterTab roster={roster} onSaved={load} />
         ) : (
@@ -288,6 +313,80 @@ function MembersTab({ users, matchOf, busy, onStatus, onRole, selfUid }) {
   )
 }
 
+function ConnectTab({ users, conns, onConnect, onEnd }) {
+  const approved = users.filter((u) => statusOf(u) === 'approved')
+  const trainers = approved.filter((u) => u.role === '트레이너')
+  const members = approved.filter((u) => !u.role || u.role === '일반회원' || u.role === 'PT회원')
+  const active = conns.filter((c) => c.status === 'active')
+  const [memberUid, setMemberUid] = useState('')
+  const [trainerUid, setTrainerUid] = useState('')
+  const [saving, setSaving] = useState(false)
+  const label = (u) => `${u.signupInfo?.name || u.nickname || '(이름 없음)'}${u.signupInfo?.phoneLast4 ? ` · ${u.signupInfo.phoneLast4}` : ''}`
+  const current = active.find((c) => c.memberUid === memberUid)
+  async function handle() {
+    const m = members.find((u) => u.uid === memberUid)
+    const t = trainers.find((u) => u.uid === trainerUid)
+    if (!m || !t) return
+    setSaving(true)
+    await onConnect(m, t)
+    setSaving(false)
+    setMemberUid('')
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <Card>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>회원에게 담당 트레이너 연결</p>
+        <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
+          연결하면 트레이너가 그 회원의 운동 기록을 볼 수 있어요(수정은 못 해요). 회원당 담당 트레이너는 1명이라, 새로 연결하면 이전 연결은 자동으로 끝나요. 일반회원은 PT회원으로 바뀌어요. 트레이너는 '회원' 탭에서 역할을 '트레이너'로 바꾸면 여기에 나타나요.
+        </p>
+        {trainers.length === 0 ? (
+          <p style={{ margin: '12px 0 0', fontSize: 13, color: 'var(--color-warning)' }}>아직 트레이너가 없어요. '회원' 탭에서 트레이너 계정의 역할을 '트레이너'로 바꿔 주세요.</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginTop: 12, alignItems: 'end' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+              회원
+              <select value={memberUid} onChange={(e) => setMemberUid(e.target.value)} style={selectStyle}>
+                <option value="">— 회원 선택 —</option>
+                {members.map((u) => <option key={u.uid} value={u.uid}>{label(u)}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+              트레이너
+              <select value={trainerUid} onChange={(e) => setTrainerUid(e.target.value)} style={selectStyle}>
+                <option value="">— 트레이너 선택 —</option>
+                {trainers.map((u) => <option key={u.uid} value={u.uid}>{label(u)}</option>)}
+              </select>
+            </label>
+            <Button disabled={!memberUid || !trainerUid || saving || current?.trainerUid === trainerUid} onClick={handle}>{current ? '트레이너 변경' : '연결'}</Button>
+          </div>
+        )}
+        {current && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>지금 담당: {current.trainerName}</p>}
+      </Card>
+      <p style={{ margin: '4px 0 0', fontSize: 14, fontWeight: 700 }}>연결된 회원 <span className="bt-num">{active.length}</span>명</p>
+      {trainers.map((t) => {
+        const list = active.filter((c) => c.trainerUid === t.uid)
+        return (
+          <Card key={t.uid}>
+            <p style={{ margin: 0, fontSize: 14.5, fontWeight: 700 }}>{t.signupInfo?.name || t.nickname} 트레이너 · <span className="bt-num">{list.length}</span>명</p>
+            {list.length === 0 ? (
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>담당 회원이 없어요.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
+                {list.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)' }}>
+                    <span style={{ fontSize: 14 }}>{c.memberName}{c.memberNickname ? <span style={{ color: 'var(--color-label-neutral)', fontSize: 12.5 }}> · {c.memberNickname}</span> : null}{c.startedAt ? <span style={{ color: 'var(--color-label-neutral)', fontSize: 12.5 }}> · {fmtDate(c.startedAt)}부터</span> : null}</span>
+                    <button type="button" onClick={() => onEnd(c)} style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-danger)', padding: '6px 4px', flexShrink: 0 }}>해제</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
 const FIELDS = [
   { key: 'name', label: '이름', required: true },
   { key: 'phone', label: '휴대폰 번호', required: true },
@@ -365,7 +464,7 @@ function RosterTab({ roster, onSaved }) {
       <Card>
         <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>현재 명단 <span className="bt-num">{roster.length}</span>명</p>
         <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
-          출입관리 프로그램에서 회원 명단을 엑셀로 내보낸 뒤, 엑셀에서 "다른 이름으로 저장 → CSV"로 저장해 올려 주세요. 파일은 이 브라우저 안에서만 읽고, 이름·회원번호·만료일과 휴대폰 번호의 확인용 암호값·뒤 4자리만 저장해요. 다시 올리면 같은 회원은 새 정보로 바뀌어요.
+          출입관리 프로그램에서 회원 명단을 엑셀로 내보낸 뒤, 엑셀에서 "다른 이름으로 저장 → CSV"로 저장해 올려 주세요. 파일은 이 브라우저 안에서만 읽고, 이름·회원번호·만료일과 휴대폰 번호의 변환값·뒤 4자리만 저장해요. 다시 올리면 같은 회원은 새 정보로 바뀌어요.
         </p>
         <label style={{ display: 'inline-block', marginTop: 12 }}>
           <input type="file" accept=".csv,text/csv" onChange={handleFile} style={{ display: 'none' }} />

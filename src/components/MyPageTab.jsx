@@ -3,7 +3,7 @@ import { ChevronDown, ChevronLeft, ExternalLink, Settings } from 'lucide-react'
 import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
-import { getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
+import { getMyTrainerConnection, endConnection, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import { todayStr } from '../utils/date'
@@ -24,7 +24,7 @@ const GENDERS = ['남성', '여성']
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
-export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, isActive = true }) {
+export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, isActive = true }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -37,6 +37,18 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const [themePreference, setThemePreferenceState] = useState(userDoc?.themePreference || DEFAULT_THEME)
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
   const [editingProfile, setEditingProfile] = useState(false)
+  // [2026-10-31 Phase2 P2-2] 담당 트레이너(활성 연결) — PT회원에게 표시, 회원이 직접 해제 가능
+  const [trainerConn, setTrainerConn] = useState(null)
+  useEffect(() => {
+    if (!uid || !isActive || userDoc?.role === '트레이너' || userDoc?.role === '관리자') return
+    let alive = true
+    getMyTrainerConnection(uid)
+      .then((c) => alive && setTrainerConn(c))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [uid, isActive, userDoc?.role])
   const [pickingSplitTemplate, setPickingSplitTemplate] = useState(false)
   const [addingTemplateKey, setAddingTemplateKey] = useState(null)
   const [templateError, setTemplateError] = useState('')
@@ -916,6 +928,43 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
 
       {/* [2026-07-31 신규] MY탭 1:1 문의(⑩). role === '관리자'인 계정에서만 "문의 관리"
           진입점이 추가로 보인다. */}
+      {/* [2026-10-31 Phase2 P2-2] 트레이너: 내 회원 / 회원: 담당 트레이너 */}
+      {userDoc?.role === '트레이너' && (
+        <>
+          <SectionTitle>트레이너</SectionTitle>
+          <Card onClick={onShowTrainees} style={{ marginBottom: 20 }}>
+            <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>내 회원</p>
+            <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 회원의 운동 기록을 확인해요.</p>
+          </Card>
+        </>
+      )}
+      {trainerConn && (
+        <>
+          <SectionTitle>담당 트레이너</SectionTitle>
+          <Card style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>{trainerConn.trainerName} 트레이너</p>
+              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 트레이너가 내 운동 기록을 볼 수 있어요(신체 정보는 공유되지 않아요).</p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!(await confirm(`${trainerConn.trainerName} 트레이너와의 연결을 해제할까요? 트레이너가 더 이상 내 기록을 볼 수 없어요. 기록은 그대로 남아요.`, { okLabel: '해제', cancelLabel: '취소' }))) return
+                try {
+                  await endConnection(trainerConn.id, uid)
+                  setTrainerConn(null)
+                } catch (err) {
+                  console.error('연결 해제 실패:', err)
+                }
+              }}
+              style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-danger)', padding: '6px 4px', flexShrink: 0 }}
+            >
+              연결 해제
+            </button>
+          </Card>
+        </>
+      )}
+
       <SectionTitle>문의</SectionTitle>
       <Card onClick={onShowInquiries} style={{ marginBottom: userDoc?.role === '관리자' ? 10 : 20 }}>
         <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>

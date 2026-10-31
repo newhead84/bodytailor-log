@@ -94,8 +94,15 @@ service cloud.firestore {
     }
 
     // workoutLogs/{uid}/logs/{logId} — 본인 소유 서브컬렉션
+    // [2026-10-31 Phase2 P2-2] 담당 트레이너(활성 연결 + 트레이너 역할)는 그 회원의 운동 기록을 읽을 수 있다(쓰기 불가).
+    function isTrainerOf(memberUid) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)) &&
+        get(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)).data.status == 'active' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == '트레이너';
+    }
     match /workoutLogs/{uid}/logs/{logId} {
-      allow read: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && (request.auth.uid == uid || isTrainerOf(uid));
       allow write: if request.auth != null && request.auth.uid == uid && isApproved();
     }
 
@@ -150,7 +157,26 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Phase2 이후 컬렉션(roleRequests, connections, programs,
+    // [2026-10-31 Phase2 P2-2] connections/{trainerUid_memberUid} — 트레이너–회원 연결. 생성·재활성은 관리자,
+    // 종료(status 'ended')는 관리자·당사자(트레이너/회원) 모두 가능, 읽기는 관리자·당사자.
+    match /connections/{cid} {
+      allow read: if isAdmin() ||
+        (request.auth != null && (resource.data.trainerUid == request.auth.uid || resource.data.memberUid == request.auth.uid));
+      allow create: if isAdmin() &&
+        cid == request.resource.data.trainerUid + '_' + request.resource.data.memberUid &&
+        request.resource.data.status == 'active' &&
+        request.resource.data.keys().hasOnly(['trainerUid', 'memberUid', 'trainerName', 'memberName', 'memberNickname', 'status', 'startedAt', 'createdBy']);
+      allow update: if (isAdmin() &&
+          request.resource.data.trainerUid == resource.data.trainerUid &&
+          request.resource.data.memberUid == resource.data.memberUid) ||
+        (request.auth != null &&
+          (resource.data.trainerUid == request.auth.uid || resource.data.memberUid == request.auth.uid) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'endedAt', 'endedBy']) &&
+          request.resource.data.status == 'ended');
+      allow delete: if false;
+    }
+
+    // Phase2 이후 컬렉션(roleRequests, programs,
     // feedback, messages, diet)은 아직 화면/로직이 없으므로 기본 거부.
     match /{document=**} {
       allow read, write: if false;

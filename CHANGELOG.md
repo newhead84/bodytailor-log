@@ -2,6 +2,12 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] Phase2 P2-2 트레이너–회원 연결 + 트레이너의 회원 기록 열람 | storage.js(connections 함수), AdminDashboard.jsx(트레이너 연결 탭), TraineesScreen.jsx(신규), MyPageTab.jsx, App.jsx, firestore.rules, CLAUDE.md
+- 대시보드 "트레이너 연결": 회원·트레이너 선택 → 연결(회원당 활성 1명, 변경 시 이전 연결 종료·이력 유지, 일반회원 → PT회원), 트레이너별 담당 회원 목록·해제.
+- 트레이너 MY "내 회원" → 회원별 최근 8주 운동 기록(읽기 전용, 이번 주 운동 일수, 세션별 종목·세트 펼치기).
+- 회원 MY "담당 트레이너" 카드 + 회원이 직접 연결 해제.
+- rules: connections(생성·재활성 관리자, 종료 당사자도), isTrainerOf → 담당 회원 workoutLogs 읽기만.
+
 [2026-10-31] Phase2 P2-1 헬스장 회원 승인 + 관리자 대시보드(/admin)(사용자 요청) | utils/member.js(신규), MemberPendingScreen.jsx(신규), AdminDashboard.jsx(신규), Onboarding.jsx, App.jsx, MyPageTab.jsx, storage.js, firestore.rules, vercel.json(신규), CLAUDE.md
 - 온보딩 첫 단계 '바디테일러 회원 정보'(이름·휴대폰 필수, 번호는 SHA-256 해시·뒤 4자리만 users.signupInfo).
 - 새 계정은 memberStatus 'pending' → 승인 전에는 승인 대기 화면(대기·거절·만료 안내, 승인 확인, 정보 고치기). 기존 계정(필드 없음)은 승인으로 간주.

@@ -576,6 +576,46 @@ export async function adminLinkRoster(rosterId, uid) {
   await setDoc(doc(db, 'gymRoster', rosterId), { linkedUid: uid || null }, { merge: true })
 }
 
+// ───────────── [2026-10-31 Phase2 P2-2] 트레이너–회원 연결(connections/{trainerUid_memberUid}) ─────────────
+// 활성 트레이너는 회원당 1명 — 새로 연결하면 그 회원의 기존 활성 연결은 종료(이력 유지). 연결 시 일반회원은 PT회원으로.
+// rules: 생성·재활성은 관리자, 종료(status 'ended')는 관리자·해당 트레이너·해당 회원, 읽기는 관리자·당사자.
+const connId = (trainerUid, memberUid) => `${trainerUid}_${memberUid}`
+const memberLabel = (u) => (u?.signupInfo?.name || u?.nickname || '').slice(0, 30)
+export async function adminListConnections() {
+  const snap = await getDocs(collection(db, 'connections'))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+export async function adminConnect(member, trainer, adminUid) {
+  const col = collection(db, 'connections')
+  const prev = await getDocs(query(col, where('memberUid', '==', member.uid), where('status', '==', 'active')))
+  for (const d of prev.docs) {
+    if (d.id !== connId(trainer.uid, member.uid)) await updateDoc(d.ref || doc(db, 'connections', d.id), { status: 'ended', endedAt: serverTimestamp(), endedBy: adminUid })
+  }
+  await setDoc(doc(db, 'connections', connId(trainer.uid, member.uid)), {
+    trainerUid: trainer.uid,
+    memberUid: member.uid,
+    trainerName: memberLabel(trainer),
+    memberName: memberLabel(member),
+    memberNickname: (member.nickname || '').slice(0, 30),
+    status: 'active',
+    startedAt: serverTimestamp(),
+    createdBy: adminUid,
+  })
+  if (!member.role || member.role === '일반회원') await updateDoc(doc(db, 'users', member.uid), { role: 'PT회원', statusUpdatedAt: serverTimestamp() })
+}
+export async function endConnection(id, byUid) {
+  await updateDoc(doc(db, 'connections', id), { status: 'ended', endedAt: serverTimestamp(), endedBy: byUid || null })
+}
+export async function listMyTrainees(trainerUid) {
+  const snap = await getDocs(query(collection(db, 'connections'), where('trainerUid', '==', trainerUid), where('status', '==', 'active')))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+export async function getMyTrainerConnection(memberUid) {
+  const snap = await getDocs(query(collection(db, 'connections'), where('memberUid', '==', memberUid), where('status', '==', 'active')))
+  const d = snap.docs[0]
+  return d ? { id: d.id, ...d.data() } : null
+}
+
 // ───────────── activeSessions/{uid} — 진행 중 운동 세션 서버 백업 ─────────────
 // [2026-10-27 신규] "오늘 운동 완료"를 누르지 않고 다음날이 되면 기록이 사라지던 문제 대응.
 // 진행 중 세션(draft)을 기기 localStorage뿐 아니라 서버에도 보관해, 브라우저 데이터 삭제·기기 변경

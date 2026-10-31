@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-31] Phase2 P2-1 헬스장 회원 승인(승인 대기 화면) + 관리자 대시보드(/admin, 명단 가져오기).
- *            직전: 카카오톡 등 인앱 브라우저 대응, 다음 무게 추천 고도화. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-31] Phase2 P2-2 트레이너–회원 연결(대시보드) + 트레이너 "내 회원" 기록 열람.
+ *            직전: P2-1 헬스장 회원 승인·관리자 대시보드, 인앱 브라우저 대응. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -32,6 +32,7 @@ const DesignPreviewScreen = lazy(() => import('./components/DesignPreviewScreen'
 const InquiryScreen = lazy(() => import('./components/InquiryScreen'))
 const InquiryAdminScreen = lazy(() => import('./components/InquiryAdminScreen'))
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
+const TraineesScreen = lazy(() => import('./components/TraineesScreen'))
 import MemberPendingScreen from './components/MemberPendingScreen'
 import { isApprovedMember, phoneHash, phoneLast4 } from './utils/member'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
@@ -85,6 +86,7 @@ export default function App() {
   // [2026-07-31 신규] MY탭 "문의하기"/"문의 관리" 카드 탭 시 전체화면 진입 여부(⑩)
   const [showInquiries, setShowInquiries] = useState(false)
   const [showInquiryAdmin, setShowInquiryAdmin] = useState(false)
+  const [showTrainees, setShowTrainees] = useState(false) // [2026-10-31 P2-2] 트레이너 "내 회원"
   // [2026-10-31 Phase2 P2-1] 관리자 대시보드(/admin 주소로 열거나 MY에서 진입). 관리자 계정에서만 렌더.
   const [showAdmin, setShowAdmin] = useState(() => typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))
   // [2026-07-28] 홈탭/캘린더가 항상 마운트된 상태로 유지되어(위 주석 참고), 기록을 저장해도
@@ -372,6 +374,8 @@ export default function App() {
   useBackableScreen(showTierInfo, closeTierInfo)
   useBackableScreen(showDesignPreview, closeDesignPreview)
   useBackableScreen(showInquiries, closeInquiries)
+  const closeTrainees = useCallback(() => setShowTrainees(false), [])
+  useBackableScreen(showTrainees, closeTrainees)
   useBackableScreen(showInquiryAdmin, closeInquiryAdmin)
   useBackableScreen(showOnboardingPreview, closeOnboardingPreview)
 
@@ -482,6 +486,10 @@ export default function App() {
   // MY탭 등급 카드를 탭하면 티어 체계/XP 설명을 별도 전체 화면으로 보여준다.
   if (showTierInfo) {
     return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TierInfoScreen uid={authUser.uid} xp={getEffectiveSeasonXp(userDoc)} onClose={closeTierInfo} /></Suspense>
+  }
+
+  if (showTrainees && userDoc.role === '트레이너') {
+    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TraineesScreen uid={authUser.uid} onClose={closeTrainees} /></Suspense>
   }
 
   if (showInquiries) {
@@ -640,6 +648,7 @@ export default function App() {
           onShowDesignPreview={() => setShowDesignPreview(true)}
           onShowInquiries={() => setShowInquiries(true)}
           onShowInquiryAdmin={() => setShowInquiryAdmin(true)}
+          onShowTrainees={() => setShowTrainees(true)}
           onShowAdmin={() => {
             setShowAdmin(true)
             window.history.replaceState(window.history.state, '', '/admin')

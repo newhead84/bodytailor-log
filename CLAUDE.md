@@ -2,7 +2,7 @@
 
 > 이 파일은 저장소 루트에 두고 Claude가 작업 시작 시 항상 먼저 읽는 작업 지침이다.
 > claude.ai 프로젝트 지침과 내용이 다르면 **이 파일이 최신 기준**이다. 규칙이 바뀌면 이 파일을 갱신하고 커밋한다.
-> 최종 갱신: 2026-10-31 (Phase2 P2-1 회원 승인·관리자 대시보드, 다음 무게 추천 고도화, 법적·라이선스 기준·다음 작업 인계 추가, 스트레칭 가이드·목표 5종, 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 개선·등급 방패 아이콘, 자동 저장 검토 팝업·MY 설정 화면, 온보딩 닉네임·주당 목표, 디자인 기본값·MY 접기, 등급 Lv 리뉴얼·전면 점검 반영, 옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
+> 최종 갱신: 2026-10-31 (Phase2 P2-1 회원 승인·관리자 대시보드·P2-2 트레이너 연결, 다음 무게 추천 고도화, 법적·라이선스 기준·다음 작업 인계 추가, 스트레칭 가이드·목표 5종, 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 개선·등급 방패 아이콘, 자동 저장 검토 팝업·MY 설정 화면, 온보딩 닉네임·주당 목표, 디자인 기본값·MY 접기, 등급 Lv 리뉴얼·전면 점검 반영, 옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
 
 ---
 
@@ -57,7 +57,7 @@
 
 ## 4. 보안 체크리스트
 - `firestore.rules`: 본인 uid만 읽기/쓰기. `users`의 `role/roleRequestStatus/tier/lifetimeBadges/trainerProfile`은 클라이언트 수정 불가, XP는 1회 변경 −200~+200·0 이상(자동 저장 되돌리기 시 감소, 시즌 전환 시 리셋 허용), `leaderboard`는 필드 화이트리스트+점수 0~200, `exercisePopularity`는 counts 맵만, `activeSessions/{uid}`는 본인만.
-- 회원 승인(2026-10-31 P2-1): 새 users 문서는 `memberStatus:'pending'`으로만 생성(tier·badges·trainerProfile 기본값 강제), 본인은 memberStatus·approvedAt·approvedBy·memberNo·rosterId·statusUpdatedAt 변경 불가. 관리자(`role=='관리자'`)는 전체 users 읽기 + 승인·역할 필드만 수정(본인 관리자 권한 해제 불가). `isApproved()`(memberStatus 없음=기존 계정 승인, 관리자 항상)가 아니면 workoutLogs·routineTemplates·activeSessions·leaderboard·exercisePopularity 쓰기 거부. `gymRoster`는 관리자만. 규칙을 바꾸면 배포 후 콘솔 게시(에뮬레이터 없음 — 콘솔 규칙 플레이그라운드로 확인).
+- 회원 승인(2026-10-31 P2-1): 새 users 문서는 `memberStatus:'pending'`으로만 생성(tier·badges·trainerProfile 기본값 강제), 본인은 memberStatus·approvedAt·approvedBy·memberNo·rosterId·statusUpdatedAt 변경 불가. 관리자(`role=='관리자'`)는 전체 users 읽기 + 승인·역할 필드만 수정(본인 관리자 권한 해제 불가). `isApproved()`(memberStatus 없음=기존 계정 승인, 관리자 항상)가 아니면 workoutLogs·routineTemplates·activeSessions·leaderboard·exercisePopularity 쓰기 거부. `gymRoster`는 관리자만. 트레이너 연결(P2-2): `connections/{trainerUid_memberUid}` 생성·재활성은 관리자, 종료(status 'ended')는 관리자·당사자, 읽기는 관리자·당사자. `isTrainerOf(uid)`(활성 연결 + 트레이너 역할)면 그 회원의 workoutLogs 읽기만 허용(신체정보 등 users 문서는 못 읽음 — 이름은 연결 문서에 저장). 규칙을 바꾸면 배포 후 콘솔 게시(에뮬레이터 없음 — 콘솔 규칙 플레이그라운드로 확인).
 - 규칙 파일을 바꾸면 **코드 배포 후 Firebase 콘솔에서 규칙 게시**가 필요함을 안내한다(로컬 에뮬레이터 없음).
 - `.env`는 .gitignore 포함·이력 노출 여부 확인. 실질 보안은 Rules + 승인된 도메인(Authorized domains).
 - Google 로그인: Firebase Authentication → 승인된 도메인에 배포 주소가 등록돼 있는지 확인.
@@ -107,6 +107,7 @@
 - 하단 5탭: HOME / HOWTO / NOTE(기록, 입력 전용) / REPORT(랭킹+통계) / MY. 캘린더는 HOME.
 - 흐름: 온보딩(헬스장 회원 확인 — 이름·휴대폰 필수(2026-10-31, 번호는 해시·뒤 4자리만 `signupInfo`)→닉네임(구글 이름 미리 채움, 30자, 랭킹 표시명)→성별→나이→몸무게→키→운동 목표(우선순위, 5종+기타 — 근육·근력 키우기/체지방 줄이기/체력·건강 관리/뼈·관절 건강/자세·코어, GoalPicker)→주당 운동 목표 일수 2~6일→맞춤 기준 요약, 레벨 질문 없음) → (승인 전이면 `MemberPendingScreen`: 대기·거절·만료 안내, 승인 확인·정보 고치기) → 루틴 설정 → 메인 탭. MY 프로필 수정도 같은 항목.
 - 관리자 대시보드 `/admin`(2026-10-31 P2-1, `AdminDashboard.jsx`, PC·모바일): 승인 대기(명단 일치 배지 — 전화 해시+이름, 이름·번호 모두 일치 일괄 승인, 번호만 일치면 연결 여부 확인)·회원(검색·상태·역할)·명단 가져오기(CSV, UTF-8/EUC-KR, 열 매핑·미리보기, 이름·전화 해시·뒤 4자리·회원번호·만료일만 저장)·문의·도구(온보딩 미리보기). MY의 "관리자 대시보드" 카드 또는 주소 /admin(vercel.json SPA 리라이트). 관리자 아니면 / 로 되돌림. 설계: 프로젝트 문서 `claude/BodyTailor_Log_관리자대시보드_설계안_v1.md`.
+- 트레이너 연동(2026-10-31 P2-2): 대시보드 "트레이너 연결" 탭(회원↔트레이너, 회원당 활성 1명 — 새로 연결하면 이전 연결 종료, 일반회원은 PT회원으로, 해제). 트레이너는 MY "내 회원"(`TraineesScreen.jsx`) → 회원별 최근 8주 기록 읽기 전용. 회원은 MY "담당 트레이너" 카드에서 연결 해제 가능.
 - MY "등급" 카드 → TierInfoScreen. MY 설정에 "앱 소개 보기"(/intro/). 프로필 수정은 프로필 카드 안 버튼. 디자인(테마·강조색·폰트·기록 방식)·알림·데이터(CSV)는 우상단 설정 아이콘 → "설정" 화면.
 - HOME 캘린더: 셀 높이 내용에 따라 자동 확장, 부위색 바 + 웜업/본운동 시간·kcal·총볼륨, 배지 글자 수에 따라 크기 조절(ellipsis 금지), 월 이동 화살표·스와이프. 일요일·공휴일=danger, 토요일=info(공휴일은 `api/holidays.js`가 data.go.kr 프록시).
 
@@ -194,6 +195,8 @@ users/{uid}
   memberStatus: 'pending'|'approved'|'rejected'|'expired'(없으면 기존 계정 = 승인), role: '일반회원'|'PT회원'|'트레이너'|'관리자'
   signupInfo: { name, phoneHash(SHA-256 'bodytailor-log:'+숫자), phoneLast4 }, memberNo?, rosterId?, approvedAt, approvedBy, statusUpdatedAt
 gymRoster/{no_회원번호 | ph_해시앞20자}: { name, phoneHash, phoneLast4, memberNo, expireDate('YYYY-MM-DD'), linkedUid?, importedAt }
+// P2-2 추가분(2026-10-31)
+connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, memberName, memberNickname, status:'active'|'ended', startedAt, createdBy, endedAt?, endedBy? }
 ```
 - 종목키 = `이름` 또는 `이름::그립`(그립이 다르면 별개 종목으로 집계).
 - 옛 종목명은 읽을 때 정규화: 기록은 `storage.js readLogDoc → normalizeLogExercises()`(그립 통합 전 이름은 `LEGACY_EXERCISE_GRIP_MAP`으로 grip도 채움), 루틴은 `normalizeExerciseNames()`. PR 맵에 옛 이름 키가 있으면 App이 한 번 재계산.
@@ -212,7 +215,7 @@ gymRoster/{no_회원번호 | ph_해시앞20자}: { name, phoneHash, phoneLast4, 
 
 ### 7.7 로드맵
 - Phase1(MVP, 구현 완료·지속 개선): 온보딩 / 분할 루틴 / 기록 입력 / 캘린더 / 리포트(랭킹+통계+티어·시즌 XP) / MY / PWA.
-- Phase2(착수 2026-10-31): P2-1 회원 승인·/admin·명단 이관(완료) → P2-2 트레이너 지정·회원 연결·기록 열람 → P2-3 트레이너 루틴 → P2-4 홍보 페이지 반영 / 랭킹 그룹 세분화+준수율 보너스 / 식단(AI 연동 재설계).
+- Phase2(착수 2026-10-31): P2-1 회원 승인·/admin·명단 이관(완료) → P2-2 트레이너 지정·회원 연결·기록 열람(완료) → P2-3 트레이너 루틴 → P2-4 홍보 페이지 반영 / 랭킹 그룹 세분화+준수율 보너스 / 식단(AI 연동 재설계).
 - Phase3(후보): 기존 운동기록 일괄 업로드 / 알림 세분화.
 
 ## 8. 알려진 이슈 / 환경 특이사항
