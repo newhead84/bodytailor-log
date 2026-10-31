@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 소개 페이지 배경 전환: 경계 그라데이션 띠를 없애고 스크롤 위치에 따라 화면 전체 배경색(검정과 베이지)을 연속으로 섞음, 사진 섹션 가장자리는 마스크로 녹임 | public/intro/index.html, src/App.jsx
+
 [2026-10-31] 전체 QA·별도 리뷰 반영 | firestore.rules, storage.js, ReportSections.jsx, HowToTab.jsx, ui.jsx, App.jsx, public/intro/index.html
 - rules: adminLogs 모든 기록 at == 서버 시각, 트레이너 pt 기록은 작성자 이름·회원 이름이 실제와 같아야 함, 탈퇴 기록은 작성자 uid도 비움(누가 탈퇴했는지 남지 않게) + 가입된 회원만, leaderboard 닉네임은 가린 형태(첫 글자 + *)만 저장 가능.
 - 이번 주 요약: 지난주를 같은 요일까지만 비교(월·화요일에 늘 ▼로 보이던 문제), 볼륨 증감 단위, 설명 문구 정정.
