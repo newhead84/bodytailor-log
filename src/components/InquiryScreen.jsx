@@ -2,7 +2,7 @@
 // [2026-07-31 신규] MY탭 "문의하기" 카드에서 진입하는 전체화면. 이메일 대신 앱 안에서
 // 1:1 문의를 남기고, 관리자 답변이 오면 같은 화면에서 확인할 수 있다(⑩).
 import React, { useEffect, useState } from 'react'
-import { Card, SectionTitle, Button, BackButton, EmptyState, useConfirm } from './ui'
+import { Card, SectionTitle, Button, ScreenHeader, EmptyState, useConfirm } from './ui'
 import { submitInquiry, getMyInquiries, deleteInquiry } from '../storage'
 
 export default function InquiryScreen({ uid, nickname, onClose }) {
@@ -58,11 +58,8 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
   }
 
   return (
-    <div style={{ padding: '24px 20px 40px', height: '100%', overflowY: 'auto' }}>
-      <BackButton onClick={onClose} />
-      <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
-        문의하기
-      </h1>
+    <div style={{ padding: '0 20px 40px', height: '100%', overflowY: 'auto' }}>
+      <ScreenHeader title="문의하기" onBack={onClose} />
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         어플 관련 개선 의견이나 버그를 남겨주세요. 답변이 오면 이 화면에 표시돼요.
       </p>

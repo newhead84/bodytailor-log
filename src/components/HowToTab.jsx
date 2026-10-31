@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { HOWTO_ONBOARDING_TEXT } from '../utils/howtoText'
 import { Search, ChevronRight, X, Lightbulb, Info } from 'lucide-react'
-import { Card, SectionTitle, Chip, Button, EmptyState } from './ui'
+import { Card, SectionTitle, Chip, Button, EmptyState, ScreenHeader } from './ui'
 import {
   BODY_PART_ATOMS,
   EXERCISE_LIBRARY,
@@ -83,35 +83,37 @@ function OnboardingBanner({ uid, onDismissed }) {
 // 길면 자동 줄바꿈되게 바꿔서 가로 스크롤 없이도 전체가 한 화면에 들어오게 했다.
 // "구분" 열은 폭을 좁게 고정하고 나머지는 비교군 개수만큼 균등 분배한다. 요청에 따라
 // 헤더/본문 셀 모두 가운데 정렬로 변경.
+// [2026-10-31] 3~4개를 한 표에 넣으면 칸이 좁아 글자가 한두 자씩 끊겼다(사용자 지적) →
+// 지금 운동과 비교할 운동 하나를 칩으로 고르고 3열(구분 · 지금 운동 · 고른 운동)로만 보여 준다.
 function ComparisonTable({ group, currentName }) {
-  const memberColWidth = `${(100 - 22) / group.members.length}%`
+  const others = group.members.filter((m) => m !== currentName)
+  const [other, setOther] = useState(others[0])
+  const cols = [currentName, other].filter(Boolean)
+  const cell = { padding: '9px 6px', borderBottom: '1px solid var(--color-line)', fontSize: 13, lineHeight: 1.45, verticalAlign: 'top' }
   return (
-    <div style={{ marginTop: 8 }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed', fontSize: 11 }}>
-        <colgroup>
-          <col style={{ width: '22%' }} />
-          {group.members.map((m) => (
-            <col key={m} style={{ width: memberColWidth }} />
+    <div style={{ marginTop: 10 }}>
+      {others.length > 1 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          {others.map((m) => (
+            <Chip key={m} active={other === m} onClick={() => setOther(m)} style={{ padding: '6px 11px', fontSize: 13 }}>
+              {m}
+            </Chip>
           ))}
+        </div>
+      )}
+      <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: '24%' }} />
+          <col style={{ width: '38%' }} />
+          <col style={{ width: '38%' }} />
         </colgroup>
         <thead>
           <tr>
-            <th style={{ textAlign: 'center', padding: '6px 4px', color: 'var(--color-label-neutral)', borderBottom: '1px solid var(--color-line)' }}>
-              구분
-            </th>
-            {group.members.map((m) => (
-              <th
-                key={m}
-                className="text-keep-all"
-                style={{
-                  textAlign: 'center',
-                  padding: '6px 4px',
-                  borderBottom: '1px solid var(--color-line)',
-                  color: m === currentName ? 'var(--color-primary-normal)' : 'var(--color-label-normal)',
-                  fontWeight: m === currentName ? 800 : 700,
-                }}
-              >
+            <th style={{ ...cell, fontSize: 12.5, color: 'var(--color-label-neutral)', textAlign: 'left' }}>구분</th>
+            {cols.map((m) => (
+              <th key={m} className="text-keep-all" style={{ ...cell, textAlign: 'left', fontWeight: 800, color: m === currentName ? 'var(--color-primary-normal)' : 'var(--color-label-strong)' }}>
                 {m}
+                {m === currentName && <span style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}>지금 보는 운동</span>}
               </th>
             ))}
           </tr>
@@ -119,20 +121,9 @@ function ComparisonTable({ group, currentName }) {
         <tbody>
           {group.axes.map((axis) => (
             <tr key={axis}>
-              <td className="text-keep-all" style={{ textAlign: 'center', padding: '6px 4px', color: 'var(--color-label-neutral)', borderBottom: '1px solid var(--color-line)' }}>
-                {axis}
-              </td>
-              {group.members.map((m) => (
-                <td
-                  key={m}
-                  className="text-keep-all"
-                  style={{
-                    textAlign: 'center',
-                    padding: '6px 4px',
-                    borderBottom: '1px solid var(--color-line)',
-                    background: m === currentName ? 'var(--color-bg-elevated)' : 'transparent',
-                  }}
-                >
+              <td className="text-keep-all" style={{ ...cell, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>{axis}</td>
+              {cols.map((m) => (
+                <td key={m} className="text-keep-all" style={{ ...cell, background: m === currentName ? 'var(--color-bg-elevated)' : 'transparent' }}>
                   {group.table[m]?.[axis] || '-'}
                 </td>
               ))}
@@ -179,13 +170,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
 
   return (
     <div>
-      <button
-        onClick={onBack}
-        style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--color-label-neutral)', marginBottom: 12 }}
-      >
-        <ChevronRight size={16} strokeWidth={2} style={{ transform: 'rotate(180deg)' }} />
-        부위별 목록으로
-      </button>
+      <ScreenHeader title="운동 가이드" onBack={onBack} backLabel="부위별 목록으로" bleed={16} />
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
         <h2 className="text-keep-all" style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--color-label-strong)' }}>
@@ -384,7 +369,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
 
   if (selectedExercise) {
     return (
-      <div style={{ padding: '16px 16px 100px' }}>
+      <div style={{ padding: '0 16px 100px' }}>
         <ExerciseDetail
           uid={uid}
           name={selectedExercise}

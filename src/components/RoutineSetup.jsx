@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card, BackButton, useConfirm } from './ui'
+import { Button, Chip, Card, ScreenHeader, useConfirm } from './ui'
 import {
   BODY_PART_ATOMS,
   buildPartName,
@@ -124,21 +124,19 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
   }
 
   return (
-    <div style={{ padding: '24px 20px 120px', height: '100%', overflowY: 'auto' }}>
-      {canCancel && <BackButton onClick={onCancel}>취소하고 돌아가기</BackButton>}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
-        <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: 0 }}>
-          {forTrainer ? `${forTrainer.memberName}님 계획 ${isEditing ? '수정' : '만들기'}` : isEditing ? '내 루틴 수정' : '새 루틴 만들기'}
-        </h1>
-        {onSkip && (
-          <button
-            onClick={onSkip}
-            style={{ flexShrink: 0, fontSize: 13, fontWeight: 600, color: 'var(--color-label-neutral)', padding: '6px 4px' }}
-          >
-            나중에 입력
-          </button>
-        )}
-      </div>
+    <div style={{ padding: '0 20px 120px', height: '100%', overflowY: 'auto' }}>
+      <ScreenHeader
+        title={forTrainer ? `${forTrainer.memberName}님 계획 ${isEditing ? '수정' : '만들기'}` : isEditing ? '내 루틴 수정' : '새 루틴 만들기'}
+        onBack={canCancel ? onCancel : null}
+        backLabel="취소하고 돌아가기"
+        right={
+          onSkip ? (
+            <button onClick={onSkip} style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-neutral)', padding: '10px 8px', whiteSpace: 'nowrap' }}>
+              나중에
+            </button>
+          ) : null
+        }
+      />
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         {forTrainer
           ? '저장하면 회원의 기록 화면 루틴 목록에 "트레이너 계획"으로 바로 나타나요. 세트·횟수·무게 같은 지시는 아래 메모에 적어 주세요.'

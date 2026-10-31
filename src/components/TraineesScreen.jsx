@@ -4,7 +4,7 @@
 // [2026-10-31] PT 회원의 신체정보(성별·나이·키·몸무게)·운동 목표·주당 목표 일수도 트레이너에게 보여준다(users 문서 읽기 허용).
 // [2026-10-31 P2-3] 회원 화면 상단 "운동 계획": 트레이너가 회원의 루틴(계획)을 만들어 보내고 수정·삭제한다(RoutineSetup forTrainer 재사용).
 import React, { useCallback, useEffect, useState } from 'react'
-import { BackButton, Button, Card, useConfirm } from './ui'
+import { ScreenHeader, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { useBackableScreen } from '../hooks/useBackableScreen'
@@ -46,9 +46,8 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
 
   if (sel) return <MemberLogs conn={sel} uid={uid} trainerName={trainerName || sel.trainerName} customExercises={customExercises} onBack={closeSel} />
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '24px 20px 80px', boxSizing: 'border-box' }}>
-      <BackButton onClick={onClose}>돌아가기</BackButton>
-      <h1 style={{ fontSize: 24, margin: '8px 0 6px' }}>내 회원</h1>
+    <div style={{ height: '100%', overflowY: 'auto', padding: '0 20px 80px', boxSizing: 'border-box' }}>
+      <ScreenHeader title="내 회원" onBack={onClose} />
       <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>관리자가 연결한 담당 회원이에요. 운동 계획을 만들어 보내고, 회원이 남긴 기록을 볼 수 있어요(기록 수정은 회원만).</p>
       {list && list.length > 0 && <WeekSchedules uid={uid} list={list} onOpen={setSel} />}
       {list === null ? (
@@ -196,9 +195,8 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
   }
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '24px 20px 80px', boxSizing: 'border-box' }}>
-      <BackButton onClick={onBack}>회원 목록</BackButton>
-      <h1 style={{ fontSize: 24, margin: '8px 0 4px' }}>{conn.memberName}</h1>
+    <div style={{ height: '100%', overflowY: 'auto', padding: '0 20px 80px', boxSizing: 'border-box' }}>
+      <ScreenHeader title={conn.memberName} onBack={onBack} backLabel="회원 목록" />
       <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>최근 8주 운동 기록 · 이번 주 <span className="bt-num">{thisWeekDays}</span>일 운동</p>
       <MemberBody member={member} />
       <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={loadMember} />

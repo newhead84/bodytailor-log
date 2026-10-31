@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Card, SectionTitle, TierBadge, BackButton } from './ui'
+import { Card, SectionTitle, TierBadge, ScreenHeader } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { TIERS, getTierByXp, getLevelInfo, stageLevelRange, LEVELS_PER_STAGE, LEGEND_XP_PER_LEVEL } from '../utils/tier'
 import { getLeaderboard } from '../storage'
@@ -41,11 +41,8 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
   }, [uid, period])
 
   return (
-    <div style={{ padding: '24px 20px 40px', height: '100%', overflowY: 'auto' }}>
-      <BackButton onClick={onClose} />
-      <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
-        등급 & XP 안내
-      </h1>
+    <div style={{ padding: '0 20px 40px', height: '100%', overflowY: 'auto' }}>
+      <ScreenHeader title="등급 & XP 안내" onBack={onClose} />
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         지금 내 등급은 <TierBadge label={currentTier.label} tierKey={currentTier.key} level={levelInfo.level} size="sm" />, <CountUp value={xp} /> XP예요.
         {' '}Lv {levelInfo.level + 1}까지 {levelInfo.xpToNext.toLocaleString()} XP 남았어요.

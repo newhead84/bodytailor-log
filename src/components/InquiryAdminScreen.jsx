@@ -2,7 +2,7 @@
 // [2026-07-31 신규] role === '관리자' 계정에서만 MY탭에 진입점이 보이는 문의 관리 화면(⑩).
 // 전체 사용자 문의를 미답변 우선으로 보여주고, 각 문의에 답변을 입력해 등록할 수 있다.
 import React, { useEffect, useState } from 'react'
-import { Card, Button, BackButton, EmptyState, useConfirm } from './ui'
+import { Card, Button, ScreenHeader, EmptyState, useConfirm } from './ui'
 import { getAllInquiries, replyToInquiry, deleteInquiry, logAction } from '../storage'
 
 function InquiryRow({ q, onReplied }) {
@@ -105,11 +105,8 @@ export default function InquiryAdminScreen({ onClose }) {
   }, [])
 
   return (
-    <div style={{ padding: '24px 20px 40px', height: '100%', overflowY: 'auto' }}>
-      <BackButton onClick={onClose} />
-      <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
-        문의 관리
-      </h1>
+    <div style={{ padding: '0 20px 40px', height: '100%', overflowY: 'auto' }}>
+      <ScreenHeader title="문의 관리" onBack={onClose} />
       <p className="text-keep-all" style={{ fontSize: 15.5, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         답변을 남기면 작성자가 MY탭 &ldquo;문의하기&rdquo; 화면에서 바로 확인할 수 있어요.
       </p>

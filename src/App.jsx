@@ -359,7 +359,7 @@ export default function App() {
   }, [authUser?.uid, effectiveLogMode, refreshUserDoc])
 
 
-  // 운동기록 저장 직후 호출: 유저문서(XP/티어) 갱신 + 홈탭/캘린더 재조회 트리거를 함께 처리.
+  // 운동기록 저장 직후 호출: 사용자 문서(XP/티어) 갱신 + 홈탭/캘린더 재조회 트리거를 함께 처리.
   // [2026-10-27] 기록 수정/삭제 후 PR 재계산이 끝나면 사용자 문서를 다시 불러온다
   useEffect(() => {
     const onPrs = () => refreshUserDoc()

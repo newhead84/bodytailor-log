@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronLeft, ExternalLink, Settings } from 'lucide-react'
-import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches } from './ui'
+import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches, ScreenHeader } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
 import { getMyTrainerConnection, endConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
@@ -343,13 +343,8 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   // [2026-10-29] 설정(디자인·알림·데이터 등)은 우상단 설정 아이콘 → 별도 화면으로 분리(사용자 요청)
   if (showSettings) {
     return (
-      <div ref={settingsTopRef} style={{ padding: '12px 20px 100px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 14px -8px' }}>
-          <button type="button" onClick={() => setShowSettings(false)} aria-label="MY로 돌아가기" style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-strong)' }}>
-            <ChevronLeft size={22} strokeWidth={2} />
-          </button>
-          <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)' }}>설정</span>
-        </div>
+      <div ref={settingsTopRef} style={{ padding: '0 20px 100px' }}>
+        <ScreenHeader title="설정" onBack={() => setShowSettings(false)} backLabel="MY로 돌아가기" />
       {/* [2026-10-28] 스타일 C 택타일 웜 고정(선택 없음). 테마 3종·강조색·폰트·기록 방식만 선택. */}
       {/* [2026-10-29] 기본은 접힌 상태 - 현재 조합 한 줄 + "설정 바꾸기"를 눌러야 선택지가 열린다(사용자 요청). */}
       <SectionTitle>디자인</SectionTitle>

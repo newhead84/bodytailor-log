@@ -136,7 +136,7 @@ export default function ConsentScreen({ onAgree }) {
 
       <div style={{ margin: '18px 0 0', padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-elevated)', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <p className="text-keep-all" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: 'var(--color-label-normal)' }}>
-          <b>랭킹 공개:</b> 랭킹에는 닉네임과 점수가 다른 회원에게 보여요. 닉네임은 실명이 아니어도 되고, MY에서 바꿀 수 있어요.
+          <b>랭킹 공개:</b> 랭킹에는 점수와 닉네임 첫 글자(예: 김**)만 다른 회원에게 보여요. 닉네임은 실명이 아니어도 되고, MY에서 바꿀 수 있어요.
         </p>
         <p className="text-keep-all" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: 'var(--color-label-normal)' }}>
           <b>건강 안내:</b> {HEALTH_DISCLAIMER}

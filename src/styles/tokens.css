@@ -295,6 +295,9 @@ button,
   word-break: keep-all;
   overflow-wrap: break-word;
 }
+/* [2026-10-31] 한두 글자만 다음 줄로 넘어가는 줄바꿈(외톨이 줄) 줄이기 - 지원 브라우저에서만 동작, 미지원이면 그대로 */
+p, li, dd, .text-keep-all { text-wrap: pretty; }
+h1, h2, h3 { text-wrap: balance; }
 
 /* 예외: 운동기록 표기(20x14/45x10), 숫자열 등은 break-all 허용 대상이므로 keep-all 미적용 */
 .record-notation {

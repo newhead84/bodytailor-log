@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { Button, Card, BackButton, useConfirm } from './ui'
+import { Button, Card, ScreenHeader, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine } from '../storage'
 import TrainerPlanBadge from './TrainerPlanBadge'
@@ -78,11 +78,8 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
   }
 
   return (
-    <div style={{ padding: '24px 20px 40px', height: '100%', overflowY: 'auto' }}>
-      {!isFirstSetup && <BackButton onClick={onClose} />}
-      <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
-        내 루틴 ({ownCount}/{MAX_ROUTINES})
-      </h1>
+    <div style={{ padding: '0 20px 40px', height: '100%', overflowY: 'auto' }}>
+      <ScreenHeader title={`내 루틴 (${ownCount}/${MAX_ROUTINES})`} onBack={isFirstSetup ? null : onClose} />
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         {isFirstSetup
           ? '먼저 루틴을 하나 만들어 주세요. 부위를 자유롭게 조합할 수 있어요.'

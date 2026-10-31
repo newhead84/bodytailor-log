@@ -225,6 +225,43 @@ export function TierBadge({ label, tierKey, size = 'md', level }) {
 // [2026-07-29 신규] 세부화면 상단의 "← 돌아가기" 버튼 공용 컴포넌트.
 // 기존에는 색이 너무 옅어(--color-label-neutral 단색 텍스트) 눈에 잘 안 띈다는 피드백이 있어,
 // 아이콘 + 더 밝은 텍스트 톤 + 넓은 탭 영역으로 가시성을 높였다.
+// [2026-10-31] 상세 화면 공용 상단 헤더(모바일 앱 기본형): 왼쪽 ‹(44px 터치) + 가운데 제목 + 오른쪽 보조 버튼, 스크롤해도 고정.
+// 화면 컨테이너의 좌우 패딩만큼 bleed로 넓혀 가장자리까지 채운다(컨테이너 위쪽 패딩은 0으로).
+export function ScreenHeader({ title, onBack, backLabel = '뒤로', right = null, bleed = 20 }) {
+  return (
+    <div
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 20,
+        margin: `0 -${bleed}px 14px`,
+        padding: 'calc(var(--safe-top, 0px) + 4px) 6px 4px',
+        minHeight: 52,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(44px, auto) 1fr minmax(44px, auto)',
+        alignItems: 'center',
+        gap: 4,
+        background: 'color-mix(in srgb, var(--color-bg) 94%, transparent)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        borderBottom: '1px solid var(--color-line)',
+      }}
+    >
+      {onBack ? (
+        <button type="button" onClick={onBack} aria-label={backLabel} style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-strong)', borderRadius: 'var(--radius-sm)' }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+      ) : (
+        <span />
+      )}
+      <h1 className="text-keep-all" style={{ margin: 0, textAlign: 'center', fontSize: 17, fontWeight: 800, lineHeight: 1.3, color: 'var(--color-label-strong)' }}>{title}</h1>
+      <span style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minWidth: 44 }}>{right}</span>
+    </div>
+  )
+}
+
 export function BackButton({ onClick, children = '돌아가기' }) {
   return (
     <button

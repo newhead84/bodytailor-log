@@ -30,7 +30,7 @@ import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey } from './util
 import { getSeasonPeriod } from './utils/season'
 import { weekStartStr } from './utils/date'
 
-// ───────────── exercisePopularity/{atom} - 부위별 "다른 유저 즐겨찾는 운동" 공개 집계 ─────────────
+// ───────────── exercisePopularity/{atom} - 부위별 "다른 회원 즐겨찾는 운동" 공개 집계 ─────────────
 // [2026-07-31 신규] 개인정보 없이 "부위(atom) → 종목명 → 수행 횟수"만 담는 공개 집계 문서.
 // 라이브러리에 등록된 종목(getExerciseAtom이 null이 아닌 경우)만 집계하고, 사용자가 직접 추가한
 // 커스텀 종목명은 제외한다(롱테일 방지). 로그 저장 시마다 호출되며 실패해도 기록 저장 자체는
@@ -48,7 +48,7 @@ async function incrementExercisePopularity(exercises) {
     Object.entries(byAtom).map(([atom, counts]) => {
       // [2026-10-27 W0 버그수정] setDoc(merge)은 'counts.이름' 같은 점(.) 표기를 경로가 아니라
       // 글자 그대로의 최상위 필드명으로 저장한다. 그래서 그동안 counts 맵이 채워지지 않고
-      // 'counts.벤치프레스' 같은 최상위 필드가 쌓여 "다른 유저 즐겨찾는 운동"이 비어 보였다.
+      // 'counts.벤치프레스' 같은 최상위 필드가 쌓여 "다른 회원 즐겨찾는 운동"이 비어 보였다.
       // 중첩 객체로 넘겨야 counts 맵 안의 키로 병합된다.
       const nested = {}
       Object.entries(counts).forEach(([name, n]) => {
@@ -59,7 +59,7 @@ async function incrementExercisePopularity(exercises) {
   )
 }
 
-// 리포트 탭에서 부위별 "다른 유저 즐겨찾는 운동"을 보여주기 위한 조회.
+// 리포트 탭에서 부위별 "다른 회원 즐겨찾는 운동"을 보여주기 위한 조회.
 // BODY_PART_ATOMS 전체를 순회해 문서가 있는 것만 { atom, counts } 형태로 반환한다.
 const SHARED_READ_CACHE_MS = 10 * 60 * 1000 // 랭킹·인기 운동처럼 다른 사람 데이터 묶음 캐시 시간
 // [2026-10-31] Spark 읽기 절약: 리포트 탭을 열 때마다 8문서를 다시 읽던 것을 10분 세션 캐시로.

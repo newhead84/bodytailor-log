@@ -2,6 +2,12 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] REPORT 개편·랭킹 이름 가리기·상세 화면 헤더·줄바꿈 점검 | ReportTab.jsx, ReportSections.jsx(신규), ui.jsx(ScreenHeader), TierInfoScreen·InquiryScreen·InquiryAdminScreen·RoutineManager·RoutineSetup·TraineesScreen·TrainerDirectory·MyPageTab(설정)·HowToTab(상세·비교표), styles/tokens.css, ConsentScreen.jsx, public/privacy·intro
+- REPORT 순서: 이번 주 요약(운동한 날·본세트·볼륨·늘어난 운동, 지난주 대비) → 근육별 주간 세트 → 근력 추이(종목별 추정 1RM 8주, 상승·정체·하락, 누르면 그래프) → 정체·회복 → 부위별 주간 세트 8주 표 → 유산소·균형·골밀도 → 최근 개인 기록 → 많이 한 운동(8주 본세트) → 랭킹 → 다른 회원들이 즐겨하는 운동. 누적 레이더(코어 '체중볼륨' 글자 잘림)·회차별 향상/유지 목록·출석률 카드 제거.
+- 랭킹: 상위 10명 + 내 순위, 다른 회원 닉네임은 첫 글자 + *(maskName), 랭킹 데이터 저장도 가린 닉네임으로. 동의·처리방침·홍보 문구 수정. '유저' → '회원'.
+- 상세 화면 뒤로가기: 좌상단 글자 버튼 → 상단 고정 헤더(‹ + 가운데 제목, ScreenHeader).
+- 줄바꿈: 문단·목록 text-wrap: pretty, 제목 balance(외톨이 줄 줄임), HOWTO 비교표를 '지금 운동 vs 고른 운동' 3열로(4열에서 한두 글자씩 끊기던 문제).
+
 [2026-10-31] 관리 이력 범위 확대 + 홍보 페이지 데모·기록 방식·배경 전환 | storage.js(setLogActor·logAction·탈퇴 기록), App.jsx, TrainerProfilesTab.jsx, AdminDashboard.jsx(명단), InquiryAdminScreen.jsx, TraineesScreen.jsx, adminUi.jsx, firestore.rules, public/intro/index.html
 - 관리 이력: 트레이너 프로필(등록·수정·순서·재직·퇴사·삭제), 명단 가져오기, 문의 답변·삭제, 트레이너 PT 작업(완료·노쇼·일정 등록·삭제·되돌리기, 담당 트레이너만), 탈퇴(이름 없이 '회원 1명 탈퇴'). rules: adminLogs 생성은 관리자 + 담당 트레이너 pt + 본인 withdraw만.
 - 홍보 데모: 숫자 직접 선택 대신 예시 4가지(목표 범위 안·채운 날·조금 모자란 날·많이 모자란 날)를 4.5초마다 자동 전환, 누르면 그 예시로(화면에 보일 때만, 움직임 줄이기 설정이면 자동 없음).

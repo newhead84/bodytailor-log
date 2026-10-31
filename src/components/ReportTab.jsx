@@ -1,18 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-} from 'recharts'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState, Disclosure } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom, getEffectiveSeasonXp } from '../storage'
 import { getTierByXp, getLevelInfo } from '../utils/tier'
@@ -26,6 +12,7 @@ import { workingSetsOf, bestE1rmOfSets } from '../utils/strength'
 import { setsVolumeKg, isHoldExercise, logVolumeKg } from '../utils/load'
 import { CountUp } from '../hooks/useCountUp'
 import { MuscleSetsCard, CardioCard, RecoveryCard, PrCard, BoneHealthCard, BalanceCard, startOfWeekStr } from './InsightCards'
+import { WeekSummaryCard, WeeklySetsHeatmap, StrengthTrendCard, FrequentBySetsCard, RankingList, maskName } from './ReportSections'
 import { getTrainingProfile } from '../utils/goals'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
@@ -34,19 +21,6 @@ import { getTrainingProfile } from '../utils/goals'
 // (기록탭은 이제 운동기록 입력만 담당한다.)
 
 const STATS_RANGE_DAYS = 84 // 최근 12주
-
-// [2026-07-30 신규] recharts 기본 Tooltip은 흰 배경이라 매트블랙 테마에서 카드처럼 튀어 보이고
-// 글자 대비도 맞지 않았다(⑯). 다크 테마에 맞춘 스타일로 통일해서 모든 차트에 적용한다.
-const CHART_TOOLTIP_STYLE = {
-  contentStyle: {
-    background: 'var(--color-bg-elevated)',
-    border: '1px solid var(--color-line)',
-    borderRadius: 'var(--radius-sm)',
-    fontSize: 12,
-  },
-  labelStyle: { color: 'var(--color-label-strong)', fontWeight: 700, marginBottom: 4 },
-  itemStyle: { color: 'var(--color-label-normal)' },
-}
 
 // [2026-08-02 수정] date.getDay()가 일요일=0이라, 기존 코드(day만큼 그대로 빼기)는 결과적으로
 // "일~토" 기준 주간 경계가 되고 있었다(⑬으로 명시적 경계 도입했을 때도 이 부분은 못 고쳤음).
@@ -59,76 +33,6 @@ function startOfWeek(d) {
   const diff = day === 0 ? 6 : day - 1
   date.setDate(date.getDate() - diff)
   return date
-}
-
-// [2026-07-29 신규] 레이더 차트 부위 축 라벨 아래에 이번 주 볼륨·세트 수를 함께 표기하는
-// 커스텀 tick. recharts가 x/y/cx/cy/payload/textAnchor 등을 자동으로 주입해준다.
-// [2026-07-30 재수정] 그동안 라벨을 tick 위치(x,y = outerRadius 반경 지점)에 그대로 찍다 보니
-// "차트를 키우면 라벨과 겹치고, 줄이면 차트 도형이 작아 보이는" 문제가 반복됐다(outerRadius/margin을
-// 여러 차례 조정해도 근본적으로 둘이 같은 값에 묶여 있어 해결이 안 됐음). 이번에는 tick 위치에서
-// 중심(cx,cy) 반대 방향으로 고정 픽셀(LABEL_OFFSET)만큼 라벨을 밀어내는 방식으로 바꿔서,
-// 차트 도형 크기(outerRadius)와 라벨 위치를 서로 독립적으로 조정할 수 있게 했다.
-const LABEL_OFFSET = 16
-
-// [2026-08-06 신규] 부위별 활동량을 무게×횟수(근력형) 하나로만 재는 대신, 유산소는 소모
-// 칼로리, 맨몸/횟수전용 종목은 체중×횟수로 따로 누적한다(아래 cumulativePartStats 참조).
-// 축 라벨 아래 상세 텍스트는 그중 실제로 값이 있는 지표를 그 부위에 맞는 단위로 보여준다.
-// (한 부위 안에 웨이트 종목과 맨몸 종목이 섞여 있으면 두 지표 모두 값이 있을 수 있어, 그
-// 경우 두 지표를 · 로 이어 보여준다.)
-// [2026-08-06 (2) 수정] 지표(볼륨/kcal/체중볼륨)와 세트수를 " · "로 한 줄에 모두 이어붙이면
-// 부위에 지표가 2개 이상 섞였을 때 문자열이 길어져 레이더 차트 좌우 프레임 바깥으로 잘리는
-// 문제가 있었다. 지표 줄과 세트수 줄을 분리해 각 줄 길이를 절반 이하로 줄였다.
-// [2026-08-06 신규] 보조근(synergist) 가산이 도입되어, sets가 0이어도 secondaryScore만으로
-// 이 부위가 축에 나타날 수 있다(예: 등 운동만 한 사용자의 "이두" 축). 그 경우 직접 기록이
-// 없다는 걸 알 수 있도록 "보조근 개입만"이라고 표시하고, 직접 기록이 있는 부위는 기존처럼
-// 실제 지표(볼륨/kcal/체중볼륨)를 보여준다(보조근 가산분은 이미 score에 합산되어 레이더
-// 막대 높이에는 반영되지만, 이 상세 텍스트에는 섞지 않아 "직접 한 운동" 수치를 그대로 유지).
-function formatPartMetrics(stat) {
-  if (!stat) return null
-  if (!stat.sets) {
-    return stat.secondaryScore > 0 ? '보조근 개입만' : null
-  }
-  const parts = []
-  if (stat.volume > 0) parts.push(`볼륨 ${Math.round(stat.volume)}`)
-  if (stat.kcal > 0) parts.push(`${Math.round(stat.kcal)}kcal`)
-  if (stat.bwVolume > 0) parts.push(`체중볼륨 ${Math.round(stat.bwVolume)}`)
-  return parts.length > 0 ? parts.join(' · ') : null
-}
-
-function BodyPartAxisTick({ x, y, cx, cy, payload, textAnchor, detail }) {
-  const stat = detail?.[payload?.value]
-  let lx = x
-  let ly = y
-  if (typeof cx === 'number' && typeof cy === 'number') {
-    const dx = x - cx
-    const dy = y - cy
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1
-    lx = x + (dx / dist) * LABEL_OFFSET
-    ly = y + (dy / dist) * LABEL_OFFSET
-  }
-  const metrics = formatPartMetrics(stat)
-  const setsLabel = stat?.sets ? `${stat.sets}세트` : '기록 없음'
-  return (
-    <g transform={`translate(${lx},${ly})`}>
-      <text textAnchor={textAnchor} fontSize={11} fill="var(--color-label-normal)" fontWeight={600}>
-        {payload?.value}
-      </text>
-      {metrics ? (
-        <>
-          <text textAnchor={textAnchor} dy={13} fontSize={8.5} fill="var(--color-label-neutral)">
-            {metrics}
-          </text>
-          <text textAnchor={textAnchor} dy={24} fontSize={8.5} fill="var(--color-label-neutral)">
-            {setsLabel}
-          </text>
-        </>
-      ) : (
-        <text textAnchor={textAnchor} dy={14} fontSize={9} fill="var(--color-label-neutral)">
-          {setsLabel}
-        </text>
-      )}
-    </g>
-  )
 }
 
 export default function ReportTab({ liveExercises = null, uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true }) {
@@ -147,9 +51,8 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   // 내 통계 관련 상태
   const [logs, setLogs] = useState([])
   const [statsLoading, setStatsLoading] = useState(true)
-  const [selectedExercise, setSelectedExercise] = useState(null)
 
-  // [2026-07-31 신규] 다른 유저들이 즐겨찾는 운동(부위별 공개 집계, ⑨)
+  // [2026-07-31 신규] 다른 회원들이 즐겨찾는 운동(부위별 공개 집계, ⑨)
   const [popularityByAtom, setPopularityByAtom] = useState([])
   const [popularityLoading, setPopularityLoading] = useState(true)
   const [selectedPopAtom, setSelectedPopAtom] = useState(BODY_PART_ATOMS[0])
@@ -264,7 +167,8 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
     const finalScore = computeFinalScore({ attendanceScore, volumeScore, overloadScore, streakBonus })
 
     await upsertLeaderboardEntry('all', period, uid, {
-      nickname: (userDoc?.nickname || '회원').slice(0, 30), // 규칙: 30자 이하
+      // [2026-10-31] 랭킹 데이터에는 가린 닉네임만 저장(다른 회원이 원래 닉네임을 볼 수 없게)
+      nickname: maskName(userDoc?.nickname || '회원').slice(0, 30), // 규칙: 30자 이하
       attendanceScore,
       volumeScore,
       overloadScore,
@@ -288,168 +192,6 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logsVersion])
 
-  // ── 부위별 운동 추이 (누적, 2026-08-05 통합) ──
-  // [2026-08-05 변경] 기존에는 "누적 볼륨(부위별)" 가로 막대 차트와 "부위별 운동 추이"
-  // (이번주 vs 지난주 비교) 레이더 차트가 별도 섹션으로 존재해 정보가 중복됐다는 피드백으로
-  // 하나의 레이더 차트로 통합한다. "지난주 대비 이번주" 비교는 두 주 사이 편차가 커서
-  // (이번주 기록이 적으면 큰 폭 감소로 보임) 의미가 크지 않다는 이전 피드백도 반영해,
-  // 레이더는 서비스 시작 이후 전체 누적 볼륨을 부위별 단일 축으로 보여준다.
-  // [2026-08-06 변경] 기존에는 부위별 활동량을 "무게×횟수(볼륨)" 단일 지표로만 재서, 유산소
-  // (무게 없음)·맨몸 위주 종목(코어 플랭크, 풀업 등)은 항상 볼륨이 0이 되어 부위별 운동
-  // 추이 레이더에서 아예 빠졌었다. 종목의 inputType에 따라 그 부위다운 지표를 따로 누적한다:
-  //   - sets(웨이트): 기존과 동일하게 무게×횟수 볼륨
-  //   - cardio(유산소): 세트별 소모 칼로리(estimateCardioSetKcal, calories.js MET 로직 재사용)
-  //   - reps(맨몸/횟수전용): 체중(온보딩 weightKg, 없으면 70kg 근사) × 총 횟수
-  // score는 세 지표를 그대로 합산한 값으로, 부위 간 상대 비교(정규화)에만 쓴다(아래 bodyPartRadar).
-  // [2026-08-12 변경] 코어가 지나치게 높게, 유산소는 거의 안 오르는 것처럼 보인다는 피드백(⑱).
-  // reps 방식이 "체중 × 횟수"를 그대로 곱해, 실제로는 몸통/다리 일부 질량만 움직이는 코어
-  // 종목(플랭크·크런치류)도 풀업·푸시업처럼 전신 체중을 다 드는 것으로 계산돼 과대평가됐다.
-  // getBodyweightVolumeFactor()로 코어 종목에 한해 체중 보정계수(등척성 홀드 40%, 굴곡/회전
-  // 30%)를 곱하도록 수정. 풀업/푸시업/딥스 등 실제 전신체중형 종목(코어가 아닌 부위)은
-  // 보정 없이 기존과 동일하다. 유산소가 잘 안 보이는 문제는 아래 bodyPartRadar의 정규화
-  // 방식(제곱근 스케일)으로 별도 완화한다.
-  // [2026-08-06 (2) 신규] "가슴/등 운동 시 이두·삼두·어깨도 나름 개입되는 점을 감안해서
-  // 표시했으면 함"(사용자 확인) - EXERCISE_META의 muscleRoles.synergist를 getSynergistAtoms로
-  // 부위(atom)로 변환해, 주동근이 아닌 부위에도 해당 세트 활동량의 30%를 secondaryScore로
-  // 가산한다. 주동근 부위와 겹치는 synergist는 제외(이미 그 부위 몫으로 전부 반영됨). 유산소는
-  // muscleRoles가 없어(기구 운동 특성상) 대상에서 자연히 제외된다. secondaryScore는 축 상세
-  // 텍스트에서 "primary volume/kcal/bwVolume"과 구분해 보여주고(BodyPartAxisTick 참고),
-  // 레이더 막대 높이(score)에는 그대로 합산해 반영한다.
-  const SYNERGIST_WEIGHT = 0.3
-  const weightKg = userDoc?.onboarding?.weightKg || 70
-  const cumulativePartStats = useMemo(() => {
-    const stats = {}
-    const ensure = (atom) => {
-      if (!stats[atom]) stats[atom] = { volume: 0, kcal: 0, bwVolume: 0, sets: 0, score: 0, secondaryScore: 0 }
-      return stats[atom]
-    }
-    logs.forEach((log) => {
-      log.exercises?.forEach((ex) => {
-        const atom = getExerciseAtom(ex.name)
-        if (!atom) return
-        const primary = ensure(atom)
-        const inputType = getExerciseInputType(ex.name)
-        const wsets = workingSetsOf(ex) // [2026-10-27] 웜업 세트 제외
-        let primaryValue = 0
-        if (inputType === 'cardio') {
-          const kcal = ex.sets.reduce((s, st) => s + estimateCardioSetKcal(ex.name, st, weightKg), 0)
-          primary.kcal += kcal
-          primary.score += kcal
-          primaryValue = kcal
-        } else if (inputType === 'reps') {
-          const totalReps = wsets.reduce((s, st) => s + (Number(st.reps) || 0), 0)
-          // [2026-10-29] 플랭크류는 횟수 칸에 초를 입력 → 약 3초를 1회로 환산(초를 그대로 곱하면 과대평가)
-          const repEq = isHoldExercise(ex.name) ? totalReps / 3 : totalReps
-          const bwVolume = weightKg * getBodyweightVolumeFactor(ex.name) * repEq
-          primary.bwVolume += bwVolume
-          primary.score += bwVolume
-          primaryValue = bwVolume
-        } else {
-          // [2026-10-29] 실제 부하(보조·추가 중량 반영)·양손 덤벨/양쪽 ×2 규칙(load.js)
-          const volume = setsVolumeKg(ex.name, wsets)
-          primary.volume += volume
-          primary.score += volume
-          primaryValue = volume
-        }
-        primary.sets += inputType === 'cardio' ? ex.sets.length : wsets.length
-
-        // 보조근(synergist) 부위 가산
-        if (inputType !== 'cardio' && primaryValue > 0) {
-          const synergistAtoms = getSynergistAtoms(ex.name).filter((a) => a !== atom)
-          synergistAtoms.forEach((synAtom) => {
-            const target = ensure(synAtom)
-            const weighted = primaryValue * SYNERGIST_WEIGHT
-            target.secondaryScore += weighted
-            target.score += weighted
-          })
-        }
-      })
-    })
-    return stats
-  }, [logs, weightKg])
-
-  // [2026-08-02 재수정] 기존에는 isoWeekLabel(연중 몇 번째 주)로 로그를 묶은 뒤 "배열의 마지막
-  // 항목"을 이번 주로 간주했다(⑬). 월말/월초처럼 이번 주에 기록이 하나도 없는 경우, 배열의
-  // 마지막 항목이 실제로는 지난주(또는 그 이전)가 되어버려 출석률이 엉뚱하게 계산되고, 기준이
-  // "몇 월 몇 주"인지도 한눈에 안 들어왔다. weeklyVolumeCompare와 동일하게 오늘 기준
-  // startOfWeek() 경계로 이번 주/지난주를 명시적으로 구분하고, 실제 날짜 범위를 라벨로 함께 낸다.
-  const weekDateRangeLabel = (start) => {
-    const end = new Date(start)
-    end.setDate(end.getDate() + 6)
-    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}`
-    return `${fmt(start)}~${fmt(end)}`
-  }
-
-  const weeklyAttendance = useMemo(() => {
-    const today = new Date()
-    const weekStart = startOfWeek(today)
-    const prevWeekStart = new Date(weekStart)
-    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
-    const fmt = (d) => toLocalDateStr(d)
-    const thisWeekSessions = logs.filter((l) => l.date >= fmt(weekStart)).length
-    const lastWeekSessions = logs.filter((l) => l.date >= fmt(prevWeekStart) && l.date < fmt(weekStart)).length
-    return {
-      thisWeekSessions,
-      lastWeekSessions,
-      thisWeekLabel: weekDateRangeLabel(weekStart),
-      lastWeekLabel: weekDateRangeLabel(prevWeekStart),
-    }
-  }, [logs])
-
-  // [2026-08-04 변경] 기존에는 "이번 주 세션 수 / 내 루틴 분할 기준 목표 횟수"로 출석률을
-  // 계산해서, 예를 들어 3분할 루틴이면 주 3회만 채워도 100%가 되는 등 루틴 구성에 따라
-  // 기준이 달라졌다. 요청대로 루틴과 무관하게 "이번 주(월~일) 7일 중 실제로 운동을 완료한
-  // 날짜 수"만 기준으로 단순화한다. 같은 날 여러 번 기록해도 1일로만 센다.
-  const weeklyAttendanceDays = useMemo(() => {
-    const today = new Date()
-    const weekStart = startOfWeek(today)
-    const prevWeekStart = new Date(weekStart)
-    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
-    const fmt = (d) => toLocalDateStr(d)
-    const weekStartStr = fmt(weekStart)
-    const prevWeekStartStr = fmt(prevWeekStart)
-    const thisWeekDaySet = new Set(logs.filter((l) => l.date >= weekStartStr).map((l) => l.date))
-    const lastWeekDaySet = new Set(
-      logs.filter((l) => l.date >= prevWeekStartStr && l.date < weekStartStr).map((l) => l.date)
-    )
-    return { thisWeek: thisWeekDaySet.size, lastWeek: lastWeekDaySet.size }
-  }, [logs])
-  const attendanceRate = Math.min(100, Math.round((weeklyAttendanceDays.thisWeek / attendanceTargetDays) * 100))
-
-  // [2026-07-31 변경] 라이브러리 개편 전 이름 등으로 현재 EXERCISE_LIBRARY와 매칭되지
-  // 않는 종목은 '기타'로 뭉쳐 보여주지 않고, 집계 단계에서부터 완전히 제외한다
-  // (사용자 확인: 화면에서만 숨기는 대신 계산에서도 제외하는 방식 선택). cumulativePartStats
-  // 계산 시 getExerciseAtom이 null을 반환하면 그대로 건너뛰므로 이 원칙이 유지된다.
-  // [2026-08-06 변경] 기존 volume>0 기준으로는 유산소/맨몸 위주 부위(볼륨이 항상 0)가 표시
-  // 조건 자체를 통과하지 못했다. "그 부위 운동을 한 번이라도 기록했는지(sets>0)"로 바꾼다.
-  // [2026-08-06 (2) 변경] 보조근 가산(secondaryScore) 도입으로, 직접 기록은 없어도(sets=0)
-  // 다른 부위 운동의 보조근으로 개입한 부위(예: 등 운동만 해도 이두가 30% 가산)는 여전히
-  // 레이더에 나타나야 하므로 secondaryScore>0 조건을 함께 본다.
-  const presentBodyParts = useMemo(
-    () => BODY_PART_ATOMS.filter((atom) => cumulativePartStats[atom]?.sets > 0 || cumulativePartStats[atom]?.secondaryScore > 0),
-    [cumulativePartStats]
-  )
-
-  // [2026-08-06 변경] 부위마다 활동량 지표 단위가 다르다(근력=kg·회, 유산소=kcal, 맨몸=체중·회).
-  // 서로 다른 단위를 레이더 한 축에 그대로 겹치면 스케일이 안 맞아 왜곡돼 보이므로, 부위별
-  // score(위 cumulativePartStats)를 "그중 최댓값을 100으로 놓은 상대 점수(%)"로 정규화해서
-  // 그린다. 원래 값(볼륨/kcal/체중볼륨)은 축 라벨 아래 상세 텍스트(BodyPartAxisTick)에 그대로
-  // 남겨서 실제 수치가 궁금할 때 확인할 수 있게 했다.
-  // [2026-08-12 변경] score/maxScore 선형 비율로는, 절대값이 아주 큰 부위(과거의 코어처럼)가
-  // 있으면 나머지 부위가 실제로 수행한 만큼도 눈에 안 보일 정도로 눌린다(유산소가 거의
-  // 0%로 보이던 문제, ⑱). 제곱근 스케일(√score/√maxScore)로 바꿔, 부위 간 상대적인 크고
-  // 작음의 순서는 유지하면서도 가장 큰 값이 작은 값을 과도하게 눌러버리지 않도록 완화한다.
-  const bodyPartRadar = useMemo(() => {
-    const sqrtScore = (atom) => Math.sqrt(Math.max(0, cumulativePartStats[atom]?.score || 0))
-    const maxSqrtScore = Math.max(0, ...presentBodyParts.map((atom) => sqrtScore(atom)))
-    return presentBodyParts.map((atom) => {
-      return {
-        part: atom,
-        활동점수: maxSqrtScore > 0 ? Math.round((sqrtScore(atom) / maxSqrtScore) * 100) : 0,
-      }
-    })
-  }, [presentBodyParts, cumulativePartStats])
-
   // ── 점진적 과부하 진행상황 ──
   // [2026-07-31 변경] "지난주 전체 대비"에서 "같은 종목의 직전 수행 대비"로 판단 기준
   // 변경(사용자 확인). 3분할처럼 한 주 안에 같은 종목을 여러 번 하는 경우, 이번 주
@@ -465,20 +207,6 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
     const fmt = (d) => toLocalDateStr(d)
     return computeOverloadByOccurrenceForDisplay(logs, fmt(weekStart), getExerciseInputType)
   }, [logs])
-
-  // [2026-08-04 신규] 점진적 과부하 리스트를 종목명만 나열하지 않고 부위별로 묶어서 보여주기
-  // 위한 그룹핑. BODY_PART_ATOMS 순서로 정렬하고, 그 안에서는 기존 회차 순서를 유지한다.
-  const overloadByPart = useMemo(() => {
-    const visible = overloadProgress.occurrences.filter((o) => !o.isNew)
-    const groups = {}
-    visible.forEach((o) => {
-      const atom = getExerciseAtom(o.name) || '기타'
-      if (!groups[atom]) groups[atom] = []
-      groups[atom].push(o)
-    })
-    const order = [...BODY_PART_ATOMS, '기타']
-    return order.filter((atom) => groups[atom]?.length).map((atom) => ({ atom, occurrences: groups[atom] }))
-  }, [overloadProgress])
 
   // ── 제일 많이 한 운동 (신규) ──
   // [2026-08-10 변경] 그립이 다르면 완전히 별개 종목처럼 집계한다(사용자 확인).
@@ -496,7 +224,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       .slice(0, 5)
   }, [logs])
 
-  // [2026-07-31 신규] 선택된 부위에서 다른 유저들이 즐겨찾는 운동 Top5 + 내 제일 많이 한 운동과의
+  // [2026-07-31 신규] 선택된 부위에서 다른 회원들이 즐겨찾는 운동 Top5 + 내 제일 많이 한 운동과의
   // 비교(⑨). "내 것과 일치" 표시는 mostFrequentExercises(전체 부위, 위에서 이미 계산됨)에
   // 이름이 포함되는지로 판단한다. 인기운동 집계(popularTop)는 그립 구분 없이 종목명 기준이므로,
   // 비교도 그립을 뺀 실제 종목명(base name) 기준으로 맞춘다.
@@ -510,53 +238,37 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       .slice(0, 5)
   }, [popularityByAtom, selectedPopAtom])
 
-  // [2026-08-06 (2) 변경] 기존엔 topWeight(무게) 고정이라, 코어(맨몸/횟수전용)·유산소 종목은
-  // 무게 필드가 없어 항상 0으로 평평한 그래프만 보였다. inputType에 맞는 지표로 그린다.
-  //   - sets(중량형): 최고 중량(kg)
-  //   - reps(맨몸/횟수전용): 총 횟수(회)
-  //   - cardio(유산소): 총 운동시간(분)
-  const selectedExerciseInputType = selectedExercise ? getExerciseInputType(parseExerciseKey(selectedExercise).name) : 'sets'
-  const trendMetricLabel =
-    selectedExerciseInputType === 'cardio'
-      ? '총 운동시간(분)'
-      : selectedExerciseInputType === 'reps'
-      ? selectedExercise && isHoldExercise(parseExerciseKey(selectedExercise).name)
-        ? '총 시간(초)'
-        : '총 횟수(회)'
-      : '추정 1RM(kg)'
-  const exerciseTrend = useMemo(() => {
-    if (!selectedExercise) return []
-    const { name: exName } = parseExerciseKey(selectedExercise)
-    const inputType = getExerciseInputType(exName)
-    return logs
-      .filter((log) => log.exercises?.some((e) => makeExerciseKey(e.name, e.grip) === selectedExercise))
-      .map((log) => {
-        const ex = log.exercises.find((e) => makeExerciseKey(e.name, e.grip) === selectedExercise)
-        if (inputType === 'cardio') {
-          const totalDurationMin = ex.sets.reduce((s, st) => s + (Number(st.durationMin) || 0), 0)
-          return { date: log.date.slice(5), value: totalDurationMin }
-        }
-        if (inputType === 'reps') {
-          const totalReps = workingSetsOf(ex).reduce((s, st) => s + (Number(st.reps) || 0), 0)
-          return { date: log.date.slice(5), value: totalReps }
-        }
-        // [2026-10-27] 중량형은 최고 중량 대신 추정 1RM(Epley, 12회 이하 본세트)으로 - 무게·횟수 향상을 함께 반영.
-        // 12회 초과만 한 날은 추정치가 없어 그래프에서 제외(다른 지표와 섞지 않음).
-        const best = bestE1rmOfSets(ex.sets, ex.name)
-        return best ? { date: log.date.slice(5), value: best } : null
-      })
-      .filter(Boolean)
-  }, [logs, selectedExercise])
-
-  // [2026-07-29 개편] 사용자가 혼자뿐인 초기 단계에서는 전체 랭킹 목록이 큰 의미가 없다는
-  // 피드백으로, 목록 전체 대신 "내 순위" 카드 하나만 보여준다. 카드를 누르면 MY탭의
-  // TierInfoScreen과 통합된 화면에서 세부 점수 항목 + 랭킹 산정 기준을 확인할 수 있다.
+  // [2026-10-31] 내 순위 카드(누르면 등급·점수 안내) + 상위 10명 목록(다른 회원 닉네임은 첫 글자만, RankingList)
   const myRankIndex = entries.findIndex((e) => e.uid === uid)
   const myEntry = myRankIndex >= 0 ? entries[myRankIndex] : null
   const myRank = myRankIndex >= 0 ? myRankIndex + 1 : null
 
+  // [2026-10-31] 이번 주 요약의 '늘어난 운동' - 비교할 직전 기록이 있는 회차만
+  const overloadComparable = overloadProgress.occurrences.filter((o) => !o.isNew)
+  const overloadSummary = overloadComparable.length ? { score: Math.round((overloadComparable.filter((o) => o.improved).length / overloadComparable.length) * 100), count: overloadComparable.length } : null
+
   return (
     <div style={{ padding: '20px 20px 100px' }}>
+      {/* [2026-10-31 개편] 순서: 이번 주 → 근육별 세트 → 근력 추이 → 정체·회복 → 장기 추이 → 유산소·균형 → 기록 → 랭킹·다른 회원 */}
+      {statsLoading ? (
+        <p style={{ textAlign: 'center', padding: 40, color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
+      ) : logs.length === 0 ? (
+        <EmptyState title="아직 통계가 없어요" description="운동 기록을 입력하면 주간 요약·근육별 세트·근력 추이가 여기에 쌓여요." />
+      ) : (
+        <>
+          <WeekSummaryCard logs={logs} targetDays={attendanceTargetDays} overload={overloadSummary} />
+          <MuscleSetsCard logs={logs} liveExercises={liveExercises} />
+          <StrengthTrendCard logs={logs} isActive={isActive} />
+          <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} />
+          <WeeklySetsHeatmap logs={logs} />
+          <CardioCard logs={logs} liveExercises={liveExercises} />
+          {getTrainingProfile().showBoneCard && <BoneHealthCard logs={logs} />}
+          <BalanceCard logs={logs} posture={getTrainingProfile().showPostureCard} />
+          <PrCard prs={userDoc?.prs} />
+          <FrequentBySetsCard logs={logs} />
+        </>
+      )}
+
       {/* 랭킹 */}
       <SectionTitle
         action={
@@ -586,8 +298,8 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
         전체 랭킹 · {formatSeasonLabel(period)}
       </SectionTitle>
       {/* [2026-10-31] 랭킹 공개 안내(개인정보) */}
-      <p className="text-keep-all" style={{ margin: '-6px 0 10px', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
-        랭킹에는 닉네임과 점수가 다른 회원에게 보여요. 닉네임은 MY › 프로필에서 바꿀 수 있어요.
+      <p className="text-keep-all" style={{ margin: '-6px 0 10px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+        이번 시즌 참여한 회원 전체 점수 기준이에요. 다른 회원에게는 내 닉네임의 첫 글자만 보여요.
       </p>
 
       {showRefreshInfo && (
@@ -599,13 +311,13 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
 
       {rankingLoading ? (
         <p style={{ textAlign: 'center', color: 'var(--color-label-neutral)', fontSize: 13, marginBottom: 20 }}>불러오는 중…</p>
-      ) : !myEntry ? (
+      ) : !entries.length ? (
         <div style={{ marginBottom: 20 }}>
           <EmptyState title="아직 랭킹 데이터가 없어요" description="'내 점수 갱신'을 눌러 이번 주 기록으로 점수를 등록해 보세요." />
         </div>
       ) : (
         <div style={{ marginBottom: 20 }}>
-          {(() => {
+          {myEntry && (() => {
             // [2026-10-27 W0 버그수정] 랭킹 점수×40 근사값이 아니라 MY탭과 같은 시즌 XP 기준으로 티어를 표시한다
             // (이전에는 두 화면의 티어가 서로 달랐다).
             const tier = getTierByXp(getEffectiveSeasonXp(userDoc))
@@ -627,7 +339,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
                   {/* [2026-08-01] 닉네임+티어가 세로 2줄이던 걸 한 줄로 통합(티어 뱃지 오른쪽에 닉네임) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <TierBadge label={tier.label} tierKey={tier.key} level={getLevelInfo(getEffectiveSeasonXp(userDoc)).level} size="sm" />
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{myEntry.nickname} (나)</span>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{userDoc?.nickname || myEntry.nickname} (나)</span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -640,255 +352,58 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
               </Card>
             )
           })()}
+          <RankingList entries={entries} uid={uid} myNickname={userDoc?.nickname} onOpenMine={onShowTierInfo} />
         </div>
       )}
 
-      {statsLoading ? (
-        <p style={{ textAlign: 'center', padding: 40, color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
-      ) : logs.length === 0 ? (
-        <EmptyState title="아직 통계가 없어요" description="운동 기록을 입력하면 볼륨·부위별 추이·과부하 진행상황이 여기에 쌓여요." />
-      ) : (
-        <>
-          {/* 이번 주 출석률 */}
-          {/* [2026-08-04 변경] 루틴 분할 기준 목표 횟수 대신, 이번 주(월~일) 7일 중 운동을
-              완료한 날짜 수만으로 단순 계산하도록 바꿨다. */}
-          <SectionTitle>이번 주 출석률</SectionTitle>
-          <Card style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span className="bt-num" style={{ fontSize: 'calc(30px * var(--num-scale))' }}><CountUp value={attendanceRate} />%</span>
-              <span className="record-notation" style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                {weeklyAttendanceDays.thisWeek} / 목표 {attendanceTargetDays}일
-              </span>
-            </div>
-
-            {/* [2026-08-02 신규] "이번 주"의 실제 날짜 범위(⑬)를 함께 표기해, 월말/월초처럼
-                주 경계가 헷갈리는 시점에도 어떤 기준으로 계산된 값인지 명확히 알 수 있게 한다. */}
-            <p className="record-notation" style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--color-label-neutral)' }}>
-              이번주 {weeklyAttendance.thisWeekLabel} · 지난주 {weeklyAttendance.lastWeekLabel} 대비 {weeklyAttendanceDays.lastWeek}일
-            </p>
-            <Disclosure style={{ marginTop: 4 }}>이번 주(월~일) 운동한 날 수를 목표 일수와 비교해요. 목표는 MY에서 정한 주당 목표 일수(정하지 않았으면 내 루틴의 파트 수, 2~6일)이고, 하루에 여러 번 해도 1일로 세요. 랭킹 출석 점수도 같은 기준이에요(랭킹은 캘린더에서 추가한 과거 기록은 빼고 계산).</Disclosure>
-          </Card>
-
-          {/* [2026-10-27 리뉴얼 W2] 근거 기반 인사이트: 근육별 주간 세트·유산소·정체/디로드·PR·골밀도 */}
-          <MuscleSetsCard logs={logs} liveExercises={liveExercises} />
-          <PrCard prs={userDoc?.prs} />
-          <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} />
-          <CardioCard logs={logs} liveExercises={liveExercises} />
-          {/* [2026-10-30] 목표에 골밀도가 있으면(순위 무관) 골밀도 체크, 밀기·당기기 균형은 모두(자세·코어 목표면 코어 체크 추가) */}
-          {getTrainingProfile().showBoneCard && <BoneHealthCard logs={logs} />}
-          <BalanceCard logs={logs} posture={getTrainingProfile().showPostureCard} />
-
-          {/* 부위별 운동 추이 (누적 레이더 차트) */}
-          {/* [2026-08-05 변경] 기존에 별도 섹션이던 "누적 볼륨(부위별)" 가로 막대 차트를
-              여기로 통합했다(중복 정보라는 피드백). "이번주 vs 지난주" 비교 시리즈도
-              제거하고, 서비스 시작 이후 전체 누적 볼륨 단일 시리즈만 보여준다.
-              [2026-07-29~30 히스토리] 라벨(부위명 + 볼륨/세트수 2줄)이 tick 위치(outerRadius 반경)에
-              그대로 찍혀 있어서 outerRadius를 키우면 라벨과 겹치고, 줄이면 차트 도형이 작아 보이는
-              문제가 반복됐다(margin/outerRadius를 여러 차례 맞바꿔봐도 근본 원인이 아니었음).
-              [2026-07-30 재수정] BodyPartAxisTick에서 라벨을 중심 반대 방향으로 고정 오프셋만큼
-              밀어내도록(LABEL_OFFSET) 바꿔서, 이제 차트 도형 크기와 라벨 위치가 서로 독립적이다.
-              그 덕분에 outerRadius를 62%까지 키우면서 margin은 라벨 두 줄이 카드 밖으로 잘리지
-              않을 최소한(상하 34px, 좌우 32px)으로만 잡을 수 있게 됐다.
-              [2026-07-30 추가 수정] 카드 상하 여백이 과하다는 피드백으로 Card 자체의 상하 패딩을
-              줄였다(차트 내부 margin은 라벨 잘림 방지를 위해 그대로 유지).
-              [2026-07-30 재수정] 그래도 여백이 커 보인다는 피드백 추가 반영: Card 높이 자체를
-              줄였다. outerRadius(%)와 margin은 그대로 두되 컨테이너 높이만 줄이면, 반지름도
-              비례해서 함께 작아져(퍼센트 기준이므로) 라벨과의 여유 공간은 오히려 늘어난다 -
-              즉 잘릴 위험 없이 전체 카드 크기만 컴팩트해진다. 여기에 margin도 그 비율만큼
-              살짝 더 줄여 실제 화면상 여백을 추가로 축소했다. */}
-          <SectionTitle>부위별 운동 추이</SectionTitle>
-          <Card style={{ marginBottom: 20, height: 300, padding: '2px 14px' }}>
-            {bodyPartRadar.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>아직 데이터가 없어요.</p>
-            ) : (
-              <ResponsiveContainer key={isActive ? 'radar-on' : 'radar-off'} width="100%" height="100%">
-                <RadarChart data={bodyPartRadar} outerRadius="62%" margin={{ top: 20, right: 26, bottom: 20, left: 26 }}>
-                  <PolarGrid stroke="var(--color-line)" />
-                  <PolarAngleAxis dataKey="part" tick={<BodyPartAxisTick detail={cumulativePartStats} />} />
-                  {/* [2026-07-29] 반지름 축 숫자가 90도로 꺾여 나와 의미를 알기 어렵다는 피드백으로 제거.
-                      대신 위 커스텀 축 라벨에서 부위별 누적 볼륨·세트 수를 직접 보여준다. */}
-                  {/* [2026-08-06 변경] 부위마다 단위가 다른 지표(볼륨/kcal/체중볼륨)를 그대로 겹쳐
-                      그리면 스케일이 안 맞아 왜곡되므로, 0~100 상대 점수(활동점수)로 정규화해서
-                      그린다. 실제 원 수치는 축 라벨 아래(BodyPartAxisTick)에서 확인 가능. */}
-                  <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
-                  <Radar
-                    name="활동 점수"
-                    dataKey="활동점수"
-                    stroke="var(--color-fill-strong)"
-                    fill="var(--color-fill-strong)"
-                    fillOpacity={0.28}
-                  />
-                  <Tooltip {...CHART_TOOLTIP_STYLE} formatter={(value) => [`${value}%`, '상대 활동 점수']} />
-                </RadarChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-          <Disclosure style={{ margin: '-12px 0 20px' }}>
-            부위마다 단위가 달라(근력=볼륨, 유산소=kcal, 맨몸=체중볼륨) 가장 활발한 부위를 100으로 놓은 상대 점수예요. 실제 수치는 축 라벨 아래에 함께 표시돼요.
-          </Disclosure>
-
-          {/* 점진적 과부하 진행상황 */}
-          {/* [2026-08-04 변경] 종목명을 부위 구분 없이 나열하던 것을, 부위별로 묶어서 보여주고
-              각 회차를 누르면 그 종목의 중량 추이 미니 차트가 바로 아래 펼쳐지도록 바꿨다.
-              [2026-08-05 변경] 하단에 별도로 있던 "종목별 중량 추이" 섹션(종목 칩 목록 +
-              고정 차트)은 여기서 종목을 누르면 바로 아래 인라인으로 같은 차트가 펼쳐지는 것과
-              기능이 중복된다는 피드백으로 완전히 제거했다. */}
-          <SectionTitle>점진적 과부하 진행상황</SectionTitle>
-          <Card style={{ marginBottom: 20 }}>
-            {overloadProgress.occurrences.length === 0 ? (
-              <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>
-                이번 주 기록이 아직 없어요. 기록을 남기면 직전 수행 대비 과부하 진행률을 보여줄게요.
-              </p>
-            ) : overloadProgress.occurrences.every((o) => o.isNew) ? (
-              // [2026-07-31] 이번 주 회차가 전부 "첫 기록"(비교할 직전 수행이 없음)이면
-              // 점수 계산상 100%가 나오지만 근거 리스트는 전부 숨겨져 카드 하단이 텅 비어
-              // 보이는 문제가 있어, 이 경우 숫자 대신 안내 문구로 대체한다.
-              <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>
-                아직 비교할 직전 수행 기록이 없어요. 같은 종목을 다시 하면 과부하 진행률을 보여줄게요.
-              </p>
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
-                  <span className="bt-num" style={{ fontSize: 'calc(30px * var(--num-scale))' }}><CountUp value={overloadProgress.score} />%</span>
-                  <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                    직전 수행 대비 향상된 회차 비율(중량·볼륨/횟수/시간)
-                  </span>
-                </div>
-                <p className="text-keep-all" style={{ fontSize: 11, color: 'var(--color-label-neutral)', margin: '0 0 12px' }}>
-                  종목을 누르면 중량 추이를 바로 볼 수 있어요.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {overloadByPart.map(({ atom, occurrences }) => (
-                    <div key={atom}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: getPartColor(atom), marginBottom: 6 }}>{atom}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {occurrences.map((o, i) => {
-                          const oKey = makeExerciseKey(o.name, o.grip)
-                          const oLabel = exerciseKeyLabel(oKey)
-                          const isSelected = selectedExercise === oKey
-                          return (
-                            <div key={`${oKey}-${o.date}-${i}`}>
-                              <button
-                                onClick={() => setSelectedExercise(isSelected ? null : oKey)}
-                                style={{
-                                  width: '100%',
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  fontSize: 13,
-                                  padding: '6px 8px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  background: isSelected ? 'var(--color-bg-elevated)' : 'transparent',
-                                }}
-                              >
-                                <span className="text-keep-all">
-                                  {oLabel}{' '}
-                                  <span style={{ color: 'var(--color-label-neutral)', fontSize: 11 }}>
-                                    ({o.date.slice(5).replace('-', '/')})
-                                  </span>
-                                </span>
-                                <span style={{ fontWeight: 700, color: o.improved ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>
-                                  {o.improved ? '▲ 향상' : '유지'}
-                                </span>
-                              </button>
-                              {isSelected && (
-                                <div style={{ margin: '4px 0 2px' }}>
-                                  <p style={{ margin: '0 0 2px 8px', fontSize: 10, color: 'var(--color-label-neutral)' }}>{trendMetricLabel}</p>
-                                  <div style={{ height: 140 }}>
-                                    <ResponsiveContainer key={isActive ? 'overload-trend-on' : 'overload-trend-off'} width="100%" height="100%">
-                                      <LineChart data={exerciseTrend}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" />
-                                        <XAxis dataKey="date" fontSize={10} stroke="var(--color-label-neutral)" />
-                                        <YAxis fontSize={10} stroke="var(--color-label-neutral)" />
-                                        <Tooltip {...CHART_TOOLTIP_STYLE} />
-                                        <Line type="monotone" dataKey="value" stroke={getPartColor(atom)} strokeWidth={2} dot={{ r: 3 }} />
-                                      </LineChart>
-                                    </ResponsiveContainer>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </Card>
-
-          {/* 제일 많이 한 운동 (신규) */}
-          <SectionTitle>제일 많이 한 운동</SectionTitle>
-          <Card style={{ marginBottom: 20 }}>
-            {mostFrequentExercises.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>아직 데이터가 없어요.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {mostFrequentExercises.map((item, i) => (
-                  <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span className="text-keep-all" style={{ fontSize: 14 }}>
-                      <span style={{ color: 'var(--color-label-neutral)', marginRight: 8 }}>{i + 1}</span>
-                      {item.name}
+      {/* 다른 회원 즐겨찾는 운동 (신규, ⑨) */}
+      <SectionTitle>다른 회원들이 즐겨하는 운동</SectionTitle>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        {BODY_PART_ATOMS.map((atom) => (
+          <Chip key={atom} active={selectedPopAtom === atom} onClick={() => setSelectedPopAtom(atom)}>
+            {atom}
+          </Chip>
+        ))}
+      </div>
+      <Card style={{ marginBottom: 20 }}>
+        {popularityLoading ? (
+          <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>불러오는 중…</p>
+        ) : popularTop.length === 0 ? (
+          <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>
+            아직 이 부위의 데이터가 충분하지 않아요.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {popularTop.map((item, i) => (
+              <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="text-keep-all" style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: 'var(--color-label-neutral)' }}>{i + 1}</span>
+                  {item.name}
+                  {myFrequentNameSet.has(item.name) && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--color-primary-bg)',
+                        color: 'var(--color-primary-strong)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      내 최다 운동과 일치
                     </span>
-                    <span className="bt-num" style={{ fontSize: 14, color: 'var(--color-label-normal)' }}>
-                      {item.count}회
-                    </span>
-                  </div>
-                ))}
+                  )}
+                </span>
+                <span className="bt-num" style={{ fontSize: 14, color: 'var(--color-label-normal)' }}>
+                  {item.count}회
+                </span>
               </div>
-            )}
-          </Card>
-
-          {/* 다른 유저 즐겨찾는 운동 (신규, ⑨) */}
-          <SectionTitle>다른 유저들이 즐겨하는 운동</SectionTitle>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-            {BODY_PART_ATOMS.map((atom) => (
-              <Chip key={atom} active={selectedPopAtom === atom} onClick={() => setSelectedPopAtom(atom)}>
-                {atom}
-              </Chip>
             ))}
           </div>
-          <Card style={{ marginBottom: 20 }}>
-            {popularityLoading ? (
-              <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>불러오는 중…</p>
-            ) : popularTop.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: 0 }}>
-                아직 이 부위의 데이터가 충분하지 않아요.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {popularTop.map((item, i) => (
-                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span className="text-keep-all" style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: 'var(--color-label-neutral)' }}>{i + 1}</span>
-                      {item.name}
-                      {myFrequentNameSet.has(item.name) && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '2px 6px',
-                            borderRadius: 'var(--radius-sm)',
-                            background: 'var(--color-primary-bg)',
-                            color: 'var(--color-primary-strong)',
-                            flexShrink: 0,
-                          }}
-                        >
-                          내 최다 운동과 일치
-                        </span>
-                      )}
-                    </span>
-                    <span className="bt-num" style={{ fontSize: 14, color: 'var(--color-label-normal)' }}>
-                      {item.count}회
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+        )}
+      </Card>
 
-        </>
-      )}
     </div>
   )
 }
