@@ -8,7 +8,7 @@ import { BackButton, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { useBackableScreen } from '../hooks/useBackableScreen'
-import { getUserDoc, listMyTrainees, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
+import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, listMyTrainees, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
 import { toLocalDateStr } from '../utils/date'
 import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
@@ -73,7 +73,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
   const [open, setOpen] = useState({})
   const [editing, setEditing] = useState(null) // null | 'new' | template
   const [member, setMember] = useState(null) // users 문서(신체정보) — 못 읽으면 false
-  useEffect(() => {
+  const loadMember = useCallback(() => {
     getUserDoc(conn.memberUid)
       .then((d) => setMember(d || false))
       .catch((err) => {
@@ -81,6 +81,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
         setMember(false)
       })
   }, [conn.memberUid])
+  useEffect(loadMember, [loadMember])
   useEffect(() => {
     const to = toLocalDateStr(new Date())
     const f = new Date()
@@ -130,6 +131,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
       <h1 style={{ fontSize: 24, margin: '8px 0 4px' }}>{conn.memberName}</h1>
       <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>최근 8주 운동 기록 · 이번 주 <span className="bt-num">{thisWeekDays}</span>일 운동</p>
       <MemberBody member={member} />
+      <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={loadMember} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} />
       <h2 style={{ fontSize: 16, margin: '22px 0 10px' }}>운동 기록</h2>
       {logs === null ? (
@@ -256,6 +258,119 @@ function MemberBody({ member }) {
         {row('운동 목표', goals.length ? goals.map((g, i) => `${i + 1}. ${g}`).join('  ') : '입력 안 함')}
         {row('주간 목표', `주 ${member.weeklyTargetDays || 3}일`)}
       </div>
+    </Card>
+  )
+}
+
+// [2026-10-31] PT 남은 횟수 + PT 일정(등록·완료·삭제, 회원 홈 캘린더에 표시) + 차감(대시보드 설정에서 켠 경우만)
+function PtCard({ member, conn, uid, trainerName, onChanged }) {
+  const confirm = useConfirm()
+  const [enabled, setEnabled] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [schedules, setSchedules] = useState([])
+  const [busy, setBusy] = useState(false)
+  const today = toLocalDateStr(new Date())
+  const [newDate, setNewDate] = useState(today)
+  const [newTime, setNewTime] = useState('19:00')
+  const trainer = { uid, name: trainerName }
+  const reload = useCallback(() => {
+    listPtSessions({ memberUid: conn.memberUid, trainerUid: uid }).then(setSessions).catch((err) => console.error('PT 기록 불러오기 실패:', err))
+    listPtSchedules({ memberUid: conn.memberUid, trainerUid: uid }).then(setSchedules).catch((err) => console.error('PT 일정 불러오기 실패:', err))
+  }, [conn.memberUid, uid])
+  useEffect(() => {
+    getAppSettings().then((s) => setEnabled(!!s?.ptDeductEnabled)).catch(() => {})
+    reload()
+  }, [reload])
+  if (!member) return null
+  const total = typeof member.ptTotal === 'number' ? member.ptTotal : 0
+  const left = member.ptRemaining ?? 0
+  const deduct = enabled && total > 0
+  const upcoming = schedules.filter((s) => s.status !== 'done')
+  const doneNoSession = schedules.filter((s) => s.status === 'done' && !sessions.some((x) => x.scheduleId === s.id)).slice(-3).reverse()
+  async function run(fn, failMsg) {
+    setBusy(true)
+    try {
+      await fn()
+      onChanged()
+      reload()
+    } catch (err) {
+      console.error(failMsg, err)
+      await confirm(`${failMsg}. 연결 상태${deduct ? '와 남은 횟수' : ''}를 확인해 주세요.`, { okLabel: '확인', cancelLabel: '닫기' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function use() {
+    if (!(await confirm(`${conn.memberName}님 PT 1회를 완료로 기록할까요? 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.`, { okLabel: '1회 완료', cancelLabel: '취소' }))) return
+    run(() => trainerUsePt(conn.memberUid, trainer, today), '기록하지 못했어요')
+  }
+  async function complete(s) {
+    if (deduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+    if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 완료로 바꿀까요?${deduct ? ` 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ''}`, { okLabel: '완료', cancelLabel: '취소' }))) return
+    run(() => trainerCompleteSchedule(s, trainer, deduct), '완료 처리하지 못했어요')
+  }
+  async function remove(s) {
+    if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT 일정을 삭제할까요? 회원 캘린더에서도 사라져요.`, { okLabel: '삭제', cancelLabel: '취소' }))) return
+    run(() => trainerDeleteSchedule(s.id), '삭제하지 못했어요')
+  }
+  async function undo(s) {
+    if (!(await confirm(`${fmtDay(s.date)} PT 완료를 되돌릴까요? 남은 횟수가 1회 늘어요.`, { okLabel: '되돌리기', cancelLabel: '취소' }))) return
+    run(() => trainerUndoPt(conn.memberUid, s), '되돌리지 못했어요')
+  }
+  const field = { padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 14, fontFamily: 'inherit', minWidth: 0 }
+  const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13.5, padding: '7px 0', borderTop: '1px solid var(--color-line)' }
+  return (
+    <Card style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        <div>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)' }}>PT</p>
+          <p style={{ margin: '2px 0 0', fontSize: 16, fontWeight: 800 }}>
+            {total > 0 ? <><span className="bt-num">{left}</span>회 남음 <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}>/ 총 <span className="bt-num">{total}</span>회</span></> : '등록된 횟수 없음'}
+          </p>
+        </div>
+        {deduct && (
+          <Button variant="ghost" disabled={busy || left <= 0} onClick={use} style={{ flexShrink: 0, fontSize: 13 }}>일정 없이 1회 완료</Button>
+        )}
+      </div>
+      {!enabled && <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>PT 횟수 차감은 관리자가 대시보드에서 켜면 쓸 수 있어요(일정 등록·완료 표시는 지금도 돼요).</p>}
+
+      <p style={{ margin: '16px 0 6px', fontSize: 14, fontWeight: 700 }}>PT 일정 <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· 회원 홈 캘린더에 보여요</span></p>
+      {upcoming.length === 0 && <p style={{ margin: '0 0 6px', fontSize: 13, color: 'var(--color-label-neutral)' }}>예정된 일정이 없어요.</p>}
+      {upcoming.map((s) => (
+        <div key={s.id} style={rowStyle}>
+          <span>
+            {fmtDay(s.date)} <b>{s.time}</b>
+            {s.date < today ? <span style={{ marginLeft: 6, fontSize: 12, color: 'var(--color-warning)' }}>완료 처리 안 됨</span> : null}
+          </span>
+          <span style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+            <button type="button" disabled={busy} onClick={() => complete(s)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>완료</button>
+            <button type="button" disabled={busy} onClick={() => remove(s)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>삭제</button>
+          </span>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+        <input type="date" value={newDate} min={today} onChange={(e) => setNewDate(e.target.value)} aria-label="PT 날짜" style={{ ...field, flex: '1 1 140px' }} />
+        <input type="time" value={newTime} step="600" onChange={(e) => setNewTime(e.target.value)} aria-label="PT 시간" style={{ ...field, flex: '1 1 100px' }} />
+        <Button disabled={busy || !newDate || !newTime} onClick={() => run(() => trainerAddSchedule(conn.memberUid, trainer, newDate, newTime.slice(0, 5)), '일정을 등록하지 못했어요')} style={{ flex: '0 0 auto' }}>일정 추가</Button>
+      </div>
+
+      {(sessions.length > 0 || doneNoSession.length > 0) && (
+        <>
+          <p style={{ margin: '16px 0 6px', fontSize: 14, fontWeight: 700 }}>최근 완료</p>
+          {sessions.slice(0, 5).map((s, i) => (
+            <div key={s.id} style={rowStyle}>
+              <span>{fmtDay(s.date)} PT 완료{s.scheduleId ? '' : ' (일정 없이)'}</span>
+              {i === 0 && enabled ? <button type="button" disabled={busy} onClick={() => undo(s)} style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>되돌리기</button> : null}
+            </div>
+          ))}
+          {doneNoSession.map((s) => (
+            <div key={s.id} style={rowStyle}>
+              <span>{fmtDay(s.date)} {s.time} PT 완료</span>
+              <button type="button" disabled={busy} onClick={() => run(() => trainerReopenSchedule(s.id), '되돌리지 못했어요')} style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>되돌리기</button>
+            </div>
+          ))}
+        </>
+      )}
     </Card>
   )
 }

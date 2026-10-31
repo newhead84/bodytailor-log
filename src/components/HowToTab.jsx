@@ -26,6 +26,9 @@ import {
 import { updateUserProfile, quickAddExerciseToRoutine } from '../storage'
 import ExerciseVideoLink from './ExerciseVideoLink'
 import { StretchGuide } from './StretchGuide'
+import TrainerStrip from './TrainerStrip'
+import ExerciseGuideSections from './ExerciseGuideSections'
+import { getExerciseGuide, getEquipment } from '../utils/exerciseGuides'
 
 const MUSCLE_ROLE_LABELS = [
   { key: 'primary', label: '주동근' },
@@ -137,8 +140,11 @@ function ComparisonTable({ group, currentName }) {
   )
 }
 
-function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
+function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise }) {
   const atom = getExerciseAtom(name)
+  // [2026-10-31] 구조화 가이드(기본 종목) + 기구 태그(전 종목)
+  const guide = getExerciseGuide(name)
+  const equipment = getEquipment(name, atom)
   const alias = getExerciseAlias(name)
   const desc = getExerciseDescription(name)
   const gripOptions = getGripOptions(name)
@@ -183,6 +189,14 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
         <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: `${color}22`, color }}>
           {atom}
         </span>
+        <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
+          {equipment}
+        </span>
+        {guide?.level && (
+          <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
+            {guide.level}
+          </span>
+        )}
         {gripOptions && (
           <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
             그립 {gripOptions.length}종
@@ -200,9 +214,11 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
           <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
             {desc.summary}
           </p>
-          <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, lineHeight: 1.6, color: 'var(--color-label-normal)' }}>
-            {desc.howTo}
-          </p>
+          {!guide && (
+            <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, lineHeight: 1.6, color: 'var(--color-label-normal)' }}>
+              {desc.howTo}
+            </p>
+          )}
           {desc.tip && (
             <p className="text-keep-all" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--color-label-normal)', display: 'flex', gap: 6 }}>
               {/* [2026-10-28 리디자인] 이모지 → 라인 아이콘 */}
@@ -212,6 +228,8 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
           )}
         </Card>
       )}
+
+      <ExerciseGuideSections guide={guide} onOpenExercise={onOpenExercise} />
 
       {gripOptions && (
         <Card style={{ marginBottom: 14 }}>
@@ -299,7 +317,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded }) {
   )
 }
 
-export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpdated, onRoutineUpdated, scrollContainerRef }) {
+export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpdated, onRoutineUpdated, scrollContainerRef, onShowTrainerDirectory }) {
   const [dismissed, setDismissed] = useState(!!userDoc?.howtoOnboardingDismissed)
   const [selectedAtom, setSelectedAtom] = useState(BODY_PART_ATOMS[0])
   const [selectedExercise, setSelectedExercise] = useState(null)
@@ -336,6 +354,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
           name={selectedExercise}
           routineTemplates={routineTemplates}
           onBack={() => setSelectedExercise(null)}
+          onOpenExercise={(n) => setSelectedExercise(n)}
           onAdded={onRoutineUpdated}
         />
       </div>
@@ -353,6 +372,9 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
           }}
         />
       )}
+
+      {/* [2026-10-31] 바디테일러 트레이너 소개(가로 카드) */}
+      <TrainerStrip onOpen={onShowTrainerDirectory} />
 
       {/* [2026-10-30 신규] 운동 둘러보기 ↔ 스트레칭(불편한 부위 → 상황별) */}
       <div role="tablist" aria-label="HOWTO 보기" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: 4, marginBottom: 16, borderRadius: 'var(--radius-md)', background: 'var(--color-bg-elevated)' }}>

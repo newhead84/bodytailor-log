@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Dumbbell, Moon, ClipboardCheck } from 'lucide-react'
 import { Card, Button, useConfirm } from './ui'
-import { getRecentWorkoutLogs, getWorkoutLogsInRange } from '../storage'
+import MembershipNotice from './MembershipNotice'
+import { getRecentWorkoutLogs, getWorkoutLogsInRange, listPtSchedules, listPtSessions } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
 import { suggestNextSet, workingSetsOf } from '../utils/strength'
 import { isAssistedExercise, isBodyweightLoaded, logVolumeKg } from '../utils/load'
@@ -60,6 +61,33 @@ export default function HomeTab({
   const [recentLogs, setRecentLogs] = useState([])
   const [showExtraCta, setShowExtraCta] = useState(false)
   const [monthSummary, setMonthSummary] = useState(null)
+  // [2026-10-31] PT 일정(트레이너 등록) + 일정 없이 완료한 PT → 캘린더 표시, "다음 PT"
+  const [ptItems, setPtItems] = useState([])
+  const isStaff = userDoc?.role === '트레이너' || userDoc?.role === '관리자'
+  useEffect(() => {
+    if (!uid || isStaff) return
+    let alive = true
+    Promise.all([listPtSchedules({ memberUid: uid }).catch(() => []), listPtSessions({ memberUid: uid }).catch(() => [])]).then(([sch, ses]) => {
+      if (!alive) return
+      const items = sch.map((s) => ({ date: s.date, time: s.time, done: s.status === 'done', trainerName: s.trainerName }))
+      ses.filter((x) => !x.scheduleId).forEach((x) => items.push({ date: x.date, time: '', done: true, trainerName: x.trainerName }))
+      setPtItems(items)
+    })
+    return () => {
+      alive = false
+    }
+  }, [uid, isStaff, logsVersion])
+  const ptByDate = useMemo(() => {
+    const m = {}
+    ptItems.forEach((it) => (m[it.date] = m[it.date] || []).push(it))
+    Object.values(m).forEach((l) => l.sort((a, b) => String(a.time).localeCompare(String(b.time))))
+    return m
+  }, [ptItems])
+  const nextPt = useMemo(() => {
+    const now = new Date()
+    const nowKey = `${toLocalDateStr(now)} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    return ptItems.filter((it) => !it.done && `${it.date} ${it.time || '23:59'}` >= nowKey).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0] || null
+  }, [ptItems])
   // [신규] "오늘 날짜"를 state로 들고 있어야, 자정을 넘긴 뒤 새 기록 없이 앱이 계속 켜져 있어도
   // (또는 백그라운드에 있다가 다음날 포그라운드로 복귀해도) doneToday가 재계산된다. 기존에는
   // useMemo가 recentLogs에만 의존해서, 날짜만 바뀌고 기록 배열 자체는 그대로면 어제의
@@ -194,6 +222,9 @@ export default function HomeTab({
         </Card>
       )}
 
+      {/* [2026-10-31] 회원권 종료 임박(D-7)·만료 안내 */}
+      <MembershipNotice userDoc={userDoc} />
+
       {/* [2026-10-28 리디자인] "오늘" 블록 — 카드 대신 큰 헤드라인(오늘 차례) + 보조 정보 + 버튼 */}
       <section style={{ marginBottom: 24 }}>
         <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', margin: '0 0 4px' }}>오늘</p>
@@ -285,8 +316,14 @@ export default function HomeTab({
       {(weekLogs.length > 0 || liveExercises?.length > 0) && <MuscleSetsCard logs={weekLogs} liveExercises={liveExercises} compact title="이번 주 근육별 세트" />}
       <PrCard prs={userDoc?.prs} limit={2} title="최근 PR" />
 
+      {nextPt && (
+        <p style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--color-label-normal)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6, border: '1.5px solid var(--color-primary-normal)', color: 'var(--color-primary-strong)' }}>PT</span>
+          <span>다음 PT · <b>{(() => { const [y, mo, da] = nextPt.date.split('-').map(Number); return `${mo}/${da}(${'일월화수목금토'[new Date(y, mo - 1, da).getDay()]})` })()} {nextPt.time}</b>{nextPt.trainerName ? ` · ${nextPt.trainerName}` : ''}</span>
+        </p>
+      )}
       <div style={{ margin: '0 -20px 4px' }}>
-        <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} onLogsChanged={onLogsChanged} />
+        <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} onLogsChanged={onLogsChanged} ptByDate={ptByDate} />
       </div>
 
       {/* [2026-10-28 리디자인] 월 요약 — 카드 대신 주간 요약과 같은 헤어라인 스트립, 숫자는 무채색 */}

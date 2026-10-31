@@ -97,11 +97,17 @@ export async function submitInquiry(uid, nickname, content) {
 }
 
 // 본인이 남긴 문의 목록(최신순)
+// [2026-10-31 버그 수정] where(uid)+orderBy(createdAt)는 복합 색인이 필요한데 만들어져 있지 않아 쿼리가 실패했고,
+// 보낸 문의가 "내 문의 내역"에 안 보였다. 색인 없이 되도록 where만 걸고 정렬은 화면에서 한다.
+const tsMs = (t) => (t?.toMillis ? t.toMillis() : typeof t?.seconds === 'number' ? t.seconds * 1000 : Date.now())
 export async function getMyInquiries(uid) {
   const col = collection(db, 'inquiries')
-  const q = query(col, where('uid', '==', uid), orderBy('createdAt', 'desc'))
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  const snap = await getDocs(query(col, where('uid', '==', uid)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt))
+}
+// [2026-10-31] 문의 삭제 — 본인 문의 또는 관리자
+export async function deleteInquiry(inquiryId) {
+  await deleteDoc(doc(db, 'inquiries', inquiryId))
 }
 
 // 관리자 전용: 전체 문의 목록(미답변 먼저, 그다음 최신순)
@@ -584,6 +590,98 @@ export async function adminUpdateMember(uid, patch, adminUid) {
   }
   await updateDoc(doc(db, 'users', uid), data)
 }
+// [2026-10-31] 회원권 기간·PT 횟수(관리자). end가 비면 기간 제한 해제.
+export async function adminSetMembership(uid, { start = '', end = '', ptTotal, ptRemaining } = {}) {
+  const data = {
+    membershipStart: start || '',
+    membershipEnd: end || '',
+    membershipEndAt: end ? new Date(`${end}T23:59:59+09:00`) : null,
+    statusUpdatedAt: serverTimestamp(),
+  }
+  if (ptTotal !== undefined) data.ptTotal = Math.max(0, Math.min(999, Math.round(Number(ptTotal) || 0)))
+  if (ptRemaining !== undefined) data.ptRemaining = Math.max(0, Math.min(data.ptTotal ?? 999, Math.round(Number(ptRemaining) || 0)))
+  if (ptTotal !== undefined || ptRemaining !== undefined) data.ptUpdatedAt = serverTimestamp()
+  await updateDoc(doc(db, 'users', uid), data)
+}
+// 앱 설정(settings/app): { ptDeductEnabled } — 읽기 로그인 사용자, 쓰기 관리자
+export async function getAppSettings() {
+  const snap = await getDoc(doc(db, 'settings', 'app'))
+  return snap.exists() ? snap.data() : {}
+}
+export async function adminSaveSettings(patch) {
+  await setDoc(doc(db, 'settings', 'app'), { ...patch, updatedAt: serverTimestamp() }, { merge: true })
+}
+// PT 차감(트레이너, 설정에서 켠 경우만): 회원 ptRemaining -1 + ptSessions 기록. 되돌리기는 +1 + 기록 삭제.
+export async function trainerUsePt(memberUid, trainer, dateStr) {
+  const batch = writeBatch(db)
+  batch.update(doc(db, 'users', memberUid), { ptRemaining: increment(-1), ptUpdatedAt: serverTimestamp() })
+  batch.set(doc(collection(db, 'ptSessions')), { memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: dateStr, at: serverTimestamp() })
+  await batch.commit()
+}
+// session: { id, scheduleId? } — 일정에서 완료한 기록이면 일정도 '예정'으로 되돌린다
+export async function trainerUndoPt(memberUid, session) {
+  const batch = writeBatch(db)
+  batch.update(doc(db, 'users', memberUid), { ptRemaining: increment(1), ptUpdatedAt: serverTimestamp() })
+  batch.delete(doc(db, 'ptSessions', session.id))
+  if (session.scheduleId) batch.update(doc(db, 'ptSchedules', session.scheduleId), { status: 'scheduled', doneAt: null })
+  await batch.commit()
+}
+
+// ───────────── [2026-10-31] PT 일정(ptSchedules/{id}) — 트레이너가 등록, 회원 홈 캘린더에 표시 ─────────────
+// { memberUid, trainerUid, trainerName, date:'YYYY-MM-DD', time:'HH:MM', status:'scheduled'|'done', createdAt, doneAt? }
+export async function listPtSchedules({ memberUid, trainerUid }) {
+  const conds = [where('memberUid', '==', memberUid)]
+  if (trainerUid) conds.push(where('trainerUid', '==', trainerUid))
+  const snap = await getDocs(query(collection(db, 'ptSchedules'), ...conds))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+}
+export async function trainerAddSchedule(memberUid, trainer, date, time) {
+  await addDoc(collection(db, 'ptSchedules'), { memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date, time, status: 'scheduled', createdAt: serverTimestamp() })
+}
+export async function trainerDeleteSchedule(id) {
+  await deleteDoc(doc(db, 'ptSchedules', id))
+}
+// 완료: 일정 status 'done' + (차감 켬) 회원 ptRemaining -1·ptSessions 기록(scheduleId 연결)
+export async function trainerCompleteSchedule(s, trainer, deduct) {
+  const batch = writeBatch(db)
+  batch.update(doc(db, 'ptSchedules', s.id), { status: 'done', doneAt: serverTimestamp() })
+  if (deduct) {
+    batch.update(doc(db, 'users', s.memberUid), { ptRemaining: increment(-1), ptUpdatedAt: serverTimestamp() })
+    batch.set(doc(collection(db, 'ptSessions')), { memberUid: s.memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: s.date, at: serverTimestamp(), scheduleId: s.id })
+  }
+  await batch.commit()
+}
+export async function trainerReopenSchedule(id) {
+  await updateDoc(doc(db, 'ptSchedules', id), { status: 'scheduled', doneAt: null })
+}
+// 조회는 rules가 증명할 수 있게 당사자 조건을 함께 건다(정렬은 화면에서)
+export async function listPtSessions({ memberUid, trainerUid }) {
+  const conds = [where('memberUid', '==', memberUid)]
+  if (trainerUid) conds.push(where('trainerUid', '==', trainerUid))
+  const snap = await getDocs(query(collection(db, 'ptSessions'), ...conds))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (String(b.date) + (b.at?.seconds || 0)).localeCompare(String(a.date) + (a.at?.seconds || 0)))
+}
+
+// ───────────── [2026-10-31] 트레이너 프로필(trainerProfiles/{id}) — 대시보드 관리, 앱에서 소개 ─────────────
+// { name, title, photo(data URL, 작게 줄여 저장), specialties[], career[], certs[], intro, instagram, order, active, linkedUid?, leftAt? }
+export async function listTrainerProfiles() {
+  const snap = await getDocs(collection(db, 'trainerProfiles'))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
+}
+export async function adminSaveTrainerProfile(p) {
+  const { id, ...rest } = p
+  const data = { ...rest, updatedAt: serverTimestamp() }
+  if (id) {
+    await setDoc(doc(db, 'trainerProfiles', id), data, { merge: true })
+    return id
+  }
+  const ref = await addDoc(collection(db, 'trainerProfiles'), { ...data, createdAt: serverTimestamp() })
+  return ref.id
+}
+export async function adminDeleteTrainerProfile(id) {
+  await deleteDoc(doc(db, 'trainerProfiles', id))
+}
+
 export async function adminGetRoster() {
   const snap = await getDocs(collection(db, 'gymRoster'))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))

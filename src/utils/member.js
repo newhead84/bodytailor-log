@@ -106,3 +106,37 @@ export function rosterDocId(row) {
   const no = String(row.memberNo || '').replace(/[^\w-]/g, '')
   return no ? `no_${no}` : `ph_${String(row.phoneHash || '').slice(0, 20)}`
 }
+
+// ───────────── [2026-10-31] 회원권 기간 = 앱 사용 기간 ─────────────
+// users.membershipStart/membershipEnd('YYYY-MM-DD', 관리자·명단이 설정) + membershipEndAt(종료일 23:59:59 KST, rules 비교용).
+// 종료일이 없으면 기간 제한 없음(기존 계정·미설정). 트레이너·관리자는 기간과 무관하게 사용.
+export const MEMBERSHIP_SOON_DAYS = 7
+export function membershipEndAt(endStr) {
+  return endStr ? new Date(`${endStr}T23:59:59+09:00`) : null
+}
+function dayDiff(a, b) {
+  const [y1, m1, d1] = a.split('-').map(Number)
+  const [y2, m2, d2] = b.split('-').map(Number)
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000)
+}
+// { kind: 'exempt'|'none'|'active'|'soon'|'expired', start, end, daysLeft }
+export function membershipState(u, today) {
+  const t = today || new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+  if (!u) return { kind: 'none' }
+  if (u.role === '트레이너' || u.role === '관리자') return { kind: 'exempt', start: u.membershipStart || '', end: u.membershipEnd || '' }
+  const end = u.membershipEnd || ''
+  if (!end) return { kind: 'none', start: u.membershipStart || '' }
+  const daysLeft = dayDiff(t, end)
+  return { kind: daysLeft < 0 ? 'expired' : daysLeft <= MEMBERSHIP_SOON_DAYS ? 'soon' : 'active', start: u.membershipStart || '', end, daysLeft }
+}
+export const isMembershipExpired = (u, today) => membershipState(u, today).kind === 'expired'
+// 'YYYY-MM-DD' + n개월(말일 보정)
+export function addMonths(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate()
+  const dt = new Date(Date.UTC(y, m - 1 + n, Math.min(d, last)))
+  return dt.toISOString().slice(0, 10)
+}
+export function fmtYmd(s) {
+  return s ? s.replace(/-/g, '.') : ''
+}

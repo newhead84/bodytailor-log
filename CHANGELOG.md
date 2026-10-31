@@ -2,6 +2,17 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] HOWTO 트레이너 소개 + PT 일정(홈 캘린더) + 문의 버그 수정·삭제 + 운동 가이드 구조화 1단계 | TrainerStrip.jsx·ExerciseGuideSections.jsx·utils/exerciseGuides.js(신규), HowToTab.jsx, ExerciseGuideToggle.jsx, TrainerDirectory.jsx, TraineesScreen.jsx, HomeTab.jsx, CalendarView.jsx, InquiryScreen.jsx, InquiryAdminScreen.jsx, storage.js, firestore.rules, App.jsx, CLAUDE.md
+- HOWTO 탭 맨 위 "바디테일러 트레이너" 가로 카드 → 상세(뒤로가기로 HOWTO).
+- PT 일정: 트레이너 회원 화면에서 날짜·시간 등록 / 완료(차감 켜짐이면 횟수 -1) / 삭제 / 되돌리기. 회원 홈 캘린더에 PT(예정)·✓PT(완료) 표시, "다음 PT" 줄, 날짜 상세 PT 줄.
+- 문의하기: "내 문의 내역"이 안 보이던 버그(복합 색인 없는 where+orderBy 쿼리 실패) 수정, 오류 안내, 회원·관리자 문의 삭제.
+- 운동 가이드: 기본 32종목 구조화(기구 세팅·하는 법 단계·호흡·핵심 포인트·흔한 실수·주의·대체 운동·난이도), 전 종목 기구 태그. 기록 중 가이드 패널은 핵심 포인트+실수 1개. 외부 문구 미사용·새로 작성.
+
+[2026-10-31] 회원권 기간=앱 사용 기간 + PT 횟수(트레이너 차감, 켜기/끄기) + 트레이너 프로필(대시보드 관리·앱 소개) | utils/member.js, utils/trainerProfile.js(신규), storage.js, firestore.rules, AdminDashboard.jsx, TrainerProfilesTab.jsx·TrainerProfileView.jsx·TrainerDirectory.jsx·MembershipNotice.jsx(신규), TraineesScreen.jsx, MyPageTab.jsx, HomeTab.jsx, App.jsx, public/trainers/*.webp, CLAUDE.md
+- 회원권: 대시보드 '회원' 탭 "회원권·PT"(시작·종료일, +1/3/6/12개월 연장, 기간 제한 없음, PT 총·남은 횟수 +10/20/30회), 필터 '만료 임박'·'만료'. 명단 만료일 → 승인 시·명단 재업로드 시 연결 회원 종료일 자동 반영. 종료일이 지나면 rules에서 쓰기 거부 + NOTE 탭 대신 안내, 7일 전부터 HOME 안내, MY "회원권" 카드.
+- PT: '설정·도구' "트레이너 PT 횟수 차감" 켜기/끄기. 켜면 트레이너 회원 화면 "PT 1회 완료"(확인)·최근 기록 되돌리기, 기록은 ptSessions.
+- 트레이너 프로필: 대시보드 '트레이너 프로필' 탭(기본 3명 이지호·배성범·박동진 블로그 소개·사진으로 등록 버튼, 사진 3장·직함·전문 분야·소개·경력·자격·레슨 시간·인스타 수정, 순서, 앱 계정 연결, 앱 화면 미리보기, 퇴사 처리 = 앱에서 숨김 + 담당 회원 다른 트레이너로 이관/연결 해제 + 계정 역할 일반회원, 재직 복귀·삭제). 회원 MY "트레이너 소개"(목록→상세), 담당 트레이너 카드에 사진·프로필.
+
 [2026-10-31] PT 회원 신체정보 트레이너 공유 + Phase2 검토 수정 | TraineesScreen.jsx, MyPageTab.jsx, AdminDashboard.jsx, RoutineSetup.jsx, storage.js, utils/member.js, firestore.rules, public/intro(문구·cap-trainer.webp), CLAUDE.md
 - 트레이너 회원 화면에 신체정보(성별·나이·키·몸무게)·운동 목표·주간 목표 카드. rules: 담당 트레이너 users 문서 읽기 허용. 회원 MY·대시보드·홍보 페이지의 "신체정보 비공유" 문구를 공유로 정정.
 - 명단 가져오기: 순번 'No'·'ID' 열을 회원번호로 잡지 않게(재가져오기 시 다른 사람 문서 덮어쓰기 방지).

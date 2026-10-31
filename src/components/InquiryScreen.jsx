@@ -2,20 +2,38 @@
 // [2026-07-31 신규] MY탭 "문의하기" 카드에서 진입하는 전체화면. 이메일 대신 앱 안에서
 // 1:1 문의를 남기고, 관리자 답변이 오면 같은 화면에서 확인할 수 있다(⑩).
 import React, { useEffect, useState } from 'react'
-import { Card, SectionTitle, Button, BackButton, EmptyState } from './ui'
-import { submitInquiry, getMyInquiries } from '../storage'
+import { Card, SectionTitle, Button, BackButton, EmptyState, useConfirm } from './ui'
+import { submitInquiry, getMyInquiries, deleteInquiry } from '../storage'
 
 export default function InquiryScreen({ uid, nickname, onClose }) {
   const [inquiries, setInquiries] = useState([])
   const [loading, setLoading] = useState(true)
   const [content, setContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const confirm = useConfirm()
 
   async function load() {
     setLoading(true)
-    const list = await getMyInquiries(uid)
-    setInquiries(list)
-    setLoading(false)
+    try {
+      setInquiries(await getMyInquiries(uid))
+      setError('')
+    } catch (err) {
+      console.error('문의 내역 불러오기 실패:', err)
+      setError('문의 내역을 불러오지 못했어요. 잠시 후 다시 열어 주세요.')
+    } finally {
+      setLoading(false)
+    }
+  }
+  async function handleDelete(q) {
+    if (!(await confirm('이 문의를 삭제할까요? 답변도 함께 지워져요.', { okLabel: '삭제', cancelLabel: '취소' }))) return
+    try {
+      await deleteInquiry(q.id)
+      await load()
+    } catch (err) {
+      console.error('문의 삭제 실패:', err)
+      setError('삭제하지 못했어요.')
+    }
   }
 
   useEffect(() => {
@@ -31,6 +49,9 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
       await submitInquiry(uid, nickname, trimmed)
       setContent('')
       await load()
+    } catch (err) {
+      console.error('문의 보내기 실패:', err)
+      setError('문의를 보내지 못했어요. 인터넷 연결을 확인해 주세요.')
     } finally {
       setSubmitting(false)
     }
@@ -72,6 +93,7 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
       </Card>
 
       <SectionTitle>내 문의 내역</SectionTitle>
+      {error && <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-danger)' }}>{error}</p>}
       {loading ? (
         <p style={{ textAlign: 'center', color: 'var(--color-label-neutral)', fontSize: 13 }}>불러오는 중…</p>
       ) : inquiries.length === 0 ? (
@@ -82,7 +104,8 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
             <Card key={q.id}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-                  {q.createdAt?.toDate ? q.createdAt.toDate().toISOString().slice(0, 10) : ''}
+                  {q.createdAt?.toDate ? q.createdAt.toDate().toLocaleDateString('ko-KR') : ''}
+                  <button type="button" onClick={() => handleDelete(q)} style={{ marginLeft: 10, fontSize: 12, color: 'var(--color-label-neutral)', textDecoration: 'underline' }}>삭제</button>
                 </span>
                 <span
                   style={{

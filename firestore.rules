@@ -28,17 +28,25 @@ service cloud.firestore {
     // [2026-10-31 Phase2 P2-1] 헬스장 회원 승인 필드(memberStatus 등)도 본인은 변경 불가 — 관리자만
     function lockedUserKeys() {
       return ['role', 'roleRequestStatus', 'tier', 'lifetimeBadges', 'trainerProfile',
-        'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt'];
+        'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
+        'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt'];
     }
     // 관리자가 다른 회원 문서에서 바꿀 수 있는 필드
     function adminUserKeys() {
-      return ['role', 'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt'];
+      return ['role', 'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
+        'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt'];
     }
     // [2026-10-31 Phase2 P2-1] 승인된 회원만 기록·루틴·랭킹을 쓸 수 있다.
     // memberStatus가 없는 기존 계정은 승인으로 간주, 관리자는 항상 허용.
     function isApproved() {
       let d = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return request.auth != null && (d.get('memberStatus', 'approved') == 'approved' || d.get('role', '') == '관리자');
+      // [2026-10-31] 회원권 종료일(membershipEndAt)이 지나면 쓰기 불가 — 트레이너·관리자 예외, 종료일 없으면 제한 없음
+      return request.auth != null && (d.get('role', '') == '관리자' ||
+        (d.get('memberStatus', 'approved') == 'approved' &&
+          (d.get('role', '') == '트레이너' || d.get('membershipEndAt', null) == null || request.time <= d.membershipEndAt)));
+    }
+    function ptDeductEnabled() {
+      return get(/databases/$(database)/documents/settings/app).data.get('ptDeductEnabled', false) == true;
     }
     // 세션 1회 XP 상한(storage.js computeSessionXp 최대 180) — 여유분 포함 200
     // [2026-10-29] 자동 저장 "되돌리기"로 XP를 빼야 해서 감소도 1회 200까지 허용(0 미만 불가).
@@ -69,7 +77,8 @@ service cloud.firestore {
         request.resource.data.get('tier', 'iron') == 'iron' &&
         request.resource.data.get('lifetimeBadges', []).size() == 0 &&
         request.resource.data.get('trainerProfile', null) == null &&
-        !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt']) &&
+        !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
+          'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt']) &&
         request.resource.data.get('seasonXp', 0) == 0 &&
         request.resource.data.get('lifetimeXp', 0) == 0;
       // signupInfo(이름·휴대폰 변환값)는 승인 대기·거절 상태이거나 아직 없을 때(기존 계정 첫 입력)만 본인이 쓸 수 있다(승인 후엔 관리자 대조 기준이라 잠금).
@@ -82,7 +91,15 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(adminUserKeys()) &&
           request.resource.data.get('role', '일반회원') in ['일반회원', 'PT회원', '트레이너', '관리자'] &&
           request.resource.data.get('memberStatus', 'approved') in ['pending', 'approved', 'rejected', 'expired'] &&
-          (uid != request.auth.uid || request.resource.data.get('role', '') == '관리자'));
+          (uid != request.auth.uid || request.resource.data.get('role', '') == '관리자')) ||
+        // [2026-10-31] 담당 트레이너의 PT 1회 차감·되돌리기(설정에서 켠 경우만, ±1, 0~총 횟수)
+        (isTrainerOf(uid) && ptDeductEnabled() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ptRemaining', 'ptUpdatedAt']) &&
+          request.resource.data.ptRemaining is int &&
+          (request.resource.data.ptRemaining == resource.data.get('ptRemaining', 0) - 1 ||
+            request.resource.data.ptRemaining == resource.data.get('ptRemaining', 0) + 1) &&
+          request.resource.data.ptRemaining >= 0 &&
+          request.resource.data.ptRemaining <= resource.data.get('ptTotal', 0));
       allow delete: if false;
     }
 
@@ -175,11 +192,47 @@ service cloud.firestore {
         request.resource.data.status == '대기' && request.resource.data.reply == '';
       allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
       allow update: if isAdmin();
-      allow delete: if false;
+      // [2026-10-31] 본인 문의 또는 관리자 삭제 허용(테스트 문의 정리 등)
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
     // [2026-10-31 Phase2 P2-2] connections/{trainerUid_memberUid} — 트레이너–회원 연결. 생성·재활성은 관리자,
     // 종료(status 'ended')는 관리자·당사자(트레이너/회원) 모두 가능, 읽기는 관리자·당사자.
+    // [2026-10-31] 앱 설정 — 읽기 로그인 사용자, 쓰기 관리자
+    match /settings/{sid} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['ptDeductEnabled', 'updatedAt']);
+    }
+    // [2026-10-31] PT 차감 기록 — 담당 트레이너가 생성(설정 켬)·되돌리기(삭제), 당사자·관리자 읽기
+    match /ptSessions/{sid} {
+      allow read: if request.auth != null && (isAdmin() || resource.data.trainerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
+      allow create: if request.resource.data.trainerUid == request.auth.uid && isTrainerOf(request.resource.data.memberUid) && ptDeductEnabled() &&
+        request.resource.data.keys().hasOnly(['memberUid', 'trainerUid', 'trainerName', 'date', 'at', 'scheduleId']) &&
+        request.resource.data.date is string && request.resource.data.date.size() == 10;
+      allow delete: if isAdmin() || (resource.data.trainerUid == request.auth.uid && isTrainerOf(resource.data.memberUid));
+      allow update: if false;
+    }
+    // [2026-10-31] PT 일정 — 담당 트레이너가 등록·완료·삭제, 당사자·관리자 읽기(회원 홈 캘린더 표시)
+    match /ptSchedules/{sid} {
+      allow read: if request.auth != null && (isAdmin() || resource.data.trainerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
+      allow create: if request.resource.data.trainerUid == request.auth.uid && isTrainerOf(request.resource.data.memberUid) &&
+        request.resource.data.keys().hasOnly(['memberUid', 'trainerUid', 'trainerName', 'date', 'time', 'status', 'createdAt']) &&
+        request.resource.data.status == 'scheduled' &&
+        request.resource.data.date is string && request.resource.data.date.size() == 10 &&
+        request.resource.data.time is string && request.resource.data.time.size() <= 5;
+      allow update: if isAdmin() || (resource.data.trainerUid == request.auth.uid && isTrainerOf(resource.data.memberUid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'doneAt', 'date', 'time']) &&
+        request.resource.data.status in ['scheduled', 'done']);
+      allow delete: if isAdmin() || (resource.data.trainerUid == request.auth.uid && isTrainerOf(resource.data.memberUid));
+    }
+    // [2026-10-31] 트레이너 프로필 — 로그인 사용자 읽기, 관리자 쓰기(사진 최대 3장: 기본은 /trainers/*.webp, 올린 사진은 줄인 data URL — 문서 1MB 한도)
+    match /trainerProfiles/{pid} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() && (request.resource == null ||
+        (request.resource.data.name is string && request.resource.data.name.size() <= 30 &&
+          request.resource.data.get('photo', '') is string && request.resource.data.get('photo', '').size() <= 400000 &&
+          request.resource.data.get('photos', []) is list && request.resource.data.get('photos', []).size() <= 3));
+    }
     match /connections/{cid} {
       allow read: if isAdmin() ||
         (request.auth != null && (resource.data.trainerUid == request.auth.uid || resource.data.memberUid == request.auth.uid));

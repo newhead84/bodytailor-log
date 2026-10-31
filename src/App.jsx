@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-31] PT 회원 신체정보 트레이너 공유 + Phase2 검토 수정(명단 열 추측·계획 수정·rules 보강).
- *            직전: P2-4 홍보 페이지 반영, P2-3 트레이너 운동 계획 + 중첩 화면 뒤로가기 수정. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-31] PT 일정(홈 캘린더), HOWTO 트레이너 소개, 운동 가이드 구조화 1단계, 문의 버그 수정·삭제.
+ *            직전: 회원권 기간=앱 사용 기간, PT 횟수(트레이너 차감), 트레이너 프로필. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -33,8 +33,10 @@ const InquiryScreen = lazy(() => import('./components/InquiryScreen'))
 const InquiryAdminScreen = lazy(() => import('./components/InquiryAdminScreen'))
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
 const TraineesScreen = lazy(() => import('./components/TraineesScreen'))
+const TrainerDirectory = lazy(() => import('./components/TrainerDirectory'))
+import MembershipNotice from './components/MembershipNotice'
 import MemberPendingScreen from './components/MemberPendingScreen'
-import { isApprovedMember, phoneHash, phoneLast4 } from './utils/member'
+import { isApprovedMember, phoneHash, phoneLast4, isMembershipExpired } from './utils/member'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen } from './hooks/useBackableScreen'
 import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DEFAULT_ACCENT, DEFAULT_FONT, DESIGN_DEFAULTS_VERSION } from './utils/fonts'
@@ -87,6 +89,7 @@ export default function App() {
   const [showInquiries, setShowInquiries] = useState(false)
   const [showInquiryAdmin, setShowInquiryAdmin] = useState(false)
   const [showTrainees, setShowTrainees] = useState(false) // [2026-10-31 P2-2] 트레이너 "내 회원"
+  const [trainerDir, setTrainerDir] = useState(null) // [2026-10-31] 트레이너 소개: null | { uid }
   // [2026-10-31 Phase2 P2-1] 관리자 대시보드(/admin 주소로 열거나 MY에서 진입). 관리자 계정에서만 렌더.
   const [showAdmin, setShowAdmin] = useState(() => typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))
   // [2026-07-28] 홈탭/캘린더가 항상 마운트된 상태로 유지되어(위 주석 참고), 기록을 저장해도
@@ -376,6 +379,8 @@ export default function App() {
   useBackableScreen(showInquiries, closeInquiries)
   const closeTrainees = useCallback(() => setShowTrainees(false), [])
   useBackableScreen(showTrainees, closeTrainees)
+  const closeTrainerDir = useCallback(() => setTrainerDir(null), [])
+  useBackableScreen(!!trainerDir, closeTrainerDir)
   useBackableScreen(showInquiryAdmin, closeInquiryAdmin)
   useBackableScreen(showOnboardingPreview, closeOnboardingPreview)
 
@@ -492,6 +497,10 @@ export default function App() {
     return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TraineesScreen uid={authUser.uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} customExercises={userDoc.customExercises || {}} onClose={closeTrainees} /></Suspense>
   }
 
+  if (trainerDir) {
+    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TrainerDirectory initialUid={trainerDir.uid || ''} initialId={trainerDir.profileId || ''} onClose={closeTrainerDir} /></Suspense>
+  }
+
   if (showInquiries) {
     return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><InquiryScreen uid={authUser.uid} nickname={userDoc.nickname} onClose={closeInquiries} /></Suspense>
   }
@@ -593,10 +602,13 @@ export default function App() {
             onProfileUpdated={refreshUserDoc}
             onRoutineUpdated={refreshRoutineTemplates}
             scrollContainerRef={howtoScrollRef}
+            onShowTrainerDirectory={(uid, profileId) => setTrainerDir({ uid: uid || '', profileId: profileId || '' })}
           />
         </Suspense>
       </div>
       <div ref={logScrollRef} style={tabWrapperStyle('log')}>
+        {/* [2026-10-31] 회원권이 끝나면 새 운동 기록 대신 안내(진행 중 세션이 있으면 그대로 마무리할 수 있게 유지) */}
+        {isMembershipExpired(userDoc) && workoutPhase === 'idle' ? <MembershipNotice userDoc={userDoc} full /> : (
         <LogTab
           ref={logTabRef}
           uid={authUser.uid}
@@ -622,6 +634,7 @@ export default function App() {
           rirEnabled={userDoc.rirEnabled !== false}
           workoutGuideSeen={!!userDoc.workoutGuideSeen}
         />
+        )}
       </div>
       <div ref={reportScrollRef} style={tabWrapperStyle('report')} className={revealedTabs.has('report') ? 'bt-reveal' : ''}>
         <Suspense fallback={null}>
@@ -649,6 +662,7 @@ export default function App() {
           onShowInquiries={() => setShowInquiries(true)}
           onShowInquiryAdmin={() => setShowInquiryAdmin(true)}
           onShowTrainees={() => setShowTrainees(true)}
+          onShowTrainerDirectory={(uid) => setTrainerDir({ uid: uid || '' })}
           onShowAdmin={() => {
             setShowAdmin(true)
             window.history.replaceState(window.history.state, '', '/admin')

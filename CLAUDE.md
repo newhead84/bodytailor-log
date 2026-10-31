@@ -57,7 +57,7 @@
 
 ## 4. 보안 체크리스트
 - `firestore.rules`: 본인 uid만 읽기/쓰기. `users`의 `role/roleRequestStatus/tier/lifetimeBadges/trainerProfile`은 클라이언트 수정 불가, XP는 1회 변경 −200~+200·0 이상(자동 저장 되돌리기 시 감소, 시즌 전환 시 리셋 허용), `leaderboard`는 필드 화이트리스트+점수 0~200, `exercisePopularity`는 counts 맵만, `activeSessions/{uid}`는 본인만.
-- 회원 승인(2026-10-31 P2-1): 새 users 문서는 `memberStatus:'pending'`으로만 생성(tier·badges·trainerProfile 기본값 강제), 본인은 memberStatus·approvedAt·approvedBy·memberNo·rosterId·statusUpdatedAt 변경 불가. 관리자(`role=='관리자'`)는 전체 users 읽기 + 승인·역할 필드만 수정(본인 관리자 권한 해제 불가). `isApproved()`(memberStatus 없음=기존 계정 승인, 관리자 항상)가 아니면 workoutLogs·routineTemplates·activeSessions·leaderboard·exercisePopularity 쓰기 거부. `gymRoster`는 관리자만. 트레이너 연결(P2-2): `connections/{trainerUid_memberUid}` 생성·재활성은 관리자, 종료(status 'ended')는 관리자·당사자, 읽기는 관리자·당사자. `isTrainerOf(uid)`(활성 연결 + 트레이너 역할)면 그 회원의 workoutLogs 읽기와 users 문서 읽기 허용(PT 회원 신체정보·목표 트레이너 공유 — 쓰기 불가, 연결 종료 시 즉시 차단). P2-3: 담당 트레이너는 그 회원 routineTemplates 읽기 + `byTrainer.uid`가 자기인 계획만 생성·수정·삭제(`trainerPlanOk` 필드 화이트리스트). 회원 본인은 `byTrainer`를 새로 넣거나 바꿀 수 없음. 본인 `signupInfo`는 승인 대기·거절·첫 입력일 때만 수정 가능. 규칙을 바꾸면 배포 후 콘솔 게시(에뮬레이터 없음 — 콘솔 규칙 플레이그라운드로 확인).
+- 회원 승인(2026-10-31 P2-1): 새 users 문서는 `memberStatus:'pending'`으로만 생성(tier·badges·trainerProfile 기본값 강제), 본인은 memberStatus·approvedAt·approvedBy·memberNo·rosterId·statusUpdatedAt 변경 불가. 관리자(`role=='관리자'`)는 전체 users 읽기 + 승인·역할 필드만 수정(본인 관리자 권한 해제 불가). `isApproved()`(memberStatus 없음=기존 계정 승인, 관리자 항상)가 아니면 workoutLogs·routineTemplates·activeSessions·leaderboard·exercisePopularity 쓰기 거부. `gymRoster`는 관리자만. 트레이너 연결(P2-2): `connections/{trainerUid_memberUid}` 생성·재활성은 관리자, 종료(status 'ended')는 관리자·당사자, 읽기는 관리자·당사자. `isTrainerOf(uid)`(활성 연결 + 트레이너 역할)면 그 회원의 workoutLogs 읽기와 users 문서 읽기 허용(PT 회원 신체정보·목표 트레이너 공유 — 쓰기 불가, 연결 종료 시 즉시 차단). P2-3: 담당 트레이너는 그 회원 routineTemplates 읽기 + `byTrainer.uid`가 자기인 계획만 생성·수정·삭제(`trainerPlanOk` 필드 화이트리스트). 회원 본인은 `byTrainer`를 새로 넣거나 바꿀 수 없음. 본인 `signupInfo`는 승인 대기·거절·첫 입력일 때만 수정 가능. 회원권(2026-10-31): `isApproved()`는 `membershipEndAt`(종료일 23:59:59 KST)이 지나면 거부(트레이너·관리자 예외, 없으면 제한 없음), 회원권·PT 필드는 본인 수정 불가(lockedUserKeys)·관리자 수정. PT 차감: `settings/app.ptDeductEnabled`가 켜져 있을 때만 담당 트레이너가 users.ptRemaining ±1(0~ptTotal) + `ptSessions` 생성·삭제. `trainerProfiles`는 로그인 사용자 읽기·관리자 쓰기(사진 최대 3장). `ptSchedules`는 담당 트레이너 생성·완료(status/doneAt/date/time만)·삭제, 당사자·관리자 읽기. `inquiries`는 본인·관리자 삭제 가능. 규칙을 바꾸면 배포 후 콘솔 게시(에뮬레이터 없음 — 콘솔 규칙 플레이그라운드로 확인).
 - 규칙 파일을 바꾸면 **코드 배포 후 Firebase 콘솔에서 규칙 게시**가 필요함을 안내한다(로컬 에뮬레이터 없음).
 - `.env`는 .gitignore 포함·이력 노출 여부 확인. 실질 보안은 Rules + 승인된 도메인(Authorized domains).
 - Google 로그인: Firebase Authentication → 승인된 도메인에 배포 주소가 등록돼 있는지 확인.
@@ -110,6 +110,13 @@
 - 트레이너 연동(2026-10-31 P2-2): 대시보드 "트레이너 연결" 탭(회원↔트레이너, 회원당 활성 1명 — 새로 연결하면 이전 연결 종료, 일반회원은 PT회원으로, 해제). 트레이너는 MY "내 회원"(`TraineesScreen.jsx`) → 회원별 신체정보(성별·나이·키·몸무게)·운동 목표·주간 목표 + 최근 8주 기록 읽기 전용. 회원은 MY "담당 트레이너" 카드에서 연결 해제 가능.
 - 트레이너 계획(2026-10-31 P2-3): 회원 화면 상단 "운동 계획"에서 트레이너가 계획 만들기·수정·삭제(RoutineSetup `forTrainer` 재사용 + 회원에게 남길 메모, 회원당 트레이너별 최대 3개). 회원 routineTemplates에 `byTrainer`로 저장되어 회원 기록 화면 루틴 칩(PT 표시)·메모, MY 내 루틴("트레이너 계획" 배지)에 나타남. 트레이너 계획은 회원 본인 루틴 5개 제한에서 제외, HOWTO "내 루틴에 추가"는 본인 루틴에만. 회원도 수정·삭제 가능. 연결이 끝나도 계획은 회원에게 남음.
 - 뒤로가기 훅(`useBackableScreen`): 열린 순서 스택으로 가장 안쪽 화면 하나만 닫고, 저장/취소로 스스로 닫을 때의 popstate는 바깥 화면이 무시(2026-10-31 중첩 화면 튕김 수정).
+- 회원권 = 앱 사용 기간(2026-10-31): users `membershipStart/membershipEnd`('YYYY-MM-DD') + `membershipEndAt`(rules용). 명단 만료일이 승인 시·명단 재업로드 시 연결 회원에게 자동 반영, 대시보드 '회원' 탭 "회원권·PT"에서 수정·연장(+1/3/6/12개월). 만료: NOTE 탭 대신 안내(지난 기록·리포트는 보기 가능), 7일 전부터 HOME 안내(`MembershipNotice.jsx`), MY "회원권" 카드. 대시보드 필터 '만료 임박'·'만료'.
+- PT 횟수(회원권과 별도): users `ptTotal/ptRemaining`. 대시보드 '설정·도구'에서 "트레이너 PT 횟수 차감" 켜면 트레이너 회원 화면 "PT 1회 완료"/되돌리기(`ptSessions/{id}`: memberUid·trainerUid·trainerName·date·at).
+- 트레이너 프로필(2026-10-31): `trainerProfiles/{id}`(name·title·photos[≤3]·avatar·specialties·career·certs·intro·hours·instagram·order·active·leftAt·linkedUid). 대시보드 '트레이너 프로필' 탭(`TrainerProfilesTab.jsx`: 기본 3명 등록 — `utils/trainerProfile.js` DEFAULT_TRAINER_PROFILES, 기본 사진 `public/trainers/*.webp`, 수정·순서·앱 계정 연결, 퇴사 처리 = 숨김+담당 회원 이관/해제+역할 일반회원). 회원 MY "트레이너 소개"(`TrainerDirectory.jsx`)·담당 트레이너 카드 프로필.
+- 트레이너 소개 위치: HOWTO 탭 맨 위 가로 카드(`TrainerStrip.jsx`, 누르면 해당 트레이너 상세·뒤로가기로 HOWTO 복귀) + MY "트레이너 소개"·담당 트레이너 카드.
+- PT 일정(2026-10-31): `ptSchedules/{id}`(memberUid·trainerUid·trainerName·date·time·status 'scheduled'|'done'). 트레이너 회원 화면에서 등록·완료(차감 켜짐이면 ptRemaining -1 + ptSessions.scheduleId)·삭제·되돌리기. 회원 홈 캘린더에 PT 표시(예정: 테두리 'PT 시간', 완료: 채운 '✓PT', 일정 없이 완료한 PT도 ✓PT) + "다음 PT" 줄, 날짜 상세에 PT 줄.
+- 운동 가이드 구조화(2026-10-31, `utils/exerciseGuides.js`): 기본 32종목 = 기구 세팅·하는 법(시작 자세/동작/호흡)·핵심 포인트(느낌 점검)·흔한 실수(이유·고치는 법)·주의·대체 운동, 난이도 태그. 전 종목 기구 태그(`getEquipment`). HOWTO 상세(`ExerciseGuideSections.jsx`), 기록 중 가이드 패널은 핵심 포인트+실수 1개. 외부 서비스 문구를 옮기지 않고 새로 작성(저작권) — 2단계: 나머지 종목·트레이너 대시보드 수정.
+- 문의: `getMyInquiries`는 복합 색인 없이(where만, 화면 정렬) — orderBy를 붙이면 색인이 필요해 조회가 실패함(2026-10-31 수정).
 - MY "등급" 카드 → TierInfoScreen. MY 설정에 "앱 소개 보기"(/intro/). 프로필 수정은 프로필 카드 안 버튼. 디자인(테마·강조색·폰트·기록 방식)·알림·데이터(CSV)는 우상단 설정 아이콘 → "설정" 화면.
 - HOME 캘린더: 셀 높이 내용에 따라 자동 확장, 부위색 바 + 웜업/본운동 시간·kcal·총볼륨, 배지 글자 수에 따라 크기 조절(ellipsis 금지), 월 이동 화살표·스와이프. 일요일·공휴일=danger, 토요일=info(공휴일은 `api/holidays.js`가 data.go.kr 프록시).
 
@@ -198,6 +205,8 @@ users/{uid}
   signupInfo: { name, phoneHash(SHA-256 'bodytailor-log:'+숫자), phoneLast4 }, memberNo?, rosterId?, approvedAt, approvedBy, statusUpdatedAt
 gymRoster/{no_회원번호 | ph_해시앞20자}: { name, phoneHash, phoneLast4, memberNo, expireDate('YYYY-MM-DD'), linkedUid?, importedAt }
 // P2-2 추가분(2026-10-31)
+// users 추가(2026-10-31): membershipStart, membershipEnd, membershipEndAt(Timestamp), ptTotal, ptRemaining, ptUpdatedAt
+// settings/app: { ptDeductEnabled } · ptSessions/{id}: { memberUid, trainerUid, trainerName, date, at } · trainerProfiles/{id}: 위 7.2 참고
 // routineTemplates 문서에 P2-3 추가 필드: byTrainer?: { uid, name }, note?(≤300자) — 트레이너 계획 표시
 connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, memberName, memberNickname, status:'active'|'ended', startedAt, createdBy, endedAt?, endedBy? }
 ```

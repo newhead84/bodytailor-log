@@ -3,8 +3,10 @@ import { ChevronDown, ChevronLeft, ExternalLink, Settings } from 'lucide-react'
 import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
-import { getMyTrainerConnection, endConnection, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
+import { getMyTrainerConnection, endConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
 import TrainerPlanBadge from './TrainerPlanBadge'
+import { TrainerAvatar } from './TrainerProfileView'
+import { membershipState, fmtYmd } from '../utils/member'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import { todayStr } from '../utils/date'
@@ -25,7 +27,7 @@ const GENDERS = ['남성', '여성']
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
-export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, isActive = true }) {
+export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, onShowTrainerDirectory, isActive = true }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -40,11 +42,19 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const [editingProfile, setEditingProfile] = useState(false)
   // [2026-10-31 Phase2 P2-2] 담당 트레이너(활성 연결) — PT회원에게 표시, 회원이 직접 해제 가능
   const [trainerConn, setTrainerConn] = useState(null)
+  const [trainerProfile, setTrainerProfile] = useState(null) // [2026-10-31] 담당 트레이너 프로필(사진)
   useEffect(() => {
     if (!uid || !isActive || userDoc?.role === '트레이너' || userDoc?.role === '관리자') return
     let alive = true
     getMyTrainerConnection(uid)
-      .then((c) => alive && setTrainerConn(c))
+      .then(async (c) => {
+        if (!alive) return
+        setTrainerConn(c)
+        if (c?.trainerUid) {
+          const l = await listTrainerProfiles().catch(() => [])
+          if (alive) setTrainerProfile(l.find((x) => x.linkedUid === c.trainerUid && x.active !== false) || null)
+        }
+      })
       .catch(() => {})
     return () => {
       alive = false
@@ -944,8 +954,16 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         <>
           <SectionTitle>담당 트레이너</SectionTitle>
           <Card style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ minWidth: 0 }}>
-              <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>{trainerConn.trainerName} 트레이너</p>
+            {trainerProfile && (
+              <button type="button" onClick={() => onShowTrainerDirectory?.(trainerConn.trainerUid)} aria-label="담당 트레이너 프로필 보기" style={{ padding: 0, flexShrink: 0 }}>
+                <TrainerAvatar p={trainerProfile} size={48} />
+              </button>
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
+                {trainerConn.trainerName} 트레이너
+                {trainerProfile && <button type="button" onClick={() => onShowTrainerDirectory?.(trainerConn.trainerUid)} style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)', padding: 0 }}>프로필 ›</button>}
+              </p>
               <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 트레이너가 내 운동 기록과 신체정보(키·몸무게)·운동 목표를 보고, 운동 계획을 보내 줘요.</p>
             </div>
             <button
@@ -965,6 +983,43 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             </button>
           </Card>
         </>
+      )}
+
+      {/* [2026-10-31] 회원권(=앱 사용 기간)·PT 남은 횟수 */}
+      {(() => {
+        const ms = membershipState(userDoc)
+        const pt = typeof userDoc?.ptTotal === 'number' && userDoc.ptTotal > 0
+        if (ms.kind === 'exempt' || (!ms.end && !pt)) return null
+        return (
+          <>
+            <SectionTitle>회원권</SectionTitle>
+            <Card style={{ marginBottom: 20 }}>
+              {ms.end ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
+                  <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>이용 기간</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: ms.kind === 'expired' ? 'var(--color-danger)' : ms.kind === 'soon' ? 'var(--color-warning)' : undefined }}>
+                    {ms.start ? `${fmtYmd(ms.start)} ~ ` : '~ '}{fmtYmd(ms.end)}
+                    {ms.kind === 'expired' ? ' · 만료' : ` · ${ms.daysLeft}일 남음`}
+                  </span>
+                </div>
+              ) : null}
+              {pt ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline', marginTop: ms.end ? 8 : 0 }}>
+                  <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>PT</span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}><span className="bt-num">{userDoc.ptRemaining ?? 0}</span>회 남음 <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)' }}>/ 총 <span className="bt-num">{userDoc.ptTotal}</span>회</span></span>
+                </div>
+              ) : null}
+              <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>회원권이 끝나면 앱에서도 새 운동 기록이 막혀요. 연장·PT 등록은 헬스장 데스크에 문의해 주세요.</p>
+            </Card>
+          </>
+        )
+      })()}
+
+      {userDoc?.role !== '트레이너' && (
+        <Card onClick={() => onShowTrainerDirectory?.('')} style={{ marginBottom: 20 }}>
+          <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>트레이너 소개</p>
+          <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>바디테일러 트레이너의 경력·전문 분야를 봐요.</p>
+        </Card>
       )}
 
       <SectionTitle>문의</SectionTitle>

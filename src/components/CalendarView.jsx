@@ -450,7 +450,8 @@ function EditLogForm({
   )
 }
 
-export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsChanged }) {
+// [2026-10-31] ptByDate: { 'YYYY-MM-DD': [{ time, done, trainerName }] } — PT 일정(예정: 테두리 'PT'+시간, 완료: 채운 '✓PT')
+export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsChanged, ptByDate = null }) {
   const confirm = useConfirm()
   const [cursor, setCursor] = useState(() => {
     const now = new Date()
@@ -1033,6 +1034,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
           const isSelected = selectedDate === ds
           const isToday = ds === todayDateStr
           const holidayName = holidays[ds]
+          const pt = ptByDate?.[ds]?.[0] || null
 
           // [2026-07-30 재수정] 요약 행을 하나의 배열로 모으되, 잘라내지 않고 전부 보여준다.
           const summaryRows = []
@@ -1113,6 +1115,25 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                   </span>
                 )}
               </div>
+              {pt && (
+                <span
+                  style={{
+                    fontSize: 8.5,
+                    fontWeight: 800,
+                    lineHeight: '11px',
+                    borderRadius: 4,
+                    padding: '1px 2px',
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    border: `1px solid ${isSelected ? 'var(--color-on-fill)' : pt.done ? 'var(--color-fill-strong)' : 'var(--color-primary-normal)'}`,
+                    background: pt.done ? (isSelected ? 'var(--color-on-fill)' : 'var(--color-fill-strong)') : 'transparent',
+                    color: pt.done ? (isSelected ? 'var(--color-fill-strong)' : 'var(--color-on-fill)') : isSelected ? 'var(--color-on-fill)' : 'var(--color-primary-strong)',
+                  }}
+                >
+                  {pt.done ? '✓PT' : `PT${pt.time ? ' ' + pt.time : ''}`}
+                </span>
+              )}
               {visibleRows.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2, minHeight: 0 }}>
                   {visibleRows.map((row, rowIdx) => {
@@ -1222,6 +1243,12 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
           />
         ) : (
           <>
+            {(ptByDate?.[selectedDate] || []).map((it, i) => (
+              <p key={i} style={{ margin: '0 0 10px', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6, border: `1.5px solid ${it.done ? 'var(--color-fill-strong)' : 'var(--color-primary-normal)'}`, background: it.done ? 'var(--color-fill-strong)' : 'transparent', color: it.done ? 'var(--color-on-fill)' : 'var(--color-primary-strong)' }}>{it.done ? '✓PT' : 'PT'}</span>
+                <span>{it.time ? `${it.time} ` : ''}PT{it.trainerName ? ` · ${it.trainerName} 트레이너` : ''} · {it.done ? '완료' : '예정'}</span>
+              </p>
+            ))}
             {selectedLogs.length === 0 && !isCreatingLog && (
               <EmptyState title="기록 없음" description={`${selectedDate}에는 운동 기록이 없어요.`} style={{ padding: '20px 20px' }} />
             )}

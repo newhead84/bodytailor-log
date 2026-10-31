@@ -4,18 +4,21 @@
 //  - 회원: 검색·상태 필터, 승인 상태·역할 변경
 //  - 명단 가져오기: 출입관리 프로그램 CSV → 열 매핑 → 미리보기 → 저장(이름·전화 해시·뒤 4자리·회원번호·만료일만)
 //  - 문의·도구: 기존 문의 관리 화면, 온보딩 화면 미리보기
+// [2026-10-31] 회원권 기간(=앱 사용 기간)·PT 횟수 편집, 만료 임박/만료 필터, 명단 만료일 자동 반영, 설정(PT 차감 켜기), 트레이너 프로필 탭
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
-import { adminListUsers, adminUpdateMember, adminGetRoster, adminSaveRoster, adminLinkRoster, adminListConnections, adminConnect, endConnection } from '../storage'
-import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId } from '../utils/member'
+import { adminListUsers, adminUpdateMember, adminGetRoster, adminSaveRoster, adminLinkRoster, adminListConnections, adminConnect, endConnection, adminSetMembership, getAppSettings, adminSaveSettings } from '../storage'
+import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId, membershipState, addMonths, fmtYmd } from '../utils/member'
+import TrainerProfilesTab from './TrainerProfilesTab'
 import { todayStr } from '../utils/date'
 
 const TABS = [
   { key: 'pending', label: '승인 대기' },
   { key: 'members', label: '회원' },
   { key: 'connect', label: '트레이너 연결' },
+  { key: 'trainers', label: '트레이너 프로필' },
   { key: 'roster', label: '명단 가져오기' },
-  { key: 'etc', label: '문의·도구' },
+  { key: 'etc', label: '설정·도구' },
 ]
 
 function fmtDate(ts) {
@@ -46,14 +49,16 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
   const [conns, setConns] = useState([])
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState('')
+  const [settings, setSettings] = useState({})
 
   async function load() {
     setLoadError('')
     try {
-      const [u, r, c] = await Promise.all([adminListUsers(), adminGetRoster(), adminListConnections()])
+      const [u, r, c, st] = await Promise.all([adminListUsers(), adminGetRoster(), adminListConnections(), getAppSettings().catch(() => ({}))])
       setUsers(u)
       setRoster(r)
       setConns(c)
+      setSettings(st || {})
     } catch (err) {
       console.error('관리자 데이터 불러오기 실패:', err)
       setLoadError('불러오지 못했어요. 관리자 계정인지, Firebase 규칙이 게시됐는지 확인해 주세요.')
@@ -91,6 +96,8 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
     try {
       await adminUpdateMember(u.uid, { memberStatus: 'approved', ...(link ? { rosterId: m.roster.id, memberNo: m.roster.memberNo || '' } : {}) }, uid)
       if (link) await adminLinkRoster(m.roster.id, u.uid)
+      // 명단 만료일 → 회원권 종료일(=앱 사용 기간). 이미 기간을 직접 정해 둔 회원은 건드리지 않는다.
+      if (link && m.roster.expireDate && !u.membershipEnd) await adminSetMembership(u.uid, { start: u.membershipStart || '', end: m.roster.expireDate })
     } catch (err) {
       if (!silent) await fail(err, '승인')
       else throw err
@@ -170,7 +177,25 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
         ) : tab === 'pending' ? (
           <PendingTab pending={pending} matchOf={matchOf} busy={busy} onApprove={approve} onReject={(u) => setStatus(u, 'rejected')} onApproveAll={approveAllMatched} rosterCount={roster.length} />
         ) : tab === 'members' ? (
-          <MembersTab users={users} matchOf={matchOf} busy={busy} onStatus={setStatus} onRole={setRole} selfUid={uid} />
+          <MembersTab
+            users={users}
+            matchOf={matchOf}
+            busy={busy}
+            onStatus={setStatus}
+            onRole={setRole}
+            selfUid={uid}
+            onMembership={async (u, v) => {
+              setBusy(u.uid)
+              try {
+                await adminSetMembership(u.uid, v)
+              } catch (err) {
+                await fail(err, '회원권·PT 저장')
+              } finally {
+                setBusy('')
+              }
+              await load()
+            }}
+          />
         ) : tab === 'connect' ? (
           <ConnectTab
             users={users}
@@ -194,9 +219,34 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
             }}
           />
         ) : tab === 'roster' ? (
-          <RosterTab roster={roster} onSaved={load} />
+          <RosterTab roster={roster} users={users} onSaved={load} />
+        ) : tab === 'trainers' ? (
+          <TrainerProfilesTab users={users} conns={conns} adminUid={uid} onChanged={load} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Card>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>트레이너 PT 횟수 차감</p>
+                  <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>켜면 담당 트레이너가 수업 후 '내 회원'에서 "PT 1회 완료"를 눌러 남은 횟수를 줄여요(되돌리기 가능). 끄면 관리자만 '회원' 탭에서 횟수를 고쳐요.</p>
+                </div>
+                <Button
+                  variant={settings.ptDeductEnabled ? 'primary' : 'ghost'}
+                  style={{ flexShrink: 0 }}
+                  onClick={async () => {
+                    const next = !settings.ptDeductEnabled
+                    try {
+                      await adminSaveSettings({ ptDeductEnabled: next })
+                      setSettings((s) => ({ ...s, ptDeductEnabled: next }))
+                    } catch (err) {
+                      await fail(err, '설정 저장')
+                    }
+                  }}
+                >
+                  {settings.ptDeductEnabled ? '켜짐' : '꺼짐'}
+                </Button>
+              </div>
+            </Card>
             <Card onClick={onOpenInquiries}>
               <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>문의 관리</p>
               <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>회원이 남긴 문의를 확인하고 답변해요.</p>
@@ -227,10 +277,82 @@ function MemberLine({ u, match }) {
           <Badge tone="neutral">명단에 없음</Badge>
         ) : null}
         {match?.roster.memberNo ? <span>회원번호 {match.roster.memberNo}</span> : null}
-        {match?.roster.expireDate ? (
+        {match?.roster.expireDate && statusOf(u) === 'pending' ? (
           <span style={{ color: match.roster.expireDate < todayStr() ? 'var(--color-danger)' : undefined }}>만료 {match.roster.expireDate}</span>
         ) : null}
       </p>
+      {statusOf(u) !== 'pending' && <MembershipLine u={u} />}
+    </div>
+  )
+}
+
+function MembershipLine({ u }) {
+  const ms = membershipState(u, todayStr())
+  const pt = typeof u.ptTotal === 'number' && u.ptTotal > 0
+  if (ms.kind === 'exempt' && !pt) return null
+  const tone = ms.kind === 'expired' ? 'bad' : ms.kind === 'soon' ? 'warn' : ms.kind === 'none' ? 'neutral' : 'ok'
+  return (
+    <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--color-label-normal)', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      {ms.kind !== 'exempt' && (
+        <>
+          <Badge tone={tone}>{ms.kind === 'expired' ? '회원권 만료' : ms.kind === 'soon' ? `D-${ms.daysLeft}` : ms.kind === 'none' ? '기간 미설정' : '이용 중'}</Badge>
+          {ms.end ? <span>회원권 {ms.start ? `${fmtYmd(ms.start)} ~ ` : '~ '}{fmtYmd(ms.end)}</span> : null}
+        </>
+      )}
+      {pt ? <span>PT <span className="bt-num">{u.ptRemaining ?? 0}</span>/<span className="bt-num">{u.ptTotal}</span>회 남음</span> : null}
+    </p>
+  )
+}
+
+function MembershipEditor({ u, busy, onSave, onClose }) {
+  const [start, setStart] = useState(u.membershipStart || '')
+  const [end, setEnd] = useState(u.membershipEnd || '')
+  const [ptTotal, setPtTotal] = useState(u.ptTotal ?? '')
+  const [ptRemaining, setPtRemaining] = useState(u.ptRemaining ?? '')
+  const today = todayStr()
+  const extend = (n) => {
+    const base = end && end >= today ? end : today
+    if (!start || (end && end < today)) setStart(end && end >= today ? start : today)
+    setEnd(addMonths(base, n))
+  }
+  const bad = start && end && end < start
+  const inputStyle = { ...selectStyle, padding: '9px 10px', fontSize: 14, minWidth: 0 }
+  const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--color-label-neutral)' }
+  return (
+    <div style={{ width: '100%', marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--color-line)' }}>
+      <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700 }}>회원권 기간 = 앱 사용 기간</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
+        <label style={lab}>시작일<input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={inputStyle} /></label>
+        <label style={lab}>종료일<input type="date" value={end} onChange={(e) => setEnd(e.target.value)} style={inputStyle} /></label>
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        {[1, 3, 6, 12].map((n) => (
+          <Chip key={n} onClick={() => extend(n)} style={{ padding: '6px 12px', fontSize: 13 }}>+{n}개월</Chip>
+        ))}
+        {end && <Chip onClick={() => { setEnd(''); setStart('') }} style={{ padding: '6px 12px', fontSize: 13 }}>기간 제한 없음</Chip>}
+      </div>
+      <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 12, color: bad ? 'var(--color-danger)' : 'var(--color-label-neutral)' }}>
+        {bad ? '종료일이 시작일보다 빨라요.' : '종료일이 지나면 새 운동 기록이 막혀요(지난 기록은 볼 수 있어요). 연장 버튼은 남은 기간 뒤에 이어 붙여요.'}
+      </p>
+      <p style={{ margin: '14px 0 8px', fontSize: 13, fontWeight: 700 }}>PT 횟수 <span style={{ fontWeight: 400, color: 'var(--color-label-neutral)' }}>(회원권과 별도)</span></p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
+        <label style={lab}>총 횟수<input type="number" min="0" max="999" inputMode="numeric" value={ptTotal} onChange={(e) => setPtTotal(e.target.value)} style={inputStyle} /></label>
+        <label style={lab}>남은 횟수<input type="number" min="0" max="999" inputMode="numeric" value={ptRemaining} onChange={(e) => setPtRemaining(e.target.value)} style={inputStyle} /></label>
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        {[10, 20, 30].map((n) => (
+          <Chip key={n} onClick={() => { setPtTotal(String((Number(ptTotal) || 0) + n)); setPtRemaining(String((Number(ptRemaining) || 0) + n)) }} style={{ padding: '6px 12px', fontSize: 13 }}>+{n}회 등록</Chip>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+        <Button variant="ghost" onClick={onClose}>닫기</Button>
+        <Button
+          disabled={busy || bad}
+          onClick={() => onSave({ start: end ? start : '', end, ptTotal: ptTotal === '' ? 0 : Number(ptTotal), ptRemaining: ptRemaining === '' ? 0 : Math.min(Number(ptRemaining), Number(ptTotal) || 0) })}
+        >
+          저장
+        </Button>
+      </div>
     </div>
   )
 }
@@ -261,20 +383,31 @@ function PendingTab({ pending, matchOf, busy, onApprove, onReject, onApproveAll,
   )
 }
 
+// expired: 관리자가 '만료'로 바꾼 계정 + 회원권 종료일이 지난 회원, soon: 7일 이내 종료
 const STATUS_FILTERS = [
   { key: 'all', label: '전체' },
   { key: 'approved', label: '승인' },
   { key: 'pending', label: '대기' },
+  { key: 'soon', label: '만료 임박' },
   { key: 'expired', label: '만료' },
   { key: 'rejected', label: '거절' },
 ]
+function filterOf(u, key, today) {
+  if (key === 'all') return true
+  const ms = membershipState(u, today).kind
+  if (key === 'soon') return statusOf(u) === 'approved' && ms === 'soon'
+  if (key === 'expired') return statusOf(u) === 'expired' || (statusOf(u) === 'approved' && ms === 'expired')
+  return statusOf(u) === key
+}
 const selectStyle = { padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 13, fontFamily: 'inherit' }
 
-function MembersTab({ users, matchOf, busy, onStatus, onRole, selfUid }) {
+function MembersTab({ users, matchOf, busy, onStatus, onRole, selfUid, onMembership }) {
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState('all')
+  const [editing, setEditing] = useState('')
+  const today = todayStr()
   const list = users
-    .filter((u) => filter === 'all' || statusOf(u) === filter)
+    .filter((u) => filterOf(u, filter, today))
     .filter((u) => {
       const s = q.replace(/\s/g, '')
       if (!s) return true
@@ -287,7 +420,7 @@ function MembersTab({ users, matchOf, busy, onStatus, onRole, selfUid }) {
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {STATUS_FILTERS.map((f) => (
           <Chip key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)} style={{ padding: '6px 12px', fontSize: 13 }}>
-            {f.label} {f.key === 'all' ? users.length : users.filter((u) => statusOf(u) === f.key).length}
+            {f.label} {users.filter((u) => filterOf(u, f.key, today)).length}
           </Chip>
         ))}
       </div>
@@ -305,7 +438,21 @@ function MembersTab({ users, matchOf, busy, onStatus, onRole, selfUid }) {
                 <option key={r} value={r}>{r}{u.uid === selfUid && r === '관리자' ? ' (나)' : ''}</option>
               ))}
             </select>
+            {statusOf(u) !== 'pending' && u.role !== '관리자' && u.role !== '트레이너' && (
+              <Button variant="ghost" style={{ padding: '8px 12px', fontSize: 13 }} onClick={() => setEditing(editing === u.uid ? '' : u.uid)}>회원권·PT</Button>
+            )}
           </div>
+          {editing === u.uid && (
+            <MembershipEditor
+              u={u}
+              busy={busy === u.uid}
+              onClose={() => setEditing('')}
+              onSave={async (v) => {
+                await onMembership(u, v)
+                setEditing('')
+              }}
+            />
+          )}
         </Card>
       ))}
       {!list.length && <p style={{ fontSize: 14, color: 'var(--color-label-neutral)' }}>조건에 맞는 회원이 없어요.</p>}
@@ -394,7 +541,7 @@ const FIELDS = [
   { key: 'expireDate', label: '만료일', required: false },
 ]
 
-function RosterTab({ roster, onSaved }) {
+function RosterTab({ roster, users, onSaved }) {
   const [rows, setRows] = useState(null) // string[][] (첫 줄 = 헤더)
   const [map, setMap] = useState({})
   const [fileName, setFileName] = useState('')
@@ -448,7 +595,20 @@ function RosterTab({ roster, onSaved }) {
       }
       const list = [...out.entries()].map(([id, r]) => ({ id, ...r }))
       await adminSaveRoster(list)
-      setResult(`${list.length}명을 저장했어요.${invalid ? ` 형식이 맞지 않은 ${invalid}줄은 건너뛰었어요.` : ''}`)
+      // 명단과 연결된 회원의 회원권 종료일을 새 만료일로 맞춘다(만료일 열이 있을 때만)
+      let synced = 0
+      if (map.expireDate >= 0) {
+        const byId = new Map(roster.map((r) => [r.id, r]))
+        for (const r of list) {
+          const linked = byId.get(r.id)?.linkedUid
+          const u = linked && (users || []).find((x) => x.uid === linked)
+          if (u && r.expireDate && u.membershipEnd !== r.expireDate) {
+            await adminSetMembership(u.uid, { start: u.membershipStart || '', end: r.expireDate })
+            synced++
+          }
+        }
+      }
+      setResult(`${list.length}명을 저장했어요.${synced ? ` 연결된 회원 ${synced}명의 회원권 종료일을 새 만료일로 바꿨어요.` : ''}${invalid ? ` 형식이 맞지 않은 ${invalid}줄은 건너뛰었어요.` : ''}`)
       setRows(null)
       await onSaved?.()
     } catch (err) {
@@ -464,7 +624,7 @@ function RosterTab({ roster, onSaved }) {
       <Card>
         <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>현재 명단 <span className="bt-num">{roster.length}</span>명</p>
         <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
-          출입관리 프로그램에서 회원 명단을 엑셀로 내보낸 뒤, 엑셀에서 "다른 이름으로 저장 → CSV"로 저장해 올려 주세요. 파일은 이 브라우저 안에서만 읽고, 이름·회원번호·만료일과 휴대폰 번호의 변환값·뒤 4자리만 저장해요. 다시 올리면 같은 회원은 새 정보로 바뀌어요.
+          출입관리 프로그램에서 회원 명단을 엑셀로 내보낸 뒤, 엑셀에서 "다른 이름으로 저장 → CSV"로 저장해 올려 주세요. 파일은 이 브라우저 안에서만 읽고, 이름·회원번호·만료일과 휴대폰 번호의 변환값·뒤 4자리만 저장해요. 다시 올리면 같은 회원은 새 정보로 바뀌고, 앱 회원과 연결된 사람은 회원권 종료일(=앱 사용 기간)도 새 만료일로 바뀌어요.
         </p>
         <label style={{ display: 'inline-block', marginTop: 12 }}>
           <input type="file" accept=".csv,text/csv" onChange={handleFile} style={{ display: 'none' }} />
