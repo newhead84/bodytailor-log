@@ -2,6 +2,10 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 운동 가이드 전 종목(138) 구조화 + 트레이너 가이드 수정 | utils/exerciseGuidesMore.js·guideOverrides.js·GuideEditor.jsx(신규), exerciseGuides.js, HowToTab.jsx, ExerciseGuideToggle.jsx, storage.js, firestore.rules, CLAUDE.md
+- 나머지 106종목(유산소 12 포함) 가이드 추가 — 기구 세팅·하는 법·호흡·핵심 포인트·흔한 실수·주의·대체 운동·난이도. 트레이너 관점으로 새로 작성.
+- 트레이너·관리자: HOWTO 종목 상세 "가이드 수정" → 모든 항목 + "바디테일러 메모"(회원에게 맨 위 표시, 기록 중 패널에도) 저장, "기본으로 되돌리기". 고친 가이드엔 "○○ 트레이너가 다듬은 가이드" 표시.
+
 [2026-10-31] HOWTO 트레이너 소개 + PT 일정(홈 캘린더) + 문의 버그 수정·삭제 + 운동 가이드 구조화 1단계 | TrainerStrip.jsx·ExerciseGuideSections.jsx·utils/exerciseGuides.js(신규), HowToTab.jsx, ExerciseGuideToggle.jsx, TrainerDirectory.jsx, TraineesScreen.jsx, HomeTab.jsx, CalendarView.jsx, InquiryScreen.jsx, InquiryAdminScreen.jsx, storage.js, firestore.rules, App.jsx, CLAUDE.md
 - HOWTO 탭 맨 위 "바디테일러 트레이너" 가로 카드 → 상세(뒤로가기로 HOWTO).
 - PT 일정: 트레이너 회원 화면에서 날짜·시간 등록 / 완료(차감 켜짐이면 횟수 -1) / 삭제 / 되돌리기. 회원 홈 캘린더에 PT(예정)·✓PT(완료) 표시, "다음 PT" 줄, 날짜 상세 PT 줄.

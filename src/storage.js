@@ -682,6 +682,18 @@ export async function adminDeleteTrainerProfile(id) {
   await deleteDoc(doc(db, 'trainerProfiles', id))
 }
 
+// ───────────── [2026-10-31] 운동 가이드 수정본(exerciseGuides/{종목명}) — 트레이너·관리자 수정, 로그인 사용자 읽기 ─────────────
+export async function listGuideOverrides() {
+  const snap = await getDocs(collection(db, 'exerciseGuides'))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+export async function saveGuideOverride(name, data, by) {
+  await setDoc(doc(db, 'exerciseGuides', name), { ...data, updatedBy: { uid: by.uid, name: (by.name || '').slice(0, 30) }, updatedAt: serverTimestamp() })
+}
+export async function deleteGuideOverride(name) {
+  await deleteDoc(doc(db, 'exerciseGuides', name))
+}
+
 export async function adminGetRoster() {
   const snap = await getDocs(collection(db, 'gymRoster'))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))

@@ -1,9 +1,11 @@
-// exerciseGuides.js — [2026-10-31] 종목별 구조화 가이드(1단계: 기본 종목 32개)
+// exerciseGuides.js — [2026-10-31] 종목별 구조화 가이드(기본 32종목은 이 파일, 나머지 전 종목은 exerciseGuidesMore.js)
 // 단계별 하는 법(시작 자세·동작·호흡) / 핵심 포인트(느낌 점검) / 흔한 실수(문제→이유→고치는 법) / 기구 세팅 / 주의사항 / 대체 운동.
 // 외부 서비스 문구를 옮기지 않고 일반적인 웨이트 트레이닝 지식을 바탕으로 이 앱 톤(짧은 코치 말투)으로 새로 작성했다.
-// 트레이너 검수 후 수정 가능(2단계: 대시보드에서 트레이너가 수정·추가 예정). 없는 종목은 기존 EXERCISE_DESCRIPTIONS만 보여준다.
+// 트레이너·관리자는 HOWTO 종목 상세 "가이드 수정"으로 고칠 수 있다(utils/guideOverrides.js). 커스텀 종목 등 가이드가 없으면 기존 설명만 보여준다.
 //
 // guide: { level, setup?: string[], start: string[], move: string[], breath, keyPoints: [{ cue, feel }], mistakes: [{ what, why, fix }], cautions?: string[], alternatives?: string[] }
+
+import { MORE_GUIDES } from './exerciseGuidesMore'
 
 export const EXERCISE_GUIDES = {
   // ───── 가슴 ─────
@@ -519,12 +521,19 @@ export const EXERCISE_GUIDES = {
 }
 
 export function getExerciseGuide(name) {
-  return EXERCISE_GUIDES[name] || null
+  return EXERCISE_GUIDES[name] || MORE_GUIDES[name] || null
 }
 
 // 기구 태그(이름 기준 자동 분류 — 모든 종목에 표시)
+const EQUIPMENT_OVERRIDE = {
+  랫풀다운: '케이블', 원암랫풀다운: '케이블', 스트레이트암풀다운: '케이블', 팔로프프레스: '케이블',
+  펜들레이로우: '바벨', 아놀드프레스: '덤벨', 스파이더컬: '덤벨', 원암오버헤드익스텐션: '덤벨', 스모스쿼트: '덤벨',
+  스벤드프레스: '원판', 앱롤아웃: '앱롤러', 체스트딥스: '딥스 바', '웨이티드(중량) 딥스': '딥스 바',
+  풀업: '풀업 바', 친업: '풀업 바', '웨이티드(중량) 풀업': '풀업 바', 행잉레그레이즈: '풀업 바', 캡틴스체어레그레이즈: '딥스 바',
+}
 export function getEquipment(name, atom) {
   const n = String(name)
+  if (EQUIPMENT_OVERRIDE[n]) return EQUIPMENT_OVERRIDE[n]
   if (atom === '유산소') return '유산소 기구'
   if (/밴드/.test(n)) return '밴드'
   if (/스미스/.test(n)) return '스미스머신'

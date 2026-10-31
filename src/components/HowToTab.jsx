@@ -29,6 +29,9 @@ import { StretchGuide } from './StretchGuide'
 import TrainerStrip from './TrainerStrip'
 import ExerciseGuideSections from './ExerciseGuideSections'
 import { getExerciseGuide, getEquipment } from '../utils/exerciseGuides'
+import { useGuideOverrides, mergeGuide } from '../utils/guideOverrides'
+import GuideEditor from './GuideEditor'
+import { Pencil } from 'lucide-react'
 
 const MUSCLE_ROLE_LABELS = [
   { key: 'primary', label: '주동근' },
@@ -140,10 +143,12 @@ function ComparisonTable({ group, currentName }) {
   )
 }
 
-function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise }) {
+function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor }) {
   const atom = getExerciseAtom(name)
-  // [2026-10-31] 구조화 가이드(기본 종목) + 기구 태그(전 종목)
-  const guide = getExerciseGuide(name)
+  // [2026-10-31] 구조화 가이드 + 트레이너 수정본 병합 + 기구 태그(전 종목)
+  const overrides = useGuideOverrides()
+  const guide = mergeGuide(name, overrides[name])
+  const [editing, setEditing] = useState(false)
   const equipment = getEquipment(name, atom)
   const alias = getExerciseAlias(name)
   const desc = getExerciseDescription(name)
@@ -165,6 +170,10 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
     } finally {
       setAdding(false)
     }
+  }
+
+  if (editing && editor) {
+    return <GuideEditor name={name} guide={guide} hasOverride={!!overrides[name]} editor={editor} allNames={ALL_EXERCISE_NAMES} onClose={() => setEditing(false)} />
   }
 
   return (
@@ -229,7 +238,21 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
         </Card>
       )}
 
+      {guide?.gymNote && (
+        <Card style={{ marginBottom: 14, border: '1px solid var(--color-primary-normal)' }}>
+          <p style={{ margin: '0 0 4px', fontSize: 12.5, fontWeight: 800, color: 'var(--color-primary-strong)' }}>바디테일러 메모</p>
+          <p className="text-keep-all" style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{guide.gymNote}</p>
+        </Card>
+      )}
       <ExerciseGuideSections guide={guide} onOpenExercise={onOpenExercise} />
+      {guide?.editedBy && (
+        <p style={{ margin: '-6px 0 14px', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>{guide.editedBy} 트레이너가 다듬은 가이드예요.</p>
+      )}
+      {editor && (
+        <button type="button" onClick={() => setEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
+          <Pencil size={14} strokeWidth={2} />가이드 수정 (트레이너)
+        </button>
+      )}
 
       {gripOptions && (
         <Card style={{ marginBottom: 14 }}>
@@ -355,6 +378,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
           routineTemplates={routineTemplates}
           onBack={() => setSelectedExercise(null)}
           onOpenExercise={(n) => setSelectedExercise(n)}
+          editor={userDoc?.role === '트레이너' || userDoc?.role === '관리자' ? { uid, name: userDoc?.signupInfo?.name || userDoc?.nickname || '' } : null}
           onAdded={onRoutineUpdated}
         />
       </div>

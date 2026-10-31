@@ -31,7 +31,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Card } from './ui'
 import { getExerciseDescription, getExerciseAtom, getPartColor } from '../utils/exerciseLibrary'
 import ExerciseVideoLink from './ExerciseVideoLink'
-import { getExerciseGuide } from '../utils/exerciseGuides'
+import { useGuideOverrides, mergeGuide } from '../utils/guideOverrides'
 import { KeyPoints, Mistakes } from './ExerciseGuideSections'
 import { Lightbulb } from 'lucide-react'
 
@@ -134,7 +134,8 @@ export default function ExerciseGuideToggle({ name, children }) {
 export function ExerciseGuidePanel({ name }) {
   const desc = getExerciseDescription(name)
   // [2026-10-31] 기록 중엔 짧게: 구조화 가이드가 있으면 핵심 포인트 + 흔한 실수 1개(고치는 법)
-  const guide = getExerciseGuide(name)
+  const overrides = useGuideOverrides()
+  const guide = mergeGuide(name, overrides[name])
   const atom = getExerciseAtom(name)
   const color = getPartColor(atom)
   return (
@@ -163,6 +164,7 @@ export function ExerciseGuidePanel({ name }) {
           </p>
           {guide ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {guide.gymNote ? <p className="text-keep-all" style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: 'var(--color-primary-strong)' }}>메모 · {guide.gymNote}</p> : null}
               <KeyPoints list={guide.keyPoints} compact />
               <Mistakes list={guide.mistakes?.slice(0, 1)} compact />
               <p style={{ margin: 0, fontSize: 11, color: 'var(--color-label-neutral)' }}>자세한 하는 법은 HOWTO 탭에서 볼 수 있어요.</p>
