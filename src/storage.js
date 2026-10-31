@@ -23,6 +23,7 @@ import {
   arrayUnion,
   arrayRemove,
   FieldPath,
+  writeBatch,
 } from 'firebase/firestore'
 import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises } from './utils/exerciseLibrary'
 import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey } from './utils/strength'
@@ -158,6 +159,8 @@ const DEFAULT_USER_DOC = {
   lifetimeBadges: [],
   tier: 'iron',
   trainerProfile: null,
+  // [2026-10-31 Phase2 P2-1] 헬스장 회원 승인. 새 계정은 승인 대기로 시작(rules가 강제), 기존 계정(필드 없음)은 승인으로 간주.
+  memberStatus: 'pending',
 }
 
 export async function ensureUserDoc(uid, seed = {}) {
@@ -182,6 +185,8 @@ export async function saveOnboarding(uid, onboardingData, extra = {}) {
   const top = {}
   if (typeof extra.nickname === 'string' && extra.nickname.trim()) top.nickname = extra.nickname.trim().slice(0, 30)
   if (Number(extra.weeklyTargetDays) > 0) top.weeklyTargetDays = Math.min(6, Math.max(2, Math.round(Number(extra.weeklyTargetDays))))
+  // [2026-10-31] 헬스장 회원 확인용(이름 + 전화 해시·뒤 4자리, 원문 번호는 저장하지 않음)
+  if (extra.signupInfo && typeof extra.signupInfo === 'object') top.signupInfo = extra.signupInfo
   await updateDoc(ref, {
     onboarding: onboardingData,
     onboardingCompleted: true,
@@ -536,6 +541,39 @@ export async function getLastRecordForExercise(uid, exerciseName, grip = null, c
   }
   if (!first) return null
   return { date: history[0].date, ...first, ...(history[1] ? { prev: history[1] } : {}), history }
+}
+
+// ───────────── [2026-10-31 Phase2 P2-1] 관리자: 회원 승인·명단(gymRoster) ─────────────
+// rules: users 전체 읽기·승인 필드 수정과 gymRoster 읽기·쓰기는 role === '관리자'만.
+export async function adminListUsers() {
+  const snap = await getDocs(collection(db, 'users'))
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }))
+}
+// patch: { memberStatus?, role?, memberNo?, rosterId? } — 승인 시 승인자·시각을 함께 남긴다
+export async function adminUpdateMember(uid, patch, adminUid) {
+  const data = { ...patch, statusUpdatedAt: serverTimestamp() }
+  if (patch.memberStatus === 'approved') {
+    data.approvedAt = serverTimestamp()
+    data.approvedBy = adminUid || null
+  }
+  await updateDoc(doc(db, 'users', uid), data)
+}
+export async function adminGetRoster() {
+  const snap = await getDocs(collection(db, 'gymRoster'))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+// rows: [{ id, name, phoneHash, phoneLast4, memberNo, expireDate }] — 400개씩 나눠 일괄 저장(merge: 연결 정보 유지)
+export async function adminSaveRoster(rows) {
+  for (let i = 0; i < rows.length; i += 400) {
+    const batch = writeBatch(db)
+    rows.slice(i, i + 400).forEach(({ id, ...r }) => {
+      batch.set(doc(db, 'gymRoster', id), { ...r, importedAt: serverTimestamp() }, { merge: true })
+    })
+    await batch.commit()
+  }
+}
+export async function adminLinkRoster(rosterId, uid) {
+  await setDoc(doc(db, 'gymRoster', rosterId), { linkedUid: uid || null }, { merge: true })
 }
 
 // ───────────── activeSessions/{uid} — 진행 중 운동 세션 서버 백업 ─────────────

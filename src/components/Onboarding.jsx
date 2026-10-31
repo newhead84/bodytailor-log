@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Button, BackButton } from './ui'
 import { HOWTO_ONBOARDING_TEXT } from '../utils/howtoText'
 import { GoalPicker, TrainingPlanSummary } from './GoalPicker'
+import { isValidMobile } from '../utils/member'
 
 const GENDERS = ['남성', '여성']
 
@@ -13,10 +14,12 @@ const GENDERS = ['남성', '여성']
 // 붙어 보기 불편하다는 피드백에 따라, 질문당 1페이지씩 완전히 분리했다(요청 확인 후 반영).
 // [2026-10-29] 닉네임(랭킹에 보이는 이름 — 구글 실명이 그대로 노출되던 문제)과 주당 운동 목표 일수(출석 목표)를 추가.
 // [2026-10-30] 목표 7종·우선순위(GoalPicker) + 마지막에 맞춤 기준 요약(plan)
-const STEPS = ['nickname', 'gender', 'age', 'weight', 'height', 'goals', 'days', 'plan']
+// [2026-10-31 Phase2] 첫 단계 'member': 헬스장 회원 확인(이름·휴대폰 번호, 승인용)
+const STEPS = ['member', 'nickname', 'gender', 'age', 'weight', 'height', 'goals', 'days', 'plan']
 const TARGET_DAY_OPTIONS = [2, 3, 4, 5, 6]
 
 const STEP_TITLES = {
+  member: '바디테일러 회원 정보를 알려주세요',
   nickname: '앱에서 쓸 닉네임을 정해 주세요',
   days: '일주일에 며칠 운동할 계획인가요?',
   gender: '성별을 알려주세요',
@@ -45,6 +48,8 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
   const [form, setForm] = useState({
+    memberName: '',
+    phone: '',
     nickname: (initialNickname || '').slice(0, 30),
     weeklyTargetDays: 3,
     gender: '',
@@ -70,6 +75,7 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
   }
 
   const canNext = {
+    member: form.memberName.trim().length > 0 && isValidMobile(form.phone),
     nickname: form.nickname.trim().length > 0,
     days: !!form.weeklyTargetDays,
     gender: !!form.gender,
@@ -168,6 +174,38 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
             exit="exit"
             transition={{ duration: 0.28, ease: [0.22, 0.61, 0.36, 1] }}
           >
+            {STEPS[step] === 'member' && (
+              <StepBlock title={STEP_TITLES.member}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <input
+                    autoFocus
+                    value={form.memberName}
+                    onChange={(e) => update('memberName', e.target.value)}
+                    maxLength={30}
+                    placeholder="이름(헬스장에 등록한 이름)"
+                    aria-label="이름"
+                    autoComplete="name"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '18px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 18, fontWeight: 700 }}
+                  />
+                  <input
+                    value={form.phone}
+                    onChange={(e) => update('phone', e.target.value.replace(/[^\d-]/g, '').slice(0, 13))}
+                    inputMode="tel"
+                    placeholder="휴대폰 번호(010-0000-0000)"
+                    aria-label="휴대폰 번호"
+                    autoComplete="tel"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '18px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 18, fontWeight: 700 }}
+                  />
+                </div>
+                {form.phone && !isValidMobile(form.phone) && (
+                  <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 10 }}>휴대폰 번호를 확인해 주세요.</p>
+                )}
+                <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginTop: 14, lineHeight: 1.6 }}>
+                  헬스장 회원 명단과 맞춰 승인하는 데만 써요. 휴대폰 번호는 숫자 그대로 저장하지 않고 변환한 값과 뒤 4자리만 남기며, 헬스장 관리자만 볼 수 있어요.
+                </p>
+              </StepBlock>
+            )}
+
             {STEPS[step] === 'nickname' && (
               <StepBlock title={STEP_TITLES.nickname}>
                 <input

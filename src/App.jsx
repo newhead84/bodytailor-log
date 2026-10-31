@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-30] 카카오톡 등 인앱 브라우저 → 기본 브라우저로 열기(public/inapp.js, 구글 로그인 차단 대응).
- *            직전: 다음 무게 추천 고도화, 스트레칭 가이드. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-31] Phase2 P2-1 헬스장 회원 승인(승인 대기 화면) + 관리자 대시보드(/admin, 명단 가져오기).
+ *            직전: 카카오톡 등 인앱 브라우저 대응, 다음 무게 추천 고도화. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -31,6 +31,9 @@ const TierInfoScreen = lazy(() => import('./components/TierInfoScreen'))
 const DesignPreviewScreen = lazy(() => import('./components/DesignPreviewScreen'))
 const InquiryScreen = lazy(() => import('./components/InquiryScreen'))
 const InquiryAdminScreen = lazy(() => import('./components/InquiryAdminScreen'))
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
+import MemberPendingScreen from './components/MemberPendingScreen'
+import { isApprovedMember, phoneHash, phoneLast4 } from './utils/member'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen } from './hooks/useBackableScreen'
 import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DEFAULT_ACCENT, DEFAULT_FONT, DESIGN_DEFAULTS_VERSION } from './utils/fonts'
@@ -82,6 +85,8 @@ export default function App() {
   // [2026-07-31 신규] MY탭 "문의하기"/"문의 관리" 카드 탭 시 전체화면 진입 여부(⑩)
   const [showInquiries, setShowInquiries] = useState(false)
   const [showInquiryAdmin, setShowInquiryAdmin] = useState(false)
+  // [2026-10-31 Phase2 P2-1] 관리자 대시보드(/admin 주소로 열거나 MY에서 진입). 관리자 계정에서만 렌더.
+  const [showAdmin, setShowAdmin] = useState(() => typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))
   // [2026-07-28] 홈탭/캘린더가 항상 마운트된 상태로 유지되어(위 주석 참고), 기록을 저장해도
   // 자체적으로는 다시 불러오지 않던 버그 수정. 기록 저장 시마다 이 값을 올려서 하위 컴포넌트의
   // 데이터 로딩 useEffect가 다시 실행되도록 만든다(재진입 없이 즉시 반영).
@@ -238,6 +243,15 @@ export default function App() {
       .catch((err) => console.error('디자인 기본값 적용 실패:', err))
   }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.designDefaultsVersion])
 
+  // [2026-10-31 Phase2 P2-1] 관리자가 아닌 계정이 /admin 으로 들어오면 주소를 / 로 되돌리고 일반 화면
+  useEffect(() => {
+    if (!showAdmin || !userDoc) return
+    if (userDoc.role !== '관리자') {
+      setShowAdmin(false)
+      if (window.location.pathname.startsWith('/admin')) window.history.replaceState(window.history.state, '', '/')
+    }
+  }, [showAdmin, userDoc])
+
   // [2026-10-29] 어시스트·맨몸+추가 종목의 실제 부하(체중 ∓ 입력 무게) 계산용 체중. 렌더 중에 바로 반영해
   // 같은 렌더의 계산(볼륨·추정 1RM)부터 쓰이게 한다.
   setBodyweightKg(userDoc?.onboarding?.weightKg || 0)
@@ -363,8 +377,10 @@ export default function App() {
 
   async function handleOnboardingComplete(onboardingData) {
     // [2026-10-29] 닉네임·주당 목표 일수는 users 최상위 필드, 나머지는 onboarding 객체(기존 구조 유지)
-    const { nickname, weeklyTargetDays, ...rest } = onboardingData
-    await saveOnboarding(authUser.uid, rest, { nickname, weeklyTargetDays })
+    // [2026-10-31] 헬스장 회원 확인 정보(이름·휴대폰)는 onboarding 객체에 넣지 않고 signupInfo로(번호는 해시·뒤 4자리만)
+    const { nickname, weeklyTargetDays, memberName, phone, ...rest } = onboardingData
+    const signupInfo = memberName && phone ? { name: String(memberName).trim().slice(0, 30), phoneHash: await phoneHash(phone), phoneLast4: phoneLast4(phone) } : undefined
+    await saveOnboarding(authUser.uid, rest, { nickname, weeklyTargetDays, signupInfo })
     await refreshUserDoc()
   }
 
@@ -392,6 +408,44 @@ export default function App() {
   // 온보딩 미완료
   if (!userDoc.onboardingCompleted) {
     return <Onboarding onComplete={handleOnboardingComplete} initialNickname={userDoc?.nickname || authUser?.displayName || ''} />
+  }
+
+  // [2026-10-31 Phase2 P2-1] 헬스장 승인 전(대기·거절·만료)에는 기록·루틴 화면 대신 안내 화면
+  if (!isApprovedMember(userDoc)) {
+    return (
+      <MemberPendingScreen
+        uid={authUser.uid}
+        userDoc={userDoc}
+        onRefresh={async () => {
+          const d = await getUserDoc(authUser.uid)
+          if (d) setUserDoc(d)
+          return !isApprovedMember(d)
+        }}
+      />
+    )
+  }
+
+  // [2026-10-31 Phase2 P2-1] 관리자 대시보드(/admin). 관리자가 아니면 주소를 / 로 되돌리고 일반 화면.
+  if (showAdmin && userDoc.role === '관리자') {
+    if (showInquiryAdmin) {
+      return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><InquiryAdminScreen onClose={closeInquiryAdmin} /></Suspense>
+    }
+    if (showOnboardingPreview) {
+      return <Onboarding previewMode onClose={closeOnboardingPreview} />
+    }
+    return (
+      <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}>
+        <AdminDashboard
+          uid={authUser.uid}
+          onClose={() => {
+            setShowAdmin(false)
+            if (window.location.pathname.startsWith('/admin')) window.history.replaceState(window.history.state, '', '/')
+          }}
+          onOpenInquiries={() => setShowInquiryAdmin(true)}
+          onOpenOnboardingPreview={() => setShowOnboardingPreview(true)}
+        />
+      </Suspense>
+    )
   }
 
   // 루틴 로딩 중
@@ -586,6 +640,10 @@ export default function App() {
           onShowDesignPreview={() => setShowDesignPreview(true)}
           onShowInquiries={() => setShowInquiries(true)}
           onShowInquiryAdmin={() => setShowInquiryAdmin(true)}
+          onShowAdmin={() => {
+            setShowAdmin(true)
+            window.history.replaceState(window.history.state, '', '/admin')
+          }}
           onShowOnboardingPreview={() => setShowOnboardingPreview(true)}
           googlePhotoURL={authUser?.photoURL}
           isActive={activeTab === 'my'}

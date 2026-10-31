@@ -24,7 +24,7 @@ const GENDERS = ['남성', '여성']
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
-export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, isActive = true }) {
+export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, isActive = true }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -925,13 +925,14 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           어플 관련 개선의견이나 버그를 남기고 답변을 확인할 수 있어요.
         </p>
       </Card>
+      {/* [2026-10-31 Phase2 P2-1] 문의 관리는 관리자 대시보드(/admin) 안으로 옮김 */}
       {userDoc?.role === '관리자' && (
-        <Card onClick={onShowInquiryAdmin} style={{ marginBottom: 20 }}>
+        <Card onClick={onShowAdmin} style={{ marginBottom: 20 }}>
           <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
-            문의 관리
+            관리자 대시보드
           </p>
           <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            사용자들이 남긴 문의를 확인하고 답변을 남길 수 있어요.
+            회원 승인·명단 가져오기·역할 지정·문의 관리를 해요. PC에서는 주소 끝에 /admin 을 붙여 바로 열 수 있어요.
           </p>
         </Card>
       )}

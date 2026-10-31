@@ -17,8 +17,20 @@ service cloud.firestore {
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
+    // [2026-10-31 Phase2 P2-1] 헬스장 회원 승인 필드(memberStatus 등)도 본인은 변경 불가 — 관리자만
     function lockedUserKeys() {
-      return ['role', 'roleRequestStatus', 'tier', 'lifetimeBadges', 'trainerProfile'];
+      return ['role', 'roleRequestStatus', 'tier', 'lifetimeBadges', 'trainerProfile',
+        'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt'];
+    }
+    // 관리자가 다른 회원 문서에서 바꿀 수 있는 필드
+    function adminUserKeys() {
+      return ['role', 'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt'];
+    }
+    // [2026-10-31 Phase2 P2-1] 승인된 회원만 기록·루틴·랭킹을 쓸 수 있다.
+    // memberStatus가 없는 기존 계정은 승인으로 간주, 관리자는 항상 허용.
+    function isApproved() {
+      let d = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return request.auth != null && (d.get('memberStatus', 'approved') == 'approved' || d.get('role', '') == '관리자');
     }
     // 세션 1회 XP 상한(storage.js computeSessionXp 최대 180) — 여유분 포함 200
     // [2026-10-29] 자동 저장 "되돌리기"로 XP를 빼야 해서 감소도 1회 200까지 허용(0 미만 불가).
@@ -38,35 +50,53 @@ service cloud.firestore {
     }
 
     // users/{uid} — 본인 문서만 읽기/쓰기(권한 필드·XP 증가폭 제한)
+    // [2026-10-31 Phase2 P2-1] 관리자는 전체 회원 읽기 + 승인·역할 필드만 수정. 새 계정은 승인 대기(pending)로만 생성.
     match /users/{uid} {
-      allow read: if isOwner(uid);
+      allow read: if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid) &&
         request.resource.data.get('role', '일반회원') == '일반회원' &&
         request.resource.data.get('roleRequestStatus', 'none') == 'none' &&
+        request.resource.data.get('memberStatus', '') == 'pending' &&
+        request.resource.data.get('tier', 'iron') == 'iron' &&
+        request.resource.data.get('lifetimeBadges', []).size() == 0 &&
+        request.resource.data.get('trainerProfile', null) == null &&
+        !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt']) &&
         request.resource.data.get('seasonXp', 0) == 0 &&
         request.resource.data.get('lifetimeXp', 0) == 0;
-      allow update: if isOwner(uid) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(lockedUserKeys()) &&
-        seasonXpOk() && xpDeltaOk('lifetimeXp');
+      allow update: if (isOwner(uid) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(lockedUserKeys()) &&
+          seasonXpOk() && xpDeltaOk('lifetimeXp')) ||
+        (isAdmin() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(adminUserKeys()) &&
+          request.resource.data.get('role', '일반회원') in ['일반회원', 'PT회원', '트레이너', '관리자'] &&
+          request.resource.data.get('memberStatus', 'approved') in ['pending', 'approved', 'rejected', 'expired'] &&
+          (uid != request.auth.uid || request.resource.data.get('role', '') == '관리자'));
       allow delete: if false;
+    }
+
+    // [2026-10-31 Phase2 P2-1] gymRoster/{rosterId} — 헬스장 출입관리 명단 이관본(이름·전화 해시·뒤 4자리·회원번호·만료일). 관리자만.
+    match /gymRoster/{rosterId} {
+      allow read, write: if isAdmin();
     }
 
     // routineTemplates/{uid}/templates/{templateId} — 본인 소유 서브컬렉션
     match /routineTemplates/{uid}/templates/{templateId} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid && isApproved();
     }
 
     // [2026-10-27 신규] activeSessions/{uid} — 진행 중 운동 세션 서버 백업(본인만, 크기 제한)
     match /activeSessions/{uid} {
       allow read, delete: if isOwner(uid);
-      allow create, update: if isOwner(uid) &&
+      allow create, update: if isOwner(uid) && isApproved() &&
         request.resource.data.keys().hasOnly(['draft', 'updatedAt']) &&
         request.resource.data.draft is string && request.resource.data.draft.size() < 200000;
     }
 
     // workoutLogs/{uid}/logs/{logId} — 본인 소유 서브컬렉션
     match /workoutLogs/{uid}/logs/{logId} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid && isApproved();
     }
 
     // leaderboard/{group}/{period}/{uid}
@@ -81,7 +111,7 @@ service cloud.firestore {
     }
     match /leaderboard/{group}/{period}/{uid} {
       allow read: if request.auth != null;
-      allow write: if isOwner(uid) &&
+      allow write: if isOwner(uid) && isApproved() &&
         request.resource.data.keys().hasOnly(['nickname', 'baseScore', 'attendanceScore', 'volumeScore',
           'overloadScore', 'streakBonus', 'programComplianceBonus', 'finalScore', 'updatedAt']) &&
         (!('nickname' in request.resource.data) ||
@@ -99,9 +129,9 @@ service cloud.firestore {
     // [2026-10-27 W0] counts 맵 외 필드 쓰기 금지 + 한 번에 바뀌는 종목 수 제한, 삭제 금지.
     match /exercisePopularity/{atom} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.keys().hasOnly(['counts']) &&
+      allow create: if request.auth != null && isApproved() && request.resource.data.keys().hasOnly(['counts']) &&
         request.resource.data.counts is map && request.resource.data.counts.size() <= 30;
-      allow update: if request.auth != null &&
+      allow update: if request.auth != null && isApproved() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['counts']) &&
         request.resource.data.counts.diff(resource.data.get('counts', {})).affectedKeys().size() <= 30 &&
         request.resource.data.counts.diff(resource.data.get('counts', {})).removedKeys().size() == 0;
@@ -120,7 +150,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Phase2 이후 컬렉션(gymRoster, roleRequests, connections, programs,
+    // Phase2 이후 컬렉션(roleRequests, connections, programs,
     // feedback, messages, diet)은 아직 화면/로직이 없으므로 기본 거부.
     match /{document=**} {
       allow read, write: if false;

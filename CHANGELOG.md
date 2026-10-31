@@ -2,6 +2,14 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] Phase2 P2-1 헬스장 회원 승인 + 관리자 대시보드(/admin)(사용자 요청) | utils/member.js(신규), MemberPendingScreen.jsx(신규), AdminDashboard.jsx(신규), Onboarding.jsx, App.jsx, MyPageTab.jsx, storage.js, firestore.rules, vercel.json(신규), CLAUDE.md
+- 온보딩 첫 단계 '바디테일러 회원 정보'(이름·휴대폰 필수, 번호는 SHA-256 해시·뒤 4자리만 users.signupInfo).
+- 새 계정은 memberStatus 'pending' → 승인 전에는 승인 대기 화면(대기·거절·만료 안내, 승인 확인, 정보 고치기). 기존 계정(필드 없음)은 승인으로 간주.
+- /admin: 승인 대기(명단 일치 배지·일괄 승인)·회원(검색·상태·역할)·명단 가져오기(출입관리 CSV, UTF-8/EUC-KR, 열 매핑·미리보기)·문의·도구. MY "문의 관리" 카드는 "관리자 대시보드"로.
+- rules: 미승인 계정 기록·루틴·랭킹·진행 세션 쓰기 거부, 관리자 전체 users 읽기·승인/역할 필드 수정(본인 관리자 해제 불가), gymRoster 관리자 전용, 새 문서 tier·배지 기본값 강제.
+- vercel.json: SPA 리라이트(/admin 등 직접 접속·새로고침 404 해결, /api 제외).
+- 리뷰 반영: '전화번호' 열이 회원번호로 잡히던 자동 추정 수정·같은 열 선택 차단, 번호만 일치 시 명단 연결 확인, 관리자 작업 실패 안내.
+
 [2026-10-31] 버그 수정: 홍보 페이지를 /intro(끝 슬래시 없음)로 열면 배경 사진·앱 화면 이미지가 안 나오던 문제 — 상대 경로(img/…)가 /img/…로 풀려 앱 화면(index.html)이 응답됨 → 절대 경로(/intro/img/…) | public/intro/index.html, CLAUDE.md
 
 [2026-10-31] 홍보 페이지 문구 정리(사용자 요청) | public/intro/index.html, CLAUDE.md
