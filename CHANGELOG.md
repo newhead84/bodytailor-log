@@ -2,6 +2,13 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 전체 QA·별도 리뷰 반영 | firestore.rules, storage.js, ReportSections.jsx, HowToTab.jsx, ui.jsx, App.jsx, public/intro/index.html
+- rules: adminLogs 모든 기록 at == 서버 시각, 트레이너 pt 기록은 작성자 이름·회원 이름이 실제와 같아야 함, 탈퇴 기록은 작성자 uid도 비움(누가 탈퇴했는지 남지 않게) + 가입된 회원만, leaderboard 닉네임은 가린 형태(첫 글자 + *)만 저장 가능.
+- 이번 주 요약: 지난주를 같은 요일까지만 비교(월·화요일에 늘 ▼로 보이던 문제), 볼륨 증감 단위, 설명 문구 정정.
+- HOWTO 비교표: 다른 운동으로 넘어가면 비교 대상이 자기 자신이 되던 문제(key), 상세 헤더: 운동 중(타이머 바) 위쪽 안전영역이 두 번 들어가던 문제.
+- 홍보 페이지: 히어로 아래쪽 안내 글이 그라데이션에 흐려지던 문제.
+- QA: 목업 앱 전체 흐름·관리자 11개 화면(412/1440)·리포트·HOWTO·MY·설정·홍보·처리방침(320~1280) 콘솔 오류·가로 넘침 없음.
+
 [2026-10-31] REPORT 개편·랭킹 이름 가리기·상세 화면 헤더·줄바꿈 점검 | ReportTab.jsx, ReportSections.jsx(신규), ui.jsx(ScreenHeader), TierInfoScreen·InquiryScreen·InquiryAdminScreen·RoutineManager·RoutineSetup·TraineesScreen·TrainerDirectory·MyPageTab(설정)·HowToTab(상세·비교표), styles/tokens.css, ConsentScreen.jsx, public/privacy·intro
 - REPORT 순서: 이번 주 요약(운동한 날·본세트·볼륨·늘어난 운동, 지난주 대비) → 근육별 주간 세트 → 근력 추이(종목별 추정 1RM 8주, 상승·정체·하락, 누르면 그래프) → 정체·회복 → 부위별 주간 세트 8주 표 → 유산소·균형·골밀도 → 최근 개인 기록 → 많이 한 운동(8주 본세트) → 랭킹 → 다른 회원들이 즐겨하는 운동. 누적 레이더(코어 '체중볼륨' 글자 잘림)·회차별 향상/유지 목록·출석률 카드 제거.
 - 랭킹: 상위 10명 + 내 순위, 다른 회원 닉네임은 첫 글자 + *(maskName), 랭킹 데이터 저장도 가린 닉네임으로. 동의·처리방침·홍보 문구 수정. '유저' → '회원'.

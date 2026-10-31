@@ -235,7 +235,8 @@ export function ScreenHeader({ title, onBack, backLabel = '뒤로', right = null
         top: 0,
         zIndex: 20,
         margin: `0 -${bleed}px 14px`,
-        padding: 'calc(var(--safe-top, 0px) + 4px) 6px 4px',
+        // 탭 안(운동 중 타이머 바 아래)에서는 App이 --screen-safe-top을 0으로 줘서 위쪽 안전영역이 두 번 들어가지 않게
+        padding: 'calc(var(--screen-safe-top, var(--safe-top, 0px)) + 4px) 6px 4px',
         minHeight: 52,
         display: 'grid',
         gridTemplateColumns: 'minmax(44px, auto) 1fr minmax(44px, auto)',

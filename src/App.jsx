@@ -574,6 +574,7 @@ export default function App() {
     return {
       position: 'absolute',
       top: barShowing ? `calc(var(--safe-top) + ${barPx}px)` : 0,
+      '--screen-safe-top': barShowing ? '0px' : 'var(--safe-top, 0px)',
       left: 0,
       right: 0,
       bottom: 0,

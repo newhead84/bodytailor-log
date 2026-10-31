@@ -948,7 +948,7 @@ export async function deleteMyAccountData(uid, onProgress) {
   // 진행 세션 백업은 사용자 문서 바로 앞에서 지운다(그 사이 백업 타이머가 다시 만드는 것 방지 - 사용자 문서가 없으면 규칙이 거부)
   await deleteDoc(doc(db, 'activeSessions', uid))
   // 관리 이력에는 이름 없이 '회원 1명 탈퇴'만 남긴다(개인정보 삭제가 목적)
-  await addDoc(collection(db, 'adminLogs'), { at: serverTimestamp(), byUid: uid, byName: '', action: 'withdraw', targetUid: '', targetName: '', detail: '회원 1명 탈퇴' }).catch(() => {})
+  await addDoc(collection(db, 'adminLogs'), { at: serverTimestamp(), byUid: '', byName: '', action: 'withdraw', targetUid: '', targetName: '', detail: '회원 1명 탈퇴' }).catch(() => {})
   const mark = doc(db, 'deletedAccounts', uid)
   if (!(await getDoc(mark)).exists()) await setDoc(mark, { deletedAt: serverTimestamp() }) // 다시 시도할 때는 이미 있음(수정 불가 규칙)
   await deleteDoc(doc(db, 'users', uid))

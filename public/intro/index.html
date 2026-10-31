@@ -416,9 +416,10 @@ addEventListener('scroll', onScroll, { passive: true }); onScroll()
 const TONE_BG = { dark: '#141210', beige: '#f4ece1' }
 toned.forEach((el, i) => {
   const prev = toned[i - 1], next = toned[i + 1]
-  const photo = el.querySelector(':scope > .bg')
+  // 히어로는 아래쪽에 글자(회원 전용 안내)가 있어 흐리게 하지 않는다 → 다음 섹션 위쪽 그라데이션이 맡는다
+  const photo = el.querySelector(':scope > .bg') && !el.classList.contains('hero')
   // 경계 하나에 그라데이션 하나만: 앞이 사진 섹션이면 그 사진의 아래쪽 흐림이 맡는다
-  const prevPhoto = prev && prev.querySelector(':scope > .bg')
+  const prevPhoto = prev && prev.querySelector(':scope > .bg') && !prev.classList.contains('hero')
   if (prev && !prevPhoto && prev.dataset.tone !== el.dataset.tone) {
     const f = document.createElement('div'); f.className = 'fade t'; f.style.setProperty('--from', TONE_BG[prev.dataset.tone]); f.setAttribute('aria-hidden', 'true'); el.prepend(f)
   }

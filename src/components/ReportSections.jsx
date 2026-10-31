@@ -13,6 +13,7 @@ import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/ex
 import { workingSetsOf, bestE1rmOfSets, fractionalSetsByAtom, getWeeklySetGuide, LEG_FRONT, LEG_BACK } from '../utils/strength'
 import { logVolumeKg } from '../utils/load'
 import { startOfWeekStr } from './InsightCards'
+import { toLocalDateStr } from '../utils/date'
 
 const muted = { fontSize: 13, color: 'var(--color-label-neutral)' }
 
@@ -28,6 +29,13 @@ const inWeek = (logs, off) => {
   const a = startOfWeekStr(new Date(), off)
   const b = startOfWeekStr(new Date(), off + 1)
   return (logs || []).filter((l) => l.date >= a && l.date < b)
+}
+// 지난주를 오늘과 같은 요일까지만(월·화요일에 지난주 7일 전체와 비교해 늘 ▼로 보이던 문제)
+const lastWeekSoFar = (logs) => {
+  const d = new Date()
+  d.setDate(d.getDate() - 7)
+  const cut = toLocalDateStr(d)
+  return inWeek(logs, -1).filter((l) => l.date <= cut)
 }
 const workingSetCount = (logs) =>
   logs.reduce((s, l) => s + (l.exercises || []).reduce((t, ex) => t + ((ex.inputType || getExerciseInputType(ex.name)) === 'cardio' ? 0 : workingSetsOf(ex).length), 0), 0)
@@ -45,13 +53,13 @@ function Delta({ now, prev, unit = '', pct = false }) {
 // ───────── 이번 주 요약 ─────────
 export function WeekSummaryCard({ logs, targetDays, overload }) {
   const thisW = inWeek(logs, 0)
-  const lastW = inWeek(logs, -1)
+  const lastW = lastWeekSoFar(logs)
   const days = (arr) => new Set(arr.map((l) => l.date)).size
   const vol = (arr) => Math.round(arr.reduce((s, l) => s + logVolumeKg(l), 0))
   const tiles = [
     { label: '운동한 날', v: days(thisW), suffix: `/${targetDays}일`, delta: <Delta now={days(thisW)} prev={days(lastW)} unit="일" /> },
     { label: '본세트', v: workingSetCount(thisW), suffix: '세트', delta: <Delta now={workingSetCount(thisW)} prev={workingSetCount(lastW)} /> },
-    { label: '총 볼륨', v: vol(thisW), suffix: 'kg', delta: <Delta now={vol(thisW)} prev={vol(lastW)} pct /> },
+    { label: '총 볼륨', v: vol(thisW), suffix: 'kg', delta: <Delta now={vol(thisW)} prev={vol(lastW)} unit="kg" pct /> },
     overload ? { label: '지난번보다 늘어난 운동', v: overload.score, suffix: '%', delta: <span style={muted}>{overload.count}개 중</span> } : null,
   ].filter(Boolean)
   return (
@@ -66,12 +74,12 @@ export function WeekSummaryCard({ logs, targetDays, overload }) {
                 <span className="bt-num" style={{ fontSize: 'calc(26px * var(--num-scale, 1))', lineHeight: 1.1 }}><CountUp value={t.v} /></span>
                 <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>{t.suffix}</span>
               </div>
-              <div style={{ marginTop: 2 }}>{t.delta} <span style={{ ...muted, fontSize: 12 }}>{t.label === '지난번보다 늘어난 운동' ? '' : '지난주 대비'}</span></div>
+              <div style={{ marginTop: 2 }}>{t.delta} <span style={{ ...muted, fontSize: 12 }}>{t.label === '지난번보다 늘어난 운동' ? '' : '지난주 같은 요일까지 대비'}</span></div>
             </div>
           ))}
         </div>
         <Disclosure style={{ marginTop: 10 }}>
-          이번 주는 월요일부터 오늘까지예요. 운동한 날은 하루에 여러 번 해도 1일로 세고, 목표는 MY에서 정한 주당 운동 일수예요. 본세트·볼륨은 웜업 세트를 빼고 계산해요. 늘어난 운동은 이번 주에 한 운동 중 같은 운동의 직전 기록보다 무게·횟수(또는 시간)가 늘어난 비율이에요(랭킹 과부하 점수와 같은 기준).
+          이번 주는 월요일부터 오늘까지예요. 운동한 날은 하루에 여러 번 해도 1일로 세고, 목표는 MY에서 정한 주당 운동 일수예요. 본세트·볼륨은 웜업 세트를 빼고 계산해요. 지난주와는 같은 요일까지 비교해요. 늘어난 운동은 이번 주에 한 운동 중 같은 운동의 직전 기록보다 무게·횟수(또는 시간)가 늘어난 비율이에요(직전 기록이 없는 첫 운동은 빼고 계산).
         </Disclosure>
       </Card>
     </>

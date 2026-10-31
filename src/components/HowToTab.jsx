@@ -296,7 +296,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
           <p className="text-keep-all" style={{ margin: '0 0 4px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
             {comparisonGroup.intro}
           </p>
-          <ComparisonTable group={comparisonGroup} currentName={name} />
+          <ComparisonTable key={name} group={comparisonGroup} currentName={name} />
         </Card>
       )}
 
