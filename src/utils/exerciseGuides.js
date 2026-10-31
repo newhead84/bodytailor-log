@@ -5,7 +5,28 @@
 //
 // guide: { level, setup?: string[], start: string[], move: string[], breath, keyPoints: [{ cue, feel }], mistakes: [{ what, why, fix }], cautions?: string[], alternatives?: string[] }
 
-import { MORE_GUIDES } from './exerciseGuidesMore'
+// [2026-10-31] 나머지 106종목(exerciseGuidesMore.js, 약 160KB)은 메인 번들에서 빼고 처음 필요할 때 불러온다.
+// 불러오기 전에는 getExerciseGuide가 null을 돌려주고, useGuideOverrides()를 쓰는 화면은 불러온 뒤 다시 그려진다.
+let MORE_GUIDES = null
+let moreLoading = null
+export function loadMoreGuides() {
+  if (MORE_GUIDES) return Promise.resolve(MORE_GUIDES)
+  if (!moreLoading) {
+    moreLoading = import('./exerciseGuidesMore')
+      .then((m) => {
+        MORE_GUIDES = m.MORE_GUIDES || {}
+        return MORE_GUIDES
+      })
+      .catch((err) => {
+        moreLoading = null
+        throw err
+      })
+  }
+  return moreLoading
+}
+export function isMoreGuidesLoaded() {
+  return !!MORE_GUIDES
+}
 
 export const EXERCISE_GUIDES = {
   // ───── 가슴 ─────
@@ -521,7 +542,10 @@ export const EXERCISE_GUIDES = {
 }
 
 export function getExerciseGuide(name) {
-  return EXERCISE_GUIDES[name] || MORE_GUIDES[name] || null
+  if (EXERCISE_GUIDES[name]) return EXERCISE_GUIDES[name]
+  if (MORE_GUIDES) return MORE_GUIDES[name] || null
+  loadMoreGuides().catch(() => {})
+  return null
 }
 
 // 기구 태그(이름 기준 자동 분류 — 모든 종목에 표시)

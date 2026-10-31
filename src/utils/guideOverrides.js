@@ -2,7 +2,7 @@
 // 기본 가이드(utils/exerciseGuides.js) 위에 고친 항목만 덮어쓴다. gymNote(우리 헬스장 메모)는 고친 문서에만 있다.
 import { useEffect, useState } from 'react'
 import { listGuideOverrides } from '../storage'
-import { getExerciseGuide } from './exerciseGuides'
+import { getExerciseGuide, loadMoreGuides } from './exerciseGuides'
 
 let cache = null
 let loading = null
@@ -31,9 +31,17 @@ export function loadGuideOverrides(force = false) {
 export function useGuideOverrides() {
   const [map, setMap] = useState(cache || {})
   useEffect(() => {
+    let alive = true
     subs.add(setMap)
-    loadGuideOverrides().then(setMap)
-    return () => subs.delete(setMap)
+    loadGuideOverrides().then((m) => alive && setMap(m))
+    // [2026-10-31] 나머지 종목 기본 가이드를 지연 로드 — 다 불러오면 새 객체로 바꿔 화면을 다시 그린다
+    loadMoreGuides()
+      .then(() => alive && setMap((m) => ({ ...m })))
+      .catch(() => {})
+    return () => {
+      alive = false
+      subs.delete(setMap)
+    }
   }, [])
   return map
 }

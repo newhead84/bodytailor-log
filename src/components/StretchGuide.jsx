@@ -4,19 +4,22 @@
 //  - StretchSuggest: 운동 화면(웜업 중 동적 3개) · 완료 요약(쿨다운 정적 3개)용 작은 카드
 // 데이터는 utils/stretches.js(저장하지 않음). 영상은 YouTube 검색 링크로만 연결(이미지·영상 미탑재).
 import React, { useMemo, useState } from 'react'
-import { ChevronDown, AlertCircle, PlayCircle } from 'lucide-react'
+import { ChevronDown, AlertCircle, PlayCircle, Search, X } from 'lucide-react'
 import { Card, Chip, Disclosure } from './ui'
-import { STRETCH_AREAS, STRETCH_SITUATIONS, STRETCH_TYPE_LABEL, getStretches, recommendStretches, getStretchVideoUrl } from '../utils/stretches'
+import { HEALTH_DISCLAIMER } from '../utils/legal'
+import { STRETCH_AREAS, STRETCH_SITUATIONS, STRETCH_TYPE_LABEL, getStretches, searchStretches, recommendStretches, getStretchVideoUrl } from '../utils/stretches'
 
 export function StretchCard({ s, defaultOpen = false, compact = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div style={{ borderTop: '1px solid var(--color-line)' }}>
+      {/* [2026-10-31] 영상 버튼을 카드 바깥(펼치지 않아도 보이게)으로 */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%', textAlign: 'left', padding: compact ? '10px 0' : '12px 0' }}
+        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1, minWidth: 0, textAlign: 'left', padding: compact ? '10px 0' : '12px 0' }}
       >
         <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
           <span className="text-keep-all" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 14.5, fontWeight: 800, color: 'var(--color-label-strong)' }}>
@@ -34,6 +37,17 @@ export function StretchCard({ s, defaultOpen = false, compact = false }) {
         </span>
         <ChevronDown size={18} strokeWidth={1.8} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2, color: 'var(--color-label-neutral)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
       </button>
+      <a
+        href={getStretchVideoUrl(s)}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`${s.name} 영상 찾기(YouTube)`}
+        style={{ flexShrink: 0, display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, minWidth: 44, minHeight: 44, marginTop: compact ? 4 : 6, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', fontSize: 10.5, fontWeight: 700, color: 'var(--color-label-normal)', textDecoration: 'none' }}
+      >
+        <PlayCircle size={16} strokeWidth={2} aria-hidden="true" />
+        영상
+      </a>
+      </div>
       {open && (
         <div className="bt-enter" style={{ padding: '0 0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -47,15 +61,6 @@ export function StretchCard({ s, defaultOpen = false, compact = false }) {
             <AlertCircle size={14} strokeWidth={2} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
             {s.caution}
           </span>
-          <a
-            href={getStretchVideoUrl(s.name)}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 32, fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-normal)', textDecoration: 'none' }}
-          >
-            <PlayCircle size={15} strokeWidth={2} aria-hidden="true" />
-            영상으로 보기(YouTube 검색)
-          </a>
         </div>
       )}
     </div>
@@ -65,10 +70,29 @@ export function StretchCard({ s, defaultOpen = false, compact = false }) {
 export function StretchGuide() {
   const [area, setArea] = useState(null)
   const [situation, setSituation] = useState(null)
-  const list = useMemo(() => getStretches({ area, situation }), [area, situation])
+  const [query, setQuery] = useState('') // [2026-10-31] 검색(이름·통용 명칭·부위) — 입력하면 부위·상황 선택 대신 검색 결과
+  const searching = query.trim().length > 0
+  const list = useMemo(() => (searching ? searchStretches(query) : getStretches({ area, situation })), [searching, query, area, situation])
   const areaInfo = STRETCH_AREAS.find((a) => a.id === area)
   return (
     <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 14 }}>
+        <Search size={16} strokeWidth={1.8} color="var(--color-label-neutral)" aria-hidden="true" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="스트레칭 이름·부위로 검색 (예: 광배, 거북목)"
+          aria-label="스트레칭 검색"
+          style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, color: 'var(--color-label-normal)' }}
+        />
+        {query && (
+          <button type="button" onClick={() => setQuery('')} aria-label="검색어 지우기">
+            <X size={16} strokeWidth={2} color="var(--color-label-neutral)" />
+          </button>
+        )}
+      </div>
+      {!searching && (
+      <>
       <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>
         어디가 뻐근하거나 불편하세요?
       </p>
@@ -111,13 +135,17 @@ export function StretchGuide() {
           </Chip>
         ))}
       </div>
+      </>
+      )}
       <Card style={{ padding: '4px 16px 4px' }}>
         <div style={{ padding: '10px 0 8px', fontSize: 12.5, color: 'var(--color-label-neutral)' }} className="text-keep-all">
-          {areaInfo ? `${areaInfo.label}` : '모든 부위'} · {situation ? STRETCH_SITUATIONS.find((x) => x.id === situation)?.label : '모든 상황'} · {list.length}개 — 눌러서 방법 보기
+          {searching
+            ? `"${query.trim()}" 검색 결과 ${list.length}개 — 눌러서 방법 보기`
+            : `${areaInfo ? `${areaInfo.label}` : '모든 부위'} · ${situation ? STRETCH_SITUATIONS.find((x) => x.id === situation)?.label : '모든 상황'} · ${list.length}개 — 눌러서 방법 보기`}
         </div>
         {list.length === 0 ? (
           <div className="text-keep-all" style={{ padding: '12px 0 14px', borderTop: '1px solid var(--color-line)', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-            이 조합에 맞는 스트레칭이 없어요. 상황을 "전체"로 바꿔 보세요.
+            {searching ? '찾는 스트레칭이 없어요. 부위 이름(예: 허리, 어깨)으로 찾아보세요.' : '이 조합에 맞는 스트레칭이 없어요. 상황을 "전체"로 바꿔 보세요.'}
           </div>
         ) : (
           list.map((s) => <StretchCard key={s.id} s={s} />)
@@ -128,6 +156,7 @@ export function StretchGuide() {
         후나 뻐근할 때는 정적 스트레칭을 30초씩 2–3번, 반동 없이 "당기는 느낌"까지만 해요. 폼롤러는 부위당 30–60초, 뼈와 관절 위는 피해요. 찌릿하거나 저린
         통증이 있으면 멈추고, 계속되면 전문가에게 진료를 받아 보세요.
       </Disclosure>
+      <p className="text-keep-all" style={{ margin: '12px 0 0', fontSize: 11.5, lineHeight: 1.55, color: 'var(--color-label-neutral)' }}>{HEALTH_DISCLAIMER}</p>
     </div>
   )
 }

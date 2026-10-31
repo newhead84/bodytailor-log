@@ -31,6 +31,7 @@ const LogTab = forwardRef(function LogTab(
     seasonXp,
     rirEnabled,
     workoutGuideSeen,
+    membershipEnd,
   },
   ref
 ) {
@@ -59,6 +60,7 @@ const LogTab = forwardRef(function LogTab(
       seasonXp={seasonXp}
       rirEnabled={rirEnabled}
       workoutGuideSeen={workoutGuideSeen}
+      membershipEnd={membershipEnd}
     />
   )
 })

@@ -307,7 +307,7 @@ export function ConfirmProvider({ children }) {
           >
             <p
               className="text-keep-all"
-              style={{ margin: '0 0 18px', fontSize: 'var(--fs-body1)', lineHeight: 'var(--lh-body1)', color: 'var(--color-label-strong)' }}
+              style={{ margin: '0 0 18px', fontSize: 'var(--fs-body1)', lineHeight: 'var(--lh-body1)', color: 'var(--color-label-strong)', whiteSpace: 'pre-line' }}
             >
               {state.message}
             </p>

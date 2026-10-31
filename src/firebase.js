@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore } from 'firebase/firestore'
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, reauthenticateWithPopup, deleteUser } from 'firebase/auth'
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore, terminate, clearIndexedDbPersistence } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -35,6 +35,26 @@ export function loginWithGoogle() {
 
 export function logout() {
   return signOut(auth)
+}
+
+// [2026-10-31] 계정 삭제(탈퇴) — 구글 로그인을 한 번 더 확인(최근 로그인 필요 규칙)한 뒤 데이터를 지우고 마지막에 계정을 지운다.
+export function reauthWithGoogle() {
+  if (!auth.currentUser) return Promise.reject(new Error('로그인 상태가 아니에요.'))
+  return reauthenticateWithPopup(auth.currentUser, googleProvider)
+}
+export function deleteCurrentAuthUser() {
+  if (!auth.currentUser) return Promise.resolve()
+  return deleteUser(auth.currentUser)
+}
+// 탈퇴 후 이 기기의 오프라인 캐시(IndexedDB)까지 지우고 첫 화면으로
+export async function clearLocalDataAndReload() {
+  try {
+    await terminate(db)
+    await clearIndexedDbPersistence(db)
+  } catch (err) {
+    console.error('기기 캐시 정리 실패:', err)
+  }
+  window.location.replace('/')
 }
 
 export function watchAuthState(callback) {

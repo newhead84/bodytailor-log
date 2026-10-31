@@ -39,6 +39,7 @@ import {
 } from '../utils/exerciseLibrary'
 import { estimateCaloriesV2 } from '../utils/calories'
 import { getSuggestedNext } from '../utils/routineSuggestion'
+import { membershipEndAt } from '../utils/member'
 import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate, updateUserProfile, updateExerciseSetting, saveActiveSession, getActiveSession, clearActiveSession } from '../storage'
 import {
   buildExercisesFromRecords,
@@ -80,6 +81,20 @@ function draftKey(uid) {
 // [2026-10-27] draft 키는 날짜별(bodytailor-draft-{uid}-{YYYY-MM-DD})이라, "오늘 운동 완료"를 누르지
 // 않고 날이 바뀌면 전날 기록을 찾지 못해 통째로 누락됐다(실사용 다발 피드백). 날짜와 상관없이
 // 이 계정의 draft 키를 모두 훑어, 진행 중 세션이 있으면 가장 최근 것을 고른다. 나머지 키는 정리한다.
+// [2026-10-31] 진행 세션 서버 백업을 곧바로 써야 하는 '중요 변화' 서명 — 세션·단계·일시정지·완료 종목·저장한 세트
+function remoteMilestoneSig(d) {
+  let saved = 0
+  let lastSaved = 0
+  Object.values(d?.records || {}).forEach((sets) => {
+    ;(sets || []).forEach((st) => {
+      if (st?.saved) saved += 1
+      if (st?.savedAt && st.savedAt > lastSaved) lastSaved = st.savedAt
+    })
+  })
+  const done = Array.isArray(d?.completedExercises) ? d.completedExercises.length : Object.keys(d?.completedExercises || {}).length
+  return [d?.sessionId || d?.sessionStartAt, d?.sessionPhase, d?.pauseStartedAt ? 1 : 0, done, saved, lastSaved].join('|')
+}
+
 function draftKeyPrefix(uid) {
   return `bodytailor-draft-${uid}-`
 }
@@ -212,6 +227,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     seasonXp = 0, // [2026-10-29] 완료 요약 카드의 Lv 진행(저장 전 시즌 XP)
     rirEnabled = true, // [2026-10-29] MY에서 RIR 기록 끄기
     workoutGuideSeen = false, // [2026-10-29] 기록 화면 사용법 가이드를 본 계정
+    membershipEnd = '', // [2026-10-31] 회원권 종료일(트레이너·관리자는 빈 값) — 만료 뒤 저장 실패 안내용
   },
   ref
 ) {
@@ -453,6 +469,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const latestDraftRef = useRef(null) // 가시성 복귀 시 방치 여부 판단용 최신 draft
   const remoteSyncTimerRef = useRef(null)
   const remoteHasSessionRef = useRef(false)
+  const remoteSigRef = useRef('') // [2026-10-31] 마지막으로 서버에 쓴 세션의 '중요 변화' 서명
 
   function applyDraft(draft) {
     setRecords(draft.records || {})
@@ -542,6 +559,30 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     onSaved?.()
     return notice
   }
+
+  // [2026-10-31] 앱이 백그라운드로 가면 30초 대기 중인 서버 백업을 바로 쓴다(기록 유실 방지).
+  useEffect(() => {
+    if (!uid) return
+    function flushRemote() {
+      if (!remoteSyncTimerRef.current) return
+      clearTimeout(remoteSyncTimerRef.current)
+      remoteSyncTimerRef.current = null
+      const d = latestDraftRef.current
+      if (!draftLoadedRef.current || !isSessionActive(d)) return
+      remoteSigRef.current = remoteMilestoneSig(d)
+      saveActiveSession(uid, d)
+      remoteHasSessionRef.current = true
+    }
+    function onHidden() {
+      if (document.visibilityState === 'hidden') flushRemote()
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    window.addEventListener('pagehide', flushRemote)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+      window.removeEventListener('pagehide', flushRemote)
+    }
+  }, [uid])
 
   // 앱이 켜진 채 방치됐다가(화면 꺼짐·백그라운드) 돌아온 경우에도 같은 규칙으로 자동 저장한다.
   useEffect(() => {
@@ -667,11 +708,19 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       // 저장 공간 부족 등은 무시(서버 백업이 남음)
     }
     if (remoteSyncTimerRef.current) clearTimeout(remoteSyncTimerRef.current)
+    remoteSyncTimerRef.current = null
     if (isSessionActive(draft)) {
+      // [2026-10-31] Spark 쓰기 절약: 무게·횟수를 고칠 때마다(2.5초) 서버에 쓰던 것을, 세트 저장·단계 변경·
+      // 일시정지처럼 중요한 변화일 때만 곧바로(2.5초) 쓰고, 나머지 입력은 30초에 한 번만 쓴다.
+      // 앱이 백그라운드로 가면(화면 끄기·앱 전환) 남은 백업을 바로 쓴다(아래 visibilitychange).
+      const sig = remoteMilestoneSig(draft)
+      const urgent = sig !== remoteSigRef.current
       remoteSyncTimerRef.current = setTimeout(() => {
+        remoteSyncTimerRef.current = null
+        remoteSigRef.current = sig
         saveActiveSession(uid, draft)
         remoteHasSessionRef.current = true
-      }, 2500)
+      }, urgent ? 2500 : 30000)
     } else if (remoteHasSessionRef.current) {
       remoteHasSessionRef.current = false
       clearActiveSession(uid)
@@ -1466,7 +1515,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       // 저장 실패 시 무한 "저장 중"에 갇히지 않게 한다. draft(로컬+서버 백업)는 그대로 남아 있다.
       console.error('운동 기록 저장 실패:', err)
       setSaving(false)
-      await confirm('기록 저장에 실패했어요. 입력한 내용은 그대로 남아 있으니 잠시 후 다시 시도해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+      // [2026-10-31] 회원권 종료일 자정을 넘긴 세션은 규칙(isApproved)이 저장을 막는다 — 이유를 알려 준다.
+      const endAt = membershipEndAt(membershipEnd)
+      const expired = err?.code === 'permission-denied' && endAt && Date.now() > endAt.getTime()
+      await confirm(
+        expired
+          ? `회원권이 ${membershipEnd.replace(/-/g, '.')}에 끝나 이 운동을 저장할 수 없어요.\n입력한 내용은 이 기기에 남아 있어요. 헬스장에서 회원권을 연장하면 다시 저장할 수 있어요.`
+          : '기록 저장에 실패했어요. 입력한 내용은 그대로 남아 있으니 잠시 후 다시 시도해 주세요.',
+        { okLabel: '확인', cancelLabel: '닫기' }
+      )
       return
     }
 

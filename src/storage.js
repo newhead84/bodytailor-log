@@ -60,7 +60,20 @@ async function incrementExercisePopularity(exercises) {
 
 // 리포트 탭에서 부위별 "다른 유저 즐겨찾는 운동"을 보여주기 위한 조회.
 // BODY_PART_ATOMS 전체를 순회해 문서가 있는 것만 { atom, counts } 형태로 반환한다.
-export async function getExercisePopularityByAtom(atoms) {
+const SHARED_READ_CACHE_MS = 10 * 60 * 1000 // 랭킹·인기 운동처럼 다른 사람 데이터 묶음 캐시 시간
+// [2026-10-31] Spark 읽기 절약: 리포트 탭을 열 때마다 8문서를 다시 읽던 것을 10분 세션 캐시로.
+let popularityCache = null // { key, at, promise }
+export function getExercisePopularityByAtom(atoms) {
+  const key = atoms.join('|')
+  if (popularityCache && popularityCache.key === key && Date.now() - popularityCache.at < SHARED_READ_CACHE_MS) return popularityCache.promise
+  const promise = fetchExercisePopularityByAtom(atoms).catch((err) => {
+    popularityCache = null
+    throw err
+  })
+  popularityCache = { key, at: Date.now(), promise }
+  return promise
+}
+async function fetchExercisePopularityByAtom(atoms) {
   const results = await Promise.all(
     atoms.map(async (atom) => {
       const snap = await getDoc(doc(db, 'exercisePopularity', atom))
@@ -173,6 +186,9 @@ export async function ensureUserDoc(uid, seed = {}) {
   const ref = doc(db, 'users', uid)
   const snap = await getDoc(ref)
   if (!snap.exists()) {
+    // [2026-10-31] 탈퇴 도중 로그인 계정 삭제가 안 된 uid — 새로 만들지 않고 '탈퇴 마치기' 화면으로
+    const gone = await getDoc(doc(db, 'deletedAccounts', uid)).catch(() => null)
+    if (gone?.exists?.()) return { __deleted: true }
     const initial = { ...DEFAULT_USER_DOC, ...seed, createdAt: serverTimestamp() }
     await setDoc(ref, initial)
     return initial
@@ -453,8 +469,8 @@ export async function addWorkoutLog(uid, logData, logId = null) {
 // 기록을 수정/삭제했을 때도 다시 계산한다(PR이 지워진 기록에 남지 않도록).
 export async function rebuildPersonalRecords(uid) {
   const prsVersion = prsVersionKey()
-  const snap = await getDocs(collection(db, 'workoutLogs', uid, 'logs'))
-  const prs = computePrsFromLogs(snap.docs.map((d) => normalizeLogExercises(d.data())))
+  // [2026-10-31] 전체 기록 읽기를 세션 캐시(getAllWorkoutLogs)와 공유 — MY 성취·CSV와 같은 읽기를 다시 하지 않게
+  const prs = computePrsFromLogs(await getAllWorkoutLogs(uid))
   await settleOrTimeout(updateDoc(doc(db, 'users', uid), { prs, prsVersion }))
   // 화면(App.jsx)이 사용자 문서를 다시 불러오도록 알림 — 삭제된 기록의 PR이 남아 보이지 않게
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('bt-prs-updated'))
@@ -516,10 +532,22 @@ function readLogDoc(d) {
   return normalizeLogExercises({ id: d.id, ...d.data() })
 }
 
-// [2026-10-27 신규] 전체 운동 기록(CSV 내보내기용), 날짜 오름차순
-export async function getAllWorkoutLogs(uid) {
-  const snap = await getDocs(query(collection(db, 'workoutLogs', uid, 'logs'), orderBy('date', 'asc')))
-  return snap.docs.map(readLogDoc)
+// [2026-10-27 신규] 전체 운동 기록(CSV 내보내기·성취·PR 재계산), 날짜 오름차순
+// [2026-10-31] Spark 읽기 절약: 같은 탭(세션)에서는 한 번만 읽고, 이 기기에서 기록을 저장·수정·삭제하면
+// 비운다(invalidateRecentLogsCache). 다른 기기에서 쓴 기록은 앱을 다시 열면 반영된다.
+// 돌려받은 배열은 여러 화면이 함께 쓰므로 수정하지 말 것.
+let allLogsCache = null // { uid, at, promise }
+export function getAllWorkoutLogs(uid) {
+  // 오프라인 때 받은 일부 결과가 오래 고정되지 않게 10분이 지나면 다시 읽는다
+  if (allLogsCache && allLogsCache.uid === uid && Date.now() - allLogsCache.at < 10 * 60 * 1000) return allLogsCache.promise
+  const promise = getDocs(query(collection(db, 'workoutLogs', uid, 'logs'), orderBy('date', 'asc')))
+    .then((snap) => snap.docs.map(readLogDoc))
+    .catch((err) => {
+      if (allLogsCache?.promise === promise) allLogsCache = null
+      throw err
+    })
+  allLogsCache = { uid, at: Date.now(), promise }
+  return promise
 }
 
 export async function getRecentWorkoutLogs(uid, count = 10) {
@@ -535,6 +563,7 @@ let recentLogsCache = null // { uid, count, at, promise }
 const RECENT_LOGS_CACHE_MS = 5 * 60 * 1000
 function invalidateRecentLogsCache() {
   recentLogsCache = null
+  allLogsCache = null
 }
 function getRecentWorkoutLogsCached(uid, count) {
   const now = Date.now()
@@ -634,6 +663,20 @@ export async function listPtSchedules({ memberUid, trainerUid }) {
   if (trainerUid) conds.push(where('trainerUid', '==', trainerUid))
   const snap = await getDocs(query(collection(db, 'ptSchedules'), ...conds))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+}
+// [2026-10-31] 트레이너 '오늘·이번 주 PT 일정' 모아보기 — 날짜 목록(최대 10일)과 트레이너 uid로만 조회(복합 색인 없이)
+export async function listTrainerSchedulesByDates(trainerUid, dates) {
+  const sortFn = (a, b) => (a.date + a.time).localeCompare(b.date + b.time)
+  try {
+    const snap = await getDocs(query(collection(db, 'ptSchedules'), where('trainerUid', '==', trainerUid), where('date', 'in', dates.slice(0, 10))))
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(sortFn)
+  } catch (err) {
+    if (err?.code !== 'failed-precondition') throw err
+    // 색인이 필요하다고 하면 트레이너 전체 일정에서 거른다(읽기는 늘지만 화면은 동작)
+    const snap = await getDocs(query(collection(db, 'ptSchedules'), where('trainerUid', '==', trainerUid)))
+    const set = new Set(dates)
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((s) => set.has(s.date)).sort(sortFn)
+  }
 }
 export async function trainerAddSchedule(memberUid, trainer, date, time) {
   await addDoc(collection(db, 'ptSchedules'), { memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date, time, status: 'scheduled', createdAt: serverTimestamp() })
@@ -752,6 +795,64 @@ export async function getMyTrainerConnection(memberUid) {
   return d ? { id: d.id, ...d.data() } : null
 }
 
+// ───────────── [2026-10-31] 계정 삭제(탈퇴) — 본인 데이터 전부 삭제 ─────────────
+// 지우는 것: 운동 기록·루틴(트레이너 계획 포함)·진행 세션 백업·랭킹(최근 3년 시즌)·문의·사용자 문서. 트레이너 연결은 '종료'로 바꾼다.
+// 남는 것: 부위별 인기 운동 집계(개인 식별 없음), 헬스장이 관리하는 PT 이용 기록(ptSessions·ptSchedules — 날짜·횟수)과 출입 명단.
+// firestore.rules가 승인 여부와 관계없이 본인 삭제를 허용해야 한다(대기·만료 계정도 탈퇴 가능).
+async function deleteAllDocs(colRef, onProgress, label) {
+  let total = 0
+  for (;;) {
+    const snap = await getDocs(query(colRef, limit(300)))
+    if (snap.empty) break
+    const batch = writeBatch(db)
+    snap.docs.forEach((d) => batch.delete(d.ref))
+    await batch.commit()
+    total += snap.size
+    onProgress?.(`${label} ${total}개 지움`)
+    if (snap.size < 300) break
+  }
+  return total
+}
+function recentSeasonKeys(years = 3) {
+  const out = []
+  const d = new Date()
+  d.setDate(1) // 29~31일에 월을 빼면 다음 달로 넘어가는 문제 방지
+  for (let i = 0; i < years * 4; i++) {
+    out.push(getSeasonPeriod(d))
+    d.setMonth(d.getMonth() - 3)
+  }
+  return [...new Set(out)]
+}
+export async function deleteMyAccountData(uid, onProgress) {
+  invalidateRecentLogsCache()
+  onProgress?.('운동 기록을 지우는 중…')
+  await deleteAllDocs(collection(db, 'workoutLogs', uid, 'logs'), onProgress, '운동 기록')
+  onProgress?.('루틴을 지우는 중…')
+  await deleteAllDocs(collection(db, 'routineTemplates', uid, 'templates'), onProgress, '루틴')
+  onProgress?.('랭킹·문의를 지우는 중…')
+  await Promise.all(recentSeasonKeys().map((p) => deleteDoc(doc(db, 'leaderboard', 'all', p, uid))))
+  leaderboardCache.clear()
+  const inq = await getDocs(query(collection(db, 'inquiries'), where('uid', '==', uid)))
+  await Promise.all(inq.docs.map((d) => deleteDoc(d.ref)))
+  // 회원으로서의 연결과 트레이너로서의 연결 모두 종료
+  const [asMember, asTrainer] = await Promise.all([
+    getDocs(query(collection(db, 'connections'), where('memberUid', '==', uid), where('status', '==', 'active'))),
+    getDocs(query(collection(db, 'connections'), where('trainerUid', '==', uid), where('status', '==', 'active'))),
+  ])
+  await Promise.all([...asMember.docs, ...asTrainer.docs].map((d) => updateDoc(d.ref, { status: 'ended', endedAt: serverTimestamp(), endedBy: uid })))
+  onProgress?.('계정 정보를 지우는 중…')
+  // 진행 세션 백업은 사용자 문서 바로 앞에서 지운다(그 사이 백업 타이머가 다시 만드는 것 방지 — 사용자 문서가 없으면 규칙이 거부)
+  await deleteDoc(doc(db, 'activeSessions', uid))
+  const mark = doc(db, 'deletedAccounts', uid)
+  if (!(await getDoc(mark)).exists()) await setDoc(mark, { deletedAt: serverTimestamp() }) // 다시 시도할 때는 이미 있음(수정 불가 규칙)
+  await deleteDoc(doc(db, 'users', uid))
+  try {
+    Object.keys(localStorage).filter((k) => k.includes(uid)).forEach((k) => localStorage.removeItem(k))
+  } catch (e) {
+    // 저장소 접근이 막힌 환경은 무시
+  }
+}
+
 // ───────────── activeSessions/{uid} — 진행 중 운동 세션 서버 백업 ─────────────
 // [2026-10-27 신규] "오늘 운동 완료"를 누르지 않고 다음날이 되면 기록이 사라지던 문제 대응.
 // 진행 중 세션(draft)을 기기 localStorage뿐 아니라 서버에도 보관해, 브라우저 데이터 삭제·기기 변경
@@ -786,11 +887,24 @@ export function clearActiveSession(uid) {
 export async function upsertLeaderboardEntry(group, period, uid, scoreData) {
   const ref = doc(db, 'leaderboard', group, period, uid)
   await setDoc(ref, { ...scoreData, updatedAt: serverTimestamp() }, { merge: true })
+  leaderboardCache.delete(`${group}/${period}`) // 내 점수가 바뀌었으니 다음 조회는 새로
 }
 
-export async function getLeaderboard(group, period, count = 100) {
-  const col = collection(db, 'leaderboard', group, period)
-  const q = query(col, orderBy('finalScore', 'desc'), limit(count))
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }))
+// [2026-10-31] Spark 읽기 절약: 랭킹 100명(최대 100읽기)을 REPORT·등급 화면을 열 때마다 다시 읽던 것을
+// 10분 세션 캐시로. 내 점수를 갱신하면(위 upsert) 바로 비운다.
+const leaderboardCache = new Map() // `${group}/${period}` -> { count, at, promise }
+export function getLeaderboard(group, period, count = 100) {
+  const key = `${group}/${period}`
+  const hit = leaderboardCache.get(key)
+  if (hit && hit.count >= count && Date.now() - hit.at < SHARED_READ_CACHE_MS) {
+    return hit.promise.then((list) => list.slice(0, count))
+  }
+  const promise = getDocs(query(collection(db, 'leaderboard', group, period), orderBy('finalScore', 'desc'), limit(count)))
+    .then((snap) => snap.docs.map((d) => ({ uid: d.id, ...d.data() })))
+    .catch((err) => {
+      if (leaderboardCache.get(key)?.promise === promise) leaderboardCache.delete(key)
+      throw err
+    })
+  leaderboardCache.set(key, { count, at: Date.now(), promise })
+  return promise
 }

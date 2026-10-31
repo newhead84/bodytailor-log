@@ -60,6 +60,7 @@ export default function HomeTab({
   const isWorkoutInProgress = workoutPhase === 'warmup' || workoutPhase === 'main'
   const [recentLogs, setRecentLogs] = useState([])
   const [showExtraCta, setShowExtraCta] = useState(false)
+  const [showAllIncrease, setShowAllIncrease] = useState(false) // [2026-10-31] 증량 추천 "외 N" 펼치기
   const [monthSummary, setMonthSummary] = useState(null)
   // [2026-10-31] PT 일정(트레이너 등록) + 일정 없이 완료한 PT → 캘린더 표시, "다음 PT"
   const [ptItems, setPtItems] = useState([])
@@ -239,12 +240,21 @@ export default function HomeTab({
         {suggested && !doneToday && increaseList.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, margin: '-4px 0 14px' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)' }}>증량 추천</span>
-            {increaseList.slice(0, 3).map((x) => (
+            {increaseList.slice(0, showAllIncrease ? increaseList.length : 3).map((x) => (
               <span key={x.key} className="text-keep-all" style={{ fontSize: 12, padding: '4px 9px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', color: 'var(--color-label-normal)' }}>
                 {x.name} {isAssistedExercise(x.name) ? '보조 ' : isBodyweightLoaded(x.name) ? '+' : ''}<span className="bt-num">{x.weight}</span>kg
               </span>
             ))}
-            {increaseList.length > 3 && <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>외 {increaseList.length - 3}</span>}
+            {increaseList.length > 3 && (
+              <button
+                type="button"
+                aria-expanded={showAllIncrease}
+                onClick={() => setShowAllIncrease((v) => !v)}
+                style={{ fontSize: 12, fontWeight: 700, padding: '4px 6px', color: 'var(--color-label-neutral)', textDecoration: 'underline', textUnderlineOffset: 3 }}
+              >
+                {showAllIncrease ? '접기' : `외 ${increaseList.length - 3}개 보기`}
+              </button>
+            )}
           </div>
         )}
 

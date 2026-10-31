@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-31] 홈 화면 설치 안내 OS·브라우저별(InstallBanner).
- *            직전: 운동 가이드 전 종목 구조화 + 트레이너 가이드 수정, PT 일정, 회원권·PT·트레이너 프로필. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-31] 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
+ *            PT 일정 모아보기·기구 필터·스트레칭 검색, 홍보 페이지 줄바꿈. 직전: 홈 화면 설치 안내. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -36,6 +36,9 @@ const TraineesScreen = lazy(() => import('./components/TraineesScreen'))
 const TrainerDirectory = lazy(() => import('./components/TrainerDirectory'))
 import MembershipNotice from './components/MembershipNotice'
 import MemberPendingScreen from './components/MemberPendingScreen'
+import ConsentScreen from './components/ConsentScreen'
+import { DeletedAccountScreen } from './components/AccountLegalSection'
+import { hasCurrentConsent } from './utils/legal'
 import { isApprovedMember, phoneHash, phoneLast4, isMembershipExpired } from './utils/member'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen } from './hooks/useBackableScreen'
@@ -414,6 +417,23 @@ export default function App() {
     return <CenteredMessage>불러오는 중…</CenteredMessage>
   }
 
+  // [2026-10-31] 탈퇴 도중(로그인 계정 삭제 미완료) 다시 들어온 경우
+  if (userDoc.__deleted) {
+    return <DeletedAccountScreen />
+  }
+
+  // [2026-10-31] 개인정보·신체 정보 동의 + 만 14세 이상 확인 — 새 계정은 온보딩 전, 기존 계정은 다음 접속 때 한 번
+  if (!hasCurrentConsent(userDoc)) {
+    return (
+      <ConsentScreen
+        onAgree={async (consents) => {
+          await updateUserProfile(authUser.uid, { consents })
+          await refreshUserDoc()
+        }}
+      />
+    )
+  }
+
   // 온보딩 미완료
   if (!userDoc.onboardingCompleted) {
     return <Onboarding onComplete={handleOnboardingComplete} initialNickname={userDoc?.nickname || authUser?.displayName || ''} />
@@ -633,6 +653,7 @@ export default function App() {
           seasonXp={getEffectiveSeasonXp(userDoc)}
           rirEnabled={userDoc.rirEnabled !== false}
           workoutGuideSeen={!!userDoc.workoutGuideSeen}
+          membershipEnd={userDoc.role === '트레이너' || userDoc.role === '관리자' ? '' : userDoc.membershipEnd || ''}
         />
         )}
       </div>

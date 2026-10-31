@@ -585,6 +585,10 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       >
         전체 랭킹 · {formatSeasonLabel(period)}
       </SectionTitle>
+      {/* [2026-10-31] 랭킹 공개 안내(개인정보) */}
+      <p className="text-keep-all" style={{ margin: '-6px 0 10px', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
+        랭킹에는 닉네임과 점수가 다른 회원에게 보여요. 닉네임은 MY › 프로필에서 바꿀 수 있어요.
+      </p>
 
       {showRefreshInfo && (
         <p className="text-keep-all" style={{ margin: '-6px 0 12px', fontSize: 12, color: 'var(--color-label-neutral)', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>

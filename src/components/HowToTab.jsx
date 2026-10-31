@@ -28,7 +28,8 @@ import ExerciseVideoLink from './ExerciseVideoLink'
 import { StretchGuide } from './StretchGuide'
 import TrainerStrip from './TrainerStrip'
 import ExerciseGuideSections from './ExerciseGuideSections'
-import { getExerciseGuide, getEquipment } from '../utils/exerciseGuides'
+import { getEquipment, isMoreGuidesLoaded } from '../utils/exerciseGuides'
+import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { useGuideOverrides, mergeGuide } from '../utils/guideOverrides'
 import GuideEditor from './GuideEditor'
 import { Pencil } from 'lucide-react'
@@ -248,7 +249,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
       {guide?.editedBy && (
         <p style={{ margin: '-6px 0 14px', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>{guide.editedBy} 트레이너가 다듬은 가이드예요.</p>
       )}
-      {editor && (
+      {editor && isMoreGuidesLoaded() && (
         <button type="button" onClick={() => setEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
           <Pencil size={14} strokeWidth={2} />가이드 수정 (트레이너)
         </button>
@@ -336,6 +337,8 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
               : '추가할 파트를 찾지 못했어요. MY탭에서 루틴 구성을 확인해주세요.'}
         </p>
       )}
+      {/* [2026-10-31] 건강 정보 면책 */}
+      <p className="text-keep-all" style={{ margin: '20px 0 0', fontSize: 11.5, lineHeight: 1.55, color: 'var(--color-label-neutral)' }}>{HEALTH_DISCLAIMER}</p>
     </div>
   )
 }
@@ -367,7 +370,17 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
     })
   }, [query])
 
-  const listNames = searchResults ?? EXERCISE_LIBRARY[selectedAtom] ?? []
+  const baseNames = searchResults ?? EXERCISE_LIBRARY[selectedAtom] ?? []
+  // [2026-10-31] 기구 필터 — 지금 목록에 있는 기구만 칩으로(전 종목 getEquipment 태그 사용)
+  const [equip, setEquip] = useState('전체')
+  const equipOptions = useMemo(() => {
+    const order = ['바벨', '덤벨', '머신', '스미스머신', '케이블', '원판', '맨몸', '풀업 바', '딥스 바', '밴드', '앱롤러', '유산소 기구']
+    const set = new Set(baseNames.map((n) => getEquipment(n, getExerciseAtom(n))))
+    const rank = (x) => (order.indexOf(x) < 0 ? 99 : order.indexOf(x))
+    return [...set].sort((a, b) => rank(a) - rank(b))
+  }, [baseNames])
+  const activeEquip = equipOptions.includes(equip) ? equip : '전체'
+  const listNames = activeEquip === '전체' ? baseNames : baseNames.filter((n) => getEquipment(n, getExerciseAtom(n)) === activeEquip)
 
   if (selectedExercise) {
     return (
@@ -460,6 +473,22 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
         </div>
       )}
 
+      {equipOptions.length > 1 && (
+        <div aria-label="기구로 거르기" style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '-4px 0 14px', paddingBottom: 2 }}>
+          {['전체', ...equipOptions].map((e) => (
+            <button
+              key={e}
+              type="button"
+              aria-pressed={activeEquip === e}
+              onClick={() => setEquip(e)}
+              style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 'var(--radius-pill)', fontSize: 12.5, fontWeight: 700, border: '1px solid var(--color-line)', background: activeEquip === e ? 'var(--color-label-strong)' : 'transparent', color: activeEquip === e ? 'var(--color-bg)' : 'var(--color-label-neutral)' }}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+
       {listNames.length === 0 ? (
         <EmptyState title="검색 결과가 없어요" description="다른 이름이나 별칭으로 다시 검색해보세요." />
       ) : (
@@ -482,9 +511,10 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
                       {name}
                       {alias && <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-label-neutral)' }}> · {alias}</span>}
                     </div>
-                    {searchResults && (
-                      <div style={{ fontSize: 11, color: getPartColor(atom), marginTop: 2 }}>{atom}</div>
-                    )}
+                    <div style={{ fontSize: 11, marginTop: 2, color: 'var(--color-label-neutral)' }}>
+                      {searchResults && <span style={{ color: getPartColor(atom) }}>{atom} · </span>}
+                      {getEquipment(name, atom)}
+                    </div>
                     {gripOptions && (
                       <div style={{ fontSize: 11, color: 'var(--color-label-neutral)', marginTop: 2 }}>
                         그립 {gripOptions.length}종 선택 가능

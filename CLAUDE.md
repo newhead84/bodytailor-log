@@ -2,7 +2,7 @@
 
 > 이 파일은 저장소 루트에 두고 Claude가 작업 시작 시 항상 먼저 읽는 작업 지침이다.
 > claude.ai 프로젝트 지침과 내용이 다르면 **이 파일이 최신 기준**이다. 규칙이 바뀌면 이 파일을 갱신하고 커밋한다.
-> 최종 갱신: 2026-10-31 (Phase2 P2-1 회원 승인·관리자 대시보드·P2-2 트레이너 연결, 다음 무게 추천 고도화, 법적·라이선스 기준·다음 작업 인계 추가, 스트레칭 가이드·목표 5종, 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 개선·등급 방패 아이콘, 자동 저장 검토 팝업·MY 설정 화면, 온보딩 닉네임·주당 목표, 디자인 기본값·MY 접기, 등급 Lv 리뉴얼·전면 점검 반영, 옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
+> 최종 갱신: 2026-10-31 (법적 정비 구현·Spark 한도 절약·홍보 페이지 문장 단위 줄바꿈, Phase2 P2-1 회원 승인·관리자 대시보드·P2-2 트레이너 연결, 다음 무게 추천 고도화, 법적·라이선스 기준·다음 작업 인계 추가, 스트레칭 가이드·목표 5종, 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 개선·등급 방패 아이콘, 자동 저장 검토 팝업·MY 설정 화면, 온보딩 닉네임·주당 목표, 디자인 기본값·MY 접기, 등급 Lv 리뉴얼·전면 점검 반영, 옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
 
 ---
 
@@ -57,7 +57,7 @@
 
 ## 4. 보안 체크리스트
 - `firestore.rules`: 본인 uid만 읽기/쓰기. `users`의 `role/roleRequestStatus/tier/lifetimeBadges/trainerProfile`은 클라이언트 수정 불가, XP는 1회 변경 −200~+200·0 이상(자동 저장 되돌리기 시 감소, 시즌 전환 시 리셋 허용), `leaderboard`는 필드 화이트리스트+점수 0~200, `exercisePopularity`는 counts 맵만, `activeSessions/{uid}`는 본인만.
-- 회원 승인(2026-10-31 P2-1): 새 users 문서는 `memberStatus:'pending'`으로만 생성(tier·badges·trainerProfile 기본값 강제), 본인은 memberStatus·approvedAt·approvedBy·memberNo·rosterId·statusUpdatedAt 변경 불가. 관리자(`role=='관리자'`)는 전체 users 읽기 + 승인·역할 필드만 수정(본인 관리자 권한 해제 불가). `isApproved()`(memberStatus 없음=기존 계정 승인, 관리자 항상)가 아니면 workoutLogs·routineTemplates·activeSessions·leaderboard·exercisePopularity 쓰기 거부. `gymRoster`는 관리자만. 트레이너 연결(P2-2): `connections/{trainerUid_memberUid}` 생성·재활성은 관리자, 종료(status 'ended')는 관리자·당사자, 읽기는 관리자·당사자. `isTrainerOf(uid)`(활성 연결 + 트레이너 역할)면 그 회원의 workoutLogs 읽기와 users 문서 읽기 허용(PT 회원 신체정보·목표 트레이너 공유 — 쓰기 불가, 연결 종료 시 즉시 차단). P2-3: 담당 트레이너는 그 회원 routineTemplates 읽기 + `byTrainer.uid`가 자기인 계획만 생성·수정·삭제(`trainerPlanOk` 필드 화이트리스트). 회원 본인은 `byTrainer`를 새로 넣거나 바꿀 수 없음. 본인 `signupInfo`는 승인 대기·거절·첫 입력일 때만 수정 가능. 회원권(2026-10-31): `isApproved()`는 `membershipEndAt`(종료일 23:59:59 KST)이 지나면 거부(트레이너·관리자 예외, 없으면 제한 없음), 회원권·PT 필드는 본인 수정 불가(lockedUserKeys)·관리자 수정. PT 차감: `settings/app.ptDeductEnabled`가 켜져 있을 때만 담당 트레이너가 users.ptRemaining ±1(0~ptTotal) + `ptSessions` 생성·삭제. `trainerProfiles`는 로그인 사용자 읽기·관리자 쓰기(사진 최대 3장). `ptSchedules`는 담당 트레이너 생성·완료(status/doneAt/date/time만)·삭제, 당사자·관리자 읽기. `inquiries`는 본인·관리자 삭제 가능. 규칙을 바꾸면 배포 후 콘솔 게시(에뮬레이터 없음 — 콘솔 규칙 플레이그라운드로 확인).
+- 회원 승인(2026-10-31 P2-1): 새 users 문서는 `memberStatus:'pending'`으로만 생성(tier·badges·trainerProfile 기본값 강제), 본인은 memberStatus·approvedAt·approvedBy·memberNo·rosterId·statusUpdatedAt 변경 불가. 관리자(`role=='관리자'`)는 전체 users 읽기 + 승인·역할 필드만 수정(본인 관리자 권한 해제 불가). `isApproved()`(memberStatus 없음=기존 계정 승인, 관리자 항상)가 아니면 workoutLogs·routineTemplates·activeSessions·leaderboard·exercisePopularity 쓰기 거부. `gymRoster`는 관리자만. 트레이너 연결(P2-2): `connections/{trainerUid_memberUid}` 생성·재활성은 관리자, 종료(status 'ended')는 관리자·당사자, 읽기는 관리자·당사자. `isTrainerOf(uid)`(활성 연결 + 트레이너 역할)면 그 회원의 workoutLogs 읽기와 users 문서 읽기 허용(PT 회원 신체정보·목표 트레이너 공유 — 쓰기 불가, 연결 종료 시 즉시 차단). P2-3: 담당 트레이너는 그 회원 routineTemplates 읽기 + `byTrainer.uid`가 자기인 계획만 생성·수정·삭제(`trainerPlanOk` 필드 화이트리스트). 회원 본인은 `byTrainer`를 새로 넣거나 바꿀 수 없음. 본인 `signupInfo`는 승인 대기·거절·첫 입력일 때만 수정 가능. 회원권(2026-10-31): `isApproved()`는 `membershipEndAt`(종료일 23:59:59 KST)이 지나면 거부(트레이너·관리자 예외, 없으면 제한 없음), 회원권·PT 필드는 본인 수정 불가(lockedUserKeys)·관리자 수정. PT 차감: `settings/app.ptDeductEnabled`가 켜져 있을 때만 담당 트레이너가 users.ptRemaining ±1(0~ptTotal) + `ptSessions` 생성·삭제. `trainerProfiles`는 로그인 사용자 읽기·관리자 쓰기(사진 최대 3장). `ptSchedules`는 담당 트레이너 생성·완료(status/doneAt/date/time만)·삭제, 당사자·관리자 읽기. `inquiries`는 본인·관리자 삭제 가능. 탈퇴(2026-10-31): 본인 users 문서 삭제 허용(다시 가입하면 pending으로 새로 생성), workoutLogs·routineTemplates·leaderboard 본인 삭제는 isApproved 없이 허용(만료·대기 계정도 탈퇴 가능). 규칙을 바꾸면 배포 후 콘솔 게시(에뮬레이터 없음 — 콘솔 규칙 플레이그라운드로 확인).
 - 규칙 파일을 바꾸면 **코드 배포 후 Firebase 콘솔에서 규칙 게시**가 필요함을 안내한다(로컬 에뮬레이터 없음).
 - `.env`는 .gitignore 포함·이력 노출 여부 확인. 실질 보안은 Rules + 승인된 도메인(Authorized domains).
 - Google 로그인: Firebase Authentication → 승인된 도메인에 배포 주소가 등록돼 있는지 확인.
@@ -67,12 +67,13 @@
 - AI 어드바이스/AI 모델 연동은 2026-07-27 전면 삭제(`connectedAiModels`·`aiAdvice` 없음). 재요청은 신규 기능으로 별도 설계. Phase2 식단의 사진 분석 AI도 옛 GPT/Gemini/Claude 선택 구조를 가정하지 말고 재설계.
 
 ## 4-1. 저작권·라이선스·개인정보 기준 (2026-10-30 검토)
-- **이미지·영상·글은 출처가 확실한 것만** 앱에 싣는다. 운동·스트레칭 영상은 YouTube 검색 링크로만 연결(파일·임베드 금지). 아이콘은 lucide(ISC) 또는 직접 그린 SVG. 출처가 불분명한 이미지(예: 예전 `src/assets/tier-icons/*.png` — 지금 미사용)는 쓰지 않는다.
+- **이미지·영상·글은 출처가 확실한 것만** 앱에 싣는다. 운동·스트레칭 영상은 YouTube 검색 링크로만 연결(파일·임베드 금지). 아이콘은 lucide(ISC) 또는 직접 그린 SVG. 출처가 불분명한 이미지는 쓰지 않는다(예전 `tier-icons/*.png`는 2026-10-31 삭제). 자산 출처는 `docs/ASSET_SOURCES.md`에 한 줄씩 기록.
 - 폰트: 프리텐다드·Outfit·페이퍼로지·나눔스퀘어 네오 모두 OFL(상업·웹 사용 가능, 폰트 파일 판매만 금지). 안드로이드 앱에 폰트 파일을 넣게 되면 라이선스 재확인.
 - 라이브러리: React·framer-motion·recharts(MIT), lucide(ISC), Firebase(Apache-2.0) — 상업 사용 가능, 저작권 고지 필요(오픈소스 라이선스 화면은 미구현).
 - 사용자 노출 문구(홍보 페이지 포함)는 사실만: "무료·광고 없음"은 유료화 시 반드시 수정(표시광고법). 근거 없는 사용자 수·후기 금지.
 - 건강 관련 안내(증량·디로드·골밀도·스트레칭)는 운동 정보이며 의학적 진단·치료가 아님을 밝힌다(면책 문구 미구현).
-- **공개 배포(다른 사용자 모집·앱스토어) 전 필수 — 미구현**: ① 개인정보 처리방침(수집 항목: 구글 계정·성별·나이·몸무게·키·운동 기록·닉네임, 보관 기간, 국외 이전: Firebase/Google·Vercel 해외 서버) ② 온보딩 동의(필수/선택, 몸 정보는 별도 동의 권장) ③ 만 14세 이상 확인 ④ 앱 안 계정·기록 삭제(탈퇴) ⑤ 랭킹에 닉네임·점수가 공개된다는 안내. 운영자 이름·연락처는 사용자가 채운다.
+- **법적 정비(2026-10-31 구현)**: ① 개인정보 처리방침 `public/privacy/index.html`(/privacy/, 로그인 화면·설정·홍보 페이지 푸터에서 링크) ② 동의 화면 `ConsentScreen.jsx` — (필수) 만 14세 이상·개인정보·신체 정보(별도 항목)·국외 이전(이유 먼저: 구글 클라우드 보관이라 법상 국외 이전 — 판매·광고에 쓰지 않음, 2026-10-31 사용자 지적), 랭킹 공개·건강 면책 안내. `users.consents`의 version이 `utils/legal.js CONSENT_VERSION`과 다르면 다음 접속 때 다시 동의(새 계정은 온보딩 전) ③ 14세 미만 선택 시 이용 불가 안내+로그아웃 ④ MY › 설정 › 계정 삭제(`AccountLegalSection.jsx`: 구글 재로그인 → `storage.deleteMyAccountData`(마지막에 탈퇴 표시 `deletedAccounts/{uid}` 생성 후 users 삭제 — rules가 표시 없는 users 삭제·표시 있는 uid의 users 재생성을 막음) → `deleteUser` → 기기 캐시 정리. 로그인 계정 삭제가 실패하면 다음 로그인 때 `DeletedAccountScreen`에서 마저 삭제). PT 이용 기록(ptSessions·ptSchedules)·출입 명단은 헬스장 정산용으로 남는다(처리방침에 명시) ⑤ 랭킹 화면·동의 화면에 닉네임·점수 공개 안내. 오픈소스 고지 `public/oss-licenses.txt`(의존성 바꾸면 `node docs/gen-oss-licenses.cjs . public/oss-licenses.txt`로 재생성) + 설정 요약, 건강 면책 문구 `HEALTH_DISCLAIMER`(HOWTO 종목 상세·스트레칭·동의·설정), `LICENSE`(All rights reserved).
+  - 처리방침·동의 문구를 크게 바꾸면 `CONSENT_VERSION`을 올리고 두 곳(legal.js·ConsentScreen, privacy/index.html)을 함께 고친다. **개인정보 보호책임자 이름·연락처는 운영자가 채워야 함(현재 1:1 문의·블로그만)**.
 - 확인 필요(사용자 답 대기): 앱 아이콘·로고(`src/assets/app-icon-mark.png`, `logo-mark-transparent.png`) 제작 출처, "BodyTailor/바디테일러" 상표(KIPRIS 9·41류) 확인.
 - 이 기준을 벗어나는 요청(외부 이미지·영상 탑재, 다른 앱 화면·문구 복제 등)은 착수 전에 위험을 알리고 확인받는다.
 
@@ -105,7 +106,7 @@
 
 ### 7.2 화면(IA)
 - 하단 5탭: HOME / HOWTO / NOTE(기록, 입력 전용) / REPORT(랭킹+통계) / MY. 캘린더는 HOME.
-- 흐름: 온보딩(헬스장 회원 확인 — 이름·휴대폰 필수(2026-10-31, 번호는 해시·뒤 4자리만 `signupInfo`)→닉네임(구글 이름 미리 채움, 30자, 랭킹 표시명)→성별→나이→몸무게→키→운동 목표(우선순위, 5종+기타 — 근육·근력 키우기/체지방 줄이기/체력·건강 관리/뼈·관절 건강/자세·코어, GoalPicker)→주당 운동 목표 일수 2~6일→맞춤 기준 요약, 레벨 질문 없음) → (승인 전이면 `MemberPendingScreen`: 대기·거절·만료 안내, 승인 확인·정보 고치기) → 루틴 설정 → 메인 탭. MY 프로필 수정도 같은 항목.
+- 흐름: (2026-10-31) 동의 화면(`ConsentScreen`, 4-1) → 온보딩(헬스장 회원 확인 — 이름·휴대폰 필수(2026-10-31, 번호는 해시·뒤 4자리만 `signupInfo`)→닉네임(구글 이름 미리 채움, 30자, 랭킹 표시명)→성별→나이→몸무게→키→운동 목표(우선순위, 5종+기타 — 근육·근력 키우기/체지방 줄이기/체력·건강 관리/뼈·관절 건강/자세·코어, GoalPicker)→주당 운동 목표 일수 2~6일→맞춤 기준 요약, 레벨 질문 없음) → (승인 전이면 `MemberPendingScreen`: 대기·거절·만료 안내, 승인 확인·정보 고치기) → 루틴 설정 → 메인 탭. MY 프로필 수정도 같은 항목.
 - 관리자 대시보드 `/admin`(2026-10-31 P2-1, `AdminDashboard.jsx`, PC·모바일): 승인 대기(명단 일치 배지 — 전화 해시+이름, 이름·번호 모두 일치 일괄 승인, 번호만 일치면 연결 여부 확인)·회원(검색·상태·역할)·명단 가져오기(CSV, UTF-8/EUC-KR, 열 매핑·미리보기, 이름·전화 해시·뒤 4자리·회원번호·만료일만 저장)·문의·도구(온보딩 미리보기). MY의 "관리자 대시보드" 카드 또는 주소 /admin(vercel.json SPA 리라이트). 관리자 아니면 / 로 되돌림. 설계: 프로젝트 문서 `claude/BodyTailor_Log_관리자대시보드_설계안_v1.md`.
 - 트레이너 연동(2026-10-31 P2-2): 대시보드 "트레이너 연결" 탭(회원↔트레이너, 회원당 활성 1명 — 새로 연결하면 이전 연결 종료, 일반회원은 PT회원으로, 해제). 트레이너는 MY "내 회원"(`TraineesScreen.jsx`) → 회원별 신체정보(성별·나이·키·몸무게)·운동 목표·주간 목표 + 최근 8주 기록 읽기 전용. 회원은 MY "담당 트레이너" 카드에서 연결 해제 가능.
 - 트레이너 계획(2026-10-31 P2-3): 회원 화면 상단 "운동 계획"에서 트레이너가 계획 만들기·수정·삭제(RoutineSetup `forTrainer` 재사용 + 회원에게 남길 메모, 회원당 트레이너별 최대 3개). 회원 routineTemplates에 `byTrainer`로 저장되어 회원 기록 화면 루틴 칩(PT 표시)·메모, MY 내 루틴("트레이너 계획" 배지)에 나타남. 트레이너 계획은 회원 본인 루틴 5개 제한에서 제외, HOWTO "내 루틴에 추가"는 본인 루틴에만. 회원도 수정·삭제 가능. 연결이 끝나도 계획은 회원에게 남음.
@@ -153,6 +154,7 @@
 - 홈 화면 설치 안내(2026-10-31, `InstallBanner.jsx`): 설치 신호(beforeinstallprompt)가 오면 "설치" 버튼, 없으면 OS·브라우저별 수동 경로(iOS 사파리·크롬 공유→홈 화면에 추가, 기타 iOS는 사파리 안내, 안드로이드 삼성·파이어폭스·웨일·크롬 메뉴, 맥 사파리 Dock). 안드로이드·PC는 3초 기다린 뒤 수동 안내, PC 파이어폭스 등은 표시 안 함. 닫으면 7일 숨김, standalone·인앱에선 표시 안 함.
 - **홍보 페이지** `/intro/`(2026-10-29, 2026-10-30 전면 개편): `public/intro/index.html` 단일 정적 파일(인라인 CSS/JS, 앱 번들과 분리). 구성: 전면 사진 히어로 → 흐름 표(계획은 나 또는 트레이너가 → 기록 → 기준은 지난번의 나 → 다음 목표) → 기능 5개(큰 휴대폰 화면 지그재그: 오늘 목표·자동 휴식·완료 요약·캘린더·리포트) → 점진적 과부하 데모(utils/strength.js 규칙과 동일) → 기록 방식(리스트형/포커스형) → 트레이너 → FAQ. 섹션별 `data-tone`으로 다크·베이지 교차. 이미지 경로는 반드시 절대 경로 `/intro/img/…`(Vercel은 `/intro`를 슬래시 없이도 열어 상대 경로가 깨짐, 2026-10-31). 사진 `img/photo-*.webp`(Unsplash 무료 라이선스, 사진 속 상표 로고는 지움), 앱 화면 `img/cap-*.webp`(목업 데이터 캡처 — 실제 사용자 기록 금지, 앱 폰트가 적용됐는지 확인: 캡처 브라우저는 서비스워커 차단), 로고는 `/icon-192.png`, 공유 이미지 `og.png`.
   - 문구 원칙: PT를 낮추지 않는다("PT 없이도" 금지) — 혼자 운동하는 날의 기록 도구, 어려우면 트레이너를 권한다. 계획(분할 예시·트레이너 루틴)을 깎아내리지 않는다("짜준 운동 대신" 금지, 2026-10-31 — 초보에게는 짜준 계획이 필요). 다른 앱 이름을 쓰지 않는다. "무료" 표현 쓰지 않음(헬스장 회원용, 2026-10-31). 시작하기 옆 헬스장 네이버 블로그(blog.naver.com/bodytailor)·인스타그램(instagram.com/body_tailor_pt) 버튼. 아직 없는 기능(회원 승인·트레이너 연동)은 만들기 전까지 소개하지 않는다. 종목 수·성취 수 같은 숫자로 압도하지 않고 쉽게. 근거 없는 사용자 수·후기 금지. ksa-on.space와 같은 레이아웃(좌 글·우 휴대폰 히어로, 휴대폰 주변 떠다니는 배지, 아이콘 카드 3열)은 쓰지 않는다. 앱 기능·규칙이 바뀌면 문구·데모도 함께 맞춘다.
+  - **줄바꿈(2026-10-31 사용자 지적)**: 문장 중간("오늘 몇 / kg")에서 끊기지 않게 문장마다 `<span class="s">`(새 줄), 긴 문장은 쉼표·의미 단위로 `<span class="k">`(그 단위로만 줄바꿈). 새 문구도 같은 방식. 과부하 데모의 '지난번 기록'은 앱 입력 화면(±)처럼 보이지 않게 기록 표기(60kg × 9회, 횟수만 선택). '헬스장 인터넷이 약하면요?' FAQ는 넣지 않는다. 구성에 '운동을 돕는 것들'(목표 맞춤·가이드·스트레칭·레벨) 표, PT 섹션에 PT 일정·트레이너 소개, FAQ에 회원권 기간.
 
 ### 7.4 리포트 · 홈 인사이트
 - **운동 목표 맞춤 기준**(2026-10-30, `utils/goals.js`): `onboarding.goals` 배열 순서 = 우선순위. 1순위 기준 + 2순위 1/3 + (유산소만) 3순위 1/6 → 목표 반복·자동 휴식·부위별 주간 세트·주간 유산소. 가입 8주 미만(`users.createdAt`)은 주간 세트 상한 12·하한 6. App이 렌더 중 `setTrainingProfile`(setBodyweightKg와 같은 방식), 화면은 `getTrainingProfile()`. 옛 라벨(3종·1차 7종)은 `normalizeGoals`로 변환. 목표를 추가할 때는 프로그램(반복·휴식·세트·유산소·체크 카드)이 실제로 달라지는 경우만 — 비슷한 목표는 합친다(2026-10-30 사용자 지적). 목표별 값을 바꾸면 온보딩·MY 요약 문구(describeTrainingProfile)가 같이 바뀐다.
@@ -204,6 +206,7 @@ activeSessions/{uid}: { draft: JSON 문자열, updatedAt }
 users/{uid}
   memberStatus: 'pending'|'approved'|'rejected'|'expired'(없으면 기존 계정 = 승인), role: '일반회원'|'PT회원'|'트레이너'|'관리자'
   signupInfo: { name, phoneHash(SHA-256 'bodytailor-log:'+숫자), phoneLast4 }, memberNo?, rosterId?, approvedAt, approvedBy, statusUpdatedAt
+  consents: { version, agreedAt(ms), age14, privacy, body, overseas }   // 2026-10-31 법적 정비
 gymRoster/{no_회원번호 | ph_해시앞20자}: { name, phoneHash, phoneLast4, memberNo, expireDate('YYYY-MM-DD'), linkedUid?, importedAt }
 // P2-2 추가분(2026-10-31)
 // users 추가(2026-10-31): membershipStart, membershipEnd, membershipEndAt(Timestamp), ptTotal, ptRemaining, ptUpdatedAt
@@ -220,11 +223,6 @@ connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, member
 - 사이클 완료 판정 ↔ 기록 연결, 캘린더 과거 기록 편집 피커의 커스텀 운동 연결
 - 전 탭 리디자인(2단계) 완료 2026-10-28, 스타일 C 확정·팔레트/폰트 3종으로 축소 2026-10-28, 등급 리뉴얼(3단계: Lv + 단계명·완료 요약 카드·레벨 업 연출·성취) 완료 2026-10-29.
 - 랭킹 화면에서 100위 밖이면 내 순위가 안 보임(상위 100개만 조회) — 사용자 늘면 개선.
-- **다음 작업 인계(2026-10-30 기준, 사용자 확인 대기)**:
-  - 스트레칭 검색·YouTube 개선(제안 후 확인 대기): 스트레칭 화면 검색창(이름·별칭·부위), 카드 바깥 "영상" 버튼(웜업·완료 추천 카드 포함), 스트레칭별 YouTube 검색어(`yt` — 통용 명칭, 예: 크로스바디 숄더 스트레칭·고관절 굴곡근 스트레칭).
-  - 법적 정비(4-1의 필수 ①~⑤ + 오픈소스 라이선스 화면 + 면책 문구 + 미사용 tier-icons PNG 삭제) — 진행 여부 확인 대기.
-  - `firestore.rules` XP 주석의 "최대 180"을 175로(동작 영향 없음, 규칙 파일 변경 시 콘솔 게시 필요).
-  - 홍보 페이지(`/intro/`)에 목표 맞춤·스트레칭 기능 소개 추가 검토.
 
 ### 7.7 로드맵
 - Phase1(MVP, 구현 완료·지속 개선): 온보딩 / 분할 루틴 / 기록 입력 / 캘린더 / 리포트(랭킹+통계+티어·시즌 XP) / MY / PWA.
@@ -232,11 +230,12 @@ connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, member
 - Phase3(후보): 기존 운동기록 일괄 업로드 / 알림 세분화.
 
 ### 7.8 다음 작업 인계 (2026-10-31 기준 — 다음 채팅은 여기부터)
+- 완료(2026-10-31 2차): 다음 할 일 A·B 전부 + 10/30 대기 건 — Spark 한도 절약(전체 기록 세션 캐시·랭킹/인기 운동 10분 캐시·진행 세션 백업 2.5초/30초+백그라운드 즉시), 운동 가이드 지연 로드(메인 446KB), 회원권 만료 저장 안내, 트레이너 PT 일정 모아보기(`listTrainerSchedulesByDates`), HOWTO 기구 필터, HOME 증량 추천 펼치기, 스트레칭 검색·카드 밖 영상 버튼·`STRETCH_YT`, 법적 정비 전체(4-1), 홍보 페이지 반영·문장 단위 줄바꿈.
 - 완료(2026-10-31): Phase2 전체 + 회원권=앱 사용 기간, PT 횟수·일정(트레이너 차감·홈 캘린더), 트레이너 프로필(대시보드·HOWTO·MY), 운동 가이드 전 138종목 구조화 + 트레이너 가이드 수정, 문의 버그 수정·삭제, OS·브라우저별 홈 화면 설치 안내, 보안 규칙 별도 검토 3회 반영.
 - Firebase 요금제: 이 프로젝트는 **Spark(무료)** — Firestore 하루 읽기 5만·쓰기 2만, 넘으면 그날 Firestore 중단(과금 아님). Cloud Functions 사용 불가. 하루 읽기가 3만~3.5만을 넘기 시작하면 Blaze 전환 + 예산 알림 권장.
 - 운영 세팅(사용자 진행, 미확인): ① 최신 firestore.rules 콘솔 게시 ② 관장님·MOON users.role='관리자' ③ 트레이너 3명 가입→승인→역할 트레이너→'기본 프로필 3명 등록'→프로필별 앱 계정 연결 ④ 출입관리 명단 CSV 업로드 ⑤ '설정·도구' PT 차감 켜기 여부 ⑥ 트레이너가 운동 가이드 초안 검수(난이도: 프론트스쿼트·굿모닝·피스톨·펜들레이로우·JM프레스·중량딥스 고급, 바벨시티드카프레이즈는 벤치+바벨 방식으로 작성).
-- 다음 할 일 A(추천, 운영 전): ① Spark 한도 절약 — MyPageTab `getAllWorkoutLogs` 2회 호출(열 때마다 전체 기록), ReportTab·TierInfoScreen 랭킹 100명 매번 조회 → 세션 캐시, WorkoutInput activeSessions 서버 백업 2.5초 디바운스 → 간격 늘리기/세트 완료 시점 ② 메인 번들 494KB(gzip 176KB) — `exerciseGuidesMore.js`가 ExerciseGuideToggle 경유로 메인 번들에 포함 → 동적 import로 지연 로드 ③ 회원권 종료일 자정을 넘긴 진행 세션 저장 실패 시 "회원권이 끝나 저장할 수 없어요" 안내.
-- 다음 할 일 B(선택): ④ 트레이너 '오늘·이번 주 PT 일정' 모아보기 ⑤ HOWTO 목록 기구 필터(태그 이미 있음) ⑥ 홍보 페이지에 트레이너 소개·회원권 연동·PT 일정·운동 가이드 반영 ⑦ HOME 추천 "외 N" 펼치기(보류 건, 추천안: 탭하면 펼침) ⑧ 저작권 문구·LICENSE·자산 출처 문서.
+- 운영 세팅 추가(2026-10-31 2차): ⑦ 최신 firestore.rules 다시 게시(탈퇴 삭제 허용) ⑧ 처리방침 보호책임자 이름·연락처 확정 ⑨ 앱 아이콘·트레이너 사진 출처 확인(`docs/ASSET_SOURCES.md`).
+- 다음 할 일 후보: 랭킹 100위 밖 내 순위, `WorkoutInput.jsx` 분리, 홍보 페이지 새 화면 캡처(가이드·스트레칭·PT 일정), 식단(Phase2).
 - 알고 있는 낮은 위험(보류): 트레이너 PT 차감은 ptSessions와 규칙상 묶여 있지 않음(트레이너 신뢰 전제) / 담당 트레이너는 회원 users 문서 전체 읽기(phoneHash 포함, 화면 미표시) / 일반 목록·랭킹 XP는 클라이언트 계산.
 - QA 하네스 메모: 스크래치 클론 + `vite.harness.config.mjs`(firebase → 메모리 목업) 방식. 새 채팅에서 클론을 다시 만들 때 장치 폴더와 파일이 어긋나지 않게 git archive 스냅샷으로 동기화할 것(부분 복사로 옛 파일이 덮인 사례 있음).
 

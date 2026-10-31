@@ -2,7 +2,8 @@
 <!-- BodyTailor Log 홍보 페이지 (/intro/) — 2026-10-30 전면 개편: 사진 히어로·차별점 표·3단계·점진적 과부하 데모·기록 방식·트레이너·FAQ.
      2026-10-31 P2-4: 트레이너 섹션을 트레이너 계획·기록 확인 흐름(트레이너/회원 화면 캡처)으로, 회원 전용·승인 안내 반영.
      앱 기능·규칙이 바뀌면 이 페이지 문구와 데모 규칙(이중 진행, utils/strength.js)도 함께 맞춘다.
-     사진: Unsplash(상업 사용 가능, 로고 지움) img/photo-*.webp · 앱 화면: 목업 데이터 캡처 img/cap-*.webp -->
+     사진: Unsplash(상업 사용 가능, 로고 지움) img/photo-*.webp · 앱 화면: 목업 데이터 캡처 img/cap-*.webp
+     2026-10-31: 문장 단위 줄바꿈(.s 문장 / .k 말덩이), 과부하 데모를 '지난번 기록' 표기(횟수만 선택)로, '운동을 돕는 것들'·PT 일정·트레이너 소개·회원권 FAQ, 처리방침·라이선스 링크 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
@@ -130,7 +131,7 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
 .sets{display:flex;flex-direction:column;gap:8px}
 .set{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
 .set:last-child{border-bottom:0}
-.set .k{font:600 13px 'Outfit',sans-serif;color:var(--t3);width:44px}
+.set .sk{font:600 13px 'Outfit',sans-serif;color:var(--t3);width:44px}
 .set .w{font:700 17px 'Outfit',sans-serif}
 .set .r{display:flex;align-items:center;gap:6px;margin-left:auto}
 .set .r button{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--elev);color:var(--t1);font:600 18px 'Outfit',sans-serif;cursor:pointer}
@@ -189,6 +190,23 @@ footer{border-top:1px solid var(--line);padding:28px 20px 48px;font-size:13px;co
 footer .wrap{padding:0}
 
 .rv{opacity:0;transform:translateY(18px);transition:opacity .4s ease,transform .4s ease}
+/* [2026-10-31] 문장 단위 줄바꿈: .s = 한 문장(새 줄에서 시작), .k = 끊기지 않는 말덩이(좁은 화면에서 이 단위로만 줄바꿈) */
+.s{display:block}
+.s+.s{margin-top:.15em}
+.k{display:inline-block}
+h1,h2,h3{text-wrap:balance}
+p,dd,.why,.foot{text-wrap:pretty}
+/* 데모: 지난번 기록은 기록처럼(입력 화면 아님), 횟수만 눌러서 바꿔 보기 */
+.set .rec{margin-left:auto;font:700 17px 'Outfit','Paperlogy',sans-serif;display:flex;align-items:center;gap:4px}
+.set select{appearance:none;-webkit-appearance:none;font:800 18px 'Outfit',sans-serif;color:var(--t1);background:transparent;border:0;border-bottom:2px dashed var(--acc);border-radius:0;padding:0 16px 1px 4px;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--acc) 50%),linear-gradient(135deg,var(--acc) 50%,transparent 50%);background-position:right 5px center,right 1px center;background-size:4px 4px;background-repeat:no-repeat}
+.set select:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.demo .hint{font-size:12.5px;color:var(--t3);margin:-6px 0 10px}
+/* 더 있어요(가이드·스트레칭·목표 맞춤·회원권) */
+.more{margin-top:44px;border-top:2px solid var(--t1)}
+.more .r{display:grid;grid-template-columns:200px 1fr;gap:20px;padding:22px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.more .q{font-size:18px;font-weight:800}
+.more .a{font-size:16px;color:var(--t2);line-height:1.7}
+@media (max-width:820px){.more .r{grid-template-columns:1fr;gap:6px}}
 .rv.in{opacity:1;transform:none}
 .rv.d1{transition-delay:.07s}.rv.d2{transition-delay:.14s}.rv.d3{transition-delay:.21s}
 
@@ -224,7 +242,7 @@ footer .wrap{padding:0}
   <div class="wrap">
     <div class="label rv">혼자 하는 날도, PT 받는 날도 이어지는 운동 기록</div>
     <h1 class="rv d1">내 운동을 기록하면<br><span>다음 목표</span>가 보여요</h1>
-    <p class="rv d2">평소 하던 운동을 그대로 기록하세요. 지난번의 나를 기준으로 오늘 몇 kg, 몇 번 할지 알려줘서 조금씩 더 무거워지게 도와줘요.</p>
+    <p class="rv d2"><span class="s">평소 하던 운동을 그대로 기록하세요.</span><span class="s"><span class="k">지난번의 나를 기준으로</span> <span class="k">오늘 몇 kg, 몇 번 할지</span> <span class="k">알려 줘요.</span></span><span class="s"><span class="k">그대로 따라 하면</span> <span class="k">조금씩 더 무거워져요.</span></span></p>
     <div class="row rv d3"><a class="btn" href="/">시작하기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><span class="social"><a class="sbtn" href="https://blog.naver.com/bodytailor" target="_blank" rel="noopener" aria-label="바디테일러 PT&amp;헬스 네이버 블로그"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="#03C75A"/><path d="M8 7h2.6l3.4 5V7H16.6v10H14l-3.4-5v5H8z" fill="#fff"/></svg>블로그</a><a class="sbtn" href="https://www.instagram.com/body_tailor_pt" target="_blank" rel="noopener" aria-label="바디테일러 PT&amp;헬스 인스타그램"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/></svg>인스타그램</a></span></div>
     <small class="rv d3 hnote">바디테일러 회원 전용 · 구글 계정으로 로그인 · 설치 없이 휴대폰 브라우저에서</small>
   </div>
@@ -234,7 +252,7 @@ footer .wrap{padding:0}
   <div class="wrap">
     <div class="label rv">이렇게 이어져요</div>
     <h2 class="rv d1">계획은 나 또는 트레이너가,<br>기준은 내 기록이에요</h2>
-    <p class="lead rv d2">처음엔 분할 예시나 트레이너에게 배운 루틴으로 시작하세요. 기록이 쌓이면 그 기록이 다음 목표가 되고, 내 몸에 맞게 조금씩 고쳐 가요.</p>
+    <p class="lead rv d2"><span class="s"><span class="k">처음엔 분할 예시나</span> <span class="k">트레이너에게 배운 루틴으로</span> <span class="k">시작하세요.</span></span><span class="s"><span class="k">기록이 쌓이면</span> <span class="k">그 기록이 다음 목표가 돼요.</span></span><span class="s"><span class="k">내 몸에 맞게</span> <span class="k">조금씩 고쳐 가요.</span></span></p>
     <div class="compare flow rv">
       <div class="r"><span class="q">계획</span><span class="u">분할 예시로 시작하거나, <em>PT에서 배운 루틴</em>을 그대로 옮겨요</span></div>
       <div class="r"><span class="q">기록</span><span class="u">세트 끝나면 <em>체크 한 번</em></span></div>
@@ -254,10 +272,10 @@ footer .wrap{padding:0}
 
 <section id="how" data-tone="dark" style="padding-top:90px">
   <div class="wrap">
-    <div class="feat rv"><div class="txt"><div class="n">01</div><h3>하던 운동을 고르면<br>오늘 목표가 나와요</h3><p>종목을 다 볼 필요 없어요. 자주 하는 운동 몇 개로 루틴을 만들면 지난 기록과 오늘 목표가 미리 채워져요. "적용"을 누르면 세트마다 목표가 들어가요.</p><ul><li>세트별 목표 · 증량까지 남은 횟수</li><li>직전 기록 바로 보기</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-list.webp" alt="기록 화면: 다음 무게 추천과 세트 입력"></div></div></div>
-    <div class="feat rev rv"><div class="txt"><div class="n">02</div><h3>세트 끝나면 체크,<br>휴식은 자동으로</h3><p>체크하면 쉬는 시간이 바로 시작되고, 끝나면 알림으로 알려줘요. 세트가 너무 쉽거나 힘들면 다음 세트 무게도 그 자리에서 제안해요.</p><ul><li>목표에 맞춘 휴식 시간</li><li>다음 세트 무게 조정</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-rest.webp" alt="세트 체크 후 휴식 타이머"></div></div></div>
+    <div class="feat rv"><div class="txt"><div class="n">01</div><h3>하던 운동을 고르면<br>오늘 목표가 나와요</h3><p><span class="s">종목을 다 볼 필요 없어요.</span><span class="s">자주 하는 운동 몇 개로 루틴을 만들면 지난 기록과 오늘 목표가 미리 채워져요.</span><span class="s">"적용"을 누르면 세트마다 목표가 들어가요.</span></p><ul><li>세트별 목표 · 증량까지 남은 횟수</li><li>직전 기록 바로 보기</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-list.webp" alt="기록 화면: 다음 무게 추천과 세트 입력"></div></div></div>
+    <div class="feat rev rv"><div class="txt"><div class="n">02</div><h3>세트 끝나면 체크,<br>휴식은 자동으로</h3><p><span class="s"><span class="k">체크하면 쉬는 시간이 바로 시작되고,</span> <span class="k">끝나면 알림으로 알려줘요.</span></span><span class="s">세트가 너무 쉽거나 힘들면 다음 세트 무게도 그 자리에서 제안해요.</span></p><ul><li>목표에 맞춘 휴식 시간</li><li>다음 세트 무게 조정</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-rest.webp" alt="세트 체크 후 휴식 타이머"></div></div></div>
     <div class="feat rv"><div class="txt"><div class="n">03</div><h3>끝나면<br>한 장으로 정리</h3><p>운동 시간·볼륨·신기록·레벨 진행을 보여주고, 오늘 한 부위에 맞는 쿨다운 스트레칭도 추천해요.</p><ul><li>신기록 알림</li><li>레벨·시즌</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-done.webp" alt="운동 완료 요약"></div></div></div>
-    <div class="feat rev rv"><div class="txt"><div class="n">04</div><h3>캘린더에서<br>한 달이 한눈에</h3><p>날짜마다 운동한 부위와 세트가 색으로 쌓여요. 지난 기록도 캘린더에서 바로 고칠 수 있어요.</p><ul><li>부위별 색 표시</li><li>지난 기록 추가·수정</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-calendar.webp" alt="캘린더 화면"></div></div></div>
+    <div class="feat rev rv"><div class="txt"><div class="n">04</div><h3>캘린더에서<br>한 달이 한눈에</h3><p><span class="s">날짜마다 운동한 부위와 세트가 색으로 쌓여요.</span><span class="s">지난 기록도 캘린더에서 바로 고칠 수 있어요.</span></p><ul><li>부위별 색 표시</li><li>지난 기록 추가·수정</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-calendar.webp" alt="캘린더 화면"></div></div></div>
     <div class="feat rv"><div class="txt"><div class="n">05</div><h3>기록이 쌓이면<br>리포트가 보여요</h3><p>부위별 주간 세트, 종목별 최고 기록, 정체된 종목과 유산소 목표까지 한 화면에서 봐요.</p><ul><li>근육별 주간 세트</li><li>최근 개인 기록·정체 감지</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-report.webp" alt="리포트 화면"></div></div></div>
   </div>
 </section>
@@ -266,11 +284,11 @@ footer .wrap{padding:0}
   <div class="wrap">
     <div class="label rv">점진적 과부하</div>
     <h2 class="rv d1">감이 아니라<br>지난번의 나를 기준으로</h2>
-    <p class="lead rv d2">예시: 스쿼트 60kg, 목표 6–10회. 지난번에 몇 번 했는지 바꿔 보세요.</p>
+    <p class="lead rv d2"><span class="s"><span class="k">예시: 스쿼트 60kg,</span> <span class="k">목표 6–10회.</span></span><span class="s"><span class="k">지난번 횟수를 바꿔 보면</span> <span class="k">오늘 목표가 달라져요.</span></span></p>
     <div class="demo rv">
-      <div class="in"><div class="q">지난번 기록</div><div class="sets" id="sets"></div></div>
-      <div class="out"><div class="t">오늘 목표</div><div class="big" id="recBig"></div><div class="why" id="recWhy"></div><div class="bar" id="recBar"><i></i></div><div class="barlabel" id="recBarLabel"></div></div>
-      <div class="foot">세트마다 1회씩 늘리다가 목표를 채우면 무게를 올려요. 많이 모자라면 같은 무게로 한 번 더, 두 번 연속이면 약 10% 내려요.</div>
+      <div class="in"><div class="q">지난번 기록</div><p class="hint">밑줄 친 횟수를 눌러 바꿔 보세요</p><div class="sets" id="sets"></div></div>
+      <div class="out"><div class="t">앱이 알려 주는 오늘 목표</div><div class="big" id="recBig"></div><div class="why" id="recWhy"></div><div class="bar" id="recBar"><i></i></div><div class="barlabel" id="recBarLabel"></div></div>
+      <div class="foot"><span class="s">세트마다 1회씩 늘리다가 목표를 채우면 무게를 올려요.</span><span class="s"><span class="k">많이 모자라면 같은 무게로 한 번 더,</span> <span class="k">두 번 연속이면 약 10% 내려요.</span></span></div>
     </div>
   </div>
 </section>
@@ -291,24 +309,38 @@ footer .wrap{padding:0}
         <div class="tabs" role="tablist"><button class="on" data-m="0" role="tab" aria-selected="true">리스트형</button><button data-m="1" role="tab" aria-selected="false">포커스형</button></div>
         <p id="mDesc"></p>
         <ul id="mList"></ul>
-        <p class="extra">운동 중에도 상단 버튼으로 바로 바꿀 수 있어요. 화면 색(다크·베이지·라이트)과 강조색도 설정에서 골라요.<br>그 밖에 캘린더, 주간 리포트, 스트레칭 가이드, 레벨·시즌이 있어요.</p>
+        <p class="extra"><span class="s">운동 중에도 상단 버튼으로 바로 바꿀 수 있어요.</span><span class="s">화면 색(다크·베이지·라이트)과 강조색도 설정에서 골라요.</span></p>
       </div>
     </div>
   </div>
 </section>
 
+<section id="more" data-tone="beige">
+  <div class="wrap">
+    <div class="label rv">기록 말고도</div>
+    <h2 class="rv d1">운동을 돕는 것들</h2>
+    <div class="more rv">
+      <div class="r"><span class="q">내 목표에 맞춰요</span><span class="a"><span class="s"><span class="k">근육·근력, 체지방, 체력, 뼈·관절,</span> <span class="k">자세·코어 중 중요한 순서대로 골라요.</span></span><span class="s"><span class="k">목표에 따라 반복 횟수, 쉬는 시간,</span> <span class="k">부위별 주간 세트가 달라져요.</span></span></span></div>
+      <div class="r"><span class="q">운동 가이드</span><span class="a"><span class="s"><span class="k">종목마다 기구 세팅, 하는 법, 핵심 포인트,</span> <span class="k">흔한 실수를 정리했어요.</span></span><span class="s">바디테일러 트레이너가 직접 다듬은 메모도 함께 보여요.</span></span></div>
+      <div class="r"><span class="q">스트레칭</span><span class="a"><span class="s">뻐근한 부위를 고르거나 이름으로 찾아요.</span><span class="s"><span class="k">웜업 때는 움직이는 스트레칭,</span> <span class="k">운동이 끝나면 오늘 부위에 맞는 쿨다운을 추천해요.</span></span></span></div>
+      <div class="r"><span class="q">레벨·성취</span><span class="a"><span class="s"><span class="k">운동할수록 레벨이 오르고,</span> <span class="k">꾸준함·신기록·균형으로 성취를 모아요.</span></span><span class="s">랭킹에는 닉네임과 점수만 보여요.</span></span></div>
+    </div>
+  </div>
+</section>
 <section class="pt" id="pt" data-tone="dark">
   <div class="bg" style="background-image:url('/intro/img/photo-trainer.webp')"></div>
   <div class="wrap">
     <div>
       <div class="label rv">PT 회원이라면</div>
       <h2 class="rv d1">트레이너가 짠 계획,<br>혼자 하는 날도 그대로</h2>
-      <p class="lead rv d2">트레이너가 앱으로 운동 계획과 메모를 보내면 회원의 기록 화면에 바로 나타나요. 회원은 그 계획대로 기록하고, 트레이너는 쌓인 기록을 보며 다음 수업을 준비해요.</p>
+      <p class="lead rv d2"><span class="s">트레이너가 앱으로 운동 계획과 메모를 보내면 회원의 기록 화면에 바로 나타나요.</span><span class="s"><span class="k">회원은 그 계획대로 기록하고,</span> <span class="k">트레이너는 쌓인 기록을 보며 다음 수업을 준비해요.</span></span></p>
       <dl class="rv d1">
         <dt>트레이너가 계획을 보내요</dt><dd>부위·종목에 "스쿼트 5×5" 같은 메모까지 회원 루틴에 바로 들어가요.</dd>
         <dt>혼자 하는 날도 계획대로</dt><dd>PT 받는 날과 혼자 하는 날의 기록이 한곳에 이어져요.</dd>
         <dt>트레이너가 기록을 확인해요</dt><dd>담당 트레이너가 운동 기록과 키·몸무게·운동 목표를 함께 보고 다음 수업을 준비해요.</dd>
-        <dt>처음이거나 자세가 불안하면</dt><dd>무게보다 자세가 먼저예요. 트레이너에게 직접 배우는 게 가장 빠르고 안전해요. 통증이 있으면 운동을 멈추고 상의하세요.</dd>
+        <dt>PT 일정과 남은 횟수</dt><dd><span class="s"><span class="k">트레이너가 잡은 PT 일정이 내 캘린더에 표시되고,</span> <span class="k">다음 PT가 홈에 보여요.</span></span><span class="s">남은 PT 횟수도 MY에서 확인해요.</span></dd>
+        <dt>트레이너를 미리 알아봐요</dt><dd><span class="s">HOWTO와 MY에서 바디테일러 트레이너의 경력·전문 분야·소개를 볼 수 있어요.</span></dd>
+        <dt>처음이거나 자세가 불안하면</dt><dd><span class="s">무게보다 자세가 먼저예요.</span><span class="s">트레이너에게 직접 배우는 게 가장 빠르고 안전해요.</span><span class="s">통증이 있으면 운동을 멈추고 상의하세요.</span></dd>
       </dl>
     </div>
     <div class="ptshots rv d2">
@@ -323,13 +355,13 @@ footer .wrap{padding:0}
     <div class="label rv">궁금한 점</div>
     <h2 class="rv d1">자주 묻는 질문</h2>
     <div class="faq rv">
-      <details><summary>누가 쓸 수 있나요?</summary><p>바디테일러 PT&amp;헬스 회원 전용이에요. 구글 계정으로 로그인하고 이름과 휴대폰 번호를 입력하면, 헬스장에서 회원인지 확인한 뒤 승인해 드려요. 승인되면 바로 쓸 수 있어요.</p></details>
-      <details><summary>PT 회원은 트레이너와 어떻게 연결하나요?</summary><p>헬스장에 담당 트레이너를 알려 주시면 앱에서 연결해 드려요. 연결되면 트레이너가 보낸 계획이 내 루틴에 "트레이너 계획"으로 나타나고, MY 화면에서 담당 트레이너를 확인할 수 있어요. 원하면 직접 연결을 해제할 수도 있어요.</p></details>
-      <details><summary>운동 계획은 어떻게 세우나요?</summary><p>처음 루틴을 만들 때 주당 운동 일수에 맞는 분할 예시를 보여줘요. 운동을 처음 한다면 트레이너가 짜준 계획을 따르는 게 가장 좋고, PT에서 배운 루틴을 그대로 내 루틴으로 옮겨 기록하면 돼요.</p><p>다만 내 몸과 그날 컨디션은 내가 가장 잘 알아요. 좋은 트레이너도 다른 사람의 몸 상태를 100% 알 수는 없으니, 기록을 보며 내 몸에 맞게 조금씩 고쳐 가요. 몸이 평소와 다르거나 아프다면 추천보다 몸의 신호를 먼저 따르세요.</p></details>
-      <details><summary>운동을 처음 해도 쓸 수 있나요?</summary><p>쓸 수 있어요. 다만 기본 자세는 트레이너에게 먼저 배우는 걸 권해요. 처음 8주는 주간 세트 기준을 낮게 잡아줘요.</p></details>
-      <details><summary>목표(근육·체지방·체력 등)에 따라 달라지나요?</summary><p>네. 고른 목표에 맞춰 목표 횟수, 쉬는 시간, 부위별 주간 세트 기준이 바뀌어요.</p></details>
-      <details><summary>앱을 설치해야 하나요?</summary><p>브라우저에서 바로 쓸 수 있어요. 홈 화면에 추가하면 앱처럼 열려요. 아이폰은 사파리 공유 버튼 → "홈 화면에 추가", 안드로이드는 크롬 메뉴 → "홈 화면에 추가"예요.</p></details>
-      <details><summary>헬스장 인터넷이 약하면요?</summary><p>운동 중 입력한 세트는 휴대폰에 바로 저장돼서, 신호가 끊겨도 기록을 이어갈 수 있어요. 운동 완료 기록은 연결되면 자동으로 올라가요. 이 휴대폰에서 한 번 불러온 기록은 신호가 약해도 보이지만, 로그인과 처음 불러오는 기록은 인터넷이 필요해요.</p></details>
+      <details><summary>누가 쓸 수 있나요?</summary><p><span class="s">바디테일러 PT&amp;헬스 회원 전용이에요.</span><span class="s"><span class="k">구글 계정으로 로그인하고 이름과 휴대폰 번호를 입력하면,</span> <span class="k">헬스장에서 회원인지 확인한 뒤 승인해 드려요.</span></span><span class="s">승인되면 바로 쓸 수 있어요.</span></p></details>
+      <details><summary>언제까지 쓸 수 있나요?</summary><p><span class="s">앱 사용 기간은 헬스장 회원권 기간과 같아요.</span><span class="s">끝나기 7일 전부터 앱에서 알려 드려요.</span><span class="s"><span class="k">회원권이 끝나면 새 기록은 남길 수 없지만,</span> <span class="k">지난 기록과 리포트는 계속 볼 수 있어요.</span></span></p></details>
+      <details><summary>PT 회원은 트레이너와 어떻게 연결하나요?</summary><p><span class="s">헬스장에 담당 트레이너를 알려 주시면 앱에서 연결해 드려요.</span><span class="s"><span class="k">연결되면 트레이너가 보낸 계획이 내 루틴에 "트레이너 계획"으로 나타나고,</span> <span class="k">MY 화면에서 담당 트레이너를 확인할 수 있어요.</span></span><span class="s">원하면 직접 연결을 해제할 수도 있어요.</span></p></details>
+      <details><summary>운동 계획은 어떻게 세우나요?</summary><p><span class="s">처음 루틴을 만들 때 주당 운동 일수에 맞는 분할 예시를 보여줘요.</span><span class="s"><span class="k">운동을 처음 한다면 트레이너가 짜준 계획을 따르는 게 가장 좋고,</span> <span class="k">PT에서 배운 루틴을 그대로 내 루틴으로 옮겨 기록하면 돼요.</span></span></p><p><span class="s">다만 내 몸과 그날 컨디션은 내가 가장 잘 알아요.</span><span class="s"><span class="k">좋은 트레이너도 다른 사람의 몸 상태를 100% 알 수는 없으니,</span> <span class="k">기록을 보며 내 몸에 맞게 조금씩 고쳐 가요.</span></span><span class="s">몸이 평소와 다르거나 아프다면 추천보다 몸의 신호를 먼저 따르세요.</span></p></details>
+      <details><summary>운동을 처음 해도 쓸 수 있나요?</summary><p><span class="s">쓸 수 있어요.</span><span class="s">다만 기본 자세는 트레이너에게 먼저 배우는 걸 권해요.</span><span class="s">처음 8주는 주간 세트 기준을 낮게 잡아줘요.</span></p></details>
+      <details><summary>목표(근육·체지방·체력 등)에 따라 달라지나요?</summary><p><span class="s">네.</span><span class="s"><span class="k">고른 목표에 맞춰 목표 횟수, 쉬는 시간,</span> <span class="k">부위별 주간 세트 기준이 바뀌어요.</span></span></p></details>
+      <details><summary>앱을 설치해야 하나요?</summary><p><span class="s">브라우저에서 바로 쓸 수 있어요.</span><span class="s">홈 화면에 추가하면 앱처럼 열려요.</span><span class="s"><span class="k">아이폰은 사파리 공유 버튼 → "홈 화면에 추가",</span> <span class="k">안드로이드는 크롬 메뉴 → "홈 화면에 추가"예요.</span></span></p></details>
     </div>
   </div>
 </section>
@@ -343,7 +375,7 @@ footer .wrap{padding:0}
 </section>
 <footer data-tone="beige"><div class="wrap">
   BodyTailor Log · 바디테일러 PT&amp;헬스 회원용 운동 기록<br>
-  개인정보 처리방침(준비 중) · 문의: 운영자 연락처 입력 예정<br>
+  <a href="/privacy/">개인정보 처리방침</a> · <a href="/oss-licenses.txt">오픈소스 라이선스</a> · 문의: 앱 MY › 1:1 문의, <a href="https://blog.naver.com/bodytailor" target="_blank" rel="noopener">네이버 블로그</a><br>
   앱의 추천과 안내는 일반적인 운동 정보이며 의학적 진단·치료를 대신하지 않아요. 통증이나 질환이 있으면 전문가와 상의하세요.<br>
   사진: Unsplash
 </div></footer>
@@ -368,14 +400,14 @@ document.querySelectorAll('.rv').forEach(el => io.observe(el))
 
 // 기록 방식 전환
 const MODES = [
-  { d: '모든 세트를 표로 보면서 무게·횟수를 ± 버튼으로 고쳐요. 세트가 많은 날, 전체 흐름을 보고 싶을 때.', l: ['세트 전체를 한 화면에', '직전 기록·오늘 목표를 바로 비교', '세트 복사·웜업 세트 자동 추가'] },
-  { d: '지금 할 세트 하나만 큰 숫자와 큰 버튼으로. 땀 묻은 손으로도 누르기 쉬워요.', l: ['큰 숫자, 큰 버튼', '무게·횟수를 큰 ± 버튼으로', '저장하면 다음 세트로 자동 이동'] },
+  { d: '모든 세트를 표로 보면서 무게·횟수를 ± 버튼으로 고쳐요.|세트가 많은 날, 전체 흐름을 보고 싶을 때 좋아요.', l: ['세트 전체를 한 화면에', '직전 기록·오늘 목표를 바로 비교', '세트 복사·웜업 세트 자동 추가'] },
+  { d: '지금 할 세트 하나만 큰 숫자와 큰 버튼으로 보여 줘요.|땀 묻은 손으로도 누르기 쉬워요.', l: ['큰 숫자, 큰 버튼', '무게·횟수를 큰 ± 버튼으로', '저장하면 다음 세트로 자동 이동'] },
 ]
 const mImgs = document.querySelectorAll('.mshot img')
 function setMode(i){
   document.querySelectorAll('.tabs button').forEach((b, k) => { b.classList.toggle('on', k === i); b.setAttribute('aria-selected', k === i) })
   mImgs.forEach((im, k) => im.classList.toggle('on', k === i))
-  document.getElementById('mDesc').textContent = MODES[i].d
+  document.getElementById('mDesc').innerHTML = MODES[i].d.split('|').map(x => `<span class="s">${x}</span>`).join('')
   document.getElementById('mList').innerHTML = MODES[i].l.map(x => `<li>${x}</li>`).join('')
 }
 document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button'); if (b) setMode(+b.dataset.m) }
@@ -385,7 +417,7 @@ setMode(0)
 const reps = [9, 8, 7], MIN = 6, MAX = 10, W = 60, INC = 5
 function render(){
   document.getElementById('sets').innerHTML = reps.map((r, i) =>
-    `<div class="set"><span class="k">${i + 1}세트</span><span class="w">${W}kg</span><div class="r"><button data-i="${i}" data-d="-1" aria-label="${i + 1}세트 횟수 줄이기">−</button><span class="num">${r}</span><button data-i="${i}" data-d="1" aria-label="${i + 1}세트 횟수 늘리기">+</button></div></div>`).join('')
+    `<div class="set"><span class="sk">${i + 1}세트</span><span class="rec">${W}kg ×<select data-i="${i}" aria-label="지난번 ${i + 1}세트 횟수">${Array.from({ length: 15 }, (_, k) => `<option${k + 1 === r ? ' selected' : ''}>${k + 1}</option>`).join('')}</select>회</span></div>`).join('')
   const total = reps.reduce((a, b) => a + b, 0), need = Math.ceil(0.9 * MAX * reps.length), minR = Math.min(...reps)
   const big = document.getElementById('recBig'), why = document.getElementById('recWhy'), bar = document.getElementById('recBar'), bl = document.getElementById('recBarLabel')
   let showBar = false
@@ -397,7 +429,7 @@ function render(){
   bar.querySelector('i').style.width = Math.min(100, total / need * 100) + '%'
   bl.textContent = `증량까지 총 ${Math.max(0, need - total)}회 (지난번 ${total} / ${need}회)`
 }
-document.getElementById('sets').onclick = e => { const b = e.target.closest('button'); if (!b) return; const i = +b.dataset.i; reps[i] = Math.max(1, Math.min(15, reps[i] + +b.dataset.d)); render() }
+document.getElementById('sets').onchange = e => { const sel = e.target.closest('select'); if (!sel) return; reps[+sel.dataset.i] = +sel.value; render() }
 render()
 </script>
 </body>

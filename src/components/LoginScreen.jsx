@@ -64,6 +64,12 @@ export default function LoginScreen() {
           {error}
         </p>
       )}
+      {/* [2026-10-31] 로그인 전에도 처리방침을 볼 수 있게 */}
+      <p style={{ margin: '14px 0 0', textAlign: 'center', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+        <a href="/privacy/" target="_blank" rel="noopener" style={{ color: 'inherit' }}>개인정보 처리방침</a>
+        {' · '}
+        <a href="/intro/" style={{ color: 'inherit' }}>앱 소개</a>
+      </p>
     </div>
   )
 }

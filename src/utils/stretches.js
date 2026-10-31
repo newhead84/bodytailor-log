@@ -202,6 +202,58 @@ export function recommendStretches(atoms = [], phase = 'before', n = 3) {
   return out.slice(0, n)
 }
 
-export function getStretchVideoUrl(name) {
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} 스트레칭 방법`)}`
+// [2026-10-31] YouTube 검색어 — 앱 안 이름(설명형) 대신 영상에서 통용되는 명칭으로 찾아야 결과가 정확하다.
+export const STRETCH_YT = {
+  'arm-circle': '팔 돌리기 어깨 워밍업',
+  'band-dislocate': '숄더 디스로케이트 스트레칭',
+  'scap-pushup': '스캡 푸시업',
+  'band-pull-apart': '밴드 풀어파트',
+  't-spine-rotation': '네발기기 흉추 회전 스트레칭',
+  'cat-cow': '캣카우 스트레칭',
+  'worlds-greatest': '월드 그레이티스트 스트레칭',
+  'leg-swing-front': '레그 스윙 스트레칭',
+  'leg-swing-side': '레그 스윙 옆으로 고관절',
+  'hip-circle': '힙 서클 고관절 돌리기',
+  'squat-pry': '딥 스쿼트 홀드 고관절 스트레칭',
+  'ankle-knee-wall': '발목 가동성 무릎 벽 밀기',
+  inchworm: '인치웜 스트레칭',
+  'wrist-prep': '손목 워밍업 스트레칭',
+  'doorway-chest': '문틀 가슴 스트레칭',
+  'cross-body-shoulder': '크로스바디 숄더 스트레칭',
+  'upper-back-round': '등 상부 스트레칭 능형근',
+  'lat-stretch': '광배근 스트레칭',
+  'overhead-triceps': '오버헤드 삼두 스트레칭',
+  'biceps-wall': '벽 이두 스트레칭',
+  'wrist-flex-ext': '손목 굴곡근 신전근 스트레칭',
+  'neck-side': '상부승모근 목 옆 스트레칭',
+  'chin-tuck': '친턱 거북목 교정',
+  'child-pose': '아기자세 스트레칭',
+  'knee-hug-twist': '누워서 허리 비틀기 스트레칭',
+  pigeon: '4자 스트레칭 이상근',
+  'hip-flexor-lunge': '고관절 굴곡근 스트레칭',
+  'quad-standing': '서서 대퇴사두 스트레칭',
+  'hamstring-towel': '수건 햄스트링 스트레칭',
+  'calf-wall': '벽 종아리 스트레칭',
+  'foam-tspine': '폼롤러 흉추 등 풀기',
+  'foam-quad': '폼롤러 허벅지 앞 바깥 풀기',
+  'foam-calf': '폼롤러 종아리 풀기',
+  'ball-glute': '마사지볼 엉덩이 이상근 풀기',
+}
+
+// s: 스트레칭 객체(권장) 또는 이름 문자열
+export function getStretchVideoUrl(s) {
+  const q = typeof s === 'string' ? `${s} 스트레칭 방법` : STRETCH_YT[s?.id] || `${s?.name || ''} 스트레칭 방법`
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
+}
+
+// [2026-10-31] 스트레칭 검색 — 이름·통용 명칭(yt)·부위 이름·관련 운동 부위·언제 좋은지(공백 무시)
+const squash = (t) => String(t || '').toLowerCase().replace(/\s+/g, '')
+export function searchStretches(query) {
+  const q = squash(query)
+  if (!q) return STRETCHES
+  return STRETCHES.filter((s) => {
+    const areaLabels = s.areas.map((id) => STRETCH_AREAS.find((a) => a.id === id)?.label || '')
+    const text = squash([s.name, STRETCH_YT[s.id], STRETCH_TYPE_LABEL[s.type], ...areaLabels, ...s.parts, s.good].join(' '))
+    return text.includes(q)
+  })
 }

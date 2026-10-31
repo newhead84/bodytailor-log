@@ -48,7 +48,7 @@ service cloud.firestore {
     function ptDeductEnabled() {
       return get(/databases/$(database)/documents/settings/app).data.get('ptDeductEnabled', false) == true;
     }
-    // 세션 1회 XP 상한(storage.js computeSessionXp 최대 180) — 여유분 포함 200
+    // 세션 1회 XP 상한(storage.js computeSessionXp 최대 175) — 여유분 포함 200
     // [2026-10-29] 자동 저장 "되돌리기"로 XP를 빼야 해서 감소도 1회 200까지 허용(0 미만 불가).
     function xpDeltaOk(field) {
       return !(field in request.resource.data) ||
@@ -80,7 +80,9 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
           'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt']) &&
         request.resource.data.get('seasonXp', 0) == 0 &&
-        request.resource.data.get('lifetimeXp', 0) == 0;
+        request.resource.data.get('lifetimeXp', 0) == 0 &&
+        // [2026-10-31] 탈퇴 표시가 있는 uid는 다시 만들 수 없다(users만 지웠다 재생성해 거절·만료·회원권 필드를 초기화하는 우회 방지)
+        !exists(/databases/$(database)/documents/deletedAccounts/$(uid));
       // signupInfo(이름·휴대폰 변환값)는 승인 대기·거절 상태이거나 아직 없을 때(기존 계정 첫 입력)만 본인이 쓸 수 있다(승인 후엔 관리자 대조 기준이라 잠금).
       allow update: if (isOwner(uid) &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(lockedUserKeys()) &&
@@ -102,7 +104,15 @@ service cloud.firestore {
             request.resource.data.ptRemaining == resource.data.get('ptRemaining', 0) + 1) &&
           request.resource.data.ptRemaining >= 0 &&
           request.resource.data.ptRemaining <= resource.data.get('ptTotal', 0));
-      allow delete: if false;
+      // [2026-10-31] 계정 삭제(탈퇴) — 탈퇴 표시(deletedAccounts/{uid})를 먼저 남긴 본인만 삭제. 같은 uid는 다시 만들 수 없고,
+      // 같은 구글 계정으로 다시 가입하면 로그인 계정 삭제 후라 새 uid(승인 대기)로 시작한다.
+      allow delete: if isOwner(uid) && exists(/databases/$(database)/documents/deletedAccounts/$(uid));
+    }
+    // [2026-10-31] 탈퇴 표시 — 본인만 생성(삭제 시각만), 수정·삭제 불가. 개인정보 없음(uid만).
+    match /deletedAccounts/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && request.resource.data.keys().hasOnly(['deletedAt']);
+      allow update, delete: if false;
     }
 
     // [2026-10-31 Phase2 P2-1] gymRoster/{rosterId} — 헬스장 출입관리 명단 이관본(이름·전화 해시·뒤 4자리·회원번호·만료일). 관리자만.
@@ -125,7 +135,8 @@ service cloud.firestore {
       // 본인은 byTrainer(트레이너 계획 표시)를 새로 넣거나 바꿀 수 없다(가짜 트레이너 배지 방지). 삭제·나머지 수정은 가능.
       allow create: if isOwner(uid) && isApproved() && !('byTrainer' in request.resource.data);
       allow update: if isOwner(uid) && isApproved() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['byTrainer']);
-      allow delete: if isOwner(uid) && isApproved();
+      // [2026-10-31] 삭제는 승인 여부와 관계없이 본인 가능(탈퇴·대기·만료 계정 정리)
+      allow delete: if isOwner(uid);
       allow create: if isTrainerOf(uid) && trainerPlanOk();
       allow update: if isTrainerOf(uid) && resource.data.get('byTrainer', {}).get('uid', '') == request.auth.uid && trainerPlanOk();
       allow delete: if isTrainerOf(uid) && resource.data.get('byTrainer', {}).get('uid', '') == request.auth.uid;
@@ -143,7 +154,9 @@ service cloud.firestore {
     // [2026-10-31 Phase2 P2-2] 담당 트레이너(isTrainerOf)는 그 회원의 운동 기록을 읽을 수 있다(쓰기 불가).
     match /workoutLogs/{uid}/logs/{logId} {
       allow read: if request.auth != null && (request.auth.uid == uid || isTrainerOf(uid));
-      allow write: if request.auth != null && request.auth.uid == uid && isApproved();
+      allow create, update: if request.auth != null && request.auth.uid == uid && isApproved();
+      // [2026-10-31] 삭제는 승인 여부와 관계없이 본인 가능(탈퇴·만료 후 기록 정리)
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
     // leaderboard/{group}/{period}/{uid}
@@ -158,7 +171,8 @@ service cloud.firestore {
     }
     match /leaderboard/{group}/{period}/{uid} {
       allow read: if request.auth != null;
-      allow write: if isOwner(uid) && isApproved() &&
+      allow delete: if isOwner(uid); // [2026-10-31] 탈퇴 시 내 랭킹 기록 삭제
+      allow create, update: if isOwner(uid) && isApproved() &&
         request.resource.data.keys().hasOnly(['nickname', 'baseScore', 'attendanceScore', 'volumeScore',
           'overloadScore', 'streakBonus', 'programComplianceBonus', 'finalScore', 'updatedAt']) &&
         (!('nickname' in request.resource.data) ||

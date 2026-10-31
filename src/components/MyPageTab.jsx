@@ -9,6 +9,7 @@ import { TrainerAvatar } from './TrainerProfileView'
 import { membershipState, fmtYmd } from '../utils/member'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
+import AccountLegalSection from './AccountLegalSection'
 import { todayStr } from '../utils/date'
 import { getTierByXp, getNextTier, getLevelInfo, stageLevelRange } from '../utils/tier'
 import { computeAchievements } from '../utils/achievements'
@@ -500,6 +501,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <ExternalLink size={15} strokeWidth={2} aria-hidden="true" />
         </a>
       </Card>
+
+      {/* [2026-10-31] 약관·개인정보(처리방침·오픈소스 라이선스·건강 면책) + 계정 삭제(탈퇴) */}
+      <AccountLegalSection uid={uid} />
 
       {/* [2026-08-01 신규] 온보딩 화면(Onboarding.jsx) QA/디자인 확인용 재열람 진입점.
           일반회원/VIP에게는 불필요한 개발용 기능이라 관리자 계정에만 노출한다. */}

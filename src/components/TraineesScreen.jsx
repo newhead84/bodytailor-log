@@ -8,7 +8,7 @@ import { BackButton, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { useBackableScreen } from '../hooks/useBackableScreen'
-import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, listMyTrainees, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
+import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
 import { toLocalDateStr } from '../utils/date'
 import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
@@ -50,6 +50,7 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
       <BackButton onClick={onClose}>돌아가기</BackButton>
       <h1 style={{ fontSize: 24, margin: '8px 0 6px' }}>내 회원</h1>
       <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>관리자가 연결한 담당 회원이에요. 운동 계획을 만들어 보내고, 회원이 남긴 기록을 볼 수 있어요(기록 수정은 회원만).</p>
+      {list && list.length > 0 && <WeekSchedules uid={uid} list={list} onOpen={setSel} />}
       {list === null ? (
         <p style={{ color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
       ) : list.length === 0 ? (
@@ -65,6 +66,74 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
         </div>
       )}
     </div>
+  )
+}
+
+// [2026-10-31] 오늘·이번 주(오늘부터 7일) PT 일정 모아보기 — 줄을 누르면 그 회원 화면으로
+function WeekSchedules({ uid, list, onOpen }) {
+  const [items, setItems] = useState(null)
+  const today = toLocalDateStr(new Date())
+  const dates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() + i)
+    return toLocalDateStr(d)
+  })
+  useEffect(() => {
+    let alive = true
+    listTrainerSchedulesByDates(uid, dates)
+      .then((l) => alive && setItems(l))
+      .catch((err) => {
+        console.error('PT 일정 모아보기 실패:', err)
+        if (alive) setItems([])
+      })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, today])
+  const byMember = Object.fromEntries(list.map((c) => [c.memberUid, c]))
+  const shown = (items || []).filter((s) => byMember[s.memberUid])
+  const todayItems = shown.filter((s) => s.date === today)
+  const laterItems = shown.filter((s) => s.date !== today)
+  const row = (s) => {
+    const c = byMember[s.memberUid]
+    const done = s.status === 'done'
+    return (
+      <button
+        key={s.id}
+        type="button"
+        onClick={() => onOpen(c)}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 0', borderTop: '1px solid var(--color-line)', textAlign: 'left', color: 'var(--color-label-strong)' }}
+      >
+        <span className="bt-num" style={{ minWidth: 44, fontSize: 14, fontWeight: 700 }}>{s.time}</span>
+        <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{c.memberName}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: done ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }}>{done ? '완료' : '예정'} ›</span>
+      </button>
+    )
+  }
+  return (
+    <Card style={{ marginBottom: 14 }}>
+      <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700 }}>PT 일정</p>
+      {items === null ? (
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
+      ) : (
+        <>
+          <p style={{ margin: '8px 0 2px', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>오늘 {fmtDay(today)} · {todayItems.length}건</p>
+          {todayItems.length ? todayItems.map(row) : <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>오늘 잡힌 PT가 없어요.</p>}
+          <p style={{ margin: '12px 0 2px', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>이번 주(7일) · {laterItems.length}건</p>
+          {laterItems.length ? (
+            laterItems.map((s, i) => (
+              <React.Fragment key={s.id}>
+                {(i === 0 || laterItems[i - 1].date !== s.date) && <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>{fmtDay(s.date)}</p>}
+                {row(s)}
+              </React.Fragment>
+            ))
+          ) : (
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>남은 일정이 없어요. 일정은 회원 화면의 PT 카드에서 잡아요.</p>
+          )}
+        </>
+      )}
+    </Card>
   )
 }
 

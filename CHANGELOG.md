@@ -2,6 +2,28 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 홍보 페이지 문장 단위 줄바꿈·과부하 데모 표기·기능 반영 | public/intro/index.html
+- 문장(.s)마다 새 줄, 말덩이(.k) 단위로만 줄바꿈(“오늘 몇 / kg” 같은 끊김 제거). 과부하 데모의 '지난번 기록'을 입력 화면(±)이 아닌 기록 표기(60kg × 9회, 횟수만 선택)로.
+- '운동을 돕는 것들'(목표 맞춤·운동 가이드·스트레칭·레벨), PT 일정·트레이너 소개, 회원권 FAQ 추가 / '헬스장 인터넷이 약하면요?' 삭제 / 푸터에 처리방침·라이선스 링크.
+
+[2026-10-31] 법적 정비 | ConsentScreen.jsx(신규), AccountLegalSection.jsx(신규), utils/legal.js(신규), App.jsx, LoginScreen.jsx, ReportTab.jsx, HowToTab.jsx, StretchGuide.jsx, firebase.js, storage.js, firestore.rules, public/privacy/index.html(신규), public/oss-licenses.txt(신규), LICENSE(신규), docs/ASSET_SOURCES.md(신규), docs/gen-oss-licenses.cjs(신규)
+- 동의 화면: 만 14세 이상·개인정보·신체 정보(별도)·국외 이전(필수), 랭킹 공개·건강 면책 안내. 국외 이전은 '구글 클라우드에 보관하기 때문 · 판매·광고에 쓰지 않음'을 펼치지 않아도 보이게(처리방침 5항도 같은 설명).
+- 탈퇴 표시 deletedAccounts/{uid}(같은 uid 재생성 차단 — users만 지웠다 다시 만들어 거절·회원권 필드를 초기화하는 우회 방지), 로그인 계정 삭제 실패 시 오류·재시도 + '탈퇴한 계정이에요' 화면, 탈퇴 후 기기 캐시(IndexedDB) 정리. users.consents(CONSENT_VERSION) — 새 계정은 온보딩 전, 기존 계정은 다음 접속 때 1회.
+- 개인정보 처리방침 /privacy/(로그인 화면·설정·홍보 페이지에서 링크), 오픈소스 라이선스 고지(133개, 설정에서 요약+전문), 건강 면책 문구(HOWTO 종목 상세·스트레칭·동의·설정).
+- 계정 삭제(탈퇴): 구글 재로그인 → 기록·루틴·랭킹·문의·사용자 문서 삭제, 트레이너 연결 종료 → 로그인 계정 삭제. rules: 본인 users 삭제 허용, 기록·루틴·랭킹 삭제는 승인 여부 무관(본인).
+- 랭킹 화면에 닉네임·점수 공개 안내. 출처 불명 tier-icons PNG 삭제. rules XP 주석 180→175.
+
+[2026-10-31] 스트레칭 검색·영상 버튼 | utils/stretches.js(STRETCH_YT·searchStretches), StretchGuide.jsx
+- 이름·통용 명칭·부위 검색, 카드 바깥 '영상' 버튼(웜업·쿨다운 추천 카드 포함), 스트레칭별 YouTube 검색어.
+
+[2026-10-31] 트레이너 PT 일정 모아보기·HOWTO 기구 필터·홈 증량 추천 펼치기 | TraineesScreen.jsx(WeekSchedules), storage.js(listTrainerSchedulesByDates), HowToTab.jsx, HomeTab.jsx
+- 내 회원 화면 상단 '오늘·이번 주(7일)' PT 일정(누르면 회원 화면). 운동 목록 기구 칩 필터 + 줄마다 기구 표시. '외 N개 보기'/접기.
+
+[2026-10-31] Spark 한도 절약·번들 줄이기·회원권 만료 저장 안내 | storage.js, WorkoutInput.jsx, LogTab.jsx, App.jsx, utils/exerciseGuides.js, utils/guideOverrides.js, ui.jsx
+- 전체 기록 읽기 세션 캐시(MY 성취·CSV·PR 재계산 공유, 이 기기 기록 변경 시 비움), 랭킹·인기 운동 10분 캐시(내 점수 갱신 시 비움).
+- 진행 세션 서버 백업: 세트 저장·단계 변경 등은 2.5초, 그 외 입력은 30초, 백그라운드 전환 시 즉시.
+- exerciseGuidesMore.js 동적 로드(메인 번들 494→446KB, 동의·탈퇴 화면 포함). 회원권 종료 후 저장 실패 시 이유 안내(confirm 줄바꿈 지원).
+
 [2026-10-31] 다음 채팅 인계 정리 | CLAUDE.md 7.8
 - 완료 범위, Spark 요금제 한도, 사용자 운영 세팅 체크리스트, 다음 할 일 A(한도 절약·번들 지연 로드·회원권 만료 저장 안내)/B, 보류 위험, QA 하네스 주의점.
 
