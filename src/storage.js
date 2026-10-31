@@ -291,7 +291,8 @@ export async function saveTrainerPlan(memberUid, trainer, plan) {
   const byTrainer = { uid: trainer.uid, name: trainer.name || '' }
   const note = String(plan.note || '').slice(0, 300)
   if (plan.id) {
-    await setDoc(doc(col, plan.id), { title: plan.title, parts: plan.parts, note, byTrainer, updatedAt: serverTimestamp() }, { merge: true })
+    // 수정은 updateDoc — 회원이 그사이 지운 계획이면 실패(merge로 order 없는 문서가 되살아나 목록에서 안 보이는 문제 방지)
+    await updateDoc(doc(col, plan.id), { title: plan.title, parts: plan.parts, note, byTrainer, updatedAt: serverTimestamp() })
     return plan.id
   }
   const all = await getRoutineTemplates(memberUid)

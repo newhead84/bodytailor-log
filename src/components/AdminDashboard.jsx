@@ -337,7 +337,7 @@ function ConnectTab({ users, conns, onConnect, onEnd }) {
       <Card>
         <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>회원에게 담당 트레이너 연결</p>
         <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
-          연결하면 트레이너가 그 회원의 운동 기록을 볼 수 있어요(수정은 못 해요). 회원당 담당 트레이너는 1명이라, 새로 연결하면 이전 연결은 자동으로 끝나요. 일반회원은 PT회원으로 바뀌어요. 트레이너는 '회원' 탭에서 역할을 '트레이너'로 바꾸면 여기에 나타나요.
+          연결하면 트레이너가 그 회원의 운동 기록과 신체정보·목표를 보고(수정은 못 해요) 운동 계획을 보낼 수 있어요. 회원당 담당 트레이너는 1명이라, 새로 연결하면 이전 연결은 자동으로 끝나요. 일반회원은 PT회원으로 바뀌어요. 트레이너는 '회원' 탭에서 역할을 '트레이너'로 바꾸면 여기에 나타나요.
         </p>
         {trainers.length === 0 ? (
           <p style={{ margin: '12px 0 0', fontSize: 13, color: 'var(--color-warning)' }}>아직 트레이너가 없어요. '회원' 탭에서 트레이너 계정의 역할을 '트레이너'로 바꿔 주세요.</p>

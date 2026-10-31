@@ -1,14 +1,16 @@
 // TraineesScreen.jsx
 // [2026-10-31 신규, Phase2 P2-2] 트레이너 "내 회원": 담당(활성 연결) 회원 목록 → 회원별 최근 8주 운동 기록(읽기 전용).
-// 기록 읽기는 firestore.rules isTrainerOf(활성 연결 + 트레이너 역할)가 허용한다. 신체정보는 보여주지 않는다.
+// 기록 읽기는 firestore.rules isTrainerOf(활성 연결 + 트레이너 역할)가 허용한다.
+// [2026-10-31] PT 회원의 신체정보(성별·나이·키·몸무게)·운동 목표·주당 목표 일수도 트레이너에게 보여준다(users 문서 읽기 허용).
 // [2026-10-31 P2-3] 회원 화면 상단 "운동 계획": 트레이너가 회원의 루틴(계획)을 만들어 보내고 수정·삭제한다(RoutineSetup forTrainer 재사용).
 import React, { useCallback, useEffect, useState } from 'react'
 import { BackButton, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { useBackableScreen } from '../hooks/useBackableScreen'
-import { listMyTrainees, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
+import { getUserDoc, listMyTrainees, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
 import { toLocalDateStr } from '../utils/date'
+import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
 import { formatLoad, repsUnit, logVolumeKg } from '../utils/load'
 import { formatCardioSet } from '../utils/cardioFields'
@@ -30,6 +32,9 @@ function setsText(ex) {
 export default function TraineesScreen({ uid, trainerName = '', customExercises = {}, onClose }) {
   const [list, setList] = useState(null)
   const [sel, setSel] = useState(null)
+  // 회원 상세에서 기기 뒤로가기 → 회원 목록으로(내 회원 화면 전체가 닫히지 않게)
+  const closeSel = useCallback(() => setSel(null), [])
+  useBackableScreen(!!sel, closeSel)
   useEffect(() => {
     listMyTrainees(uid)
       .then((l) => setList(l.sort((a, b) => String(a.memberName).localeCompare(String(b.memberName), 'ko'))))
@@ -39,7 +44,7 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
       })
   }, [uid])
 
-  if (sel) return <MemberLogs conn={sel} uid={uid} trainerName={trainerName || sel.trainerName} customExercises={customExercises} onBack={() => setSel(null)} />
+  if (sel) return <MemberLogs conn={sel} uid={uid} trainerName={trainerName || sel.trainerName} customExercises={customExercises} onBack={closeSel} />
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '24px 20px 80px', boxSizing: 'border-box' }}>
       <BackButton onClick={onClose}>돌아가기</BackButton>
@@ -67,6 +72,15 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
   const [logs, setLogs] = useState(null)
   const [open, setOpen] = useState({})
   const [editing, setEditing] = useState(null) // null | 'new' | template
+  const [member, setMember] = useState(null) // users 문서(신체정보) — 못 읽으면 false
+  useEffect(() => {
+    getUserDoc(conn.memberUid)
+      .then((d) => setMember(d || false))
+      .catch((err) => {
+        console.error('회원 정보 불러오기 실패:', err)
+        setMember(false)
+      })
+  }, [conn.memberUid])
   useEffect(() => {
     const to = toLocalDateStr(new Date())
     const f = new Date()
@@ -102,7 +116,8 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
             setPlansKey((k) => k + 1)
           } catch (e) {
             console.error('계획 저장 실패:', e)
-            window.alert(e?.message?.startsWith('한 회원') ? e.message : '계획을 저장하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.')
+            window.alert(e?.message?.startsWith('한 회원') ? e.message : e?.code === 'not-found' ? '회원이 이 계획을 삭제했어요. 새 계획으로 만들어 주세요.' : '계획을 저장하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.')
+            if (e?.code === 'not-found') { setEditing(null); setPlansKey((k) => k + 1) }
           }
         }}
       />
@@ -114,6 +129,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
       <BackButton onClick={onBack}>회원 목록</BackButton>
       <h1 style={{ fontSize: 24, margin: '8px 0 4px' }}>{conn.memberName}</h1>
       <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>최근 8주 운동 기록 · 이번 주 <span className="bt-num">{thisWeekDays}</span>일 운동</p>
+      <MemberBody member={member} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} />
       <h2 style={{ fontSize: 16, margin: '22px 0 10px' }}>운동 기록</h2>
       {logs === null ? (
@@ -217,5 +233,29 @@ function MemberPlans({ conn, uid, onNew, onEdit }) {
         )}
       </div>
     </>
+  )
+}
+
+// [2026-10-31] 회원 신체정보·목표 — 온보딩/MY 프로필 값 그대로
+function MemberBody({ member }) {
+  if (member === null) return null
+  if (member === false) return <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>회원 신체정보를 불러오지 못했어요.</p>
+  const o = member.onboarding || {}
+  const body = [o.gender, o.age ? `${o.age}세` : '', o.heightCm ? `${o.heightCm}cm` : '', o.weightKg ? `${o.weightKg}kg` : ''].filter(Boolean)
+  const goals = normalizeGoals(o.goals)
+  const row = (k, v) => (
+    <div style={{ display: 'flex', gap: 12, fontSize: 13.5, lineHeight: 1.5 }}>
+      <span style={{ flexShrink: 0, width: 64, color: 'var(--color-label-neutral)' }}>{k}</span>
+      <span className="text-keep-all" style={{ fontWeight: 600 }}>{v}</span>
+    </div>
+  )
+  return (
+    <Card style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {row('신체정보', body.length ? body.join(' · ') : '입력 안 함')}
+        {row('운동 목표', goals.length ? goals.map((g, i) => `${i + 1}. ${g}`).join('  ') : '입력 안 함')}
+        {row('주간 목표', `주 ${member.weeklyTargetDays || 3}일`)}
+      </div>
+    </Card>
   )
 }

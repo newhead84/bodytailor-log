@@ -946,7 +946,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <Card style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <div style={{ minWidth: 0 }}>
               <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>{trainerConn.trainerName} 트레이너</p>
-              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 트레이너가 내 운동 기록을 볼 수 있어요(신체 정보는 공유되지 않아요).</p>
+              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 트레이너가 내 운동 기록과 신체정보(키·몸무게)·운동 목표를 보고, 운동 계획을 보내 줘요.</p>
             </div>
             <button
               type="button"

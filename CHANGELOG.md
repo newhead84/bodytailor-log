@@ -2,6 +2,13 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] PT 회원 신체정보 트레이너 공유 + Phase2 검토 수정 | TraineesScreen.jsx, MyPageTab.jsx, AdminDashboard.jsx, RoutineSetup.jsx, storage.js, utils/member.js, firestore.rules, public/intro(문구·cap-trainer.webp), CLAUDE.md
+- 트레이너 회원 화면에 신체정보(성별·나이·키·몸무게)·운동 목표·주간 목표 카드. rules: 담당 트레이너 users 문서 읽기 허용. 회원 MY·대시보드·홍보 페이지의 "신체정보 비공유" 문구를 공유로 정정.
+- 명단 가져오기: 순번 'No'·'ID' 열을 회원번호로 잡지 않게(재가져오기 시 다른 사람 문서 덮어쓰기 방지).
+- 트레이너 계획 수정은 updateDoc(회원이 지운 계획이 안 보이는 문서로 되살아나던 문제), 계획 파트 7개 제한을 화면에도 표시.
+- 트레이너 회원 상세에서 기기 뒤로가기 → 회원 목록으로.
+- rules: 회원이 자기 루틴에 가짜 byTrainer(트레이너 배지)를 넣지 못하게, 승인 후 signupInfo(이름·휴대폰 변환값) 본인 수정 잠금(대기·거절·첫 입력은 허용).
+
 [2026-10-31] Phase2 P2-4 홍보 페이지 반영 | public/intro/index.html, public/intro/img/cap-trainer.webp·cap-ptplan.webp(신규), CLAUDE.md
 - 트레이너 섹션 → "PT 회원이라면 · 트레이너가 짠 계획, 혼자 하는 날도 그대로": 계획 보내기·계획대로 기록·기록 확인(신체정보 비공유)·자세 안내 + 트레이너/회원 화면 캡처 2장.
 - FAQ "누가 쓸 수 있나요?" 회원 전용·가입 후 승인으로, "PT 회원은 트레이너와 어떻게 연결하나요?" 추가. 히어로·마지막 CTA 안내 문구에 회원 전용·승인 반영.

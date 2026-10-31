@@ -84,7 +84,7 @@ export function guessColumns(headers) {
   return {
     name: find(/^(회원명|이름|성명|고객명|name)$/i),
     phone: find(/(휴대폰|핸드폰|전화|연락처|phone|mobile)/i),
-    memberNo: find(/^(회원번호|회원no|회원id|회원코드|memberno|no|id)$/i), // '전화번호'가 잡히지 않게 정확히 일치만
+    memberNo: find(/^(회원번호|회원no|회원id|회원코드|memberno)$/i), // '전화번호'가 잡히지 않게 정확히 일치만. 순번 'No'·'ID' 열은 제외(재가져오기 시 다른 사람 문서를 덮어씀)
     expireDate: find(/(만료|종료|마감|유효|expire|end)/i),
   }
 }

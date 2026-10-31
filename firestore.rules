@@ -10,6 +10,14 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == '관리자'
     }
 
+    // [2026-10-31 Phase2 P2-2/P2-3] 담당 트레이너(활성 연결 + 트레이너 역할) 판정
+    function isTrainerOf(memberUid) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)) &&
+        get(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)).data.status == 'active' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == '트레이너';
+    }
+
     // [2026-10-27 W0 보안강화] 본인이 자기 문서에서 권한/등급 필드를 직접 바꾸는 것을 막는다.
     // 이전에는 본인 문서 전체 쓰기를 허용해 role:'관리자'를 스스로 넣으면 isAdmin()을 통과하는
     // 권한 상승이 가능했다. role/roleRequestStatus/tier/lifetimeBadges/trainerProfile은
@@ -52,7 +60,8 @@ service cloud.firestore {
     // users/{uid} — 본인 문서만 읽기/쓰기(권한 필드·XP 증가폭 제한)
     // [2026-10-31 Phase2 P2-1] 관리자는 전체 회원 읽기 + 승인·역할 필드만 수정. 새 계정은 승인 대기(pending)로만 생성.
     match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
+      // [2026-10-31] 담당 트레이너도 회원 문서(신체정보·목표 포함)를 읽는다 — PT 회원 신체정보 트레이너 공유(설계 7.x 권한 체계)
+      allow read: if isOwner(uid) || isAdmin() || isTrainerOf(uid);
       allow create: if isOwner(uid) &&
         request.resource.data.get('role', '일반회원') == '일반회원' &&
         request.resource.data.get('roleRequestStatus', 'none') == 'none' &&
@@ -63,8 +72,11 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt']) &&
         request.resource.data.get('seasonXp', 0) == 0 &&
         request.resource.data.get('lifetimeXp', 0) == 0;
+      // signupInfo(이름·휴대폰 변환값)는 승인 대기·거절 상태이거나 아직 없을 때(기존 계정 첫 입력)만 본인이 쓸 수 있다(승인 후엔 관리자 대조 기준이라 잠금).
       allow update: if (isOwner(uid) &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(lockedUserKeys()) &&
+          (resource.data.get('memberStatus', 'approved') in ['pending', 'rejected'] || !('signupInfo' in resource.data) ||
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signupInfo'])) &&
           seasonXpOk() && xpDeltaOk('lifetimeXp')) ||
         (isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(adminUserKeys()) &&
@@ -80,13 +92,6 @@ service cloud.firestore {
     }
 
     // routineTemplates/{uid}/templates/{templateId} — 본인 소유 서브컬렉션
-    // [2026-10-31 Phase2 P2-2/P2-3] 담당 트레이너(활성 연결 + 트레이너 역할) 판정
-    function isTrainerOf(memberUid) {
-      return request.auth != null &&
-        exists(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)) &&
-        get(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)).data.status == 'active' &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == '트레이너';
-    }
     // [2026-10-31 P2-3] 담당 트레이너는 회원 루틴을 읽고, 자기 이름(byTrainer.uid)으로 만든 계획만 생성·수정·삭제한다.
     function trainerPlanOk() {
       return request.resource.data.keys().hasOnly(['title', 'parts', 'note', 'byTrainer', 'order', 'createdAt', 'updatedAt']) &&
@@ -98,7 +103,10 @@ service cloud.firestore {
     }
     match /routineTemplates/{uid}/templates/{templateId} {
       allow read: if request.auth != null && (request.auth.uid == uid || isTrainerOf(uid));
-      allow write: if request.auth != null && request.auth.uid == uid && isApproved();
+      // 본인은 byTrainer(트레이너 계획 표시)를 새로 넣거나 바꿀 수 없다(가짜 트레이너 배지 방지). 삭제·나머지 수정은 가능.
+      allow create: if isOwner(uid) && isApproved() && !('byTrainer' in request.resource.data);
+      allow update: if isOwner(uid) && isApproved() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['byTrainer']);
+      allow delete: if isOwner(uid) && isApproved();
       allow create: if isTrainerOf(uid) && trainerPlanOk();
       allow update: if isTrainerOf(uid) && resource.data.get('byTrainer', {}).get('uid', '') == request.auth.uid && trainerPlanOk();
       allow delete: if isTrainerOf(uid) && resource.data.get('byTrainer', {}).get('uid', '') == request.auth.uid;

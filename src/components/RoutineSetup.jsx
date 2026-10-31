@@ -192,7 +192,9 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
         </React.Fragment>
       ))}
 
-      {pickerMode !== 'new' ? (
+      {forTrainer && parts.length >= 7 ? (
+        <p style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', margin: '0 0 22px' }}>계획의 파트는 7개까지예요.</p>
+      ) : pickerMode !== 'new' ? (
         <button
           onClick={openNewPartPicker}
           style={{
