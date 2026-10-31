@@ -221,6 +221,39 @@ export async function updateUserProfile(uid, partial) {
   await updateDoc(doc(db, 'users', uid), partial)
 }
 
+// [2026-10-31] 트레이너 목표 제안·직접 수정(users 문서). 목표 = onboarding.goals, 주간 목표 = weeklyTargetDays.
+// goalProposal: 회원 수락 대기 중인 제안, goalByTrainer: 트레이너가 바꾼(또는 회원이 제안을 수락한) 표시 - 회원이 직접 목표를 고치면 null.
+// rules: 담당 트레이너(isTrainerOf)는 이 네 필드(onboarding은 goals만)만 바꿀 수 있다.
+const goalBy = (trainer) => ({ byUid: trainer.uid, byName: String(trainer.name || '').slice(0, 30) })
+export async function trainerProposeGoals(memberUid, trainer, { goals, weeklyTargetDays }) {
+  await updateDoc(doc(db, 'users', memberUid), { goalProposal: { goals, weeklyTargetDays, ...goalBy(trainer), at: serverTimestamp() } })
+}
+export async function trainerCancelGoalProposal(memberUid) {
+  await updateDoc(doc(db, 'users', memberUid), { goalProposal: null })
+}
+export async function trainerEditGoals(memberUid, trainer, { goals, weeklyTargetDays }) {
+  await updateDoc(doc(db, 'users', memberUid), {
+    'onboarding.goals': goals,
+    weeklyTargetDays,
+    goalProposal: null,
+    goalByTrainer: { ...goalBy(trainer), at: serverTimestamp(), seen: false, accepted: false },
+  })
+}
+export async function acceptGoalProposal(uid, p) {
+  await updateDoc(doc(db, 'users', uid), {
+    'onboarding.goals': p.goals,
+    weeklyTargetDays: p.weeklyTargetDays,
+    goalProposal: null,
+    goalByTrainer: { byUid: p.byUid, byName: p.byName || '', at: serverTimestamp(), seen: true, accepted: true },
+  })
+}
+export async function declineGoalProposal(uid) {
+  await updateDoc(doc(db, 'users', uid), { goalProposal: null })
+}
+export async function markGoalEditSeen(uid) {
+  await updateDoc(doc(db, 'users', uid), { 'goalByTrainer.seen': true })
+}
+
 // [2026-10-27 신규] 종목별 설정(목표 반복·휴식) 한 종목만 갱신 - 종목키에 특수문자가 있어도 안전하게 FieldPath 사용,
 // 다른 종목 설정을 덮어쓰지 않는다. 오프라인이면 로컬 대기열에 넣고 진행.
 export function updateExerciseSetting(uid, key, setting) {

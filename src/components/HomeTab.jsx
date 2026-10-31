@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Dumbbell, Moon, ClipboardCheck } from 'lucide-react'
 import { Card, Button, useConfirm } from './ui'
 import MembershipNotice from './MembershipNotice'
+import { TrainerGoalNotice } from './TrainerGoal'
 import { getRecentWorkoutLogs, getWorkoutLogsInRange, listPtSchedules, listPtSessions } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
 import { suggestNextSet, workingSetsOf } from '../utils/strength'
@@ -43,6 +44,7 @@ export default function HomeTab({
   autoNotice,
   onDismissAutoNotice,
   onUndoAutoNotice,
+  onProfileUpdated,
 }) {
   const confirm = useConfirm()
   const [undoing, setUndoing] = useState(false)
@@ -227,6 +229,8 @@ export default function HomeTab({
 
       {/* [2026-10-31] 회원권 종료 임박(D-7)·만료 안내 */}
       <MembershipNotice userDoc={userDoc} />
+      {/* [2026-10-31] 담당 트레이너의 목표 제안(수락·거절)·직접 수정 알림 */}
+      <TrainerGoalNotice uid={uid} userDoc={userDoc} onChanged={onProfileUpdated} />
 
       {/* [2026-10-28 리디자인] "오늘" 블록 - 카드 대신 큰 헤드라인(오늘 차례) + 보조 정보 + 버튼 */}
       <section style={{ marginBottom: 24 }}>

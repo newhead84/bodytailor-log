@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { ScreenHeader, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
+import { TrainerGoalEditor } from './TrainerGoal'
 import { useBackableScreen } from '../hooks/useBackableScreen'
 import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
 import { toLocalDateStr } from '../utils/date'
@@ -198,7 +199,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
     <div style={{ height: '100%', overflowY: 'auto', padding: '0 20px 80px', boxSizing: 'border-box' }}>
       <ScreenHeader title={conn.memberName} onBack={onBack} backLabel="회원 목록" />
       <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>최근 8주 운동 기록 · 이번 주 <span className="bt-num">{thisWeekDays}</span>일 운동</p>
-      <MemberBody member={member} />
+      <MemberBody member={member} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
       <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={loadMember} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} />
       <h2 style={{ fontSize: 16, margin: '22px 0 10px' }}>운동 기록</h2>
@@ -307,7 +308,8 @@ function MemberPlans({ conn, uid, onNew, onEdit }) {
 }
 
 // [2026-10-31] 회원 신체정보·목표 - 온보딩/MY 프로필 값 그대로
-function MemberBody({ member }) {
+// [2026-10-31] goalEditor: 트레이너 목표 제안·바로 바꾸기(TrainerGoal.jsx)
+function MemberBody({ member, goalEditor }) {
   if (member === null) return null
   if (member === false) return <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>회원 신체정보를 불러오지 못했어요.</p>
   const o = member.onboarding || {}
@@ -326,6 +328,7 @@ function MemberBody({ member }) {
         {row('운동 목표', goals.length ? goals.map((g, i) => `${i + 1}. ${g}`).join('  ') : '입력 안 함')}
         {row('주간 목표', `주 ${member.weeklyTargetDays || 3}일`)}
       </div>
+      {goalEditor}
     </Card>
   )
 }

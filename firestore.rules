@@ -31,6 +31,22 @@ service cloud.firestore {
         'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
         'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt', 'pauseStart', 'pauseEnd'];
     }
+    // [2026-10-31] 트레이너 목표 쓰기 값 검사(바뀐 필드만): 목표 8개 이하, 주 1~7일, 제안·표시는 본인 uid
+    function goalListOk(g) {
+      return g is list && g.size() <= 8;
+    }
+    function daysOk(d) {
+      return d is int && d >= 1 && d <= 7;
+    }
+    function trainerGoalOk() {
+      let d = request.resource.data;
+      let keys = d.diff(resource.data).affectedKeys();
+      return (!keys.hasAny(['onboarding']) || goalListOk(d.onboarding.goals)) &&
+        (!keys.hasAny(['weeklyTargetDays']) || daysOk(d.weeklyTargetDays)) &&
+        (!keys.hasAny(['goalProposal']) || d.goalProposal == null ||
+          (d.goalProposal.byUid == request.auth.uid && goalListOk(d.goalProposal.goals) && daysOk(d.goalProposal.weeklyTargetDays))) &&
+        (!keys.hasAny(['goalByTrainer']) || d.goalByTrainer == null || d.goalByTrainer.byUid == request.auth.uid);
+    }
     // 관리자가 다른 회원 문서에서 바꿀 수 있는 필드
     function adminUserKeys() {
       return ['role', 'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
@@ -103,7 +119,12 @@ service cloud.firestore {
           (request.resource.data.ptRemaining == resource.data.get('ptRemaining', 0) - 1 ||
             request.resource.data.ptRemaining == resource.data.get('ptRemaining', 0) + 1) &&
           request.resource.data.ptRemaining >= 0 &&
-          request.resource.data.ptRemaining <= resource.data.get('ptTotal', 0));
+          request.resource.data.ptRemaining <= resource.data.get('ptTotal', 0)) ||
+        // [2026-10-31] 담당 트레이너의 목표 제안·직접 수정 - 목표(onboarding.goals)·주간 목표·제안·수정 표시만
+        (isTrainerOf(uid) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['onboarding', 'weeklyTargetDays', 'goalProposal', 'goalByTrainer']) &&
+          request.resource.data.get('onboarding', {}).diff(resource.data.get('onboarding', {})).affectedKeys().hasOnly(['goals']) &&
+          trainerGoalOk());
       // [2026-10-31] 계정 삭제(탈퇴) - 탈퇴 표시(deletedAccounts/{uid})를 먼저 남긴 본인만 삭제. 같은 uid는 다시 만들 수 없고,
       // 같은 구글 계정으로 다시 가입하면 로그인 계정 삭제 후라 새 uid(승인 대기)로 시작한다.
       allow delete: if isOwner(uid) && exists(/databases/$(database)/documents/deletedAccounts/$(uid));

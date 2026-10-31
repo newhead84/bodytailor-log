@@ -16,6 +16,7 @@ import { computeAchievements } from '../utils/achievements'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS, getExercisesForPart, recommendedSplitKey, perPartWeeklyFrequency } from '../utils/exerciseLibrary'
 import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
 import { GoalPicker, TrainingPlanSummary } from './GoalPicker'
+import { TrainerGoalMark } from './TrainerGoal'
 import AchievementPager from './AchievementPager'
 import { normalizeGoals, GOAL_LABELS, isBeginnerAccount, getTrainingProfile } from '../utils/goals'
 
@@ -159,7 +160,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   async function saveProfileEdit() {
     setSaving(true)
     const { nickname, weeklyTargetDays, ...onboardingForm } = profileForm
+    // [2026-10-31] 회원이 목표·주간 목표를 직접 바꾸면 '트레이너 수정' 표시를 지운다
+    const goalsChanged = JSON.stringify(normalizeGoals(onboardingForm.goals)) !== JSON.stringify(normalizeGoals(userDoc?.onboarding?.goals)) ||
+      (weeklyTargetDays && weeklyTargetDays !== userDoc?.weeklyTargetDays)
     await updateUserProfile(uid, {
+      ...(goalsChanged && userDoc?.goalByTrainer ? { goalByTrainer: null } : {}),
       nickname: (nickname || '').trim().slice(0, 30), // [2026-10-29] 랭킹 규칙(30자 이하)에 맞춤
       // [2026-10-29] 주당 운동 목표 일수(출석 목표). 고르지 않았으면 저장하지 않음(루틴 파트 수 사용)
       ...(weeklyTargetDays ? { weeklyTargetDays } : {}),
@@ -602,6 +607,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                 </div>
               )}
               {userDoc?.weeklyTargetDays ? <div>주 {userDoc.weeklyTargetDays}일 목표</div> : null}
+              <TrainerGoalMark userDoc={userDoc} />
             </div>
           )}
         </div>

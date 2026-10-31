@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 트레이너 목표 설정: 담당 트레이너가 회원 운동 목표·주간 목표 일수를 제안(회원 HOME에서 수락·거절)하거나 바로 바꿈(회원 HOME 알림, MY에 '트레이너 수정' 표시, 회원이 직접 고치면 표시 해제). rules: 담당 트레이너는 onboarding.goals·weeklyTargetDays·goalProposal·goalByTrainer만 수정 | firestore.rules, storage.js, TrainerGoal.jsx(신규), TraineesScreen.jsx, HomeTab.jsx, MyPageTab.jsx, App.jsx
+
 [2026-10-31] 소개 페이지 배경 전환: 경계 그라데이션 띠를 없애고 스크롤 위치에 따라 화면 전체 배경색(검정과 베이지)을 연속으로 섞음, 사진 섹션 가장자리는 마스크로 녹임 | public/intro/index.html, src/App.jsx
 
 [2026-10-31] 전체 QA·별도 리뷰 반영 | firestore.rules, storage.js, ReportSections.jsx, HowToTab.jsx, ui.jsx, App.jsx, public/intro/index.html
