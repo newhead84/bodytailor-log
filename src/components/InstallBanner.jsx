@@ -67,6 +67,17 @@ export default function InstallBanner() {
   const [open, setOpen] = useState(false)
   const [env] = useState(() => (typeof navigator === 'undefined' ? { os: 'desktop', browser: 'other' } : detectEnv()))
   const blocked = isStandalone() || !!window.__btInApp?.isInApp // 인앱 브라우저는 inapp.js 띠가 안내
+  // [2026-10-31] 관리자 대시보드(/admin)에서는 숨김 - App이 화면을 바꿀 때 'bt-route' 이벤트를 보낸다
+  const [onAdmin, setOnAdmin] = useState(() => typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))
+  useEffect(() => {
+    const sync = () => setOnAdmin(window.location.pathname.startsWith('/admin'))
+    window.addEventListener('bt-route', sync)
+    window.addEventListener('popstate', sync)
+    return () => {
+      window.removeEventListener('bt-route', sync)
+      window.removeEventListener('popstate', sync)
+    }
+  }, [])
 
   useEffect(() => {
     if (blocked) return
@@ -105,7 +116,7 @@ export default function InstallBanner() {
     if (choice?.outcome === 'accepted') setDismissed(true)
   }
 
-  if (blocked || dismissed) return null
+  if (blocked || dismissed || onAdmin) return null
   const guide = deferredPrompt ? null : manualGuide(env)
   // 크롬 계열(안드로이드·PC)은 설치 신호가 늦게 올 수 있어 3초 기다린 뒤에만 수동 안내
   if (!deferredPrompt && (!guide || (env.os !== 'ios' && !waited))) return null

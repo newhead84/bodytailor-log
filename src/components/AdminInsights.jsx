@@ -3,7 +3,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip } from './ui'
 import { ACTION, Badge, Bars, LogRow, isGymMember, muted, sectionTitle, selectStyle, statusOf, toCsv } from './adminUi'
-import { adminGetGymStats, adminListLogs, adminListPtSchedulesRange, adminSaveNote, logAdmin } from '../storage'
+import { adminGetGymStats, adminListLogs, adminListPtSchedulesRange, adminListPtSessionsRange, adminSaveNote, logAdmin } from '../storage'
+import { UserPlus, Clock, Dumbbell, Moon, CalendarDays, MessageSquare } from 'lucide-react'
 import { daysBetween, fmtYmd, memberName, membershipState, MEMBER_STATUS } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
 import { downloadText } from '../utils/exportCsv'
@@ -11,74 +12,143 @@ import { downloadText } from '../utils/exportCsv'
 const STALE_DAYS = 14
 const PT_LOW = 3
 
-// ───────── 요약 홈 ─────────
-export function SummaryTab({ users, conns, inquiries, pendingCount, onGo, onOpenMember, onOpenInquiries }) {
+// ───────── 요약 홈(대시보드) ─────────
+const KPI_ICON = { pending: UserPlus, expiring: Clock, ptLow: Dumbbell, stale: Moon, todayPt: CalendarDays, inq: MessageSquare }
+export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, onOpenMember, onOpenInquiries, onApprove, onEditMembership }) {
   const today = todayStr()
-  const [todayPt, setTodayPt] = useState(null)
-  const [open, setOpen] = useState('')
+  const ym = today.slice(0, 7)
+  const [month, setMonth] = useState(null) // { sch, ses } 이번 달 PT
   useEffect(() => {
-    adminListPtSchedulesRange(today, today).then(setTodayPt).catch(() => setTodayPt([]))
-  }, [today])
+    const last = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate()
+    Promise.all([adminListPtSchedulesRange(`${ym}-01`, `${ym}-${last}`), adminListPtSessionsRange(`${ym}-01`, `${ym}-${last}`)])
+      .then(([sch, ses]) => setMonth({ sch, ses }))
+      .catch(() => setMonth({ sch: [], ses: [] }))
+  }, [ym])
   const members = users.filter(isGymMember)
   const byUid = Object.fromEntries(users.map((u) => [u.uid, u]))
   const expiring = members.filter((u) => u.membershipEnd && daysBetween(today, u.membershipEnd) >= 0 && daysBetween(today, u.membershipEnd) <= 7)
   const ptLow = members.filter((u) => (u.ptTotal || 0) > 0 && (u.ptRemaining ?? 0) <= PT_LOW)
-  const stale = members.filter((u) => membershipState(u, today).kind !== 'expired' && (!u.activity?.lastDate || daysBetween(u.activity.lastDate, today) > STALE_DAYS))
+  const active = members.filter((u) => membershipState(u, today).kind !== 'expired')
+  const stale = active.filter((u) => !u.activity?.lastDate || daysBetween(u.activity.lastDate, today) > STALE_DAYS)
   const unanswered = (inquiries || []).filter((q) => q.status === '대기')
-  const cards = [
-    { key: 'pending', label: '승인 대기', n: pendingCount, go: () => onGo('pending') },
-    { key: 'expiring', label: '7일 안에 회원권 만료', n: expiring.length, list: expiring, sub: (u) => `${fmtYmd(u.membershipEnd)} 만료` },
-    { key: 'ptLow', label: `남은 PT ${PT_LOW}회 이하`, n: ptLow.length, list: ptLow, sub: (u) => `PT ${u.ptRemaining ?? 0}/${u.ptTotal}회` },
-    { key: 'stale', label: `${STALE_DAYS}일 넘게 운동 기록 없음`, n: stale.length, list: stale, sub: (u) => (u.activity?.lastDate ? `마지막 ${fmtYmd(u.activity.lastDate)}` : '기록 없음') },
-    { key: 'todayPt', label: '오늘 PT', n: todayPt ? todayPt.length : '…', pt: true },
-    { key: 'inq', label: '답변 안 한 문의', n: unanswered.length, go: onOpenInquiries },
+  const todayPt = (month?.sch || []).filter((s) => s.date === today)
+  const matched = pending.filter((u) => matchOf(u)?.nameOk).length
+  const kpis = [
+    { key: 'pending', label: '승인 대기', n: pending.length, s: pending.length ? `명단 일치 ${matched}명` : '처리할 가입 없음', alert: pending.length > 0, go: () => onGo('pending') },
+    { key: 'expiring', label: '7일 안에 만료', n: expiring.length, s: '재등록 연락 대상', alert: expiring.length > 0, go: () => onGo('renewal') },
+    { key: 'ptLow', label: `남은 PT ${PT_LOW}회 이하`, n: ptLow.length, s: `소진 ${ptLow.filter((u) => (u.ptRemaining ?? 0) === 0).length}명`, go: () => onGo('pt') },
+    { key: 'stale', label: `${STALE_DAYS}일 넘게 운동 없음`, n: stale.length, s: active.length ? `이용 중 회원의 ${Math.round((stale.length / active.length) * 100)}%` : '이용 중 회원 없음', go: () => onGo('members') },
+    { key: 'todayPt', label: '오늘 PT', n: month ? todayPt.length : '…', s: month ? `완료 ${todayPt.filter((x) => x.status === 'done').length} · 예정 ${todayPt.filter((x) => x.status === 'scheduled').length}` : '', go: () => onGo('pt') },
+    { key: 'inq', label: '답변 안 한 문의', n: unanswered.length, s: unanswered.length ? '문의 관리에서 답변' : '모두 답변함', alert: unanswered.length > 0, go: onOpenInquiries },
   ]
-  const cur = cards.find((c) => c.key === open)
+  // 처리할 회원: 사유별 한 줄(우선순위 순), 같은 회원은 첫 사유만
+  const todo = []
+  const seen = new Set()
+  const push = (u, reason, tone, action) => {
+    if (seen.has(u.uid)) return
+    seen.add(u.uid)
+    todo.push({ u, reason, tone, action })
+  }
+  pending.forEach((u) => {
+    const m = matchOf(u)
+    push(u, m?.nameOk ? '가입 · 명단 일치' : m ? '가입 · 번호만 일치' : '가입 · 명단에 없음', m?.nameOk ? 'ok' : 'warn', m?.nameOk ? { label: '승인', primary: true, run: () => onApprove(u) } : { label: '검토', run: () => onGo('pending') })
+  })
+  expiring.sort((a, b) => a.membershipEnd.localeCompare(b.membershipEnd)).forEach((u) => {
+    const d = daysBetween(today, u.membershipEnd)
+    push(u, d === 0 ? '오늘 만료' : `D-${d} 만료`, 'warn', { label: '재등록 연락', run: () => onGo('renewal') })
+  })
+  ptLow.filter((u) => (u.ptRemaining ?? 0) === 0).forEach((u) => push(u, 'PT 소진', 'bad', { label: 'PT 등록', run: () => onEditMembership(u) }))
+  ptLow.forEach((u) => push(u, `PT ${u.ptRemaining}회 남음`, 'warn', { label: '상세', run: () => onOpenMember(u) }))
+  stale.sort((a, b) => String(a.activity?.lastDate || '').localeCompare(String(b.activity?.lastDate || ''))).forEach((u) =>
+    push(u, u.activity?.lastDate ? `${daysBetween(u.activity.lastDate, today)}일 미운동` : '운동 기록 없음', 'neutral', { label: '상세', run: () => onOpenMember(u) })
+  )
+  const [showAll, setShowAll] = useState(false)
+  const shown = showAll ? todo : todo.slice(0, 8)
+  // 주간 운동한 회원(최근 8주)
+  const weeks = Array.from({ length: 8 }, (_, i) => weekStartStr(new Date(), i - 7))
+  const weekBars = weeks.map((w, i) => ({ label: `${Number(w.slice(5, 7))}/${Number(w.slice(8, 10))}`, value: members.filter((u) => (u.activity?.weeks?.[w] || 0) > 0).length, highlight: i === 7 }))
+  // 트레이너 이번 달
+  const trainers = users.filter((u) => u.role === '트레이너')
+  const tRows = trainers
+    .map((t) => ({
+      t,
+      done: (month?.sch || []).filter((s) => s.trainerUid === t.uid && s.status === 'done').length + (month?.ses || []).filter((x) => x.trainerUid === t.uid && !x.scheduleId && !x.noshow).length,
+      noshow: (month?.sch || []).filter((s) => s.trainerUid === t.uid && s.status === 'noshow').length,
+      active: conns.filter((c) => c.status === 'active' && c.trainerUid === t.uid).length,
+    }))
+    .sort((a, b) => b.done - a.done)
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-        {cards.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            aria-pressed={open === c.key}
-            onClick={() => (c.go ? c.go() : setOpen(open === c.key ? '' : c.key))}
-            style={{ textAlign: 'left', padding: '14px 14px 12px', borderRadius: 'var(--radius-md)', border: `1px solid ${open === c.key ? 'var(--color-fill-strong)' : 'var(--color-line)'}`, background: 'var(--card-bg)', color: 'var(--color-label-strong)' }}
-          >
-            <span className="bt-num" style={{ display: 'block', fontSize: 28, fontWeight: 800, lineHeight: 1.1, color: c.n > 0 && c.key !== 'todayPt' ? 'var(--color-label-strong)' : 'var(--color-label-neutral)' }}>{c.n}</span>
-            <span className="text-keep-all" style={{ display: 'block', marginTop: 6, fontSize: 13, fontWeight: 600 }}>{c.label}</span>
-          </button>
-        ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="adm-kpis">
+        {kpis.map((k) => {
+          const Icon = KPI_ICON[k.key]
+          return (
+            <button key={k.key} type="button" className={`adm-kpi${k.alert ? ' alert' : ''}`} onClick={k.go}>
+              <span className="h">{k.label}<Icon size={16} strokeWidth={2} color="var(--color-label-neutral)" aria-hidden="true" /></span>
+              <span className="v">{k.n}</span>
+              <span className="s">{k.s}</span>
+            </button>
+          )
+        })}
       </div>
-      {cur && (
-        <Card>
-          <p style={sectionTitle}>{cur.label}</p>
-          {cur.pt ? (
-            !todayPt?.length ? (
-              <p style={muted}>오늘 잡힌 PT가 없어요.</p>
-            ) : (
-              todayPt.map((s) => (
-                <div key={s.id} style={rowStyle}>
-                  <span><b className="bt-num">{s.time}</b> {memberName(byUid[s.memberUid])}</span>
-                  <span style={muted}>{s.trainerName} · {s.status === 'done' ? '완료' : s.status === 'noshow' ? '노쇼' : '예정'}</span>
+      <div className="adm-split">
+        <div className="adm-col">
+          <div className="adm-panel">
+            <div className="adm-panel-h"><b>처리할 회원 <span style={{ ...muted, fontWeight: 500 }}>{todo.length}명</span></b>{todo.length > 8 && <button type="button" className="adm-link" onClick={() => setShowAll((v) => !v)}>{showAll ? '접기' : '전체 보기'}</button>}</div>
+            {!todo.length ? <p style={{ ...muted, margin: 0, padding: 16 }}>지금 처리할 회원이 없어요.</p> : (
+              <div className="adm-table-wrap">
+                <table className="adm-table">
+                  <thead><tr><th>회원</th><th>사유</th><th className="adm-hide-m">회원권 · PT</th><th aria-label="동작" /></tr></thead>
+                  <tbody>
+                    {shown.map((x) => (
+                      <tr key={x.u.uid} className="adm-click" onClick={() => onOpenMember(x.u)}>
+                        <td><b>{memberName(x.u)}</b></td>
+                        <td><Badge tone={x.tone}>{x.reason}</Badge></td>
+                        <td className="adm-hide-m">{x.u.membershipEnd ? `~${fmtYmd(x.u.membershipEnd)}` : '-'}{(x.u.ptTotal || 0) > 0 ? ` · PT ${x.u.ptRemaining ?? 0}/${x.u.ptTotal}` : ''}</td>
+                        <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <button type="button" className={`adm-act${x.action.primary ? ' primary' : ''}`} onClick={x.action.run}>{x.action.label}</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <div className="adm-panel">
+            <div className="adm-panel-h"><b>주간 운동한 회원</b><span style={muted}>최근 8주</span></div>
+            <div style={{ padding: '14px 16px 12px' }}><Bars items={weekBars} unit="명" height={110} /></div>
+          </div>
+        </div>
+        <div className="adm-col">
+          <div className="adm-panel">
+            <div className="adm-panel-h"><b>오늘 PT</b><button type="button" className="adm-link" onClick={() => onGo('pt')}>PT 관리</button></div>
+            <div style={{ padding: '4px 16px 10px' }}>
+              {!month ? <p style={muted}>불러오는 중…</p> : !todayPt.length ? <p style={{ ...muted, margin: '10px 0' }}>오늘 잡힌 PT가 없어요.</p> : todayPt.map((s, i) => (
+                <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '48px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 0', borderTop: i ? '1px dashed var(--color-line)' : 'none', fontSize: 13 }}>
+                  <b className="bt-num">{s.time}</b>
+                  <span><b>{memberName(byUid[s.memberUid])}</b> <span style={muted}>· {s.trainerName}</span></span>
+                  <Badge tone={s.status === 'done' ? 'ok' : s.status === 'noshow' ? 'bad' : 'neutral'}>{s.status === 'done' ? '완료' : s.status === 'noshow' ? '노쇼' : '예정'}</Badge>
                 </div>
-              ))
-            )
-          ) : !cur.list.length ? (
-            <p style={muted}>해당하는 회원이 없어요.</p>
-          ) : (
-            cur.list.map((u) => (
-              <button key={u.uid} type="button" onClick={() => onOpenMember(u)} style={{ ...rowStyle, width: '100%', textAlign: 'left', color: 'var(--color-label-strong)' }}>
-                <span style={{ fontWeight: 700 }}>{memberName(u)}</span>
-                <span style={muted}>{cur.sub(u)} ›</span>
-              </button>
-            ))
-          )}
-        </Card>
-      )}
-      <p className="text-keep-all" style={{ ...muted, margin: 0 }}>
-        운동 기록 여부는 회원이 운동을 저장할 때 남는 마지막 운동일로 판단해요(2026-10-31 이후 저장분부터, 그 전 기록만 있는 회원은 '기록 없음'으로 보여요). 활성 트레이너 연결 {conns.filter((c) => c.status === 'active').length}건.
-      </p>
+              ))}
+            </div>
+          </div>
+          <div className="adm-panel">
+            <div className="adm-panel-h"><b>트레이너 이번 달</b><button type="button" className="adm-link" onClick={() => onGo('pt')}>정산</button></div>
+            {!tRows.length ? <p style={{ ...muted, margin: 0, padding: 16 }}>트레이너가 없어요.</p> : (
+              <table className="adm-table">
+                <thead><tr><th>트레이너</th><th style={{ textAlign: 'right' }}>PT 완료</th><th style={{ textAlign: 'right' }}>노쇼</th><th style={{ textAlign: 'right' }}>담당</th></tr></thead>
+                <tbody>
+                  {tRows.map((r) => (
+                    <tr key={r.t.uid}><td><b>{memberName(r.t)}</b></td><td className="bt-num" style={{ textAlign: 'right' }}>{month ? r.done : '…'}</td><td className="bt-num" style={{ textAlign: 'right' }}>{month ? r.noshow : '…'}</td><td className="bt-num" style={{ textAlign: 'right' }}>{r.active}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+      <p className="text-keep-all" style={{ ...muted, margin: 0 }}>운동 여부는 회원이 운동을 저장할 때 남는 마지막 운동일로 판단해요(2026-10-31 이후 저장분부터).</p>
     </div>
   )
 }

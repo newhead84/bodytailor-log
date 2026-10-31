@@ -2,6 +2,10 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] 관리자 대시보드 리디자인(라이트 관리도구) | styles/admin.css(신규), AdminDashboard.jsx, AdminInsights.jsx(요약), adminUi.jsx, App.jsx, InstallBanner.jsx
+- 왼쪽 메뉴·상단 바(검색)·KPI 카드·처리할 회원 표·오늘 PT·주간 운동 회원·트레이너 이번 달, 회원 목록 표, 휴대폰 ☰ 메뉴(설정·도구 탭이 화면 밖으로 밀리던 문제 해결).
+- /admin에서 동의 화면 건너뜀(앱 화면에서 동의), 설치 배너 숨김 + 설치 배너 중복 렌더 제거.
+
 [2026-10-31] 관리자 대시보드 확장 | AdminDashboard.jsx, AdminInsights.jsx·AdminMemberDetail.jsx·AdminPtTab.jsx·adminUi.jsx(신규), storage.js, firestore.rules, TraineesScreen.jsx, HomeTab.jsx, utils/member.js·date.js, public/privacy
 - 요약 홈, 회원 상세(회원권·PT·휴회·출석 요약·PT/트레이너/관리 이력·관리자 메모), 재등록 관리(연락 결과·재등록률), 회원 CSV, PT 관리(월 정산·노쇼·일정 캘린더·소진 예상·CSV), 이용 통계, 관리 이력.
 - 노쇼 처리 설정(쓰지 않음·표시만·1회 차감) + 트레이너 PT 일정 '노쇼' 버튼. 운동 저장 때 users.activity(마지막 운동일·주별 일수·부위)와 익명 gymStats 갱신. 처리방침에 관리 항목 추가.

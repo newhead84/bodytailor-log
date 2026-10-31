@@ -37,7 +37,7 @@ export const muted = { fontSize: 12.5, color: 'var(--color-label-neutral)' }
 export function Bars({ items, height = 90, unit = '' }) {
   const max = Math.max(1, ...items.map((x) => x.value || 0))
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: height + 34, overflowX: 'auto' }} role="img" aria-label={items.map((x) => `${x.label} ${x.value}${unit}`).join(', ')}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: height + 46, paddingTop: 4, overflowX: 'auto' }} role="img" aria-label={items.map((x) => `${x.label} ${x.value}${unit}`).join(', ')}>
       {items.map((x) => (
         <div key={x.label} style={{ flex: '1 0 18px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 18 }}>
           <span className="bt-num" style={{ fontSize: 10.5, color: 'var(--color-label-normal)' }}>{x.value || ''}</span>

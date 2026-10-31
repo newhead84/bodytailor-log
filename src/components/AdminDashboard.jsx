@@ -8,6 +8,8 @@
 // [2026-10-31 확장] 요약 홈(첫 탭)·회원 상세(AdminMemberDetail)·재등록·PT 관리(AdminPtTab)·이용 통계·관리 이력(adminLogs)·회원 CSV·노쇼 처리 설정
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
+import { LayoutDashboard, UserPlus, Users, RefreshCw, CalendarDays, Link2, UserRound, BarChart3, History, FileUp, Settings, ArrowLeft, Menu, Search } from 'lucide-react'
+import '../styles/admin.css'
 import { adminListUsers, adminUpdateMember, adminGetRoster, adminSaveRoster, adminLinkRoster, adminListConnections, adminConnect, endConnection, adminSetMembership, getAppSettings, adminSaveSettings, adminListNotes, getAllInquiries, logAdmin } from '../storage'
 import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId, membershipState, addMonths, fmtYmd, memberName } from '../utils/member'
 import TrainerProfilesTab from './TrainerProfilesTab'
@@ -18,17 +20,23 @@ import { Badge, fmtDate, selectStyle, statusOf } from './adminUi'
 import { todayStr } from '../utils/date'
 
 const TABS = [
-  { key: 'summary', label: '요약' },
-  { key: 'pending', label: '승인 대기' },
-  { key: 'members', label: '회원' },
-  { key: 'renewal', label: '재등록' },
-  { key: 'pt', label: 'PT 관리' },
-  { key: 'connect', label: '트레이너 연결' },
-  { key: 'stats', label: '통계' },
-  { key: 'logs', label: '관리 이력' },
-  { key: 'trainers', label: '트레이너 프로필' },
-  { key: 'roster', label: '명단 가져오기' },
-  { key: 'etc', label: '설정·도구' },
+  { key: 'summary', label: '대시보드', icon: LayoutDashboard },
+  { key: 'pending', label: '승인 대기', icon: UserPlus },
+  { key: 'members', label: '회원', icon: Users },
+  { key: 'renewal', label: '재등록', icon: RefreshCw },
+  { key: 'pt', label: 'PT 관리', icon: CalendarDays },
+  { key: 'connect', label: '트레이너 연결', icon: Link2 },
+  { key: 'trainers', label: '트레이너 프로필', icon: UserRound },
+  { key: 'stats', label: '통계', icon: BarChart3 },
+  { key: 'logs', label: '관리 이력', icon: History },
+  { key: 'roster', label: '명단 가져오기', icon: FileUp },
+  { key: 'etc', label: '설정·도구', icon: Settings },
+]
+const NAV = [
+  { group: '', items: ['summary'] },
+  { group: '회원', items: ['pending', 'members', 'renewal'] },
+  { group: 'PT·트레이너', items: ['pt', 'connect', 'trainers'] },
+  { group: '운영', items: ['stats', 'logs', 'roster', 'etc'] },
 ]
 const NOSHOW = [
   ['off', '쓰지 않음', '트레이너 화면에 노쇼 버튼이 없어요.'],
@@ -43,6 +51,8 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
   const [inquiries, setInquiries] = useState([])
   const [detailUid, setDetailUid] = useState('')
   const [editUid, setEditUid] = useState('') // 회원 상세 → '수정·연장'으로 회원 탭 편집기 열기
+  const [menuOpen, setMenuOpen] = useState(false) // 휴대폰 ☰ 메뉴
+  const [memberQ, setMemberQ] = useState('') // 상단 검색 → 회원 목록
   const [users, setUsers] = useState(null)
   const [roster, setRoster] = useState([])
   const [conns, setConns] = useState([])
@@ -163,31 +173,86 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
     await load()
   }
 
+  const pageLabel = TABS.find((t) => t.key === tab)?.label || ''
+  const go = (k) => {
+    setTab(k)
+    setDetailUid('')
+    setMenuOpen(false)
+  }
+  const now = new Date()
+  const dateLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일 ${'일월화수목금토'[now.getDay()]}요일`
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: 'var(--color-bg)' }}>
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: 'calc(var(--safe-top, 0px) + 20px) 16px 60px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)' }}>바디테일러 PT&amp;헬스</p>
-            <h1 style={{ margin: '4px 0 0', fontSize: 24, color: 'var(--color-label-strong)' }}>관리자 대시보드</h1>
+    <div className="adm">
+      <aside className="adm-side" data-open={menuOpen} aria-label="관리 메뉴">
+        <div className="adm-brand">
+          <span className="adm-logo" aria-hidden="true">BT</span>
+          <span><b>BodyTailor 관리</b><small>바디테일러 PT&amp;헬스</small></span>
+        </div>
+        {NAV.map((g) => (
+          <React.Fragment key={g.group || 'top'}>
+            {g.group && <div className="adm-grp">{g.group}</div>}
+            {g.items.map((k) => {
+              const t = TABS.find((x) => x.key === k)
+              const Icon = t.icon
+              return (
+                <button key={k} type="button" className="adm-nav" aria-current={tab === k ? 'page' : undefined} onClick={() => go(k)}>
+                  <Icon size={17} strokeWidth={2} aria-hidden="true" />
+                  {t.label}
+                  {k === 'pending' && pending.length > 0 && <span className="adm-count">{pending.length}</span>}
+                </button>
+              )
+            })}
+          </React.Fragment>
+        ))}
+        <button type="button" className="adm-nav" onClick={onClose} style={{ marginTop: 'auto' }}>
+          <ArrowLeft size={17} strokeWidth={2} aria-hidden="true" />앱으로
+        </button>
+      </aside>
+      {menuOpen && <div className="adm-scrim" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
+      <div className="adm-main">
+        <header className="adm-top">
+          <button type="button" className="adm-menu-btn" aria-label="메뉴 열기" onClick={() => setMenuOpen(true)}>
+            <Menu size={18} strokeWidth={2} />
+          </button>
+          <div style={{ minWidth: 0 }}>
+            <h1>{pageLabel}</h1>
+            <div className="adm-date">{dateLabel}</div>
           </div>
-          <Button variant="ghost" onClick={onClose} style={{ flexShrink: 0 }}>앱으로</Button>
-        </div>
-
-        <div role="tablist" style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '18px -16px 16px', padding: '0 16px' }}>
-          {TABS.map((t) => (
-            <Chip key={t.key} role="tab" aria-selected={tab === t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
-              {t.label}
-              {t.key === 'pending' && pending.length > 0 ? ` ${pending.length}` : ''}
-            </Chip>
-          ))}
-        </div>
-
+          <label className="adm-search">
+            <Search size={15} strokeWidth={2} color="var(--color-label-neutral)" aria-hidden="true" />
+            <input
+              value={memberQ}
+              onChange={(e) => {
+                setMemberQ(e.target.value)
+                if (tab !== 'members' || detailUid) go('members')
+              }}
+              placeholder="회원 이름·휴대폰 끝 4자리"
+              aria-label="회원 검색"
+            />
+          </label>
+          <span className="adm-me"><span className="adm-av" aria-hidden="true">{(admin.name || '관')[0]}</span><span>{admin.name}</span></span>
+        </header>
+        <div className="adm-content">
         {loadError && <Card style={{ marginBottom: 12, color: 'var(--color-danger)', fontSize: 14 }}>{loadError}</Card>}
         {users === null ? (
           <p style={{ color: 'var(--color-label-neutral)', fontSize: 14 }}>불러오는 중…</p>
         ) : tab === 'summary' ? (
-          <SummaryTab users={users} conns={conns} inquiries={inquiries} pendingCount={pending.length} onGo={setTab} onOpenMember={openMember} onOpenInquiries={onOpenInquiries} />
+          <SummaryTab
+            users={users}
+            conns={conns}
+            inquiries={inquiries}
+            pending={pending}
+            matchOf={matchOf}
+            onGo={go}
+            onOpenMember={openMember}
+            onOpenInquiries={onOpenInquiries}
+            onApprove={approve}
+            onEditMembership={(u) => {
+              setEditUid(u.uid)
+              setMemberQ(memberName(u))
+              go('members')
+            }}
+          />
         ) : tab === 'members' && detailUid && users.find((x) => x.uid === detailUid) ? (
           <AdminMemberDetail
             key={detailUid}
@@ -222,6 +287,9 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
             onOpen={(u) => setDetailUid(u.uid)}
             onCsv={() => exportMembersCsv(users, conns)}
             initialEditing={editUid}
+            conns={conns}
+            q={memberQ}
+            onQ={setMemberQ}
             onMembership={async (u, v) => {
               setBusy(u.uid)
               try {
@@ -336,6 +404,7 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
             </Card>
           </div>
         )}
+        </div>
       </div>
     </div>
   )
@@ -398,7 +467,7 @@ function MembershipEditor({ u, busy, onSave, onClose }) {
   const inputStyle = { ...selectStyle, padding: '9px 10px', fontSize: 14, minWidth: 0 }
   const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--color-label-neutral)' }
   return (
-    <div style={{ width: '100%', marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--color-line)' }}>
+    <div style={{ width: '100%', padding: '4px 0' }}>
       <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700 }}>회원권 기간 = 앱 사용 기간</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
         <label style={lab}>시작일<input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={inputStyle} /></label>
@@ -479,11 +548,11 @@ function filterOf(u, key, today) {
   return statusOf(u) === key
 }
 
-function MembersTab({ users, matchOf, busy, onStatus, onRole, selfUid, onMembership, onOpen, onCsv, initialEditing = '' }) {
-  const [q, setQ] = useState('')
+function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, onMembership, onOpen, onCsv, initialEditing = '', q = '', onQ }) {
   const [filter, setFilter] = useState('all')
   const [editing, setEditing] = useState(initialEditing)
   const today = todayStr()
+  const trainerOf = Object.fromEntries((conns || []).filter((c) => c.status === 'active').map((c) => [c.memberUid, c.trainerName]))
   const list = users
     .filter((u) => filterOf(u, filter, today))
     .filter((u) => {
@@ -492,54 +561,101 @@ function MembersTab({ users, matchOf, busy, onStatus, onRole, selfUid, onMembers
       return [u.signupInfo?.name, u.nickname, u.signupInfo?.phoneLast4, u.memberNo].some((v) => String(v || '').replace(/\s/g, '').includes(s))
     })
     .sort((a, b) => String(a.signupInfo?.name || a.nickname || '').localeCompare(String(b.signupInfo?.name || b.nickname || ''), 'ko'))
+  const stop = (e) => e.stopPropagation()
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="이름·닉네임·휴대폰 끝 4자리·회원번호 검색" aria-label="회원 검색" style={{ ...selectStyle, padding: '12px 14px', fontSize: 15, flex: 1, minWidth: 0 }} />
-        <Button variant="secondary" onClick={onCsv} style={{ flexShrink: 0, padding: '8px 12px', fontSize: 13 }}>CSV</Button>
-      </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {STATUS_FILTERS.map((f) => (
           <Chip key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)} style={{ padding: '6px 12px', fontSize: 13 }}>
-            {f.label} {users.filter((u) => filterOf(u, f.key, today)).length}
+            {f.label} <span className="bt-num">{users.filter((u) => filterOf(u, f.key, today)).length}</span>
           </Chip>
         ))}
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {q && <button type="button" className="adm-act" onClick={() => onQ('')}>검색 지우기: {q}</button>}
+          <button type="button" className="adm-act" onClick={onCsv}>CSV 내보내기</button>
+        </span>
       </div>
-      {list.map((u) => (
-        <Card key={u.uid} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button type="button" onClick={() => onOpen(u)} style={{ textAlign: 'left', minWidth: 0, color: 'inherit' }} aria-label={`${memberName(u)} 상세 보기`}>
-            <MemberLine u={u} match={matchOf(u)} />
-          </button>
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-            <select aria-label="승인 상태" value={statusOf(u)} disabled={busy === u.uid || u.role === '관리자'} onChange={(e) => onStatus(u, e.target.value)} style={selectStyle}>
-              {Object.entries(MEMBER_STATUS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-            <select aria-label="역할" value={MEMBER_ROLES.includes(u.role) ? u.role : '일반회원'} disabled={busy === u.uid} onChange={(e) => onRole(u, e.target.value)} style={selectStyle}>
-              {MEMBER_ROLES.map((r) => (
-                <option key={r} value={r}>{r}{u.uid === selfUid && r === '관리자' ? ' (나)' : ''}</option>
-              ))}
-            </select>
-            {/* [2026-10-31] 관리자도 회원권·PT 대상(트레이너만 제외) */}
-            {(statusOf(u) !== 'pending' || u.role === '관리자') && u.role !== '트레이너' && (
-              <Button variant="ghost" style={{ padding: '8px 12px', fontSize: 13 }} onClick={() => setEditing(editing === u.uid ? '' : u.uid)}>회원권·PT</Button>
-            )}
-          </div>
-          {editing === u.uid && (
-            <MembershipEditor
-              u={u}
-              busy={busy === u.uid}
-              onClose={() => setEditing('')}
-              onSave={async (v) => {
-                await onMembership(u, v)
-                setEditing('')
-              }}
-            />
-          )}
-        </Card>
-      ))}
-      {!list.length && <p style={{ fontSize: 14, color: 'var(--color-label-neutral)' }}>조건에 맞는 회원이 없어요.</p>}
+      <div className="adm-panel">
+        <div className="adm-table-wrap">
+          <table className="adm-table" style={{ minWidth: 860 }}>
+            <thead>
+              <tr>
+                <th>회원</th>
+                <th>승인 상태</th>
+                <th>역할</th>
+                <th>회원권</th>
+                <th>PT</th>
+                <th>담당 트레이너</th>
+                <th>마지막 운동</th>
+                <th aria-label="동작" />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((u) => {
+                const ms = membershipState(u, today)
+                const m = matchOf(u)
+                const canMs = (statusOf(u) !== 'pending' || u.role === '관리자') && u.role !== '트레이너'
+                return (
+                  <React.Fragment key={u.uid}>
+                    <tr className="adm-click" onClick={() => onOpen(u)}>
+                      <td>
+                        <b>{memberName(u)}</b>
+                        <span style={{ display: 'block', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                          {u.nickname || '닉네임 없음'}{u.signupInfo?.phoneLast4 ? ` · ${u.signupInfo.phoneLast4}` : ''}{m ? (m.nameOk ? ' · 명단 일치' : ' · 번호만 일치') : ''}
+                        </span>
+                      </td>
+                      <td onClick={stop}>
+                        <select aria-label="승인 상태" value={statusOf(u)} disabled={busy === u.uid || u.role === '관리자'} onChange={(e) => onStatus(u, e.target.value)} style={selectStyle}>
+                          {Object.entries(MEMBER_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        </select>
+                      </td>
+                      <td onClick={stop}>
+                        <select aria-label="역할" value={MEMBER_ROLES.includes(u.role) ? u.role : '일반회원'} disabled={busy === u.uid} onChange={(e) => onRole(u, e.target.value)} style={selectStyle}>
+                          {MEMBER_ROLES.map((r) => <option key={r} value={r}>{r}{u.uid === selfUid && r === '관리자' ? ' (나)' : ''}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {ms.kind === 'exempt' ? <span style={{ color: 'var(--color-label-neutral)' }}>대상 아님</span> : u.membershipEnd ? (
+                          <>
+                            ~{fmtYmd(u.membershipEnd)}{' '}
+                            {ms.kind === 'expired' ? <Badge tone="bad">만료</Badge> : ms.kind === 'soon' ? <Badge tone="warn">D-{ms.daysLeft}</Badge> : null}
+                            {u.pauseStart && u.pauseEnd && u.pauseEnd >= today ? <> <Badge>휴회</Badge></> : null}
+                          </>
+                        ) : <span style={{ color: 'var(--color-label-neutral)' }}>미설정</span>}
+                      </td>
+                      <td className="bt-num" style={{ whiteSpace: 'nowrap' }}>
+                        {(u.ptTotal || 0) > 0 ? <span style={{ color: (u.ptRemaining ?? 0) <= 3 ? 'var(--color-warning)' : undefined, fontWeight: 700 }}>{u.ptRemaining ?? 0}/{u.ptTotal}</span> : '-'}
+                      </td>
+                      <td>{trainerOf[u.uid] || '-'}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{u.activity?.lastDate ? fmtYmd(u.activity.lastDate) : '-'}</td>
+                      <td onClick={stop} style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {canMs && <button type="button" className="adm-act" onClick={() => setEditing(editing === u.uid ? '' : u.uid)}>회원권·PT</button>}
+                      </td>
+                    </tr>
+                    {editing === u.uid && (
+                      <tr>
+                        <td colSpan={8} style={{ background: '#fafbfc' }}>
+                          <MembershipEditor
+                            u={u}
+                            busy={busy === u.uid}
+                            onClose={() => setEditing('')}
+                            onSave={async (v) => {
+                              await onMembership(u, v)
+                              setEditing('')
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!list.length && <p style={{ margin: 0, padding: 16, fontSize: 14, color: 'var(--color-label-neutral)' }}>조건에 맞는 회원이 없어요.</p>}
+      </div>
+      <p style={{ margin: 0, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>줄을 누르면 회원 상세(휴회·출석·이력·메모)가 열려요.</p>
     </div>
   )
 }

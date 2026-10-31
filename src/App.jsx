@@ -23,7 +23,6 @@ import HomeTab from './components/HomeTab'
 import LogTab from './components/LogTab'
 import MyPageTab from './components/MyPageTab'
 import SplashScreen from './components/SplashScreen'
-import InstallBanner from './components/InstallBanner'
 // [2026-10-27 W0] 초기 번들 경량화: 첫 화면(홈/기록)에 필요 없는 화면은 지연 로드한다.
 // 리포트 탭은 recharts(대용량)를 포함하므로 별도 청크로 분리된다.
 const HowToTab = lazy(() => import('./components/HowToTab'))
@@ -253,6 +252,11 @@ export default function App() {
   }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.designDefaultsVersion])
 
   // [2026-10-31 Phase2 P2-1] 관리자가 아닌 계정이 /admin 으로 들어오면 주소를 / 로 되돌리고 일반 화면
+  // [2026-10-31] 설치 배너(main.jsx)가 /admin 여부를 알 수 있게 화면 전환을 알린다
+  useEffect(() => {
+    window.dispatchEvent(new Event('bt-route'))
+  }, [showAdmin])
+
   useEffect(() => {
     if (!showAdmin || !userDoc) return
     if (userDoc.role !== '관리자') {
@@ -424,7 +428,8 @@ export default function App() {
   }
 
   // [2026-10-31] 개인정보·신체 정보 동의 + 만 14세 이상 확인 - 새 계정은 온보딩 전, 기존 계정은 다음 접속 때 한 번
-  if (!hasCurrentConsent(userDoc)) {
+  // 관리자 대시보드(/admin)는 운영 도구라 동의 화면 없이 연다(앱 화면으로 가면 그때 동의)
+  if (!hasCurrentConsent(userDoc) && !(showAdmin && userDoc.role === '관리자')) {
     return (
       <ConsentScreen
         onAgree={async (consents) => {
@@ -695,8 +700,7 @@ export default function App() {
         />
       </div>
       <BottomNav active={activeTab} onChange={handleTabPress} />
-      {/* [2026-10-27 W0] 연결이 끊겨 있던 설치 유도 배너(v9 스펙 PWA 항목) 재연결 */}
-      <InstallBanner />
+      {/* 설치 유도 배너는 main.jsx에서 한 번만 그린다(2026-10-31 중복 제거, /admin에서는 숨김) */}
     </div>
   )
 }
