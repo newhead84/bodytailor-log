@@ -2,6 +2,10 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] Phase2 P2-4 홍보 페이지 반영 | public/intro/index.html, public/intro/img/cap-trainer.webp·cap-ptplan.webp(신규), CLAUDE.md
+- 트레이너 섹션 → "PT 회원이라면 · 트레이너가 짠 계획, 혼자 하는 날도 그대로": 계획 보내기·계획대로 기록·기록 확인(신체정보 비공유)·자세 안내 + 트레이너/회원 화면 캡처 2장.
+- FAQ "누가 쓸 수 있나요?" 회원 전용·가입 후 승인으로, "PT 회원은 트레이너와 어떻게 연결하나요?" 추가. 히어로·마지막 CTA 안내 문구에 회원 전용·승인 반영.
+
 [2026-10-31] Phase2 P2-3 트레이너 운동 계획 + 중첩 화면 뒤로가기 수정 | storage.js, TraineesScreen.jsx, RoutineSetup.jsx, RoutineManager.jsx, MyPageTab.jsx, WorkoutInput.jsx, TrainerPlanBadge.jsx(신규), useBackableScreen.js, App.jsx, firestore.rules, CLAUDE.md
 - 트레이너 "내 회원" → 회원 화면 상단 "운동 계획": 계획 만들기·수정·삭제(부위·종목 + 회원에게 남길 메모, 회원당 3개), 회원이 쓰는 다른 루틴 보기.
 - 회원: 기록 화면 루틴 칩에 PT 표시 + 트레이너 메모, MY 내 루틴에 "트레이너 계획 · 이름" 배지. 트레이너 계획은 본인 루틴 5개 제한에서 제외, HOWTO "내 루틴에 추가"는 본인 루틴에만.
