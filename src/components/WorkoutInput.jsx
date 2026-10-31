@@ -1687,7 +1687,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
               selectRoutine(t.id)
             }}
           >
-            {t.title}
+            {t.title}{t.byTrainer && <span style={{ marginLeft: 4, fontSize: 10.5, fontWeight: 800, opacity: 0.75 }}>PT</span>}
           </Chip>
         ))}
         <Chip active={sessionType === 'extra'} onClick={() => setSessionType('extra')}>
@@ -1696,6 +1696,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       </div>
 
       {/* 선택한 루틴의 분할(파트) 표시: 눌러서 오늘 수행할 파트를 고른다 */}
+      {/* [2026-10-31 P2-3] 트레이너 계획의 메모 */}
+      {sessionType === 'routine' && selectedTemplate?.byTrainer && selectedTemplate.note && (
+        <p className="text-keep-all" style={{ margin: '0 0 10px', padding: '8px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-card)', border: '1px solid var(--color-line)', fontSize: 12.5, color: 'var(--color-label-normal)', whiteSpace: 'pre-wrap' }}>
+          <b>{selectedTemplate.byTrainer.name || '트레이너'} 메모</b> · {selectedTemplate.note}
+        </p>
+      )}
       {sessionType === 'routine' && selectedTemplate && (
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 }}>
           {selectedTemplate.parts.map((p) => (

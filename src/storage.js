@@ -267,7 +267,8 @@ export async function saveRoutineTemplate(uid, template) {
     await setDoc(doc(col, id), { ...rest, updatedAt: serverTimestamp() }, { merge: true })
     return id
   }
-  const existing = await getRoutineTemplates(uid)
+  // [2026-10-31 P2-3] 트레이너 계획(byTrainer)은 회원 본인 루틴 5개 제한에 포함하지 않는다.
+  const existing = (await getRoutineTemplates(uid)).filter((t) => !t.byTrainer)
   if (existing.length >= MAX_ROUTINE_TEMPLATES) {
     throw new Error(`내 루틴은 최대 ${MAX_ROUTINE_TEMPLATES}개까지만 만들 수 있어요.`)
   }
@@ -277,6 +278,28 @@ export async function saveRoutineTemplate(uid, template) {
     order: existing.length,
     createdAt: serverTimestamp(),
   })
+  return ref.id
+}
+
+// [2026-10-31 Phase2 P2-3] 트레이너 운동 계획: 담당 회원의 routineTemplates에 byTrainer 표시와 함께 저장한다.
+// 회원 기록 화면의 루틴 목록에 그대로 나타나 같은 방식으로 기록한다. 트레이너당 회원별 최대 3개.
+// rules: 담당 트레이너(isTrainerOf)는 그 회원 루틴 읽기 + 자기 byTrainer 문서만 생성·수정·삭제.
+export const MAX_TRAINER_PLANS = 3
+export const isOwnRoutine = (t) => !t?.byTrainer
+export async function saveTrainerPlan(memberUid, trainer, plan) {
+  const col = collection(db, 'routineTemplates', memberUid, 'templates')
+  const byTrainer = { uid: trainer.uid, name: trainer.name || '' }
+  const note = String(plan.note || '').slice(0, 300)
+  if (plan.id) {
+    await setDoc(doc(col, plan.id), { title: plan.title, parts: plan.parts, note, byTrainer, updatedAt: serverTimestamp() }, { merge: true })
+    return plan.id
+  }
+  const all = await getRoutineTemplates(memberUid)
+  if (all.filter((t) => t.byTrainer?.uid === trainer.uid).length >= MAX_TRAINER_PLANS) {
+    throw new Error(`한 회원에게 계획은 최대 ${MAX_TRAINER_PLANS}개까지 만들 수 있어요.`)
+  }
+  const minOrder = all.reduce((m, t) => Math.min(m, Number(t.order) || 0), 0)
+  const ref = await addDoc(col, { title: plan.title, parts: plan.parts, note, byTrainer, order: minOrder - 1, createdAt: serverTimestamp() })
   return ref.id
 }
 
@@ -294,10 +317,12 @@ export async function deleteRoutineTemplate(uid, templateId) {
 // 종목의 부위(atom)를 포함하는 파트를 찾아 넣고, 없으면 첫 번째 파트에 넣는다(폴백).
 // 이미 그 파트에 있으면 중복 추가하지 않고 알려만 준다.
 export async function quickAddExerciseToRoutine(uid, routineTemplates, exerciseName, atom) {
-  if (!routineTemplates || routineTemplates.length === 0) {
+  // [2026-10-31 P2-3] 트레이너 계획은 건드리지 않고 회원 본인 루틴 중 첫 번째에 넣는다.
+  const own = (routineTemplates || []).filter((t) => !t.byTrainer)
+  if (own.length === 0) {
     return { ok: false, reason: 'no-template' }
   }
-  const template = routineTemplates[0]
+  const template = own[0]
   const parts = template.parts || []
   if (parts.length === 0) {
     return { ok: false, reason: 'no-parts' }

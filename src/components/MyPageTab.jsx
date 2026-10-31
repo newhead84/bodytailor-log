@@ -3,7 +3,8 @@ import { ChevronDown, ChevronLeft, ExternalLink, Settings } from 'lucide-react'
 import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
-import { getMyTrainerConnection, endConnection, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, addCustomExercise, removeCustomExercise } from '../storage'
+import { getMyTrainerConnection, endConnection, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
+import TrainerPlanBadge from './TrainerPlanBadge'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import { todayStr } from '../utils/date'
@@ -270,7 +271,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   // "분할운동 템플릿" — 트레이너들이 자주 쓰는 2/3/4분할 프리셋을 그대로
   // 새 "내 루틴"으로 추가한다. 파트/종목은 이후 MY탭 "운동조합 변경"에서 자유롭게 수정 가능.
   async function handleAddSplitTemplate(preset) {
-    if ((routineTemplates || []).length >= MAX_ROUTINE_TEMPLATES) {
+    if ((routineTemplates || []).filter(isOwnRoutine).length >= MAX_ROUTINE_TEMPLATES) {
       setTemplateError(`내 루틴은 최대 ${MAX_ROUTINE_TEMPLATES}개까지만 만들 수 있어요.`)
       return
     }
@@ -731,7 +732,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </Button>
         }
       >
-        내 루틴 ({(routineTemplates || []).length}/{MAX_ROUTINE_TEMPLATES})
+        내 루틴 ({(routineTemplates || []).filter(isOwnRoutine).length}/{MAX_ROUTINE_TEMPLATES})
       </SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         {(routineTemplates || []).length === 0 ? (
@@ -746,10 +747,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                 borderTop: i === 0 ? 'none' : '1px solid var(--color-line)',
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>{t.title}</div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>{t.title}{t.byTrainer && <TrainerPlanBadge t={t} />}</div>
               <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
                 {t.parts?.map((p) => p.name).join(' · ')}
               </div>
+              {t.note && <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)', whiteSpace: 'pre-wrap' }}>{t.note}</p>}
               {/* [2026-10-30] 주당 목표 일수에 비해 파트가 많으면(부위당 주 1회 미만) 안내 */}
               {(() => {
                 const f = perPartWeeklyFrequency(t.parts?.length, userDoc?.weeklyTargetDays || 3)

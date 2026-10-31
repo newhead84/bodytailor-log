@@ -80,9 +80,28 @@ service cloud.firestore {
     }
 
     // routineTemplates/{uid}/templates/{templateId} — 본인 소유 서브컬렉션
+    // [2026-10-31 Phase2 P2-2/P2-3] 담당 트레이너(활성 연결 + 트레이너 역할) 판정
+    function isTrainerOf(memberUid) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)) &&
+        get(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)).data.status == 'active' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == '트레이너';
+    }
+    // [2026-10-31 P2-3] 담당 트레이너는 회원 루틴을 읽고, 자기 이름(byTrainer.uid)으로 만든 계획만 생성·수정·삭제한다.
+    function trainerPlanOk() {
+      return request.resource.data.keys().hasOnly(['title', 'parts', 'note', 'byTrainer', 'order', 'createdAt', 'updatedAt']) &&
+        request.resource.data.byTrainer.keys().hasOnly(['uid', 'name']) &&
+        request.resource.data.byTrainer.uid == request.auth.uid &&
+        request.resource.data.title is string && request.resource.data.title.size() <= 40 &&
+        request.resource.data.parts is list && request.resource.data.parts.size() <= 7 &&
+        request.resource.data.get('note', '') is string && request.resource.data.get('note', '').size() <= 300;
+    }
     match /routineTemplates/{uid}/templates/{templateId} {
-      allow read: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && (request.auth.uid == uid || isTrainerOf(uid));
       allow write: if request.auth != null && request.auth.uid == uid && isApproved();
+      allow create: if isTrainerOf(uid) && trainerPlanOk();
+      allow update: if isTrainerOf(uid) && resource.data.get('byTrainer', {}).get('uid', '') == request.auth.uid && trainerPlanOk();
+      allow delete: if isTrainerOf(uid) && resource.data.get('byTrainer', {}).get('uid', '') == request.auth.uid;
     }
 
     // [2026-10-27 신규] activeSessions/{uid} — 진행 중 운동 세션 서버 백업(본인만, 크기 제한)
@@ -94,13 +113,7 @@ service cloud.firestore {
     }
 
     // workoutLogs/{uid}/logs/{logId} — 본인 소유 서브컬렉션
-    // [2026-10-31 Phase2 P2-2] 담당 트레이너(활성 연결 + 트레이너 역할)는 그 회원의 운동 기록을 읽을 수 있다(쓰기 불가).
-    function isTrainerOf(memberUid) {
-      return request.auth != null &&
-        exists(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)) &&
-        get(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)).data.status == 'active' &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == '트레이너';
-    }
+    // [2026-10-31 Phase2 P2-2] 담당 트레이너(isTrainerOf)는 그 회원의 운동 기록을 읽을 수 있다(쓰기 불가).
     match /workoutLogs/{uid}/logs/{logId} {
       allow read: if request.auth != null && (request.auth.uid == uid || isTrainerOf(uid));
       allow write: if request.auth != null && request.auth.uid == uid && isApproved();

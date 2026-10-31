@@ -17,21 +17,46 @@
 
 import { useEffect, useRef } from 'react'
 
+// [2026-10-31 버그 수정] 안쪽 화면이 "저장/취소"로 닫히며 history.back()을 직접 호출하면, 그 popstate를
+// 바깥 화면(예: 운동방식 변경, 내 회원)의 훅도 받아 함께 닫혀 버렸다(루틴 수정 저장 → MY로 튕김).
+// 스스로 부른 back()에서 생긴 popstate는 모든 훅이 무시하도록 모듈 공용 플래그를 둔다.
+// 플래그는 해당 popstate의 모든 리스너가 실행된 뒤(setTimeout 0) 풀린다.
+// 또 기기 뒤로가기 한 번에 열린 화면이 모두(바깥까지) 닫히던 문제도 있어, 열린 순서 스택을 두고
+// 가장 안쪽(마지막에 열린) 화면 하나만 닫는다.
+let selfBackPending = false
+const openStack = []
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => {
+    if (selfBackPending) setTimeout(() => { selfBackPending = false }, 0)
+  })
+}
+
+function removeFromStack(id) {
+  const i = openStack.lastIndexOf(id)
+  if (i !== -1) openStack.splice(i, 1)
+}
+
 export function useBackableScreen(isOpen, onClose) {
   const pushedRef = useRef(false)
   const closingSelfRef = useRef(false)
+  const idRef = useRef(null)
+  if (!idRef.current) idRef.current = {}
 
   // 화면 열림/닫힘에 따라 history 엔트리를 쌓거나 정리한다.
   useEffect(() => {
     if (isOpen && !pushedRef.current) {
       pushedRef.current = true
+      openStack.push(idRef.current)
       window.history.pushState({ bodytailorScreen: true }, '')
     } else if (!isOpen && pushedRef.current) {
       pushedRef.current = false
+      removeFromStack(idRef.current)
       if (!closingSelfRef.current) {
         // 뒤로가기가 아니라 화면 안의 "돌아가기/취소" 버튼 등으로 닫힌 경우:
         // 앞서 쌓아둔 엔트리를 우리가 직접 소비해서 history 깊이를 맞춘다.
         closingSelfRef.current = true
+        selfBackPending = true
+        setTimeout(() => { selfBackPending = false }, 1000) // popstate가 안 오는 예외 상황 대비
         window.history.back()
         setTimeout(() => {
           closingSelfRef.current = false
@@ -40,11 +65,19 @@ export function useBackableScreen(isOpen, onClose) {
     }
   }, [isOpen])
 
+  // 열린 채로 언마운트되면(상위 화면이 먼저 닫힘 등) 스택에서만 뺀다.
+  useEffect(() => () => {
+    if (pushedRef.current) removeFromStack(idRef.current)
+  }, [])
+
   // 뒤로가기(popstate) 발생 시, 우리가 쌓아둔 엔트리가 소비되는 것이면 화면을 닫는다.
   useEffect(() => {
-    function handlePopState() {
-      if (pushedRef.current) {
+    function handlePopState(e) {
+      if (selfBackPending || e.__btScreenHandled) return
+      if (pushedRef.current && openStack[openStack.length - 1] === idRef.current) {
+        e.__btScreenHandled = true
         pushedRef.current = false
+        removeFromStack(idRef.current)
         closingSelfRef.current = true
         onClose()
         setTimeout(() => {

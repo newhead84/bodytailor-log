@@ -1,7 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-31] Phase2 P2-2 트레이너–회원 연결(대시보드) + 트레이너 "내 회원" 기록 열람.
- *            직전: P2-1 헬스장 회원 승인·관리자 대시보드, 인앱 브라우저 대응. 이전 변경은 CHANGELOG.md 참고.
+ * 최신 변경: [2026-10-31] Phase2 P2-3 트레이너 운동 계획(회원 루틴에 계획·메모 보내기) + 중첩 화면 뒤로가기 수정.
+ *            직전: P2-2 트레이너–회원 연결·기록 열람, P2-1 회원 승인·관리자 대시보드. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
@@ -489,7 +489,7 @@ export default function App() {
   }
 
   if (showTrainees && userDoc.role === '트레이너') {
-    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TraineesScreen uid={authUser.uid} onClose={closeTrainees} /></Suspense>
+    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TraineesScreen uid={authUser.uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} customExercises={userDoc.customExercises || {}} onClose={closeTrainees} /></Suspense>
   }
 
   if (showInquiries) {

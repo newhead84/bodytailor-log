@@ -18,10 +18,12 @@ import ExerciseGuideToggle from './ExerciseGuideToggle'
 // MY탭 "운동조합 변경"(RoutineManager)에서 새 루틴 생성/기존 루틴 수정 시 이 컴포넌트를 사용한다.
 //
 // initialTemplate: { id?, title, parts: [{name, atoms, exercises}] } — 없으면 신규 생성 모드
-export default function RoutineSetup({ initialTemplate, customExercises, onSave, onCancel, onSkip, canCancel = true }) {
+// [2026-10-31 P2-3] forTrainer: 트레이너가 담당 회원의 계획을 만들 때 — 제목 문구 변경 + 회원에게 보일 메모(note) 입력.
+export default function RoutineSetup({ initialTemplate, customExercises, onSave, onCancel, onSkip, canCancel = true, forTrainer = null }) {
   const confirm = useConfirm()
   const isEditing = !!initialTemplate
   const [title, setTitle] = useState(initialTemplate?.title || '')
+  const [note, setNote] = useState(initialTemplate?.note || '')
   const [parts, setParts] = useState(initialTemplate?.parts?.map((p) => ({ ...p, exercises: [...(p.exercises || [])] })) || [])
   // pickerMode: null(닫힘) | 'new'(새 파트 추가) | number(해당 인덱스 파트의 부위 수정)
   const [pickerMode, setPickerMode] = useState(null)
@@ -114,6 +116,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
         ...(initialTemplate?.id ? { id: initialTemplate.id } : {}),
         title: title.trim(),
         parts,
+        ...(forTrainer ? { note: note.trim() } : {}),
       })
     } finally {
       setSaving(false)
@@ -125,7 +128,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
       {canCancel && <BackButton onClick={onCancel}>취소하고 돌아가기</BackButton>}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
         <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: 0 }}>
-          {isEditing ? '내 루틴 수정' : '새 루틴 만들기'}
+          {forTrainer ? `${forTrainer.memberName}님 계획 ${isEditing ? '수정' : '만들기'}` : isEditing ? '내 루틴 수정' : '새 루틴 만들기'}
         </h1>
         {onSkip && (
           <button
@@ -137,19 +140,32 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
         )}
       </div>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-        원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&이두&삼두, 하체&가슴)
-        {onSkip && ' 지금 정하기 어렵다면 "나중에 입력"을 눌러 건너뛸 수 있어요.'}
+        {forTrainer
+          ? '저장하면 회원의 기록 화면 루틴 목록에 "트레이너 계획"으로 바로 나타나요. 세트·횟수·무게 같은 지시는 아래 메모에 적어 주세요.'
+          : <>원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&이두&삼두, 하체&가슴){onSkip && ' 지금 정하기 어렵다면 "나중에 입력"을 눌러 건너뛸 수 있어요.'}</>}
       </p>
 
       <div style={{ marginBottom: 22 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>루틴 이름</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{forTrainer ? '계획 이름' : '루틴 이름'}</div>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value.slice(0, 20))}
-          placeholder="예: 월수금 루틴"
+          placeholder={forTrainer ? '예: 11월 하체 강화' : '예: 월수금 루틴'}
           style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14 }}
         />
       </div>
+      {forTrainer && (
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>회원에게 남길 메모 <span style={{ fontWeight: 400, color: 'var(--color-label-neutral)' }}>(선택)</span></div>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, 300))}
+            rows={3}
+            placeholder="예: 스쿼트 5×5, 마지막 세트 2개 여유 남기기. 무릎 통증 있으면 레그프레스로 대체."
+            style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          />
+        </div>
+      )}
 
       {parts.length > 1 && (
         <PartOrderCard parts={parts} onReorder={handleReorderParts} />
@@ -217,7 +233,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
         }}
       >
         <Button full disabled={!canSave || saving} onClick={handleSave}>
-          {saving ? '저장 중…' : isEditing ? `변경사항 저장 (${totalExercises}개 종목)` : `루틴 저장하기 (${totalExercises}개 종목)`}
+          {saving ? '저장 중…' : isEditing ? `변경사항 저장 (${totalExercises}개 종목)` : `${forTrainer ? '계획 보내기' : '루틴 저장하기'} (${totalExercises}개 종목)`}
         </Button>
       </div>
     </div>

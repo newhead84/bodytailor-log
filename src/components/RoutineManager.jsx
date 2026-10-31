@@ -1,7 +1,8 @@
 import React, { useCallback, useState } from 'react'
 import { Button, Card, BackButton, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
-import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES } from '../storage'
+import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine } from '../storage'
+import TrainerPlanBadge from './TrainerPlanBadge'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, recommendedSplitKey, perPartWeeklyFrequency } from '../utils/exerciseLibrary'
 import { useBackableScreen } from '../hooks/useBackableScreen'
 import { getTrainingProfile } from '../utils/goals'
@@ -23,11 +24,12 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
   // "← 취소하고 돌아가기"가 있는 화면 전환이므로, 기기 뒤로가기로도 닫히도록 연결한다.
   // 단, 최초 설정(isFirstSetup)에서 루틴이 하나도 없어 취소 자체가 불가능한 경우는 제외.
   const canCancelEditing = !(isFirstSetup && templates.length === 0)
+  const ownCount = templates.filter(isOwnRoutine).length // [P2-3] 트레이너 계획은 5개 제한에서 제외
   const closeEditing = useCallback(() => setEditingId(null), [])
   useBackableScreen(!!editingId && canCancelEditing, closeEditing)
 
   async function handleAddSplitTemplate(preset) {
-    if (templates.length >= MAX_ROUTINES) {
+    if (ownCount >= MAX_ROUTINES) {
       setError(`내 루틴은 최대 ${MAX_ROUTINES}개까지만 만들 수 있어요.`)
       return
     }
@@ -79,7 +81,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
     <div style={{ padding: '24px 20px 40px', height: '100%', overflowY: 'auto' }}>
       {!isFirstSetup && <BackButton onClick={onClose} />}
       <h1 className="text-keep-all" style={{ fontSize: 'var(--fs-headline1)', margin: '0 0 4px' }}>
-        내 루틴 ({templates.length}/{MAX_ROUTINES})
+        내 루틴 ({ownCount}/{MAX_ROUTINES})
       </h1>
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         {isFirstSetup
@@ -97,7 +99,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
         {templates.map((t) => (
           <Card key={t.id}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>{t.title}</div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{t.title}{t.byTrainer && <TrainerPlanBadge t={t} />}</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   onClick={() => setEditingId(t.id)}
@@ -113,6 +115,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
             <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
               {t.parts?.map((p) => p.name).join(' · ')}
             </div>
+            {t.note && <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)', whiteSpace: 'pre-wrap' }}>{t.note}</p>}
           </Card>
         ))}
         {templates.length === 0 && (
@@ -120,7 +123,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
         )}
       </div>
 
-      {templates.length < MAX_ROUTINES && (
+      {ownCount < MAX_ROUTINES && (
         <>
           <Button full onClick={() => setEditingId('new')} style={{ marginBottom: 10 }}>
             + 새 루틴 추가

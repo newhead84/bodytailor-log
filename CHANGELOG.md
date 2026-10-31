@@ -2,6 +2,12 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-10-31] Phase2 P2-3 트레이너 운동 계획 + 중첩 화면 뒤로가기 수정 | storage.js, TraineesScreen.jsx, RoutineSetup.jsx, RoutineManager.jsx, MyPageTab.jsx, WorkoutInput.jsx, TrainerPlanBadge.jsx(신규), useBackableScreen.js, App.jsx, firestore.rules, CLAUDE.md
+- 트레이너 "내 회원" → 회원 화면 상단 "운동 계획": 계획 만들기·수정·삭제(부위·종목 + 회원에게 남길 메모, 회원당 3개), 회원이 쓰는 다른 루틴 보기.
+- 회원: 기록 화면 루틴 칩에 PT 표시 + 트레이너 메모, MY 내 루틴에 "트레이너 계획 · 이름" 배지. 트레이너 계획은 본인 루틴 5개 제한에서 제외, HOWTO "내 루틴에 추가"는 본인 루틴에만.
+- rules: 담당 트레이너는 회원 루틴 읽기 + 자기 계획만 쓰기(필드 화이트리스트).
+- 버그 수정: 루틴 수정 화면에서 저장하면 "운동방식 변경" 화면까지 닫혀 MY로 튕기던 문제, 기기 뒤로가기 한 번에 중첩 화면이 모두 닫히던 문제.
+
 [2026-10-31] Phase2 P2-2 트레이너–회원 연결 + 트레이너의 회원 기록 열람 | storage.js(connections 함수), AdminDashboard.jsx(트레이너 연결 탭), TraineesScreen.jsx(신규), MyPageTab.jsx, App.jsx, firestore.rules, CLAUDE.md
 - 대시보드 "트레이너 연결": 회원·트레이너 선택 → 연결(회원당 활성 1명, 변경 시 이전 연결 종료·이력 유지, 일반회원 → PT회원), 트레이너별 담당 회원 목록·해제.
 - 트레이너 MY "내 회원" → 회원별 최근 8주 운동 기록(읽기 전용, 이번 주 운동 일수, 세션별 종목·세트 펼치기).
