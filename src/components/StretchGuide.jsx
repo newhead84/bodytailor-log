@@ -24,7 +24,7 @@ export function StretchCard({ s, defaultOpen = false, compact = false }) {
         <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
           <span className="text-keep-all" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 14.5, fontWeight: 800, color: 'var(--color-label-strong)' }}>
             {s.name}
-            <span style={{ padding: '1px 7px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 11, fontWeight: 700, color: 'var(--color-label-normal)' }}>
+            <span style={{ padding: '1px 7px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-normal)' }}>
               {STRETCH_TYPE_LABEL[s.type]}
             </span>
             <span className="bt-num" style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)' }}>
@@ -42,7 +42,7 @@ export function StretchCard({ s, defaultOpen = false, compact = false }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`${s.name} 영상 찾기(YouTube)`}
-        style={{ flexShrink: 0, display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, minWidth: 44, minHeight: 44, marginTop: compact ? 4 : 6, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', fontSize: 10.5, fontWeight: 700, color: 'var(--color-label-normal)', textDecoration: 'none' }}
+        style={{ flexShrink: 0, display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, minWidth: 44, minHeight: 44, marginTop: compact ? 4 : 6, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-normal)', textDecoration: 'none' }}
       >
         <PlayCircle size={16} strokeWidth={2} aria-hidden="true" />
         영상
@@ -120,7 +120,7 @@ export function StretchGuide() {
               }}
             >
               <span style={{ fontSize: 14, fontWeight: 800 }}>{a.label}</span>
-              <span style={{ fontSize: 11.5, lineHeight: 1.35, opacity: on ? 0.88 : 0.72 }}>{a.hint}</span>
+              <span style={{ fontSize: 12.5, lineHeight: 1.35, opacity: on ? 0.88 : 0.72 }}>{a.hint}</span>
             </button>
           )
         })}
@@ -156,7 +156,7 @@ export function StretchGuide() {
         후나 뻐근할 때는 정적 스트레칭을 30초씩 2–3번, 반동 없이 "당기는 느낌"까지만 해요. 폼롤러는 부위당 30–60초, 뼈와 관절 위는 피해요. 찌릿하거나 저린
         통증이 있으면 멈추고, 계속되면 전문가에게 진료를 받아 보세요.
       </Disclosure>
-      <p className="text-keep-all" style={{ margin: '12px 0 0', fontSize: 11.5, lineHeight: 1.55, color: 'var(--color-label-neutral)' }}>{HEALTH_DISCLAIMER}</p>
+      <p className="text-keep-all" style={{ margin: '12px 0 0', fontSize: 12.5, lineHeight: 1.55, color: 'var(--color-label-neutral)' }}>{HEALTH_DISCLAIMER}</p>
     </div>
   )
 }
@@ -185,7 +185,7 @@ export function StretchSuggest({ atoms, phase = 'before', title, style }) {
           {list.map((s) => (
             <StretchCard key={s.id} s={s} compact />
           ))}
-          <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
+          <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
             {phase === 'before' ? '움직이며 8–12회씩, 몸이 따뜻해질 정도면 충분해요.' : '한 자세로 30초씩, 반동 없이 당기는 느낌까지만.'} 다른 부위는 HOWTO 탭 스트레칭에서 찾아보세요.
           </p>
         </div>

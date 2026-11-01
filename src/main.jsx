@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import InstallBanner from './components/InstallBanner.jsx'
+import AppErrorBoundary, { reloadOnceForNewVersion } from './components/AppErrorBoundary.jsx'
 import { ConfirmProvider } from './components/ui.jsx'
 import './styles/tokens.css'
 import './styles/designStyles.css'
@@ -14,11 +15,19 @@ if ('serviceWorker' in navigator) {
   })
 }
 
+// [2026-11-01] 배포 뒤 옛 청크를 못 받으면(지연 로드 실패) 한 번만 새로고침해 새 버전을 받는다.
+// 이미 한 번 새로고침했으면 오류를 그대로 두어 AppErrorBoundary의 "새로고침" 안내가 뜬다.
+window.addEventListener('vite:preloadError', (e) => {
+  if (reloadOnceForNewVersion()) e.preventDefault()
+})
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ConfirmProvider>
-      <InstallBanner />
-      <App />
-    </ConfirmProvider>
+    <AppErrorBoundary>
+      <ConfirmProvider>
+        <InstallBanner />
+        <App />
+      </ConfirmProvider>
+    </AppErrorBoundary>
   </React.StrictMode>
 )

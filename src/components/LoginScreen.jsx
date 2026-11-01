@@ -20,7 +20,16 @@ export default function LoginScreen() {
     try {
       await loginWithGoogle()
     } catch (e) {
-      setError('로그인에 실패했어요. 잠시 후 다시 시도해 주세요.')
+      // [2026-11-01] 아이폰 홈 화면 앱(standalone)은 팝업 로그인이 막힐 수 있다(실기기 확인 필요) → 사파리 안내
+      const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator?.standalone === true
+      // [2026-11-01] M2: 오류 코드별 안내(팝업을 닫은 건 실패로 보지 않음)
+      const code = e?.code || ''
+      if (standalone && (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment')) {
+        setError('홈 화면 앱에서 구글 로그인 창이 열리지 않았어요. 버튼을 한 번 더 눌러 보고, 계속 안 되면 사파리에서 bodytailor-log.vercel.app 주소로 열어 로그인해 주세요.')
+      } else if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') setError('')
+      else if (code === 'auth/popup-blocked') setError('로그인 창이 차단됐어요. 브라우저 주소창의 팝업 차단 표시를 눌러 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.')
+      else if (code === 'auth/network-request-failed') setError('인터넷 연결이 불안정해요. 와이파이나 데이터 연결을 확인하고 다시 시도해 주세요.')
+      else setError('로그인에 실패했어요. 잠시 후 다시 시도해 주세요.')
     } finally {
       setLoading(false)
     }

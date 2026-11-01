@@ -861,13 +861,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // [2026-08-02 신규] 앱을 다른 탭으로 전환하거나 화면을 꺼도 운동이 시작됐음을 알 수 있도록
     // 알림바에 표시한다(⑦). 휴식타이머 종료 알림과 동일하게 MY탭 알림 설정(restNotificationEnabled)을
     // 그대로 따르고, 권한 요청은 하지 않는다(이미 그 설정 화면에서 요청함).
-    if (restNotificationEnabled && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification('운동을 시작했어요', { body: '웜업 타이머가 진행 중이에요.', tag: 'bodytailor-workout' })
-      } catch (e) {
-        // 무시
-      }
-    }
+    // [2026-11-01] 안드로이드에서 new Notification이 막혀(Illegal constructor) 실패하던 중복 알림 제거:
+    // 진행 중 알림은 App이 세션 단계에 맞춰 서비스워커 알림(tag bodytailor-session)으로 띄운다.
   }
 
   function handleStartMain() {
@@ -1728,9 +1723,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           한 번 만들어 두면 기록탭에서 매번 종목을 처음부터 고르지 않고 저장된 순서 그대로 빠르게 기록할 수 있고,
           운동을 완료할 때마다 실제로 수행한 순서가 자동으로 반영돼 다음에도 그 순서로 이어져요.
           {'\n'}
-          아래 버튼을 눌러 MY 탭에서 첫 루틴을 만들어 보세요(2분할/3분할/4분할/5분할 기본 구성 중에서 골라 바로 시작할 수 있어요).
+          아래 버튼을 눌러 첫 루틴을 만들어 보세요(무분할·2분할·3분할 같은 분할 템플릿 중에서 골라 바로 시작할 수 있어요).
         </p>
-        <Button onClick={() => onGoToRoutineSetup?.()}>MY 탭에서 내 루틴 만들기</Button>
+        <Button onClick={() => onGoToRoutineSetup?.()}>내 루틴 만들기</Button>
       </div>
     )
   }
@@ -1829,7 +1824,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
               selectRoutine(t.id)
             }}
           >
-            {t.title}{t.byTrainer && <span style={{ marginLeft: 4, fontSize: 10.5, fontWeight: 800, opacity: 0.75 }}>PT</span>}
+            {t.title}{t.byTrainer && <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 800, opacity: 0.75 }}>PT</span>}
           </Chip>
         ))}
         <Chip active={sessionType === 'extra'} onClick={() => setSessionType('extra')}>
@@ -2241,7 +2236,7 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
           padding: '28px 22px 22px',
           maxWidth: 340,
           width: '100%',
-          maxHeight: 'calc(100vh - 48px)',
+          maxHeight: 'calc(var(--vh-full) - 48px)', // [2026-11-01] iOS 툴바에 확인 버튼이 가리지 않게 dvh
           overflowY: 'auto',
         }}
       >
@@ -2266,7 +2261,7 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 16 }}>
             {stats.map((st) => (
               <div key={st.label} style={{ padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)' }}>
-                <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)', marginBottom: 2 }}>{st.label}</span>
+                <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-label-neutral)', marginBottom: 2 }}>{st.label}</span>
                 <span className="bt-num" style={{ fontSize: 'calc(20px * var(--num-scale))', color: 'var(--color-label-strong)', whiteSpace: 'nowrap' }}>
                   <CountUp value={st.value} />
                   <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{st.unit}</span>
@@ -2512,13 +2507,13 @@ export function ExerciseCard({
             {fixedGrip ? `${exName} (${fixedGrip})` : exName}
           </span>
           {ext.supersetPartner && (
-            <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-info)', fontWeight: 700 }}>
+            <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-info)', fontWeight: 700 }}>
               ⇄ 슈퍼세트 {exerciseKeyLabel(ext.supersetPartner)}
             </span>
           )}
           {isStrength && (bestE1rm > 0 || suggestion?.kind === 'increase') && (
             // [2026-10-28] 좁은 화면에서 "추정 1RM / 80kg"처럼 단위 중간이 끊기지 않게 항목 단위로 줄바꿈
-            <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', display: 'flex', flexWrap: 'wrap', columnGap: 6, rowGap: 1 }}>
+            <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', display: 'flex', flexWrap: 'wrap', columnGap: 6, rowGap: 1 }}>
               {bestE1rm > 0 && (
                 <span>
                   {/* [2026-11-01] 320px에서 '접기' 버튼에 끝 글자가 가리지 않게 '추정 1RM'과 숫자 사이에서 줄바꿈 허용 */}
@@ -2655,7 +2650,7 @@ export function ExerciseCard({
                     )}{' '}
                     × <span className="bt-num">{suggestion.setTargets?.length > 1 && new Set(suggestion.setTargets).size > 1 ? suggestion.setTargets.join('·') : suggestion.reps}</span>회
                   </span>
-                  <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>
+                  <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
                     {suggestion.reason}
                   </span>
                 </div>
@@ -2685,7 +2680,7 @@ export function ExerciseCard({
                       style={{ width: `${Math.min(100, Math.round((suggestion.progress.total / suggestion.progress.need) * 100))}%`, height: '100%', background: 'var(--color-fill-strong)' }}
                     />
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>
                     증량까지 총 <span className="bt-num">{Math.max(0, suggestion.progress.need - suggestion.progress.total)}</span>회
                   </span>
                 </div>
@@ -2718,7 +2713,7 @@ export function ExerciseCard({
                     </>
                   )}
                 </span>
-                <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>
+                <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
                   {ext.setTip.reason}
                 </span>
               </div>
@@ -2921,7 +2916,7 @@ function CardioTimerPanel({ sets, onFieldChange }) {
           종료하고 시간 넣기
         </button>
       </div>
-      <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', textAlign: 'center' }}>
+      <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', textAlign: 'center' }}>
         거리나 속도를 넣으면 나머지 칸은 자동으로 계산돼요.
       </span>
     </div>
@@ -2992,7 +2987,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
           {getCardioFields(exName).map((f) => (
             // 값이 채워지면 placeholder가 안 보여 어떤 칸인지 모르므로 칸 위에 이름·단위를 작게 표시
             <div key={f.key} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontSize: 11, color: 'var(--color-label-neutral)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', textAlign: 'center', whiteSpace: 'nowrap' }}>
                 {f.label} {f.unit !== f.label ? f.unit : ''}
               </span>
               <div style={{ display: 'flex' }}>

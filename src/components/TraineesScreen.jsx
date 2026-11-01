@@ -5,15 +5,17 @@
 // [2026-10-31 P2-3] 회원 화면 상단 "운동 계획": 트레이너가 회원의 루틴(계획)을 만들어 보내고 수정·삭제한다(RoutineSetup forTrainer 재사용).
 // [2026-11-01] 처리 안 된 지난 일정(A20), 회원 목록에 다음 PT(이미 읽은 7일 일정, 추가 읽기 없음, A19 일부), 같은 시간 중복 예약 경고(A17),
 //  회원권 만료·휴회 표시와 만료 회원 일정 경고(A18), 미래 일정 완료 확인(A21), 일정 없이 완료 날짜 선택(A22), 계획 변경 이력(A33)
+// [2026-11-01] 2차: 목록에 남은 PT·마지막 운동(A19, 회원 문서 한 번 읽고 10분 보관), 주간 일정표 ‹ › 이동(B21), 트레이너 메모(B19),
+//  일정 시간 바꾸기·회원 알림(B20), 남은 PT 0회 '완료(미결제)'(B4), 일정·기록에 회원 이름 저장(B26), 새 일정 기본 시간 = 그 회원 마지막 일정 시간(B18)
 import React, { useCallback, useEffect, useState } from 'react'
 import { ScreenHeader, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerGoalEditor } from './TrainerGoal'
 import { useBackableScreen } from '../hooks/useBackableScreen'
-import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, trainerListOverdueSchedules, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
-import { toLocalDateStr } from '../utils/date'
-import { membershipState, isPausedOn, pausesOf } from '../utils/member'
+import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerMoveSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, trainerListOverdueSchedules, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS, getTraineeSummaries, invalidateTraineeSummary, getTrainerNote, saveTrainerNote } from '../storage'
+import { toLocalDateStr, weekStartStr } from '../utils/date'
+import { membershipState, isPausedOn, pausesOf, addDays } from '../utils/member'
 import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
 import { formatLoad, repsUnit, logVolumeKg } from '../utils/load'
@@ -36,7 +38,18 @@ function setsText(ex) {
 export default function TraineesScreen({ uid, trainerName = '', customExercises = {}, onClose }) {
   const [list, setList] = useState(null)
   const [sel, setSel] = useState(null)
-  const [weekItems, setWeekItems] = useState([]) // 7일 일정(회원 카드의 '다음 PT'에 재사용)
+  const [weekItems, setWeekItems] = useState([]) // 이번 주 일정(회원 카드의 '다음 PT'에 재사용)
+  const [sums, setSums] = useState({}) // [2026-11-01] A19: 회원별 남은 PT·마지막 운동
+  useEffect(() => {
+    if (!list || !list.length) return
+    let alive = true
+    getTraineeSummaries(list.map((c) => c.memberUid))
+      .then((m) => alive && setSums(m))
+      .catch((err) => console.error('회원 요약 불러오기 실패:', err))
+    return () => {
+      alive = false
+    }
+  }, [list, sel])
   // 회원 상세에서 기기 뒤로가기 → 회원 목록으로(내 회원 화면 전체가 닫히지 않게)
   const closeSel = useCallback(() => setSel(null), [])
   useBackableScreen(!!sel, closeSel)
@@ -67,8 +80,13 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
               <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{c.memberName}{c.memberNickname ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}> · {c.memberNickname}</span> : null}</p>
               <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
                 {(() => {
-                  const next = weekItems.find((s) => s.memberUid === c.memberUid && s.status === 'scheduled')
-                  return next ? <>다음 PT <span className="bt-num">{fmtDay(next.date)} {next.time}</span> · </> : null
+                  const next = weekItems.find((s) => s.memberUid === c.memberUid && s.status === 'scheduled' && s.date >= toLocalDateStr(new Date()))
+                  const m = sums[c.memberUid]
+                  const parts = []
+                  if (m && m.ptTotal > 0) parts.push(<span key="pt" style={{ color: m.ptRemaining <= 3 ? 'var(--color-warning)' : undefined }}>PT <span className="bt-num">{m.ptRemaining}/{m.ptTotal}</span>회</span>)
+                  if (m) parts.push(<span key="last">마지막 운동 {m.lastDate ? <span className="bt-num">{fmtDay(m.lastDate)}</span> : '없음'}</span>)
+                  if (next) parts.push(<span key="next">다음 PT <span className="bt-num">{fmtDay(next.date)} {next.time}</span></span>)
+                  return parts.map((x, i) => <React.Fragment key={i}>{x} · </React.Fragment>)
                 })()}
                 계획 · 기록 보기 ›
               </p>
@@ -114,22 +132,23 @@ function OverdueSchedules({ uid, list, onOpen }) {
   )
 }
 
-// [2026-10-31] 오늘·이번 주(오늘부터 7일) PT 일정 모아보기 - 줄을 누르면 그 회원 화면으로
+// [2026-10-31] 오늘·이번 주 PT 일정 모아보기 - 줄을 누르면 그 회원 화면으로
+// [2026-11-01] B21: 월~일 주간 일정표 + ‹ › 주 이동(한 주 = 날짜 7개 조회 1번). 다른 트레이너 일정은 규칙상 읽을 수 없어 내 일정만.
 function WeekSchedules({ uid, list, onOpen, onItems }) {
   const [items, setItems] = useState(null)
+  const [offset, setOffset] = useState(0)
   const today = toLocalDateStr(new Date())
-  const dates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() + i)
-    return toLocalDateStr(d)
-  })
+  const monday = weekStartStr(today, offset)
+  const dates = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
+  const [day, setDay] = useState(today)
   useEffect(() => {
     let alive = true
+    setItems(null)
     listTrainerSchedulesByDates(uid, dates)
       .then((l) => {
         if (!alive) return
         setItems(l)
-        onItems?.(l)
+        if (offset === 0) onItems?.(l)
       })
       .catch((err) => {
         console.error('PT 일정 모아보기 실패:', err)
@@ -139,11 +158,10 @@ function WeekSchedules({ uid, list, onOpen, onItems }) {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, today])
+  }, [uid, monday])
   const byMember = Object.fromEntries(list.map((c) => [c.memberUid, c]))
   const shown = (items || []).filter((s) => byMember[s.memberUid])
-  const todayItems = shown.filter((s) => s.date === today)
-  const laterItems = shown.filter((s) => s.date !== today)
+  const dayItems = shown.filter((s) => s.date === day)
   const row = (s) => {
     const c = byMember[s.memberUid]
     const done = s.status === 'done'
@@ -161,26 +179,44 @@ function WeekSchedules({ uid, list, onOpen, onItems }) {
       </button>
     )
   }
+  const navBtn = { width: 36, height: 32, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', fontSize: 16, color: 'var(--color-label-normal)' }
   return (
     <Card style={{ marginBottom: 14 }}>
-      <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700 }}>PT 일정</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 700, flex: 1 }}>PT 일정 <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--color-label-neutral)' }}>{fmtDay(dates[0])} ~ {fmtDay(dates[6])}</span></p>
+        <button type="button" aria-label="이전 주" onClick={() => { setOffset((o) => o - 1); setDay(addDays(monday, -7)) }} style={navBtn}>‹</button>
+        {offset !== 0 && <button type="button" onClick={() => { setOffset(0); setDay(today) }} style={{ ...navBtn, width: 'auto', padding: '0 8px', fontSize: 12.5, fontWeight: 700 }}>이번 주</button>}
+        <button type="button" aria-label="다음 주" onClick={() => { setOffset((o) => o + 1); setDay(addDays(monday, 7)) }} style={navBtn}>›</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3 }}>
+        {dates.map((d, i) => {
+          const list2 = shown.filter((s) => s.date === d)
+          const on = d === day
+          return (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDay(d)}
+              aria-pressed={on}
+              aria-label={`${fmtDay(d)} PT ${list2.length}건`}
+              style={{ minHeight: 64, padding: '4px 2px', borderRadius: 'var(--radius-sm)', border: `1px solid ${on ? 'var(--color-fill-strong)' : 'var(--color-line)'}`, background: d === today ? 'var(--color-bg-elevated)' : 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, color: 'var(--color-label-strong)', minWidth: 0 }}
+            >
+              <span style={{ fontSize: 11, color: i === 6 ? 'var(--color-danger)' : i === 5 ? 'var(--color-info, var(--color-label-neutral))' : 'var(--color-label-neutral)' }}>{DAY[(i + 1) % 7]}</span>
+              <span className="bt-num" style={{ fontSize: 13, fontWeight: d === today ? 800 : 600 }}>{Number(d.slice(8))}</span>
+              {list2.slice(0, 3).map((s) => (
+                <span key={s.id} className="bt-num" style={{ fontSize: 10.5, lineHeight: 1.2, opacity: s.status === 'scheduled' ? 1 : 0.5, textDecoration: s.status === 'noshow' ? 'line-through' : 'none' }}>{s.time}</span>
+              ))}
+              {list2.length > 3 && <span style={{ fontSize: 10.5, color: 'var(--color-label-neutral)' }}>+{list2.length - 3}</span>}
+            </button>
+          )
+        })}
+      </div>
       {items === null ? (
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
+        <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
       ) : (
         <>
-          <p style={{ margin: '8px 0 2px', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>오늘 {fmtDay(today)} · {todayItems.length}건</p>
-          {todayItems.length ? todayItems.map(row) : <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>오늘 잡힌 PT가 없어요.</p>}
-          <p style={{ margin: '12px 0 2px', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>이번 주(7일) · {laterItems.length}건</p>
-          {laterItems.length ? (
-            laterItems.map((s, i) => (
-              <React.Fragment key={s.id}>
-                {(i === 0 || laterItems[i - 1].date !== s.date) && <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>{fmtDay(s.date)}</p>}
-                {row(s)}
-              </React.Fragment>
-            ))
-          ) : (
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>남은 일정이 없어요. 일정은 회원 화면의 PT 카드에서 잡아요.</p>
-          )}
+          <p style={{ margin: '12px 0 2px', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>{fmtDay(day)}{day === today ? ' 오늘' : ''} · {dayItems.length}건</p>
+          {dayItems.length ? dayItems.map(row) : <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>이날 잡힌 PT가 없어요. 일정은 회원 화면의 PT 카드에서 잡아요.</p>}
         </>
       )}
     </Card>
@@ -250,7 +286,8 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
       <ScreenHeader title={conn.memberName} onBack={onBack} backLabel="회원 목록" />
       <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>최근 8주 운동 기록 · 이번 주 <span className="bt-num">{thisWeekDays}</span>일 운동</p>
       <MemberBody member={member} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} memberName={conn.memberName} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
-      <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={loadMember} />
+      <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={() => { invalidateTraineeSummary(conn.memberUid); loadMember() }} />
+      <TrainerNoteCard uid={uid} memberUid={conn.memberUid} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} />
       <h2 style={{ fontSize: 16, margin: '22px 0 10px' }}>운동 기록</h2>
       {logs === null ? (
@@ -395,8 +432,11 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
   const today = toLocalDateStr(new Date())
   const [newDate, setNewDate] = useState(today)
   const [newTime, setNewTime] = useState('19:00')
+  const [timeTouched, setTimeTouched] = useState(false) // [2026-11-01] B18: 직접 고르기 전에는 이 회원의 마지막 일정 시간
+  const [moving, setMoving] = useState(null) // [2026-11-01] B20: 시간 바꾸는 일정 { id, date, time }
   const [useDate, setUseDate] = useState(today) // [2026-11-01] 일정 없이 1회 완료 날짜(A22)
   const trainer = { uid, name: trainerName }
+  const withName = (s) => ({ ...s, memberName: s.memberName || conn.memberName || '' })
   const reload = useCallback(() => {
     listPtSessions({ memberUid: conn.memberUid, trainerUid: uid }).then(setSessions).catch((err) => console.error('PT 기록 불러오기 실패:', err))
     listPtSchedules({ memberUid: conn.memberUid, trainerUid: uid }).then(setSchedules).catch((err) => console.error('PT 일정 불러오기 실패:', err))
@@ -410,6 +450,11 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
       .catch(() => {})
     reload()
   }, [reload])
+  useEffect(() => {
+    if (timeTouched || !schedules.length) return
+    const last = schedules[schedules.length - 1]?.time
+    if (last && /^\d{2}:\d{2}$/.test(last)) setNewTime(last)
+  }, [schedules, timeTouched])
   if (!member) return null
   // [2026-11-01] 회원권 상태(A18): 만료·D-day·휴회 표시, 만료 회원 일정·완료 때 확인
   const ms = membershipState(member, today)
@@ -439,25 +484,36 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
       setBusy(false)
     }
   }
+  // [2026-11-01] B4: 남은 PT가 없으면 '완료(미결제)'로 차감 없이 남기고 관리자가 결제 후 차감 처리
+  const askUnpaid = () => confirm(`${conn.memberName}님은 남은 PT가 없어요. '완료(미결제)'로 기록할까요? 차감 없이 남기고, 관리자가 결제 후 처리해요.`, { okLabel: '미결제로 완료', cancelLabel: '취소' })
   async function use() {
     const d = useDate && useDate <= today ? useDate : today
     if (!(await expiredOk('기록'))) return
+    if (left <= 0) {
+      if (!(await askUnpaid())) return
+      return run(() => trainerUsePt(conn.memberUid, trainer, d, { memberName: conn.memberName, unpaid: true }), '기록하지 못했어요', `${d} 일정 없이 PT 1회 완료(미결제)`)
+    }
     if (!(await confirm(`${conn.memberName}님 ${fmtDay(d)} PT 1회를 완료로 기록할까요? 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.`, { okLabel: '1회 완료', cancelLabel: '취소' }))) return
-    run(() => trainerUsePt(conn.memberUid, trainer, d), '기록하지 못했어요', `${d} 일정 없이 PT 1회 완료(차감 ${left}→${left - 1})`)
+    run(() => trainerUsePt(conn.memberUid, trainer, d, { memberName: conn.memberName }), '기록하지 못했어요', `${d} 일정 없이 PT 1회 완료(차감 ${left}→${left - 1})`)
   }
   async function complete(s) {
-    if (deduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+    if (deduct && left <= 0) {
+      if (s.date > today) return confirm('아직 날짜가 안 된 일정이에요. 남은 PT가 없어 미리 완료할 수 없어요.', { okLabel: '확인', cancelLabel: '닫기' })
+      if (!(await expiredOk('완료'))) return
+      if (!(await askUnpaid())) return
+      return run(() => trainerCompleteSchedule(withName(s), trainer, false, { unpaid: true }), '완료 처리하지 못했어요', `${s.date} ${s.time} PT 완료(미결제)`)
+    }
     // [2026-11-01] 아직 오지 않은 날짜의 일정을 미리 완료하면 정산 달이 어긋날 수 있어 한 번 더 확인(A21)
     if (s.date > today && !(await confirm(`${fmtDay(s.date)} 일정은 아직 날짜가 안 됐어요. 수업을 앞당겨 했을 때만 완료해 주세요(완료 날짜는 일정 날짜로 남아요). 계속할까요?`, { okLabel: '계속', cancelLabel: '취소' }))) return
     if (!(await expiredOk('완료'))) return
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 완료로 바꿀까요?${deduct ? ` 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ''}`, { okLabel: '완료', cancelLabel: '취소' }))) return
-    run(() => trainerCompleteSchedule(s, trainer, deduct), '완료 처리하지 못했어요', `${s.date} ${s.time} PT 완료${deduct ? `(차감 ${left}→${left - 1})` : ''}`)
+    run(() => trainerCompleteSchedule(withName(s), trainer, deduct), '완료 처리하지 못했어요', `${s.date} ${s.time} PT 완료${deduct ? `(차감 ${left}→${left - 1})` : ''}`)
   }
   async function noshow(s) {
     if (s.date > today) return confirm('아직 날짜가 안 된 일정은 노쇼로 처리할 수 없어요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (noshowDeduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 노쇼로 처리할까요?${noshowDeduct ? ` 노쇼도 1회 차감돼 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ' 남은 횟수는 그대로예요.'}`, { okLabel: '노쇼 처리', cancelLabel: '취소' }))) return
-    run(() => trainerNoShowSchedule(s, trainer, noshowDeduct), '노쇼 처리하지 못했어요', `${s.date} ${s.time} 노쇼${noshowDeduct ? `(차감 ${left}→${left - 1})` : ''}`)
+    run(() => trainerNoShowSchedule(withName(s), trainer, noshowDeduct), '노쇼 처리하지 못했어요', `${s.date} ${s.time} 노쇼${noshowDeduct ? `(차감 ${left}→${left - 1})` : ''}`)
   }
   // [2026-11-01] 일정 추가: 만료 회원 확인(A18) + 같은 날 내 일정 중 1시간 안에 겹치는 것 경고(A17, 그날 내 일정 1번 조회)
   async function addSchedule() {
@@ -471,15 +527,31 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
     } catch (err) {
       console.error('중복 일정 확인 실패:', err) // 확인을 못 해도 추가는 막지 않는다
     }
-    run(() => trainerAddSchedule(conn.memberUid, trainer, date, time), '일정을 등록하지 못했어요', `${date} ${time} PT 일정 등록`)
+    run(() => trainerAddSchedule(conn.memberUid, trainer, date, time, { memberName: conn.memberName }), '일정을 등록하지 못했어요', `${date} ${time} PT 일정 등록`)
   }
   async function remove(s) {
-    if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT 일정을 삭제할까요? 회원 캘린더에서도 사라져요.`, { okLabel: '삭제', cancelLabel: '취소' }))) return
-    run(() => trainerDeleteSchedule(s.id), '삭제하지 못했어요', `${s.date} ${s.time} PT 일정 삭제`)
+    if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT 일정을 삭제할까요? 회원 캘린더에서도 사라지고 회원 HOME에 취소 알림이 보여요.`, { okLabel: '삭제', cancelLabel: '취소' }))) return
+    run(() => trainerDeleteSchedule(s.id, s), '삭제하지 못했어요', `${s.date} ${s.time} PT 일정 삭제`)
+  }
+  // [2026-11-01] B20: 시간 바꾸기(같은 일정의 날짜·시간만) → 회원 HOME에 '일정 변경' 알림
+  async function saveMove() {
+    const s = upcoming.find((x) => x.id === moving?.id)
+    if (!s || !moving.date || !moving.time) return
+    const time = moving.time.slice(0, 5)
+    if (moving.date === s.date && time === s.time) return setMoving(null)
+    try {
+      const mins = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+      const same = (await listTrainerSchedulesByDates(uid, [moving.date])).filter((x) => x.id !== s.id && x.status !== 'noshow' && Math.abs(mins(x.time) - mins(time)) < 60)
+      if (same.length && !(await confirm(`${fmtDay(moving.date)} ${same.map((x) => x.time).join(', ')}에 이미 PT가 있어요(1시간 안). 그래도 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
+    } catch (err) {
+      console.error('중복 일정 확인 실패:', err)
+    }
+    await run(() => trainerMoveSchedule(s, moving.date, time), '시간을 바꾸지 못했어요', `${s.date} ${s.time} → ${moving.date} ${time} PT 일정 변경`)
+    setMoving(null)
   }
   async function undo(s) {
-    if (!(await confirm(`${fmtDay(s.date)} PT 완료를 되돌릴까요? 남은 횟수가 1회 늘어요.`, { okLabel: '되돌리기', cancelLabel: '취소' }))) return
-    run(() => trainerUndoPt(conn.memberUid, s), '되돌리지 못했어요', `${s.date} ${s.noshow ? '노쇼' : 'PT 완료'} 되돌리기(남은 횟수 +1)`)
+    if (!(await confirm(`${fmtDay(s.date)} PT 완료를 되돌릴까요?${s.unpaid ? ' 미결제 기록이라 남은 횟수는 그대로예요.' : ' 남은 횟수가 1회 늘어요.'}`, { okLabel: '되돌리기', cancelLabel: '취소' }))) return
+    run(() => trainerUndoPt(conn.memberUid, s), '되돌리지 못했어요', `${s.date} ${s.noshow ? '노쇼' : 'PT 완료'}${s.unpaid ? '(미결제)' : ''} 되돌리기${s.unpaid ? '' : '(남은 횟수 +1)'}`)
   }
   const field = { padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 14, fontFamily: 'inherit', minWidth: 0 }
   const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13.5, padding: '7px 0', borderTop: '1px solid var(--color-line)' }
@@ -495,7 +567,7 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
         {deduct && (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
             <input type="date" value={useDate} max={today} onChange={(e) => setUseDate(e.target.value)} aria-label="PT 한 날짜" style={{ ...field, padding: '7px 8px', fontSize: 13 }} />
-            <Button variant="ghost" disabled={busy || left <= 0} onClick={use} style={{ fontSize: 13 }}>일정 없이 1회 완료</Button>
+            <Button variant="ghost" disabled={busy} onClick={use} style={{ fontSize: 13 }}>일정 없이 1회 완료</Button>
           </div>
         )}
       </div>
@@ -510,7 +582,7 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
       <p style={{ margin: '16px 0 6px', fontSize: 14, fontWeight: 700 }}>PT 일정 <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· 회원 홈 캘린더에 보여요</span></p>
       {upcoming.length === 0 && <p style={{ margin: '0 0 6px', fontSize: 13, color: 'var(--color-label-neutral)' }}>예정된 일정이 없어요.</p>}
       {upcoming.map((s) => (
-        <div key={s.id} style={rowStyle}>
+        <div key={s.id} style={{ ...rowStyle, flexWrap: 'wrap' }}>
           <span>
             {fmtDay(s.date)} <b>{s.time}</b>
             {s.date < today ? <span style={{ marginLeft: 6, fontSize: 12, color: 'var(--color-warning)' }}>완료 처리 안 됨</span> : null}
@@ -518,13 +590,21 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
           <span style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
             <button type="button" disabled={busy} onClick={() => complete(s)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>완료</button>
             {noshowPolicy !== 'off' && <button type="button" disabled={busy} onClick={() => noshow(s)} style={{ fontSize: 13, color: 'var(--color-warning)' }}>노쇼</button>}
+            <button type="button" disabled={busy} onClick={() => setMoving(moving?.id === s.id ? null : { id: s.id, date: s.date < today ? today : s.date, time: s.time })} style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>시간 바꾸기</button>
             <button type="button" disabled={busy} onClick={() => remove(s)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>삭제</button>
           </span>
+          {moving?.id === s.id && (
+            <div style={{ display: 'flex', gap: 6, width: '100%', flexWrap: 'wrap', paddingTop: 4 }}>
+              <input type="date" value={moving.date} min={today} onChange={(e) => setMoving((m) => ({ ...m, date: e.target.value }))} aria-label="바꿀 날짜" style={{ ...field, flex: '1 1 140px' }} />
+              <input type="time" value={moving.time} step="600" onChange={(e) => setMoving((m) => ({ ...m, time: e.target.value }))} aria-label="바꿀 시간" style={{ ...field, flex: '1 1 100px' }} />
+              <Button disabled={busy || !moving.date || !moving.time} onClick={saveMove} style={{ flex: '0 0 auto' }}>바꾸기</Button>
+            </div>
+          )}
         </div>
       ))}
       <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
         <input type="date" value={newDate} min={today} onChange={(e) => setNewDate(e.target.value)} aria-label="PT 날짜" style={{ ...field, flex: '1 1 140px' }} />
-        <input type="time" value={newTime} step="600" onChange={(e) => setNewTime(e.target.value)} aria-label="PT 시간" style={{ ...field, flex: '1 1 100px' }} />
+        <input type="time" value={newTime} step="600" onChange={(e) => { setNewTime(e.target.value); setTimeTouched(true) }} aria-label="PT 시간" style={{ ...field, flex: '1 1 100px' }} />
         <Button disabled={busy || !newDate || !newTime} onClick={addSchedule} style={{ flex: '0 0 auto' }}>일정 추가</Button>
       </div>
 
@@ -533,8 +613,8 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
           <p style={{ margin: '16px 0 6px', fontSize: 14, fontWeight: 700 }}>최근 완료</p>
           {sessions.slice(0, 5).map((s, i) => (
             <div key={s.id} style={rowStyle}>
-              <span>{fmtDay(s.date)} {s.noshow ? '노쇼(1회 차감)' : `PT 완료${s.scheduleId ? '' : ' (일정 없이)'}`}</span>
-              {i === 0 && enabled ? <button type="button" disabled={busy} onClick={() => undo(s)} style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>되돌리기</button> : null}
+              <span>{fmtDay(s.date)} {s.noshow ? '노쇼(1회 차감)' : `PT 완료${s.scheduleId ? '' : ' (일정 없이)'}`}{s.unpaid ? <b style={{ marginLeft: 6, fontSize: 12, color: 'var(--color-warning)' }}>미결제</b> : null}</span>
+              {i === 0 && (enabled || s.unpaid) ? <button type="button" disabled={busy} onClick={() => undo(s)} style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>되돌리기</button> : null}
             </div>
           ))}
           {doneNoSession.map((s) => (
@@ -545,6 +625,64 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
           ))}
         </>
       )}
+    </Card>
+  )
+}
+
+// [2026-11-01] B19: 트레이너 회원별 메모(trainerNotes/{트레이너uid_회원uid}) - 이 트레이너와 관리자만 봐요(회원은 못 봐요)
+function TrainerNoteCard({ uid, memberUid }) {
+  const [note, setNote] = useState(null) // null = 불러오는 중
+  const [text, setText] = useState('')
+  const [msg, setMsg] = useState('')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    let alive = true
+    getTrainerNote(uid, memberUid)
+      .then((n) => {
+        if (!alive) return
+        setNote(n || {})
+        setText(n?.text || '')
+      })
+      .catch((err) => {
+        console.error('트레이너 메모 불러오기 실패:', err)
+        if (alive) setNote({ error: true })
+      })
+    return () => {
+      alive = false
+    }
+  }, [uid, memberUid])
+  if (note === null) return null
+  async function save() {
+    setSaving(true)
+    setMsg('')
+    try {
+      await saveTrainerNote(uid, memberUid, text)
+      setNote({ text })
+      setMsg('저장했어요.')
+    } catch (err) {
+      console.error('트레이너 메모 저장 실패:', err)
+      setMsg('저장하지 못했어요. 연결 상태를 확인해 주세요.')
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <Card style={{ marginBottom: 20 }}>
+      <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700 }}>트레이너 메모 <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· 나와 관리자만 봐요</span></p>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        maxLength={1000}
+        rows={3}
+        placeholder="수업 메모(선호 시간, 다음 수업 계획 등)"
+        aria-label="트레이너 메모"
+        style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 14, fontFamily: 'inherit', lineHeight: 1.5, resize: 'vertical' }}
+      />
+      <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-warning)' }}>부상·질병 같은 건강 정보는 민감정보라 적지 마세요.</p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+        <Button variant="secondary" disabled={saving || text === (note.text || '')} onClick={save}>메모 저장</Button>
+        <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>{msg || `${text.length}/1000`}</span>
+      </div>
     </Card>
   )
 }

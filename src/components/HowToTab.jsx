@@ -33,6 +33,7 @@ import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { useGuideOverrides, mergeGuide } from '../utils/guideOverrides'
 import GuideEditor from './GuideEditor'
 import { Pencil } from 'lucide-react'
+import { useBackableScreen } from '../hooks/useBackableScreen'
 
 const MUSCLE_ROLE_LABELS = [
   { key: 'primary', label: '주동근' },
@@ -113,7 +114,7 @@ function ComparisonTable({ group, currentName }) {
             {cols.map((m) => (
               <th key={m} className="text-keep-all" style={{ ...cell, textAlign: 'left', fontWeight: 800, color: m === currentName ? 'var(--color-primary-normal)' : 'var(--color-label-strong)' }}>
                 {m}
-                {m === currentName && <span style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}>지금 보는 운동</span>}
+                {m === currentName && <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}>지금 보는 운동</span>}
               </th>
             ))}
           </tr>
@@ -181,19 +182,19 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
         )}
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: `${color}22`, color }}>
+        <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: `${color}22`, color }}>
           {atom}
         </span>
-        <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
+        <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
           {equipment}
         </span>
         {guide?.level && (
-          <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
+          <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
             {guide.level}
           </span>
         )}
         {gripOptions && (
-          <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
+          <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
             그립 {gripOptions.length}종
           </span>
         )}
@@ -232,7 +233,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
       )}
       <ExerciseGuideSections guide={guide} onOpenExercise={onOpenExercise} />
       {guide?.editedBy && (
-        <p style={{ margin: '-6px 0 14px', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>{guide.editedBy} 트레이너가 다듬은 가이드예요.</p>
+        <p style={{ margin: '-6px 0 14px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>{guide.editedBy} 트레이너가 다듬은 가이드예요.</p>
       )}
       {editor && isMoreGuidesLoaded() && (
         <button type="button" onClick={() => setEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>
@@ -264,7 +265,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
               )}
             </div>
           )}
-          <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--color-label-neutral)' }}>
+          <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
             NOTE 탭 기록 시 세트마다 그립을 다르게 선택할 수 있어요.
           </p>
         </Card>
@@ -323,15 +324,18 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
         </p>
       )}
       {/* [2026-10-31] 건강 정보 면책 */}
-      <p className="text-keep-all" style={{ margin: '20px 0 0', fontSize: 11.5, lineHeight: 1.55, color: 'var(--color-label-neutral)' }}>{HEALTH_DISCLAIMER}</p>
+      <p className="text-keep-all" style={{ margin: '20px 0 0', fontSize: 12.5, lineHeight: 1.55, color: 'var(--color-label-neutral)' }}>{HEALTH_DISCLAIMER}</p>
     </div>
   )
 }
 
-export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpdated, onRoutineUpdated, scrollContainerRef, onShowTrainerDirectory }) {
+export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpdated, onRoutineUpdated, scrollContainerRef, onShowTrainerDirectory, isActive = true }) {
   const [dismissed, setDismissed] = useState(!!userDoc?.howtoOnboardingDismissed)
   const [selectedAtom, setSelectedAtom] = useState(BODY_PART_ATOMS[0])
   const [selectedExercise, setSelectedExercise] = useState(null)
+  // [2026-11-01] 운동 가이드 상세도 기기 뒤로가기로 목록으로 돌아간다(HOWTO 탭을 보고 있을 때만)
+  const closeDetail = React.useCallback(() => setSelectedExercise(null), [])
+  useBackableScreen(!!selectedExercise && isActive, closeDetail)
   const [query, setQuery] = useState('')
   // [2026-10-30] 상단 전환: 운동 둘러보기 / 스트레칭
   const [view, setView] = useState('exercise')
@@ -374,7 +378,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
           uid={uid}
           name={selectedExercise}
           routineTemplates={routineTemplates}
-          onBack={() => setSelectedExercise(null)}
+          onBack={closeDetail}
           onOpenExercise={(n) => setSelectedExercise(n)}
           editor={userDoc?.role === '트레이너' || userDoc?.role === '관리자' ? { uid, name: userDoc?.signupInfo?.name || userDoc?.nickname || '' } : null}
           onAdded={onRoutineUpdated}
@@ -496,12 +500,12 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
                       {name}
                       {alias && <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-label-neutral)' }}> · {alias}</span>}
                     </div>
-                    <div style={{ fontSize: 11, marginTop: 2, color: 'var(--color-label-neutral)' }}>
+                    <div style={{ fontSize: 12.5, marginTop: 2, color: 'var(--color-label-neutral)' }}>
                       {searchResults && <span style={{ color: getPartColor(atom) }}>{atom} · </span>}
                       {getEquipment(name, atom)}
                     </div>
                     {gripOptions && (
-                      <div style={{ fontSize: 11, color: 'var(--color-label-neutral)', marginTop: 2 }}>
+                      <div style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', marginTop: 2 }}>
                         그립 {gripOptions.length}종 선택 가능
                       </div>
                     )}

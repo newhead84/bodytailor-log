@@ -46,7 +46,7 @@ export default function BottomNav({ active, onChange }) {
             }}
           >
             <Icon size={20} strokeWidth={1.75} />
-            <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500 }}>{tab.label}</span>
+            <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 500 }}>{tab.label}</span>
           </button>
         )
       })}

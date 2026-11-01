@@ -775,22 +775,6 @@ export const EXERCISE_META = {
       antagonist: ["장요근"],
     },
   },
-  "루마니안데드리프트": {
-    aliases: ["루마데드", "RDL"],
-    part: "등",
-    equipment: "barbell",
-    subRegion: "햄스트링",
-    pattern: "hinge",
-    unilateral: false,
-    inputType: "sets",
-    difficulty: "중급",
-    muscleRoles: {
-      primary: ["햄스트링", "대둔근"],
-      synergist: ["척추기립근"],
-      stabilizer: ["코어", "전완근"],
-      antagonist: ["대퇴사두근-대퇴직근", "장요근"],
-    },
-  },
   "백익스텐션": {
     part: "등",
     equipment: "bodyweight",
@@ -1561,7 +1545,9 @@ export const EXERCISE_META = {
       antagonist: ["대퇴사두근"],
     },
   },
+  // [2026-11-01] L4: 등 부위에 같은 키가 한 번 더 있어 뒤의 하체 항목만 남고 별칭(RDL)이 사라졌다 - 별칭을 여기로 합침
   "루마니안데드리프트": {
+    aliases: ["루마데드", "RDL"],
     part: "하체",
     equipment: "barbell",
     subRegion: "햄스트링",

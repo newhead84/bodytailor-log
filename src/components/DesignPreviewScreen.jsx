@@ -153,7 +153,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
       ))}
     </div>
   )
-  const label = (t) => <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', width: 32, flexShrink: 0 }}>{t}</span>
+  const label = (t) => <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', width: 32, flexShrink: 0 }}>{t}</span>
   const fontLabel = FONT_OPTIONS.find((f) => f.id === font)?.label
   const themeLabel = THEME_OPTIONS.find((t) => t.id === theme)?.label
 

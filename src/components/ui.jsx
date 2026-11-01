@@ -1,5 +1,6 @@
 import React from 'react'
 import { ACCENT_OPTIONS } from '../utils/fonts'
+import { useBackableScreen } from '../hooks/useBackableScreen'
 // [2026-10-29] platinum.png('PLATINUM' 글자 일러스트)는 단계명 변경으로 미사용 - 파일은 보관
 
 export function Button({ children, onClick, variant = 'primary', disabled, style, type = 'button', full }) {
@@ -21,7 +22,8 @@ export function Button({ children, onClick, variant = 'primary', disabled, style
     // [2026-10-28 리디자인] 보조 버튼은 강조색 틴트(골드 바탕+골드 글자) 대신 무채색 - 강조색은 채움(primary)·선택 상태에만
     secondary: { background: 'var(--color-bg-elevated)', color: 'var(--color-label-strong)', boxShadow: 'inset 0 0 0 1px var(--color-line)' },
     ghost: { background: 'transparent', color: 'var(--color-label-normal)', border: '1px solid var(--color-line)' },
-    danger: { background: 'var(--color-danger)', color: '#131316' },
+    // [2026-11-01] 위험 버튼 글자는 테마별 --color-on-danger(대비 4.5:1 이상)
+    danger: { background: 'var(--color-danger)', color: 'var(--color-on-danger)' },
   }
   return (
     <button
@@ -310,6 +312,30 @@ export function ConfirmProvider({ children }) {
     setState(null)
   }
 
+  // [2026-11-01] 열리면 첫 버튼(취소)에 포커스, Escape·기기 뒤로가기는 바깥을 눌러 닫은 것과 같게(취소)
+  const boxRef = React.useRef(null)
+  const stateRef = React.useRef(state)
+  stateRef.current = state
+  const dismiss = React.useCallback(() => {
+    const s = stateRef.current
+    if (!s) return
+    s.resolve(s.dismissValue)
+    setState(null)
+  }, [])
+  useBackableScreen(!!state, dismiss)
+  React.useEffect(() => {
+    if (!state) return
+    boxRef.current?.querySelector('button')?.focus()
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        dismiss()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [state, dismiss])
+
   return (
     <ConfirmContext.Provider value={confirm}>
       {children}
@@ -332,6 +358,7 @@ export function ConfirmProvider({ children }) {
           onClick={() => respond(state.dismissValue)}
         >
           <div
+            ref={boxRef}
             onClick={(e) => e.stopPropagation()}
             className="bt-pop-in"
             style={{

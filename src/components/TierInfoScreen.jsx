@@ -4,6 +4,7 @@ import { CountUp } from '../hooks/useCountUp'
 import { TIERS, getTierByXp, getLevelInfo, stageLevelRange, LEVELS_PER_STAGE, LEGEND_XP_PER_LEVEL } from '../utils/tier'
 import { getLeaderboard } from '../storage'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
+import { rankAt } from '../utils/scoring'
 
 // [2026-07-29 신규] MY탭 "등급" 카드에서 진입했을 때, 티어 목록을 레전드가 맨 위로 오도록
 // 표시 순서만 뒤집는다(경계값 계산 등 로직은 TIERS 원래 순서를 그대로 사용).
@@ -30,7 +31,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
       if (cancelled) return
       const idx = list.findIndex((e) => e.uid === uid)
       setMyEntry(idx >= 0 ? list[idx] : null)
-      setMyRank(idx >= 0 ? idx + 1 : null)
+      setMyRank(rankAt(list, idx)) // [2026-11-01] M8: 동점은 같은 순위
       setRankLoading(false)
     }
     if (uid) load()
@@ -54,7 +55,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
           <p style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)', textAlign: 'center' }}>불러오는 중…</p>
         ) : !myEntry ? (
           <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)' }}>
-            아직 이번 시즌 점수가 없어요. 리포트 탭에서 '내 점수 갱신'을 눌러 등록해 보세요.
+            아직 이번 시즌 점수가 없어요. 운동을 완료하면 자동으로 등록돼요. 리포트 탭의 '점수 다시 계산'으로도 등록할 수 있어요.
           </p>
         ) : (
           <>
@@ -102,13 +103,15 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
       <SectionTitle>랭킹 산정 기준</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)', lineHeight: '22px' }}>
-          <p style={{ margin: '0 0 10px' }}>매주 아래 항목을 종합해 최종점수를 계산하고, 전체/PT그룹/일반그룹 랭킹에 반영해요.</p>
+          {/* [2026-11-01] H6: 랭킹 점수 = 시즌 동안 주별 점수의 평균 */}
+          <p style={{ margin: '0 0 10px' }}>주마다 아래 항목으로 주별 점수를 매기고, 시즌 동안 주별 점수의 평균을 전체 랭킹에 반영해요.</p>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
-            <li>출석 40%: 이번 주 운동한 날 수 / 주당 목표 일수(MY에서 설정, 2~6일)</li>
-            <li>볼륨·기록 30%: 최근 4주 평균 대비 이번 주 총 볼륨(평균만큼 하면 만점, 더 늘려도 추가 점수 없음)</li>
-            <li>점진적 과부하 30%: 지난주 대비 중량·볼륨이 늘어난 종목 비율</li>
+            <li>출석 40%: 그 주에 운동한 날 수 / 주당 목표 일수(MY에서 설정, 2~6일)</li>
+            <li>볼륨·기록 30%: 직전 4주 평균 대비 그 주 총 볼륨(평균만큼 하면 만점, 더 늘려도 추가 점수 없음)</li>
+            <li>점진적 과부하 30%: 같은 운동의 직전 기록보다 중량·볼륨이 늘어난 비율</li>
             <li>보너스: 연속 출석 4주마다 +5점(최대 +20)</li>
           </ul>
+          <p style={{ margin: '10px 0 0', color: 'var(--color-label-neutral)' }}>시즌 안에서 처음 운동한 주부터 평균에 들어가고, 그 뒤 쉰 주는 0점으로 세요. 진행 중인 이번 주는 평균을 올릴 때만 반영돼서, 주 초반에 운동해도 점수가 내려가지 않아요.</p>
         </div>
       </Card>
 
@@ -148,7 +151,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
           })}
         </div>
         <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', margin: '12px 0 0' }}>
-          단계마다 Lv이 {LEVELS_PER_STAGE}개씩 있고, Legend부터는 {LEGEND_XP_PER_LEVEL.toLocaleString()} XP마다 Lv이 계속 올라요. 매 분기(3개월)마다 시즌이 초기화돼 Lv 1부터 다시 시작하지만, 지금까지 쌓은 누적 XP와 MY 탭의 성취는 그대로 남아요.
+          단계마다 Lv이 {LEVELS_PER_STAGE}개씩 있고, Legend부터는 {LEGEND_XP_PER_LEVEL.toLocaleString()} XP마다 Lv이 계속 올라요. 매 분기 첫날(1·4·7·10월 1일)에 새 시즌이 시작돼 Lv과 랭킹 점수가 처음부터 다시 쌓여요. 지금까지 쌓은 누적 XP와 MY 탭의 성취는 그대로 남고, 새 시즌을 처음 열면 HOME에서 한 번 알려 드려요.
         </p>
       </Card>
 

@@ -37,7 +37,9 @@ service cloud.firestore {
         'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
         'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt', 'pauseStart', 'pauseEnd',
         // [2026-11-01] 휴회 이력(pauses)·PT 차감 짝 기록(ptSessionRef)도 본인 수정 불가
-        'pauses', 'ptSessionRef'];
+        'pauses', 'ptSessionRef',
+        // [2026-11-01] B20: PT 일정 변경 알림 표시는 담당 트레이너만 쓴다
+        'ptLastChange'];
     }
     // [2026-10-31] 트레이너 목표 쓰기 값 검사(바뀐 필드만): 목표 8개 이하, 주 1~7일, 제안·표시는 본인 uid
     function goalListOk(g) {
@@ -64,7 +66,9 @@ service cloud.firestore {
           (d.goalByTrainer.keys().hasOnly(['byUid', 'byName', 'at', 'seen', 'accepted']) &&
             d.goalByTrainer.byUid == request.auth.uid && nameOk(d.goalByTrainer.get('byName', '')) &&
             d.goalByTrainer.at == request.time &&
-            d.goalByTrainer.get('seen', false) == false && d.goalByTrainer.get('accepted', false) == false));
+            d.goalByTrainer.get('seen', false) == false && d.goalByTrainer.get('accepted', false) == false)) &&
+        // [2026-11-01] B23: 트레이너는 거절 결과 표시를 지우기만(새 제안을 보낼 때)
+        (!keys.hasAny(['goalProposalResult']) || d.goalProposalResult == null);
     }
     // [2026-11-01] S13: 회원 본인의 목표 표시 쓰기 - 제안은 지우기만, 수정 표시는 지우기·확인(seen)·제안 수락(제안한 트레이너 그대로)만
     function ownerGoalOk(d, o, keys) {
@@ -76,7 +80,23 @@ service cloud.firestore {
             d.goalByTrainer.keys().hasOnly(['byUid', 'byName', 'at', 'seen', 'accepted']) &&
             d.goalByTrainer.byUid == o.goalProposal.byUid &&
             d.goalByTrainer.get('byName', '') == o.goalProposal.get('byName', '') &&
-            d.goalByTrainer.at == request.time && d.goalByTrainer.accepted == true));
+            d.goalByTrainer.at == request.time && d.goalByTrainer.accepted == true)) &&
+        // [2026-11-01] B23: 받은 제안을 거절할 때만 거절 결과(트레이너가 볼 표시)를 남긴다. 지우기는 언제나 가능
+        (!keys.hasAny(['goalProposalResult']) || d.goalProposalResult == null ||
+          (o.get('goalProposal', null) != null && d.get('goalProposal', null) == null &&
+            d.goalProposalResult.keys().hasOnly(['declined', 'at', 'byUid', 'byName']) &&
+            d.goalProposalResult.declined == true && d.goalProposalResult.at == request.time &&
+            d.goalProposalResult.byUid == o.goalProposal.byUid));
+    }
+    // [2026-11-01] S6: 본인은 예전 위치(users.signupInfo.phoneHash)의 번호 변환값을 지우는 것만 승인 후에도 할 수 있다(memberPrivate로 옮김)
+    function phoneHashDropOk(d, o) {
+      return o.get('signupInfo', null) is map && d.get('signupInfo', null) is map &&
+        d.signupInfo.diff(o.signupInfo).affectedKeys().hasOnly(['phoneHash']) && !('phoneHash' in d.signupInfo);
+    }
+    // [2026-11-01] B20: PT 일정 등록·변경 알림 표시(서버 시각, 종류 3가지)
+    function ptChangeOk(d) {
+      return d.ptLastChange is map && d.ptLastChange.keys().hasOnly(['at', 'kind']) &&
+        d.ptLastChange.at == request.time && d.ptLastChange.kind in ['new', 'change', 'cancel'];
     }
     // [2026-11-01] S10·S21: 본인 users 쓰기 값 검사(keys = 쓰는 필드만 검사해 기존 문서는 그대로 통과)
     function userFieldsOk(d, keys) {
@@ -104,7 +124,9 @@ service cloud.firestore {
       return ['role', 'memberStatus', 'approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
         'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt', 'pauseStart', 'pauseEnd',
         // [2026-11-01] 휴회 이력, 재심사 요청 처리(해제)
-        'pauses', 'reReviewRequested', 'reReviewAt'];
+        'pauses', 'reReviewRequested', 'reReviewAt',
+        // [2026-11-01] B10: 승인 후 이름·휴대폰 뒤 4자리 정정(번호 변환값은 memberPrivate)
+        'signupInfo'];
     }
     // [2026-10-31 Phase2 P2-1] 승인된 회원만 기록·루틴·랭킹을 쓸 수 있다.
     // memberStatus가 없는 기존 계정은 승인으로 간주, 관리자는 항상 허용.
@@ -165,7 +187,8 @@ service cloud.firestore {
         request.resource.data.get('trainerProfile', null) == null &&
         !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
           'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt', 'pauseStart', 'pauseEnd',
-          'pauses', 'ptSessionRef', 'xpAt', 'lastInquiryAt', 'reReviewRequested', 'reReviewAt', 'goalProposal', 'goalByTrainer']) &&
+          'pauses', 'ptSessionRef', 'xpAt', 'lastInquiryAt', 'reReviewRequested', 'reReviewAt', 'goalProposal', 'goalByTrainer',
+          'goalProposalResult', 'ptLastChange']) &&
         userFieldsOk(request.resource.data, request.resource.data.keys()) &&
         request.resource.data.get('seasonXp', 0) == 0 &&
         request.resource.data.get('lifetimeXp', 0) == 0 &&
@@ -179,7 +202,8 @@ service cloud.firestore {
           reReviewOk(request.resource.data, resource.data, request.resource.data.diff(resource.data).affectedKeys()) &&
           xpTimeOk() &&
           (resource.data.get('memberStatus', 'approved') in ['pending', 'rejected'] || !('signupInfo' in resource.data) ||
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signupInfo'])) &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signupInfo']) ||
+            phoneHashDropOk(request.resource.data, resource.data)) &&
           seasonXpOk() && xpDeltaOk('lifetimeXp') &&
           // [2026-10-31] XP는 승인된(회원권 유효) 회원만 바꿀 수 있다 - 대기·만료 계정의 XP 부풀리기 방지
           (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['seasonXp', 'lifetimeXp', 'seasonKey', 'xpAt']) || isApproved())) ||
@@ -190,28 +214,35 @@ service cloud.firestore {
           (uid != request.auth.uid || request.resource.data.get('role', '') == '관리자')) ||
         // [2026-10-31] 담당 트레이너의 PT 1회 차감·되돌리기(설정에서 켠 경우만, ±1, 0~총 횟수)
         // [2026-11-01] S1: 같은 일괄 쓰기에서 ptSessions/{ptSessionRef}를 만들 때만 -1, 지울 때만 +1(기록 없는 차감·차감 없는 기록 방지)
-        (isTrainerOf(uid) && ptDeductEnabled() &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ptRemaining', 'ptUpdatedAt', 'ptSessionRef']) &&
+        // [2026-11-01] 바뀐 필드 검사를 앞에 두어 해당 없는 쓰기에서 get() 호출을 줄인다(호출 수 한도)
+        // [2026-11-01] 미결제(unpaid) 기록으로는 차감·되돌리기를 하지 못한다(횟수 임의 증감 방지)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ptRemaining', 'ptUpdatedAt', 'ptSessionRef']) &&
+          isTrainerOf(uid) && ptDeductEnabled() &&
           request.resource.data.ptRemaining is int &&
           request.resource.data.ptSessionRef is string && request.resource.data.ptSessionRef.size() > 0 &&
           ((request.resource.data.ptRemaining == resource.data.get('ptRemaining', 0) - 1 &&
               !exists(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)) &&
               existsAfter(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)) &&
               getAfter(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)).data.memberUid == uid &&
-              getAfter(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)).data.trainerUid == request.auth.uid) ||
+              getAfter(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)).data.trainerUid == request.auth.uid &&
+              getAfter(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)).data.get('unpaid', false) == false) ||
             (request.resource.data.ptRemaining == resource.data.get('ptRemaining', 0) + 1 &&
               exists(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)) &&
               !existsAfter(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)) &&
               get(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)).data.memberUid == uid &&
-              get(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)).data.trainerUid == request.auth.uid)) &&
+              get(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)).data.trainerUid == request.auth.uid &&
+              get(/databases/$(database)/documents/ptSessions/$(request.resource.data.ptSessionRef)).data.get('unpaid', false) == false)) &&
           request.resource.data.ptRemaining >= 0 &&
           request.resource.data.ptRemaining <= resource.data.get('ptTotal', 0)) ||
         // [2026-10-31] 담당 트레이너의 목표 제안·직접 수정 - 목표(onboarding.goals)·주간 목표·제안·수정 표시만
-        (isTrainerOf(uid) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['onboarding', 'weeklyTargetDays', 'goalProposal', 'goalByTrainer']) &&
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['onboarding', 'weeklyTargetDays', 'goalProposal', 'goalByTrainer', 'goalProposalResult']) &&
+          isTrainerOf(uid) &&
           // [2026-11-01] onboarding이 null로 저장된 문서도 빈 맵으로 비교
           (request.resource.data.get('onboarding', null) == null ? {} : request.resource.data.onboarding).diff(resource.data.get('onboarding', null) == null ? {} : resource.data.onboarding).affectedKeys().hasOnly(['goals']) &&
-          trainerGoalOk());
+          trainerGoalOk()) ||
+        // [2026-11-01] B20: 담당 트레이너가 PT 일정을 등록·변경·취소할 때 회원 HOME 알림 표시(ptLastChange)만
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ptLastChange']) &&
+          isTrainerOf(uid) && ptChangeOk(request.resource.data));
       // [2026-10-31] 계정 삭제(탈퇴) - 탈퇴 표시(deletedAccounts/{uid})를 먼저 남긴 본인만 삭제. 같은 uid는 다시 만들 수 없고,
       // 같은 구글 계정으로 다시 가입하면 로그인 계정 삭제 후라 새 uid(승인 대기)로 시작한다.
       allow delete: if isOwner(uid) && exists(/databases/$(database)/documents/deletedAccounts/$(uid));
@@ -222,6 +253,24 @@ service cloud.firestore {
       allow create: if isOwner(uid) && request.resource.data.keys().hasOnly(['deletedAt']) &&
         request.resource.data.get('deletedAt', null) == request.time;
       allow update, delete: if false;
+    }
+
+    // [2026-11-01] S6: 휴대폰 번호 변환값(phoneHash)은 users 문서(담당 트레이너도 읽음)에서 빼서 본인·관리자만 읽는 문서로.
+    // 본인 쓰기: 승인 대기·거절 상태이거나, 처음 만들 때(예전 users 문서의 값을 옮기는 경우 같은 값만). 삭제는 탈퇴 표시 뒤 본인·관리자.
+    function privOk() {
+      return request.resource.data.keys().hasOnly(['phoneHash', 'updatedAt']) &&
+        request.resource.data.phoneHash is string && request.resource.data.phoneHash.size() <= 64;
+    }
+    function privOwnerOk(uid) {
+      let u = get(/databases/$(database)/documents/users/$(uid)).data;
+      return u.get('memberStatus', 'approved') in ['pending', 'rejected'] ||
+        (resource == null &&
+          (u.get('signupInfo', {}).get('phoneHash', '') == '' || u.signupInfo.phoneHash == request.resource.data.phoneHash));
+    }
+    match /memberPrivate/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create, update: if (isOwner(uid) && privOk() && privOwnerOk(uid)) || (isAdmin() && privOk());
+      allow delete: if isAdmin() || (isOwner(uid) && exists(/databases/$(database)/documents/deletedAccounts/$(uid)));
     }
 
     // [2026-10-31 Phase2 P2-1] gymRoster/{rosterId} - 헬스장 출입관리 명단 이관본(이름·전화 해시·뒤 4자리·회원번호·만료일). 관리자만.
@@ -322,7 +371,8 @@ service cloud.firestore {
     match /leaderboard/{group}/{period}/{uid} {
       // [2026-11-01] S17: 승인 회원(회원권 유효)·트레이너·관리자만 읽기
       allow read: if request.auth != null && (isApproved() || isStaff());
-      allow delete: if isOwner(uid); // [2026-10-31] 탈퇴 시 내 랭킹 기록 삭제
+      // [2026-10-31] 탈퇴 시 내 랭킹 기록 삭제, [2026-11-01] B28: 관리자는 지난 시즌 랭킹 정리
+      allow delete: if isOwner(uid) || isAdmin();
       // [2026-11-01] S5: 그룹은 'all', 기간은 season-YYYY-Q 형식만
       allow create, update: if isOwner(uid) && isApproved() &&
         group == 'all' && period.matches('^season-[0-9]{4}-[1-4]$') &&
@@ -373,7 +423,10 @@ service cloud.firestore {
       // [2026-11-01] S3·S9: 가입한(users 문서 있는) 본인만, 필드 화이트리스트, 작성 시각은 서버 시각,
       // 같은 일괄 쓰기에서 users.lastInquiryAt을 서버 시각으로 남기고 직전 문의에서 1분이 지나야 한다(쓰기 한도 소진 방지).
       allow create: if request.auth != null && request.auth.uid == request.resource.data.uid &&
-        request.resource.data.keys().hasOnly(['uid', 'nickname', 'content', 'status', 'reply', 'repliedAt', 'createdAt']) &&
+        request.resource.data.keys().hasOnly(['uid', 'nickname', 'content', 'status', 'reply', 'repliedAt', 'createdAt', 'type', 'trainerId']) &&
+        // [2026-11-01] B33: PT 상담 신청(type 'pt' + 트레이너 프로필 ID)
+        request.resource.data.get('type', '') in ['', 'pt'] &&
+        request.resource.data.get('trainerId', '') is string && request.resource.data.get('trainerId', '').size() <= 40 &&
         request.resource.data.content is string && request.resource.data.content.size() >= 1 && request.resource.data.content.size() <= 2000 &&
         nameOk(request.resource.data.get('nickname', '')) &&
         request.resource.data.status == '대기' && request.resource.data.reply == '' &&
@@ -394,7 +447,13 @@ service cloud.firestore {
     // [2026-10-31] 앱 설정 - 읽기 로그인 사용자, 쓰기 관리자
     match /settings/{sid} {
       allow read: if request.auth != null;
-      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['ptDeductEnabled', 'noshowPolicy', 'updatedAt']);
+      // [2026-11-01] B16: 대시보드 기준값(운동 없음 일수·PT 적음 횟수·만료 임박 일수) 정수 1~365
+      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['ptDeductEnabled', 'noshowPolicy', 'updatedAt', 'staleDays', 'ptLowCount', 'expireSoonDays']) &&
+        settingNumOk('staleDays') && settingNumOk('ptLowCount') && settingNumOk('expireSoonDays');
+    }
+    function settingNumOk(k) {
+      return !(k in request.resource.data) ||
+        (request.resource.data[k] is int && request.resource.data[k] >= 1 && request.resource.data[k] <= 365);
     }
     // [2026-10-31] PT 차감 기록 - 담당 트레이너가 생성(설정 켬)·되돌리기(삭제), 당사자·관리자 읽기
     // [2026-11-01] S1: 트레이너의 기록 생성·삭제는 같은 일괄 쓰기에서 회원 ptRemaining이 -1·+1 되고 users.ptSessionRef가 이 기록일 때만
@@ -405,24 +464,28 @@ service cloud.firestore {
     }
     match /ptSessions/{sid} {
       allow read: if request.auth != null && (isAdmin() || resource.data.trainerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
-      allow create: if request.resource.data.trainerUid == request.auth.uid && isTrainerOf(request.resource.data.memberUid) && ptDeductEnabled() &&
-        request.resource.data.keys().hasOnly(['memberUid', 'trainerUid', 'trainerName', 'date', 'at', 'scheduleId', 'noshow']) &&
+      // [2026-11-01] B26: 회원 이름 스냅샷(memberName), B4: 남은 PT가 없을 때 '완료(미결제)'(unpaid: true)는 차감 없이 기록만
+      allow create: if request.resource.data.trainerUid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['memberUid', 'trainerUid', 'trainerName', 'memberName', 'date', 'at', 'scheduleId', 'noshow', 'unpaid']) &&
         request.resource.data.date is string && request.resource.data.date.size() == 10 &&
-        nameOk(request.resource.data.get('trainerName', '')) &&
+        nameOk(request.resource.data.get('trainerName', '')) && nameOk(request.resource.data.get('memberName', '')) &&
         request.resource.data.get('at', null) == request.time &&
-        ptPairOk(request.resource.data.memberUid, sid, -1);
-      // 관리자는 수동 정리를 위해 그대로 삭제 가능
+        isTrainerOf(request.resource.data.memberUid) &&
+        ((request.resource.data.get('unpaid', false) == false && ptDeductEnabled() && ptPairOk(request.resource.data.memberUid, sid, -1)) ||
+          (request.resource.data.get('unpaid', false) == true && request.resource.data.get('noshow', false) == false));
+      // 관리자는 수동 정리를 위해 그대로 삭제 가능. 미결제 기록은 차감이 없어 트레이너가 그대로 지운다.
       allow delete: if isAdmin() || (resource.data.trainerUid == request.auth.uid && isTrainerOf(resource.data.memberUid) &&
-        ptPairOk(resource.data.memberUid, sid, 1));
-      allow update: if false;
+        (resource.data.get('unpaid', false) == true || ptPairOk(resource.data.memberUid, sid, 1)));
+      // [2026-11-01] B4: 관리자가 미결제 기록을 결제(차감) 처리 - 같은 일괄 쓰기에서 users.ptRemaining -1
+      allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unpaid', 'settledAt']);
     }
     // [2026-10-31] PT 일정 - 담당 트레이너가 등록·완료·삭제, 당사자·관리자 읽기(회원 홈 캘린더 표시)
     match /ptSchedules/{sid} {
       allow read: if request.auth != null && (isAdmin() || resource.data.trainerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
       allow create: if request.resource.data.trainerUid == request.auth.uid && isTrainerOf(request.resource.data.memberUid) &&
-        request.resource.data.keys().hasOnly(['memberUid', 'trainerUid', 'trainerName', 'date', 'time', 'status', 'createdAt']) &&
+        request.resource.data.keys().hasOnly(['memberUid', 'trainerUid', 'trainerName', 'memberName', 'date', 'time', 'status', 'createdAt']) &&
         request.resource.data.status == 'scheduled' &&
-        nameOk(request.resource.data.get('trainerName', '')) &&
+        nameOk(request.resource.data.get('trainerName', '')) && nameOk(request.resource.data.get('memberName', '')) &&
         request.resource.data.get('createdAt', null) == request.time &&
         request.resource.data.date is string && request.resource.data.date.size() == 10 &&
         request.resource.data.time is string && request.resource.data.time.size() <= 5;
@@ -435,7 +498,25 @@ service cloud.firestore {
         request.resource.data.time is string && request.resource.data.time.size() <= 5 &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['doneAt']) ||
           request.resource.data.doneAt == null || request.resource.data.doneAt == request.time));
-      allow delete: if isAdmin() || (resource.data.trainerUid == request.auth.uid && isTrainerOf(resource.data.memberUid));
+      allow delete: if isAdmin() || (resource.data.trainerUid == request.auth.uid && isTrainerOf(resource.data.memberUid)) ||
+        // [2026-11-01] B8: 회원이 담당 트레이너 연결을 직접 끊을 때(같은 일괄 쓰기에서 연결이 ended) 그 트레이너와의 '예정' 일정만 지운다
+        (request.auth != null && resource.data.memberUid == request.auth.uid && resource.data.status == 'scheduled' &&
+          getAfter(/databases/$(database)/documents/connections/$(resource.data.trainerUid + '_' + request.auth.uid)).data.status == 'ended');
+    }
+    // [2026-11-01] B19: 트레이너 회원별 메모 trainerNotes/{트레이너uid_회원uid} - 담당 트레이너(본인 메모)·관리자만, 1000자
+    match /trainerNotes/{nid} {
+      allow read, delete: if isAdmin() ||
+        (request.auth != null && nid.split('_')[0] == request.auth.uid && isTrainerOf(nid.split('_')[1]));
+      // 탈퇴하는 회원 본인: 탈퇴 표시(deletedAccounts)가 있을 때만 자기에 대한 메모 삭제(없는 문서 삭제도 허용됨)
+      allow delete: if request.auth != null && nid.split('_')[1] == request.auth.uid &&
+        exists(/databases/$(database)/documents/deletedAccounts/$(request.auth.uid));
+      allow create, update: if request.auth != null &&
+        request.resource.data.keys().hasOnly(['trainerUid', 'memberUid', 'text', 'updatedAt']) &&
+        request.resource.data.trainerUid == request.auth.uid &&
+        nid == request.auth.uid + '_' + request.resource.data.memberUid &&
+        request.resource.data.text is string && request.resource.data.text.size() <= 1000 &&
+        request.resource.data.updatedAt == request.time &&
+        isTrainerOf(request.resource.data.memberUid);
     }
     // [2026-10-31] 운동 가이드 수정본 - 로그인 사용자 읽기, 트레이너·관리자 쓰기(필드 화이트리스트, 본인 이름으로 기록)
     match /exerciseGuides/{gid} {
@@ -519,8 +600,14 @@ service cloud.firestore {
             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
             !exists(/databases/$(database)/documents/deletedAccounts/$(request.auth.uid)) &&
             existsAfter(/databases/$(database)/documents/deletedAccounts/$(request.auth.uid)) &&
-            request.resource.data.targetUid == '' && request.resource.data.targetName == '' && request.resource.data.detail == '회원 1명 탈퇴'));
-      allow update, delete: if false;
+            request.resource.data.targetUid == '' && request.resource.data.targetName == '' && request.resource.data.detail == '회원 1명 탈퇴') ||
+          // [2026-11-01] B8: 회원이 담당 트레이너 연결을 직접 해제 - 본인 uid만, 이름 없이, 짧은 내용
+          (request.resource.data.action == 'disconnect' && request.resource.data.byUid == request.auth.uid &&
+            request.resource.data.targetUid == request.auth.uid && request.resource.data.byName == '' &&
+            request.resource.data.targetName == '' && request.resource.data.detail.size() <= 60));
+      allow update: if false;
+      // [2026-11-01] B3: 보존 기간(2년)이 지난 이력만 관리자가 지울 수 있다
+      allow delete: if isAdmin() && resource.data.at < request.time - duration.value(730, 'd');
     }
     // 익명 이용 집계(주별 요일·시간대 운동 시작 횟수, 개인 정보 없음) - 승인 회원이 운동 저장 때 +1, 관리자만 조회
     // [2026-11-01] S8: hours·days는 hk·dk에 적은 칸 하나만 +1(맵 통째 덮어쓰기 방지)

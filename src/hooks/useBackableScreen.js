@@ -23,12 +23,35 @@ import { useEffect, useRef } from 'react'
 // 플래그는 해당 popstate의 모든 리스너가 실행된 뒤(setTimeout 0) 풀린다.
 // 또 기기 뒤로가기 한 번에 열린 화면이 모두(바깥까지) 닫히던 문제도 있어, 열린 순서 스택을 두고
 // 가장 안쪽(마지막에 열린) 화면 하나만 닫는다.
-let selfBackPending = false
+// [2026-11-01] 스스로 부른 back()이 연달아 두 번 나는 경우(확인 창이 닫히고 바로 화면도 닫힘)를 위해
+// 참/거짓 플래그 대신 남은 횟수로 센다. 이 모듈의 리스너가 가장 먼저 등록되므로 popstate마다 먼저 실행돼
+// 이벤트에 __btSelfBack 표시를 붙이고, 각 화면 훅과 App의 루트 가드는 그 표시만 보고 무시한다.
+let selfBackCount = 0
+let selfBackTimer = null
 const openStack = []
 if (typeof window !== 'undefined') {
-  window.addEventListener('popstate', () => {
-    if (selfBackPending) setTimeout(() => { selfBackPending = false }, 0)
+  window.addEventListener('popstate', (e) => {
+    if (selfBackCount > 0) {
+      selfBackCount -= 1
+      e.__btSelfBack = true
+    }
   })
+}
+
+function markSelfBack() {
+  selfBackCount += 1
+  clearTimeout(selfBackTimer)
+  // popstate가 안 오는 예외 상황(쌓인 엔트리가 없음 등) 대비: 1초 뒤 남은 횟수를 비운다
+  selfBackTimer = setTimeout(() => { selfBackCount = 0 }, 1000)
+}
+
+// [2026-11-01] 열린 상세 화면(확인 창 포함)이 있는지 - 설치 배너 숨김·루트 뒤로가기 판단용
+export function hasOpenScreens() {
+  return openStack.length > 0
+}
+
+function notifyStackChange() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('bt-screens'))
 }
 
 function removeFromStack(id) {
@@ -36,8 +59,13 @@ function removeFromStack(id) {
   if (i !== -1) openStack.splice(i, 1)
 }
 
-export function useBackableScreen(isOpen, onClose) {
+// [2026-11-01] beforeClose(선택): 기기 뒤로가기 때 부르는 함수. null을 돌려주면 바로 닫고,
+// Promise<boolean>을 돌려주면 그동안 화면을 열어 둔 채(엔트리를 다시 쌓음) 기다렸다가 true일 때만 닫는다.
+// (예: 루틴 편집에서 저장 안 한 변경이 있으면 "나갈까요?" 확인, 전체 점검 U11)
+export function useBackableScreen(isOpen, onClose, beforeClose) {
   const pushedRef = useRef(false)
+  const beforeCloseRef = useRef(beforeClose)
+  beforeCloseRef.current = beforeClose
   const closingSelfRef = useRef(false)
   const idRef = useRef(null)
   if (!idRef.current) idRef.current = {}
@@ -47,16 +75,17 @@ export function useBackableScreen(isOpen, onClose) {
     if (isOpen && !pushedRef.current) {
       pushedRef.current = true
       openStack.push(idRef.current)
+      notifyStackChange()
       window.history.pushState({ bodytailorScreen: true }, '')
     } else if (!isOpen && pushedRef.current) {
       pushedRef.current = false
       removeFromStack(idRef.current)
+      notifyStackChange()
       if (!closingSelfRef.current) {
         // 뒤로가기가 아니라 화면 안의 "돌아가기/취소" 버튼 등으로 닫힌 경우:
         // 앞서 쌓아둔 엔트리를 우리가 직접 소비해서 history 깊이를 맞춘다.
         closingSelfRef.current = true
-        selfBackPending = true
-        setTimeout(() => { selfBackPending = false }, 1000) // popstate가 안 오는 예외 상황 대비
+        markSelfBack()
         window.history.back()
         setTimeout(() => {
           closingSelfRef.current = false
@@ -67,17 +96,28 @@ export function useBackableScreen(isOpen, onClose) {
 
   // 열린 채로 언마운트되면(상위 화면이 먼저 닫힘 등) 스택에서만 뺀다.
   useEffect(() => () => {
-    if (pushedRef.current) removeFromStack(idRef.current)
+    if (pushedRef.current) {
+      removeFromStack(idRef.current)
+      notifyStackChange()
+    }
   }, [])
 
   // 뒤로가기(popstate) 발생 시, 우리가 쌓아둔 엔트리가 소비되는 것이면 화면을 닫는다.
   useEffect(() => {
     function handlePopState(e) {
-      if (selfBackPending || e.__btScreenHandled) return
+      if (e.__btSelfBack || e.__btScreenHandled) return
       if (pushedRef.current && openStack[openStack.length - 1] === idRef.current) {
         e.__btScreenHandled = true
+        const pending = beforeCloseRef.current?.()
+        if (pending && typeof pending.then === 'function') {
+          // 엔트리를 다시 쌓아 화면을 연 상태로 두고, 확인되면 버튼으로 닫을 때처럼 닫는다(effect가 back()으로 정리)
+          window.history.pushState({ bodytailorScreen: true }, '')
+          pending.then((ok) => { if (ok) onClose() }).catch(() => {})
+          return
+        }
         pushedRef.current = false
         removeFromStack(idRef.current)
+        notifyStackChange()
         closingSelfRef.current = true
         onClose()
         setTimeout(() => {

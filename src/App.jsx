@@ -1,13 +1,14 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-01] 전체 점검 반영(앱 소개 공유, 저장 실패 처리, 입력값 확인, 관리자 정합성·PT 정정, 보안 규칙 강화). 직전: [2026-10-31] 트레이너 목표 제안·직접 수정, 소개 페이지 배경 전환.
+ * 최신 변경: [2026-11-01] 2차 점검 반영(랭킹 시즌 평균, 미결제 PT, 트레이너 HOME PT 카드·메모, 전체 내보내기, memberPrivate 분리, App Check, 기록 트랜잭션).
+ *            직전: [2026-11-01] 전체 점검 반영(앱 소개 공유, 저장 실패 처리, 입력값 확인, 관리자 정합성·PT 정정, 보안 규칙 강화).
  *            직전: 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
  *            PT 일정 모아보기·기구 필터·스트레칭 검색, 홍보 페이지 줄바꿈. 직전: 홈 화면 설치 안내. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
  */
 
 import React, { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
-import { watchAuthState } from './firebase'
+import { watchAuthState, logout } from './firebase'
 import { LEGACY_EXERCISE_NAME_MAP } from './utils/exerciseLibrary'
 import { setLogActor, ensureUserDoc, createUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLogAndRevertXp, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
 import { prsVersionKey } from './utils/strength'
@@ -17,6 +18,7 @@ import { setTrainingProfile, isBeginnerAccount } from './utils/goals'
 import LoginScreen from './components/LoginScreen'
 import AutoSavedReview from './components/AutoSavedReview'
 import Onboarding from './components/Onboarding'
+import AppGuards from './components/AppGuards'
 import RoutineManager from './components/RoutineManager'
 import BottomNav from './components/BottomNav'
 import HomeTab from './components/HomeTab'
@@ -41,12 +43,14 @@ import { DeletedAccountScreen } from './components/AccountLegalSection'
 import { hasCurrentConsent } from './utils/legal'
 import { isApprovedMember, phoneHash, phoneLast4, isMembershipExpired } from './utils/member'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
-import { useBackableScreen } from './hooks/useBackableScreen'
+import { useBackableScreen, hasOpenScreens } from './hooks/useBackableScreen'
+import { showSystemNotification, closeSystemNotification } from './components/RestTimer'
 import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DEFAULT_ACCENT, DEFAULT_FONT, DESIGN_DEFAULTS_VERSION } from './utils/fonts'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
 const MIN_SPLASH_MS = 700
+const SESSION_NOTIFICATION_TAG = 'bodytailor-session'
 
 export default function App() {
   const [authUser, setAuthUser] = useState(undefined) // undefined: 로딩중, null: 비로그인
@@ -144,65 +148,110 @@ export default function App() {
   // 직접 그리는 것이라 웹 코드로는 문구·아이콘을 바꾸거나 숨길 수 없다. 홈 화면에 "앱으로 설치"
   // 해서 standalone으로 실행하면 그 배너 자체가 브라우저(Chrome) 대신 이 앱 고유 아이콘/이름으로
   // 표시된다 - 이번에 추가한 설치 배너(⑧)가 이 문제의 실질적인 해결책이다.
-  const sessionNotificationRef = useRef(null)
+  // [2026-11-01] 안드로이드 크롬·설치 PWA는 new Notification()을 막아(Illegal constructor) 알림이 안 떴다.
+  // 휴식 알림과 같은 도우미(서비스워커 registration.showNotification 우선, 안 되면 생성자)로 띄우고 tag로 닫는다.
   useEffect(() => {
     if (!userDoc?.restTimerNotificationPermission) return
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
 
     if (workoutPhase === 'idle') {
-      sessionNotificationRef.current?.close()
-      sessionNotificationRef.current = null
+      closeSystemNotification(SESSION_NOTIFICATION_TAG)
       return
     }
 
-    const body = workoutPhase === 'warmup' ? '웜업 진행중이에요' : '운동 진행중이에요'
-    try {
-      sessionNotificationRef.current?.close()
-      sessionNotificationRef.current = new Notification('BodyTailor Log', {
-        tag: 'bodytailor-session',
-        icon: '/icon-192.png',
-        body,
-        silent: true,
-      })
-    } catch {
-      // 알림 생성 실패(권한 등)는 무시 - 세션/타이머 자체 동작에는 영향 없음
-    }
+    const body = workoutPhase === 'warmup' ? '웜업 진행 중이에요' : '운동 진행 중이에요'
+    showSystemNotification('BodyTailor Log', { tag: SESSION_NOTIFICATION_TAG, icon: '/icon-192.png', body, silent: true })
   }, [workoutPhase, userDoc?.restTimerNotificationPermission])
 
-  useEffect(() => {
-    return () => sessionNotificationRef.current?.close()
-  }, [])
-
+  // [2026-11-01] 루트(열린 상세 화면 없음)에서 기기 뒤로가기: 첫 번째는 "한 번 더 누르면 앱을 닫아요" 안내만 하고
+  // 가드를 풀어 둔다(그 사이 한 번 더 누르면 실제로 닫힘). 안내가 사라지면 가드를 다시 쌓는다.
+  // 상세 화면이 닫힌 뒤로가기(__btScreenHandled)나 스스로 부른 back(__btSelfBack)에는 가드를 더 쌓지 않는다
+  // (예전에는 매번 쌓아 기록이 계속 늘어 앱을 닫을 수 없었다). 다른 리스너가 표시를 붙인 뒤 판단하도록 한 틱 미룬다.
+  const [exitHint, setExitHint] = useState(false)
   useEffect(() => {
     window.history.pushState({ bodytailorGuard: true }, '')
-    function handlePopState() {
-      window.history.pushState({ bodytailorGuard: true }, '')
+    let rearmTimer = null
+    function handlePopState(e) {
+      setTimeout(() => {
+        if (e.__btSelfBack || e.__btScreenHandled) return
+        if (hasOpenScreens()) return
+        clearTimeout(rearmTimer)
+        setExitHint(true)
+        rearmTimer = setTimeout(() => {
+          setExitHint(false)
+          if (!hasOpenScreens()) window.history.pushState({ bodytailorGuard: true }, '')
+        }, 2500)
+      }, 0)
     }
     window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
+    return () => {
+      clearTimeout(rearmTimer)
+      window.removeEventListener('popstate', handlePopState)
+    }
   }, [])
+
+  // [2026-11-01] 운동 중(웜업·본운동)에는 화면 꺼짐 방지(Screen Wake Lock)를 세션 내내 유지한다.
+  // 화면이 잠기면 휴식 종료 소리·진동이 늦게 울리기 때문. 설정에서 끈 사람(screenWakeLock === false)만 제외.
+  // 탭을 숨기면 브라우저가 잠금을 풀기 때문에 다시 보일 때 다시 요청한다.
+  const wakeLockOn = userDoc?.screenWakeLock !== false
+  const sessionActive = workoutPhase === 'warmup' || workoutPhase === 'main'
+  useEffect(() => {
+    if (!sessionActive || !wakeLockOn || typeof navigator === 'undefined' || !('wakeLock' in navigator)) return
+    let lock = null
+    let alive = true
+    async function acquire() {
+      if (document.visibilityState !== 'visible' || (lock && !lock.released)) return
+      try {
+        const l = await navigator.wakeLock.request('screen')
+        if (!alive) l.release().catch(() => {})
+        else lock = l
+      } catch (e) {
+        // 지원 안 함·절전 모드 등은 무시(타이머는 시각 기준이라 계속 맞게 돈다)
+      }
+    }
+    acquire()
+    document.addEventListener('visibilitychange', acquire)
+    return () => {
+      alive = false
+      document.removeEventListener('visibilitychange', acquire)
+      lock?.release?.().catch(() => {})
+    }
+  }, [sessionActive, wakeLockOn])
 
   useEffect(() => {
     const t = setTimeout(() => setMinSplashElapsed(true), MIN_SPLASH_MS)
     return () => clearTimeout(t)
   }, [])
 
+  // [2026-11-01] 첫 로그인 때 오프라인·권한 오류로 사용자 문서를 못 불러오면 "불러오는 중"에 멈춰 있던 문제:
+  // 오류를 여기서 잡아 다시 시도 / 로그아웃 화면을 보여 준다.
+  const [loadError, setLoadError] = useState(false)
+  const loadUser = useCallback(async (user) => {
+    setLoadError(false)
+    try {
+      // [2026-11-01] S11: 동의 전에는 users 문서를 만들지 않는다(구글 이름은 온보딩 닉네임 미리 채움에만 auth에서 읽음)
+      const doc = await ensureUserDoc(user.uid)
+      setUserDoc(doc)
+      const templates = await getRoutineTemplates(user.uid)
+      setRoutineTemplates(templates)
+    } catch (err) {
+      console.error('사용자 정보 불러오기 실패:', err)
+      setLoadError(true)
+    }
+  }, [])
   useEffect(() => {
     const unsub = watchAuthState(async (user) => {
       setAuthUser(user)
       if (user) {
-        // [2026-11-01] S11: 동의 전에는 users 문서를 만들지 않는다(구글 이름은 온보딩 닉네임 미리 채움에만 auth에서 읽음)
-        const doc = await ensureUserDoc(user.uid)
-        setUserDoc(doc)
-        const templates = await getRoutineTemplates(user.uid)
-        setRoutineTemplates(templates)
+        await loadUser(user)
       } else {
+        setLoadError(false)
         setUserDoc(null)
         setRoutineTemplates(undefined)
       }
     })
     return unsub
-  }, [])
+  }, [loadUser])
 
   // [2026-07-30 신규] MY탭 "화면 테마" 선택(userDoc.themePreference: 'dark'|'light')을
   // html 태그의 data-theme 속성에 반영한다. tokens.css의 html[data-theme='light'] 블록이
@@ -260,9 +309,13 @@ export default function App() {
   }, [authUser?.uid, userDoc?.role, userDoc?.signupInfo?.name, userDoc?.nickname])
 
   // [2026-10-31] 설치 배너(main.jsx)가 /admin 여부를 알 수 있게 화면 전환을 알린다
+  // [2026-11-01] 배너는 메인 탭에 들어온 뒤에만(로그인·동의·온보딩·승인 대기·첫 루틴 설정 제외), 운동 중에는 숨김.
+  const onMainTabs = !!(authUser && userDoc && !userDoc.__deleted && hasCurrentConsent(userDoc) && userDoc.onboardingCompleted && isApprovedMember(userDoc) && !showAdmin && routineTemplates !== undefined && (routineTemplates.length > 0 || userDoc.routineSetupSkipped))
   useEffect(() => {
+    window.__btMainTabs = onMainTabs
+    window.__btWorkoutActive = workoutPhase !== 'idle'
     window.dispatchEvent(new Event('bt-route'))
-  }, [showAdmin])
+  }, [showAdmin, onMainTabs, workoutPhase])
 
   useEffect(() => {
     if (!showAdmin || !userDoc) return
@@ -428,6 +481,23 @@ export default function App() {
   }
 
   if (!userDoc) {
+    if (loadError) {
+      return (
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 'calc(var(--safe-top, 0px) + 24px) 24px calc(var(--safe-bottom, 0px) + 24px)', textAlign: 'center' }}>
+          <p className="text-keep-all" style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: 'var(--color-label-strong)', whiteSpace: 'pre-line' }}>
+            {'정보를 불러오지 못했어요.\n인터넷 연결을 확인하고 다시 시도해 주세요.'}
+          </p>
+          <div style={{ display: 'flex', gap: 8, width: '100%', maxWidth: 320 }}>
+            <button type="button" onClick={() => logout()} style={{ flex: 1, minHeight: 48, borderRadius: 'var(--radius-md)', fontSize: 15, fontWeight: 600, color: 'var(--color-label-normal)', border: '1px solid var(--color-line)' }}>
+              로그아웃
+            </button>
+            <button type="button" onClick={() => loadUser(authUser)} style={{ flex: 1, minHeight: 48, borderRadius: 'var(--radius-md)', fontSize: 15, fontWeight: 700, background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)' }}>
+              다시 시도
+            </button>
+          </div>
+        </div>
+      )
+    }
     return <CenteredMessage>불러오는 중…</CenteredMessage>
   }
 
@@ -451,8 +521,8 @@ export default function App() {
     )
   }
 
-  // 온보딩 미완료
-  if (!userDoc.onboardingCompleted) {
+  // 온보딩 미완료([2026-11-01] B25: 관리자는 /admin 대시보드를 온보딩 없이 연다)
+  if (!userDoc.onboardingCompleted && !(showAdmin && userDoc.role === '관리자')) {
     return <Onboarding onComplete={handleOnboardingComplete} initialNickname={userDoc?.nickname || authUser?.displayName || ''} />
   }
 
@@ -578,8 +648,10 @@ export default function App() {
     const barPx = GLOBAL_TIMER_BAR_HEIGHT + (timerBarExpanded ? GLOBAL_TIMER_BAR_CONTROLS_HEIGHT : 0)
     return {
       position: 'absolute',
-      top: barShowing ? `calc(var(--safe-top) + ${barPx}px)` : 0,
-      '--screen-safe-top': barShowing ? '0px' : 'var(--safe-top, 0px)',
+      // [2026-11-01] 아이폰 홈 화면 앱(black-translucent)에서 탭 머리줄이 상태바 아래로 깔리던 문제:
+      // 타이머 바가 없을 때도 탭 영역을 안전영역 아래에서 시작하고, 안쪽 ScreenHeader는 안전영역을 다시 더하지 않게 0.
+      top: barShowing ? `calc(var(--safe-top) + ${barPx}px)` : 'var(--safe-top, 0px)',
+      '--screen-safe-top': '0px',
       left: 0,
       right: 0,
       bottom: 0,
@@ -593,6 +665,8 @@ export default function App() {
 
   return (
     <div style={{ height: '100%', position: 'relative' }}>
+      {/* [2026-11-01] 번호 변환값 옮기기(S6)·한도 초과 안내(B2) */}
+      <AppGuards uid={authUser.uid} userDoc={userDoc} />
       {/* [2026-10-29] 자동 저장된 운동은 HOME 배너 대신 팝업으로 확인·수정(시간·세트) */}
       {autoNotice && (
         <AutoSavedReview
@@ -634,8 +708,9 @@ export default function App() {
         />
       </div>
       <div ref={howtoScrollRef} style={tabWrapperStyle('howto')} className={revealedTabs.has('howto') ? 'bt-reveal' : ''}>
-        <Suspense fallback={null}>
+        <Suspense fallback={<TabLoading />}>
           <HowToTab
+            isActive={activeTab === 'howto'}
             uid={authUser.uid}
             userDoc={userDoc}
             routineTemplates={routineTemplates}
@@ -655,7 +730,7 @@ export default function App() {
           routineTemplates={routineTemplates}
           weightKg={userDoc.onboarding?.weightKg}
           restNotificationEnabled={!!userDoc.restTimerNotificationPermission}
-          restWakeLockEnabled={!!userDoc.restTimerWakeLockEnabled}
+          restWakeLockEnabled={wakeLockOn}
           restSoundId={userDoc.restTimerSoundId || 'beep'}
           onLogSaved={handleLogSaved}
           onRoutineUpdated={refreshRoutineTemplates}
@@ -678,7 +753,7 @@ export default function App() {
         )}
       </div>
       <div ref={reportScrollRef} style={tabWrapperStyle('report')} className={revealedTabs.has('report') ? 'bt-reveal' : ''}>
-        <Suspense fallback={null}>
+        <Suspense fallback={<TabLoading />}>
           <ReportTab
             liveExercises={liveExercises}
             uid={authUser.uid}
@@ -714,7 +789,27 @@ export default function App() {
         />
       </div>
       <BottomNav active={activeTab} onChange={handleTabPress} />
+      {/* [2026-11-01] 루트에서 기기 뒤로가기 1회: 앱 닫기 안내 */}
+      {exitHint && (
+        <div
+          role="status"
+          style={{ position: 'fixed', left: 16, right: 16, display: 'flex', justifyContent: 'center', bottom: 'calc(var(--bottom-nav-height) + var(--safe-bottom) + 16px)', zIndex: 60, pointerEvents: 'none' }}
+        >
+          <span className="bt-fade-in" style={{ padding: '10px 18px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 13, fontWeight: 700, boxShadow: '0 6px 16px rgba(0,0,0,0.28)' }}>
+            한 번 더 누르면 앱을 닫아요
+          </span>
+        </div>
+      )}
       {/* 설치 유도 배너는 main.jsx에서 한 번만 그린다(2026-10-31 중복 제거, /admin에서는 숨김) */}
+    </div>
+  )
+}
+
+// [2026-11-01] HOWTO·REPORT 첫 진입 때 청크를 받는 동안 빈 화면 대신 작은 안내
+function TabLoading() {
+  return (
+    <div role="status" style={{ padding: '48px 16px', textAlign: 'center', fontSize: 13, color: 'var(--color-label-neutral)' }}>
+      불러오는 중…
     </div>
   )
 }

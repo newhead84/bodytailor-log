@@ -97,6 +97,13 @@
   /* [2026-08-04 신규] 상단 고정 타이머 바(GlobalTimerBar) 노치 대응 + 높이 */
   --safe-top: env(safe-area-inset-top, 0px);
   --global-timer-bar-height: 40px;
+  /* [2026-11-01] 화면 높이: 주소창·툴바를 뺀 실제 보이는 높이(dvh), 지원 안 하면 vh */
+  --vh-full: 100vh;
+}
+@supports (height: 100dvh) {
+  :root {
+    --vh-full: 100dvh;
+  }
 }
 
 /* [2026-07-30 신규] MY탭 "화면 테마" - 라이트 테마(html[data-theme="light"]).
@@ -281,6 +288,19 @@ textarea,
   -webkit-touch-callout: default;
   -webkit-user-select: text;
   user-select: text;
+}
+/* [2026-11-01] 본문 문단·목록(가이드·답변 글)은 복사할 수 있게 선택 허용. 버튼 안 글자는 길게 누르기와 겹치지 않게 그대로 막는다 */
+p,
+li,
+.bt-selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+button p,
+button li,
+[role='button'] p {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* 한글 줄바꿈 가독성 규칙: 사용자 노출 텍스트 기본 적용 (프로젝트 지침 7번) */

@@ -153,8 +153,12 @@ export default function ConsentScreen({ onAgree }) {
       <Button full disabled={!all || saving} onClick={agree} style={{ marginTop: 18 }}>
         {saving ? '저장 중…' : '동의하고 시작하기'}
       </Button>
-      <button type="button" onClick={() => setUnder14(true)} style={{ display: 'block', margin: '14px auto 0', fontSize: 13, color: 'var(--color-label-neutral)', textDecoration: 'underline' }}>
+      <button type="button" onClick={() => setUnder14(true)} style={{ display: 'block', margin: '6px auto 0', minHeight: 44, padding: '0 12px', fontSize: 13, color: 'var(--color-label-neutral)', textDecoration: 'underline' }}>
         만 14세 미만이에요
+      </button>
+      {/* [2026-11-01] 동의하지 않으면 나갈 길(로그아웃) */}
+      <button type="button" onClick={logout} style={{ display: 'block', margin: '0 auto', minHeight: 44, padding: '0 12px', fontSize: 13, color: 'var(--color-label-neutral)', textDecoration: 'underline' }}>
+        동의하지 않고 나가기
       </button>
     </div>
   )

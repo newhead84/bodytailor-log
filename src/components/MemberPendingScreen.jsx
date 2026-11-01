@@ -4,7 +4,7 @@
 import React, { useState } from 'react'
 import { Button } from './ui'
 import { logout } from '../firebase'
-import { updateUserProfile } from '../storage'
+import { saveSignupInfo } from '../storage'
 import { serverTimestamp } from 'firebase/firestore'
 import { DeleteAccountCard } from './AccountLegalSection'
 import { isValidMobile, phoneHash, phoneLast4 } from '../utils/member'
@@ -28,9 +28,9 @@ export default function MemberPendingScreen({ uid, userDoc, onRefresh }) {
     try {
       // [2026-11-01] 거절된 회원이 정보를 고치면 다시 확인해 달라는 표시(reReviewRequested·reReviewAt)를 함께 남긴다(전체 점검 U14).
       // rules: 거절 상태에서만 본인이 쓸 수 있고 시각은 서버 시각. 관리자 승인 대기 탭에 '재검토 요청'으로 보인다.
-      const patch = { signupInfo: { name: name.trim().slice(0, 30), phoneHash: await phoneHash(phone), phoneLast4: phoneLast4(phone) } }
-      if (userDoc?.memberStatus === 'rejected') { patch.reReviewRequested = true; patch.reReviewAt = serverTimestamp() }
-      await updateUserProfile(uid, patch)
+      // [2026-11-01] S6: 번호 변환값은 memberPrivate에(saveSignupInfo), users에는 이름·뒤 4자리만
+      const extra = userDoc?.memberStatus === 'rejected' ? { reReviewRequested: true, reReviewAt: serverTimestamp() } : {}
+      await saveSignupInfo(uid, { name: name.trim().slice(0, 30), phoneHash: await phoneHash(phone), phoneLast4: phoneLast4(phone) }, extra)
       await onRefresh?.()
       setEditing(false)
       setPhone('')

@@ -153,7 +153,7 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '28px 20px' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 'calc(var(--safe-top, 0px) + 28px) 20px 28px' }}>
       {previewMode && (
         <>
           <BackButton onClick={onClose}>닫기</BackButton>
@@ -211,7 +211,8 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
         ))}
       </div>
 
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      {/* [2026-11-01] M1: 작은 화면에서 목표 단계 등이 잘리지 않게 세로 스크롤(가로는 넘김 애니메이션 때문에 숨김) */}
+      <div style={{ flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto', marginBottom: 12 }}>
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={STEPS[step]}
@@ -329,7 +330,7 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
                 <BigNumberField unit="cm" value={form.heightCm} onChange={(v) => update('heightCm', v)} />
                 <RangeHint text={bodyRangeError('heightCm', form.heightCm)} />
                 <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginTop: 20 }}>
-                  신체 정보는 기본적으로 비공개이며, VIP 회원만 연동 트레이너에게 자동 공유돼요.
+                  신체 정보는 기본적으로 비공개이며, PT 회원만 담당 트레이너에게 자동 공유돼요.
                 </p>
               </StepBlock>
             )}

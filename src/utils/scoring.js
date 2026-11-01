@@ -10,7 +10,8 @@
 
 import { makeExerciseKey } from './exerciseKey'
 import { workingSetsOf } from './strength'
-import { effectiveLoad, setsVolumeKg } from './load'
+import { effectiveLoad, setsVolumeKg, logVolumeKg } from './load'
+import { toLocalDateStr, weekStartStr } from './date'
 
 export function computeAttendanceScore(sessionsThisWeek, targetSessionsPerWeek = 3) {
   if (targetSessionsPerWeek <= 0) return 0
@@ -163,4 +164,83 @@ export function computeFinalScore({
 }) {
   const base = attendanceScore * 0.4 + volumeScore * 0.3 + overloadScore * 0.3
   return Math.round(base + streakBonus + programComplianceBonus)
+}
+
+// [2026-11-01] H6: 랭킹 점수 = 시즌 동안 주별 점수의 평균. 이전에는 '이번 주' 점수만 시즌 문서에 덮어써서
+// 월요일에 한 번 운동하면 출석이 1/N로 내려가 순위가 떨어졌다.
+// - 대상 주: 시즌 시작일이 들어 있는 주(월~일)부터 이번 주까지, 랭킹 기록(과거 추가 기록 제외)이 1회 이상 있는 주.
+// - 주별 점수: 기존 규칙 그대로(출석 = 그 주 운동한 날 / 목표 일수, 볼륨 = 그 주 직전 4주 평균 대비,
+//   과부하 = 그 주 회차를 같은 종목 직전 수행(84일 안)과 비교, 연속 보너스 = 그 주까지 이어진 연속 주).
+// - 진행 중인 이번 주는 평균을 올릴 때만 넣는다(주 초반 운동으로 점수가 내려가지 않게). 끝난 주는 항상 넣는다.
+// - 저장 값: 각 항목 평균을 정수로 반올림하고, 총점은 반올림한 항목으로 computeFinalScore(규칙 공식 ±1 안).
+// logs: date 오름차순, (시즌 첫 주 - 16주) ~ 오늘 범위의 기록(과거 추가 기록 제외)
+const OVERLOAD_LOOKBACK_DAYS = 84
+function addDaysStr(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00`)
+  d.setDate(d.getDate() + n)
+  return toLocalDateStr(d)
+}
+export function seasonScoreRangeStart(seasonStart) {
+  return addDaysStr(weekStartStr(seasonStart), -16 * 7)
+}
+export function computeSeasonScore({ logs, seasonStart, today = new Date(), targetDays = 3 }) {
+  const sorted = [...(logs || [])].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  const todayKey = toLocalDateStr(today)
+  const currentWeek = weekStartStr(today)
+  const weeksWithLogs = new Set(sorted.map((l) => weekStartStr(l.date)))
+
+  function weekScore(ws) {
+    const we = addDaysStr(ws, 6) < todayKey ? addDaysStr(ws, 6) : todayKey
+    const inWeek = sorted.filter((l) => l.date >= ws && l.date <= we)
+    const baseFrom = addDaysStr(ws, -28)
+    const baseline = sorted.filter((l) => l.date >= baseFrom && l.date < ws)
+    const weekVolume = inWeek.reduce((s, l) => s + logVolumeKg(l), 0)
+    const baselineAvg = baseline.length > 0 ? baseline.reduce((s, l) => s + logVolumeKg(l), 0) / 4 : 0
+    const overFrom = addDaysStr(ws, -OVERLOAD_LOOKBACK_DAYS)
+    const overloadLogs = sorted.filter((l) => l.date >= overFrom && l.date <= we)
+    let streakWeeks = 0
+    for (let k = 0; k < 17; k++) {
+      if (weeksWithLogs.has(addDaysStr(ws, -7 * k))) streakWeeks += 1
+      else if (k === 0 && ws === currentWeek) continue // 진행 중인 주는 비어 있어도 연속이 끊기지 않음
+      else break
+    }
+    const a = computeAttendanceScore(new Set(inWeek.map((l) => l.date)).size, targetDays)
+    const v = computeVolumeScore(weekVolume, baselineAvg)
+    const o = computeOverloadByOccurrence(overloadLogs, ws).score
+    const s = computeStreakBonus(streakWeeks)
+    return { weekStart: ws, a, v, o, s, total: a * 0.4 + v * 0.3 + o * 0.3 + s }
+  }
+
+  const firstWeek = weekStartStr(seasonStart)
+  const done = []
+  let current = null
+  // [2026-11-01] 시즌 안에서 처음 운동한 주부터는 쉰 주(끝난 주)도 0점 주로 평균에 넣는다(출석 의미 유지).
+  // 진행 중인 이번 주는 기록이 있을 때만, 평균을 올릴 때만 넣는다.
+  let started = false
+  for (let ws = firstWeek; ws <= currentWeek; ws = addDaysStr(ws, 7)) {
+    const has = weeksWithLogs.has(ws)
+    if (has) started = true
+    if (!started) continue
+    if (ws === currentWeek) { if (has) current = weekScore(ws) }
+    else done.push(weekScore(ws))
+  }
+  const avgTotal = (arr) => arr.reduce((t, w) => t + w.total, 0) / arr.length
+  let used = done
+  if (current && (done.length === 0 || avgTotal([...done, current]) >= avgTotal(done))) used = [...done, current]
+  // 시즌 안에 기록이 없으면 이번 주 값(0점대)을 그대로 쓴다(이전 동작과 같음)
+  if (used.length === 0) used = [weekScore(currentWeek)]
+  const mean = (k) => Math.round(used.reduce((t, w) => t + w[k], 0) / used.length)
+  const attendanceScore = Math.min(100, mean('a'))
+  const volumeScore = Math.min(100, mean('v'))
+  const overloadScore = Math.min(100, mean('o'))
+  const streakBonus = Math.min(20, mean('s'))
+  const finalScore = computeFinalScore({ attendanceScore, volumeScore, overloadScore, streakBonus })
+  return { attendanceScore, volumeScore, overloadScore, streakBonus, finalScore, weeksCounted: used.length }
+}
+
+// [2026-11-01] M8: 동점은 같은 순위(1, 1, 3). entries는 finalScore 내림차순.
+export function rankAt(entries, idx) {
+  if (idx < 0) return null
+  const score = Math.round(Number(entries[idx]?.finalScore) || 0)
+  return entries.filter((e) => Math.round(Number(e.finalScore) || 0) > score).length + 1
 }

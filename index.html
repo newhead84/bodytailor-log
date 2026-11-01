@@ -2,9 +2,16 @@
 <html lang="ko" data-theme="dark" data-style="c" data-accent="brass" data-font="pretendard">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
-    <!-- [2026-07-29] 홈탭 CTA 버튼(--color-primary-normal)·캘린더 선택일자 색상과 통일 -->
-    <meta name="theme-color" content="#FFC94D" />
+    <!-- [2026-11-01] 확대 막기(maximum-scale) 제거: 안드로이드·PC에서 손가락 확대가 되게. 아이폰은 이 값이 있어도 손가락 확대가 되고,
+         없으면 16px보다 작은 입력 칸을 누를 때 화면이 자동 확대돼 세트 입력이 불편해서 아이폰에만 다시 붙인다. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) {
+        document.querySelector('meta[name=viewport]').setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0')
+      }
+    </script>
+    <!-- [2026-11-01] 첫 화면(로그인·인트로)의 다크 바탕색. 로그인 뒤에는 App이 현재 테마 바탕색으로 바꾼다 -->
+    <meta name="theme-color" content="#141210" />
     <meta name="description" content="BodyTailor Log - 개인 운동 기록 & 점진적 과부하 추적" />
     <!-- [2026-10-30] 카카오톡 등 인앱 브라우저 → 기본 브라우저로(구글 로그인·홈 화면 추가는 기본 브라우저에서만 됨) -->
     <script src="/inapp.js"></script>

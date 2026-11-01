@@ -3,7 +3,7 @@ import { ChevronDown, ChevronLeft, ExternalLink, Settings, Link2, Share2 } from 
 import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches, ScreenHeader } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
-import { getMyTrainerConnection, endConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
+import { getMyTrainerConnection, memberEndConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerAvatar } from './TrainerProfileView'
 import { membershipState, fmtYmd } from '../utils/member'
@@ -16,6 +16,7 @@ import { getTierByXp, getNextTier, getLevelInfo, stageLevelRange } from '../util
 import { computeAchievements } from '../utils/achievements'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS, getExercisesForPart, recommendedSplitKey, perPartWeeklyFrequency } from '../utils/exerciseLibrary'
 import { REST_SOUND_OPTIONS, playSound } from './RestTimer'
+import { useBackableScreen } from '../hooks/useBackableScreen'
 import { GoalPicker, TrainingPlanSummary } from './GoalPicker'
 import { TrainerGoalMark } from './TrainerGoal'
 import AchievementPager from './AchievementPager'
@@ -30,13 +31,21 @@ const GENDERS = ['남성', '여성']
 // MY탭의 "운동조합"을 최대 8개까지 자유조합으로 만드는 내 루틴 목록으로 대체.
 // 목록/추가/수정/삭제는 App.jsx가 관리하는 RoutineManager 화면(onManageRoutines)에서 처리하고,
 // "분할운동 템플릿"(2/3/4분할 프리셋)에서 바로 추가하는 경로도 함께 제공한다.
+// [2026-11-01] 아이폰·아이패드 여부(사파리 등 브라우저에서는 웹 알림이 없고, 홈 화면에 추가하면 쓸 수 있음)
+function isIosDevice() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+}
+
 export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, onShowTrainerDirectory, isActive = true }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   )
-  const [wakeLockEnabled, setWakeLockEnabled] = useState(!!userDoc?.restTimerWakeLockEnabled)
+  // [2026-11-01] 운동 중 화면 꺼짐 방지: 기본 켜짐(screenWakeLock이 없으면 켜짐, 끈 사람만 false)
+  const [wakeLockEnabled, setWakeLockEnabled] = useState(userDoc?.screenWakeLock !== false)
   const [restSoundId, setRestSoundId] = useState(userDoc?.restTimerSoundId || 'beep')
   // [2026-07-30 신규, 2026-08-01 3종으로 확장, 2026-08-04 기본값 beige로 변경] 화면 테마:
   // 'dark'(블랙골드) | 'beige'(베이지블랙, 기본) | 'light'(화이트블루, 구 v1)
@@ -226,26 +235,17 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   }
 
   async function requestNotifPermission() {
-    if (typeof Notification === 'undefined') return
+    if (typeof Notification === 'undefined' || Notification.permission === 'denied') return
     const perm = await Notification.requestPermission()
     setNotifPermission(perm)
     await updateUserProfile(uid, { restTimerNotificationPermission: perm === 'granted' })
   }
 
-  // Wake Lock API는 Notification처럼 별도 권한 팝업이 없어서, 지원 여부를 실제로
-  // 한 번 요청/해제해 확인한 뒤 사용자 설정(on/off)으로 저장한다.
   async function toggleWakeLock() {
     if (!wakeLockSupported) return
     const next = !wakeLockEnabled
-    if (next) {
-      try {
-        const lock = await navigator.wakeLock.request('screen')
-        await lock.release()
-      } catch (e) {
-        return // 요청 실패 환경에서는 켜지 않음
-      }
-    }
-    await saveSetting(setWakeLockEnabled, !next, next, { restTimerWakeLockEnabled: next })
+    // [2026-11-01] App이 운동 중 내내 잠금을 잡으므로 여기서는 설정만 저장(예전 필드도 같이 맞춤)
+    await saveSetting(setWakeLockEnabled, !next, next, { screenWakeLock: next, restTimerWakeLockEnabled: next })
   }
 
   async function selectRestSound(soundId) {
@@ -276,6 +276,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   function openSettings() {
     setShowSettings(true)
   }
+  // [2026-11-01] 설정 화면도 기기 뒤로가기로 닫힌다(MY 탭을 보고 있을 때만)
+  const closeSettings = React.useCallback(() => setShowSettings(false), [])
+  useBackableScreen(showSettings && isActive, closeSettings)
   useEffect(() => {
     if (showSettings) settingsTopRef.current?.scrollIntoView({ block: 'start' })
   }, [showSettings])
@@ -382,7 +385,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   if (showSettings) {
     return (
       <div ref={settingsTopRef} style={{ padding: '0 20px 100px' }}>
-        <ScreenHeader title="설정" onBack={() => setShowSettings(false)} backLabel="MY로 돌아가기" />
+        <ScreenHeader title="설정" onBack={closeSettings} backLabel="MY로 돌아가기" />
       {/* [2026-10-28] 스타일 C 택타일 웜 고정(선택 없음). 테마 3종·강조색·폰트·기록 방식만 선택. */}
       {/* [2026-10-29] 기본은 접힌 상태 - 현재 조합 한 줄 + "설정 바꾸기"를 눌러야 선택지가 열린다(사용자 요청). */}
       <SectionTitle>디자인</SectionTitle>
@@ -465,17 +468,35 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
 
       <SectionTitle>알림</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="text-keep-all" style={{ fontSize: 14 }}>세트 휴게타이머 종료 알림</span>
-          <Button variant={notifPermission === 'granted' ? 'ghost' : 'secondary'} onClick={requestNotifPermission}>
-            {notifPermission === 'granted' ? '허용됨' : '권한 요청'}
+        {/* [2026-11-01] 알림 권한 상태별 안내: 허용됨 / 거부됨(브라우저 설정 안내) / 미지원(아이폰 브라우저는 홈 화면에 추가해야 됨) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="text-keep-all" style={{ fontSize: 14 }}>휴식 끝·운동 진행 중 알림</div>
+            {notifPermission === 'denied' && (
+              <div className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', marginTop: 2 }}>
+                알림이 꺼져 있어요. 휴대폰 설정이나 브라우저 주소창의 사이트 설정에서 알림을 허용해 주세요.
+              </div>
+            )}
+            {notifPermission === 'unsupported' && (
+              <div className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', marginTop: 2 }}>
+                {isIosDevice() ? '홈 화면에 추가한 뒤 쓸 수 있어요.' : '이 브라우저에서는 알림을 쓸 수 없어요.'}
+              </div>
+            )}
+          </div>
+          <Button
+            variant={notifPermission === 'granted' ? 'ghost' : 'secondary'}
+            style={{ flexShrink: 0 }}
+            onClick={requestNotifPermission}
+            disabled={notifPermission === 'granted' || notifPermission === 'denied' || notifPermission === 'unsupported'}
+          >
+            {notifPermission === 'granted' ? '허용됨' : notifPermission === 'denied' ? '꺼져 있음' : notifPermission === 'unsupported' ? '사용 불가' : '알림 켜기'}
           </Button>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
           <div style={{ minWidth: 0, marginRight: 12 }}>
-            <div className="text-keep-all" style={{ fontSize: 14 }}>휴식 중 화면 꺼짐 방지</div>
-            <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginTop: 2 }}>
-              화면이 꺼지면 타이머가 멈출 수 있어요. 휴식 중에는 화면을 켜진 상태로 유지해요.
+            <div className="text-keep-all" style={{ fontSize: 14 }}>운동 중 화면 꺼짐 방지</div>
+            <div className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', marginTop: 2 }}>
+              {wakeLockSupported ? '운동을 시작하면 끝날 때까지 화면을 켜 둬요. 화면이 꺼지면 휴식 알림이 늦을 수 있어요.' : '화면이 꺼지면 휴식 알림이 늦을 수 있어요.'}
             </div>
           </div>
           <Button
@@ -484,7 +505,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             onClick={toggleWakeLock}
             disabled={!wakeLockSupported}
           >
-            {!wakeLockSupported ? '미지원' : wakeLockEnabled ? '사용 중' : '사용'}
+            {!wakeLockSupported ? '미지원' : wakeLockEnabled ? '켜짐' : '꺼짐'}
           </Button>
         </div>
 
@@ -868,9 +889,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                       {preset.label} {addingTemplateKey === preset.key && '· 추가 중…'}
                       {/* [2026-10-30] 주당 목표 일수에 맞는 분할 추천 + 부위당 주 횟수 */}
                       {recommendedSplitKey(userDoc?.weeklyTargetDays || 3) === preset.key && (
-                        <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 11.5, fontWeight: 800 }}>주 {userDoc?.weeklyTargetDays || 3}일 추천</span>
+                        <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 12.5, fontWeight: 800 }}>주 {userDoc?.weeklyTargetDays || 3}일 추천</span>
                       )}
-                      <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}>부위당 주 약 {perPartWeeklyFrequency(preset.parts.length, userDoc?.weeklyTargetDays || 3)}회</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}>부위당 주 약 {perPartWeeklyFrequency(preset.parts.length, userDoc?.weeklyTargetDays || 3)}회</span>
                     </div>
                     <div className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
                       {preset.description}
@@ -931,7 +952,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                   {isNowOfficial && (
                     <span
                       style={{
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: 700,
                         padding: '2px 6px',
                         borderRadius: 'var(--radius-pill)',
@@ -955,7 +976,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </div>
         )}
         {(customExercises[customExercisePart] || []).some((name) => getExercisesForPart(customExercisePart).includes(name)) && (
-          <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
+          <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
             "정식 종목에 추가됨" 배지가 붙은 항목은 이제 공식 목록에도 같은 이름으로 있어요.
             ✕로 지워도 이후엔 공식 목록의 종목이 그대로 대체하고, 지금까지 기록한 내역은
             그대로 남아요.
@@ -1016,7 +1037,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               onClick={async () => {
                 if (!(await confirm(`${trainerConn.trainerName} 트레이너와의 연결을 해제할까요? 트레이너가 더 이상 내 기록을 볼 수 없어요. 기록은 그대로 남아요.`, { okLabel: '해제', cancelLabel: '취소' }))) return
                 try {
-                  await endConnection(trainerConn.id, uid)
+                  await memberEndConnection(trainerConn, uid) // [2026-11-01] B8: 관리 이력 + 예정 일정 정리
                   setTrainerConn(null)
                 } catch (err) {
                   console.error('연결 해제 실패:', err)

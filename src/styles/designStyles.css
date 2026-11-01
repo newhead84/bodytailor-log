@@ -48,6 +48,7 @@ html[data-style='c']:not([data-theme]) {
   --color-gold-700: #d29a2c;
   --color-success: #7fd3a0;
   --color-danger: #ff8a70;
+  --color-on-danger: #1a0a06; /* [2026-11-01] 위험 바탕 위 글자(대비 4.5:1 이상) */
   --color-warning: #f5a94a;
   --color-info: #7db4ff;
   --color-rest-bg: #2a2316;
@@ -77,6 +78,7 @@ html[data-style='c'][data-theme='beige'] {
   --color-gold-700: #6b4a00;
   --color-success: #247045;
   --color-danger: #aa3a29;
+  --color-on-danger: #ffffff; /* [2026-11-01] 위험 바탕 위 글자(대비 4.5:1 이상) */
   --color-warning: #8e550e;
   --color-info: #2963b6;
   --color-rest-bg: #f6e6c6;
@@ -106,6 +108,7 @@ html[data-style='c'][data-theme='light'] {
   --color-gold-700: #6e4d00;
   --color-success: #1b7c44;
   --color-danger: #bd3929;
+  --color-on-danger: #ffffff; /* [2026-11-01] 위험 바탕 위 글자(대비 4.5:1 이상) */
   --color-warning: #965a0f;
   --color-info: #2563c9;
   --color-rest-bg: #fbf0d6;

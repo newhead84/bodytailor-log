@@ -19,7 +19,7 @@ function InquiryRow({ q, onPatched, onError }) {
     onError?.('')
     try {
       await replyToInquiry(q.id, trimmed)
-      await logAction({ action: 'inquiry', targetUid: q.uid || '', targetName: q.nickname || '', detail: `문의 ${isAnswered ? '답변 수정' : '답변'}: ${trimmed.slice(0, 60)}` })
+      await logAction({ action: 'inquiry', targetUid: q.uid || '', targetName: q.nickname || '', detail: `${q.type === 'pt' ? 'PT 상담 신청' : '문의'} ${isAnswered ? '답변 수정' : '답변'}` })
       onPatched?.(q.id, { reply: trimmed, status: '답변완료' })
     } catch (err) {
       console.error('답변 저장 실패:', err)
@@ -33,6 +33,8 @@ function InquiryRow({ q, onPatched, onError }) {
     <Card style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>
+          {/* [2026-11-01] B33: 트레이너 프로필에서 온 PT 상담 신청 표시 */}
+          {q.type === 'pt' && <span style={{ marginRight: 8, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-warning)', color: 'var(--color-warning)', fontSize: 12.5 }}>PT 상담</span>}
           {q.nickname || '(닉네임 없음)'}
           {/* [2026-10-31] 문의 삭제(테스트 문의 정리 등) */}
           <button
@@ -41,7 +43,8 @@ function InquiryRow({ q, onPatched, onError }) {
               if (!(await confirm('이 문의를 삭제할까요? 회원 화면에서도 사라져요.', { okLabel: '삭제', cancelLabel: '취소' }))) return
               try {
                 await deleteInquiry(q.id)
-                await logAction({ action: 'inquiry', targetUid: q.uid || '', targetName: q.nickname || '', detail: `문의 삭제: ${String(q.content || '').slice(0, 60)}` })
+                // [2026-11-01] B3: 지울 수 없는 이력에는 문의 내용을 옮기지 않는다
+                await logAction({ action: 'inquiry', targetUid: q.uid || '', targetName: q.nickname || '', detail: q.type === 'pt' ? 'PT 상담 신청 삭제' : '문의 삭제' })
                 onPatched?.(q.id, null)
               } catch (err) {
                 console.error('문의 삭제 실패:', err)

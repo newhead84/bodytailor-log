@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
 import TrainerProfileView, { TrainerAvatar, TrainerTags } from './TrainerProfileView'
-import { listTrainerProfiles, adminSaveTrainerProfile, adminDeleteTrainerProfile, adminTrainerLeave, adminListFutureSchedulesOf, logAction } from '../storage'
+import { listTrainerProfiles, adminSaveTrainerProfile, adminDeleteTrainerProfile, adminTrainerLeave, adminListFutureSchedulesOf, adminUpdateMember, logAction } from '../storage'
 import { DEFAULT_TRAINER_PROFILES, resizePhoto, splitLines, splitTags, photoList, MAX_TRAINER_PHOTOS } from '../utils/trainerProfile'
 import { todayStr } from '../utils/date'
 
@@ -69,12 +69,19 @@ export default function TrainerProfilesTab({ users, conns, adminUid, admin, onCh
       setBusy(false)
     }
   }
+  // [2026-11-01] B22: 복귀 - 연결된 앱 계정이 트레이너 역할이 아니면(퇴사 때 일반회원으로 바꿈) 확인 후 트레이너로 되돌린다
   async function rejoin(p) {
     if (!(await confirm(`${p.name} 트레이너를 다시 재직으로 바꿀까요? 앱 트레이너 소개에 다시 보여요.`, { okLabel: '재직으로', cancelLabel: '취소' }))) return
+    const acct = p.linkedUid ? users.find((u) => u.uid === p.linkedUid) : null
+    const restore = acct && acct.role !== '트레이너' && acct.role !== '관리자'
+      ? await confirm(`연결된 앱 계정(${nameOf(acct)})의 역할이 지금 '${acct.role || '일반회원'}'이에요. 트레이너 역할로 되돌릴까요? 담당 회원은 '트레이너 연결'에서 다시 연결해 주세요.`, { okLabel: '트레이너로 되돌리기', cancelLabel: '역할은 그대로' })
+      : false
     try {
       await adminSaveTrainerProfile({ id: p.id, active: true, leftAt: '', order: active.length })
-      await logAction({ action: 'profile', targetName: p.name, detail: '재직으로 변경' })
+      if (restore) await adminUpdateMember(acct.uid, { role: '트레이너' }, adminUid)
+      await logAction({ action: 'profile', targetUid: acct?.uid || '', targetName: p.name, detail: `재직으로 변경${restore ? ' · 역할 트레이너로 복구' : ''}` })
       await load()
+      if (restore) await onChanged?.([acct.uid])
     } catch (err) {
       await fail(err, '재직 변경')
     }

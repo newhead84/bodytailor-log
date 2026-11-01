@@ -111,4 +111,18 @@
   .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .adm-hide-m { display: none; }
 }
+/* [2026-11-01] B17: 휴대폰(760px 이하)에서 회원 표를 가로 스크롤 대신 카드로(이름 줄 + 항목 이름: 값) */
+@media (max-width: 760px) {
+  .adm-table.adm-cards { min-width: 0 !important; }
+  .adm-table.adm-cards thead { display: none; }
+  .adm-table.adm-cards tbody, .adm-table.adm-cards tr, .adm-table.adm-cards td { display: block; }
+  .adm-table.adm-cards tr { position: relative; padding: 12px 14px; border-top: 1px solid var(--color-line); }
+  .adm-table.adm-cards td { border: 0; padding: 4px 0; white-space: normal !important; text-align: left !important; font-size: 15.5px; }
+  .adm-table.adm-cards td[data-label]::before { content: attr(data-label); display: inline-block; min-width: 96px; color: var(--color-label-neutral); font-size: 14px; }
+  .adm-table.adm-cards td.adm-pick { position: absolute; right: 14px; top: 12px; padding: 0; }
+  .adm-table.adm-cards td.adm-pick input { width: 20px; height: 20px; }
+  .adm-table.adm-cards td.adm-cell-main { padding-right: 36px; }
+  .adm-table.adm-cards td.adm-cell-act { padding-top: 8px; }
+  .adm-table.adm-cards tr.adm-edit-row { padding: 0; }
+}
 @media (prefers-reduced-motion: reduce) { .adm-side { transition: none; } }

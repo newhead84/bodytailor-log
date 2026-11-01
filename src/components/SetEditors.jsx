@@ -29,7 +29,7 @@ export function SetTypeLegend({ sets }) {
   const present = ['warmup', 'drop', 'failure'].filter((t) => (sets || []).some((s) => s?.type === t))
   if (present.length === 0) return null
   return (
-    <p className="text-keep-all" style={{ margin: '2px 2px 8px', fontSize: 11.5, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
+    <p className="text-keep-all" style={{ margin: '2px 2px 8px', fontSize: 12.5, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
       {present.map((t, i) => (
         <React.Fragment key={t}>
           {i > 0 && ' · '}
@@ -241,7 +241,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
                 gap: 2,
               }}
             >
-              <span style={{ fontSize: 11, fontWeight: 700, color: TYPE_COLOR[t] || 'var(--color-label-neutral)' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: TYPE_COLOR[t] || 'var(--color-label-neutral)' }}>
                 {t === 'working' ? `${workingIndexOf(i)}세트` : SET_TYPE_LABEL[t]}
               </span>
               <span className="bt-num" style={{ fontSize: 13, color: s.saved ? 'var(--color-success)' : 'var(--color-label-strong)' }}>
@@ -510,7 +510,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, step 
           </div>
         </div>
       )}
-      <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
+      <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
         첫 세트가 상한을, 나머지 세트가 하한 이상을 채우거나 총 반복이 상한×세트 수의 90% 이상이면 다음 운동에서 증량을 추천해요. 그 전까지는 세트마다 1회씩 늘리는 목표를 보여줘요. 기본값은 MY 프로필의 운동 목표에 맞춰져요.
       </span>
       {/* [2026-10-30 추천 고도화] 최근 추천과 실제 결과(현재 설정 기준으로 다시 계산) */}

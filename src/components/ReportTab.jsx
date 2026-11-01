@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState, Disclosure } from './ui'
 import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom, getEffectiveSeasonXp } from '../storage'
 import { getTierByXp, getLevelInfo } from '../utils/tier'
-import { computeAttendanceScore, computeVolumeScore, computeOverloadByOccurrence, computeOverloadByOccurrenceForDisplay, computeFinalScore, computeStreakBonus } from '../utils/scoring'
+import { computeOverloadByOccurrenceForDisplay, computeSeasonScore, seasonScoreRangeStart, rankAt } from '../utils/scoring'
 import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, getBodyweightVolumeFactor, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
-import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
+import { getSeasonPeriod, formatSeasonLabel, getSeasonStartDate } from '../utils/season'
 import { toLocalDateStr } from '../utils/date'
 import { estimateCardioSetKcal } from '../utils/calories'
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
@@ -119,52 +119,19 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   }
 
   async function refreshMyScore() {
+    // [2026-11-01] H6: 시즌 동안 주별 점수의 평균(utils/scoring.js computeSeasonScore). 예전 4번 나눠 읽던
+    // 범위(이번 주·4주·12주·16주)를 한 번의 조회(시즌 첫 주 16주 전 ~ 오늘)로 합쳐 읽기 수는 늘지 않는다.
     const today = new Date()
-    const weekStart = startOfWeek(today)
-    const prevWeekStart = new Date(weekStart)
-    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
-    const fourWeeksAgo = new Date(weekStart)
-    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28)
-    // [2026-10-29] 볼륨 기준 = 이번 주 직전 4주(지난주 일요일까지). 이전엔 끝이 지난주 월요일이라 3주+1일을 4로 나눴다.
-    const baselineEnd = new Date(weekStart)
-    baselineEnd.setDate(baselineEnd.getDate() - 1)
-    // [2026-10-29] 연속 출석 보너스 최대 +20(16주)까지 셀 수 있게 16주 조회(이전 12주 범위라 최대 +15)
-    const streakRangeStart = new Date(weekStart)
-    streakRangeStart.setDate(streakRangeStart.getDate() - 16 * 7)
-    // [2026-07-31 신규] 점진적 과부하를 "같은 종목의 직전 수행 대비"로 판단하기 위해,
-    // 이번 주 이전 수행 기록도 함께 조회한다(탐색 범위는 현재 통계 조회 범위와 동일하게
-    // STATS_RANGE_DAYS로 제한, 사용자 확인).
-    const overloadRangeStart = new Date(weekStart)
-    overloadRangeStart.setDate(overloadRangeStart.getDate() - STATS_RANGE_DAYS)
-
-    const fmt = (d) => toLocalDateStr(d)
+    const seasonStart = getSeasonStartDate(today)
     // [2026-07-30 신규] 캘린더에서 추가한 과거 기록(isBackfilled)은 볼륨/캘린더/통계에는
     // 반영되지만, 랭킹 점수(출석/볼륨/과부하) 계산에서는 제외한다.
-    const excludeBackfilled = (arr) => arr.filter((l) => !l.isBackfilled)
-    const thisWeekLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(weekStart), fmt(today)))
-    const baselineLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(fourWeeksAgo), fmt(baselineEnd)))
-    const overloadRangeLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(overloadRangeStart), fmt(today)))
-    const streakRangeLogs = excludeBackfilled(await getWorkoutLogsInRange(uid, fmt(streakRangeStart), fmt(today)))
-
-    // [2026-10-29] 저장된 totalVolume 대신 세트에서 같은 규칙으로 다시 계산(볼륨 규칙 변경 전후 기록 비교 왜곡 방지)
-    const thisWeekVolume = thisWeekLogs.reduce((s, l) => s + logVolumeKg(l), 0)
-    const baselineAvgVolume = baselineLogs.length > 0 ? baselineLogs.reduce((s, l) => s + logVolumeKg(l), 0) / 4 : 0
-
-    // [2026-10-29] 출석 = 이번 주 운동한 날 수(하루 여러 번은 1일) / 목표 일수(루틴 파트 수, 2~5일). 리포트 카드와 같은 기준.
-    const attendanceScore = computeAttendanceScore(new Set(thisWeekLogs.map((l) => l.date)).size, attendanceTargetDays)
-    const volumeScore = computeVolumeScore(thisWeekVolume, baselineAvgVolume)
-    const overloadScore = computeOverloadByOccurrence(overloadRangeLogs, fmt(weekStart)).score
-    // [2026-10-27 리뉴얼 W3] 연속 출석 주 보너스 연결(4주 연속마다 +5점, 최대 +20). 이번 주 포함,
-    // 기록(과거 입력 제외)이 1회 이상 있는 주가 끊기지 않고 이어진 주 수.
-    const weeksWithSession = new Set(streakRangeLogs.map((l) => startOfWeekStr(new Date(l.date + 'T00:00:00'))))
-    let streakWeeks = 0
-    for (let k = 0; k > -17; k--) {
-      if (weeksWithSession.has(startOfWeekStr(new Date(), k))) streakWeeks += 1
-      else if (k === 0) continue // 이번 주는 아직 진행 중이라 비어 있어도 연속이 끊기지 않음
-      else break
-    }
-    const streakBonus = computeStreakBonus(streakWeeks)
-    const finalScore = computeFinalScore({ attendanceScore, volumeScore, overloadScore, streakBonus })
+    const rangeLogs = (await getWorkoutLogsInRange(uid, seasonScoreRangeStart(seasonStart), toLocalDateStr(today))).filter((l) => !l.isBackfilled)
+    const { attendanceScore, volumeScore, overloadScore, streakBonus, finalScore } = computeSeasonScore({
+      logs: rangeLogs,
+      seasonStart,
+      today,
+      targetDays: attendanceTargetDays,
+    })
 
     await upsertLeaderboardEntry('all', period, uid, {
       // [2026-10-31] 랭킹 데이터에는 가린 닉네임만 저장(다른 회원이 원래 닉네임을 볼 수 없게)
@@ -243,7 +210,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   // [2026-10-31] 내 순위 카드(누르면 등급·점수 안내) + 상위 10명 목록(다른 회원 닉네임은 첫 글자만, RankingList)
   const myRankIndex = entries.findIndex((e) => e.uid === uid)
   const myEntry = myRankIndex >= 0 ? entries[myRankIndex] : null
-  const myRank = myRankIndex >= 0 ? myRankIndex + 1 : null
+  const myRank = rankAt(entries, myRankIndex) // [2026-11-01] M8: 동점은 같은 순위
 
   // [2026-10-31] 이번 주 요약의 '늘어난 운동' - 비교할 직전 기록이 있는 회차만
   const overloadComparable = overloadProgress.occurrences.filter((o) => !o.isNew)
@@ -301,7 +268,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       </SectionTitle>
       {/* [2026-10-31] 랭킹 공개 안내(개인정보) */}
       <p className="text-keep-all" style={{ margin: '-6px 0 10px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
-        이번 시즌 참여한 회원 전체 점수 기준이에요. 다른 회원에게는 내 닉네임의 첫 글자만 보여요.
+        시즌 동안 주별 점수의 평균으로 순위를 매겨요. 다른 회원에게는 내 닉네임의 첫 글자만 보여요.
       </p>
 
       {showRefreshInfo && (
@@ -315,7 +282,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
         <p style={{ textAlign: 'center', color: 'var(--color-label-neutral)', fontSize: 13, marginBottom: 20 }}>불러오는 중…</p>
       ) : !entries.length ? (
         <div style={{ marginBottom: 20 }}>
-          <EmptyState title="아직 랭킹 데이터가 없어요" description="'내 점수 갱신'을 눌러 이번 주 기록으로 점수를 등록해 보세요." />
+          <EmptyState title="아직 랭킹 데이터가 없어요" description="운동을 완료하면 자동으로 등록돼요. '점수 다시 계산'으로도 등록할 수 있어요." />
         </div>
       ) : (
         <div style={{ marginBottom: 20 }}>

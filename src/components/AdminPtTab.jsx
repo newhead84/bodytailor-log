@@ -1,10 +1,11 @@
 // AdminPtTab.jsx - [2026-10-31] 관리자 대시보드 PT 관리: 월간 정산(트레이너별 완료·노쇼·담당 회원) · 전체 PT 일정 캘린더 · PT 소진 예상 · CSV
 // 완료 횟수 = 완료 처리한 일정 + 일정 없이 완료(ptSessions, scheduleId 없음). 노쇼 = 노쇼 처리한 일정.
 // [2026-11-01] 관리자 PT 정정(상태 바꾸기·차감 취소 + 이력, A4) · 처리 안 된 지난 일정(A20) · 기간 조회 5분 캐시(A27) · CSV 내보내기 이력(A29)
+// [2026-11-01] 2차: 미결제 PT(남은 횟수 0회에 완료한 수업) 결제 후 차감(B4), 탈퇴 회원도 기록에 남은 이름 표시(B26)
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, useConfirm } from './ui'
 import { Badge, isGymMember, muted, sectionTitle, selectStyle, toCsv } from './adminUi'
-import { adminPtRange, adminListOverdueSchedules, adminSetScheduleStatus, adminCancelPtSession, logAdmin } from '../storage'
+import { adminPtRange, adminListOverdueSchedules, adminSetScheduleStatus, adminCancelPtSession, adminSettleUnpaid, logAdmin } from '../storage'
 import { addDays, fmtYmd, memberName } from '../utils/member'
 import { todayStr } from '../utils/date'
 import { downloadText } from '../utils/exportCsv'
@@ -61,6 +62,30 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
   const trainers = users.filter((u) => u.role === '트레이너')
   const color = Object.fromEntries(trainers.map((t, i) => [t.uid, COLORS[i % COLORS.length]]))
   const tName = (uid, fallback) => (byUid[uid] ? memberName(byUid[uid]) : fallback || '(퇴사·탈퇴)')
+  // [2026-11-01] B26: 회원 이름 - 계정이 있으면 지금 이름, 없으면(탈퇴) 기록에 남긴 이름
+  const mName = (x) => (byUid[x?.memberUid] ? memberName(byUid[x.memberUid]) : x?.memberName || '(탈퇴 회원)')
+  const unpaid = (recent?.ses || []).filter((x) => x.unpaid).concat((data?.ses || []).filter((x) => x.unpaid && !(recent?.ses || []).some((y) => y.id === x.id)))
+  async function settle(x) {
+    const u = byUid[x.memberUid]
+    const left = u?.ptRemaining ?? 0
+    if (!u) return confirm('계정이 없는 회원이에요. 기록만 두거나 차감 취소로 정리해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+    if (left <= 0) return confirm(`${mName(x)}님 남은 PT가 0회예요. 회원 탭에서 PT를 먼저 등록(+N회)한 뒤 결제 처리해 주세요.`, { okLabel: '확인', cancelLabel: '닫기' })
+    if (!(await confirm(`${fmtYmd(x.date)} ${mName(x)}님 미결제 PT를 결제 처리할까요? 남은 횟수 ${left}회 → ${left - 1}회가 돼요.`, { okLabel: '결제 처리', cancelLabel: '취소' }))) return
+    setBusy(x.id)
+    try {
+      await adminSettleUnpaid(x)
+      const f = (d) => (d ? { ...d, ses: d.ses.map((y) => (y.id === x.id ? { ...y, unpaid: false } : y)) } : d)
+      setData(f)
+      setRecent(f)
+      await onUserChanged?.(x.memberUid)
+      await logAdmin(admin, { action: 'ptfix', targetUid: x.memberUid, targetName: mName(x), detail: `${x.date} 미결제 PT 결제 처리(남은 ${left}→${left - 1})` })
+    } catch (err) {
+      console.error('미결제 처리 실패:', err)
+      await confirm('처리하지 못했어요. 관리자 계정·Firebase 규칙 게시를 확인해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+    } finally {
+      setBusy('')
+    }
+  }
 
   // 정산
   const rows = useMemo(() => {
@@ -79,8 +104,8 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
 
   function exportCsv() {
     const lines = [['날짜', '시간', '트레이너', '회원', '상태']]
-    data.sch.forEach((s) => lines.push([s.date, s.time, tName(s.trainerUid, s.trainerName), memberName(byUid[s.memberUid]), s.status === 'done' ? '완료' : s.status === 'noshow' ? '노쇼' : '예정']))
-    data.ses.filter((x) => !x.scheduleId && !x.noshow).forEach((x) => lines.push([x.date, '', tName(x.trainerUid, x.trainerName), memberName(byUid[x.memberUid]), '완료(일정 없이)']))
+    data.sch.forEach((s) => lines.push([s.date, s.time, tName(s.trainerUid, s.trainerName), mName(s), s.status === 'done' ? '완료' : s.status === 'noshow' ? '노쇼' : '예정']))
+    data.ses.filter((x) => !x.scheduleId && !x.noshow).forEach((x) => lines.push([x.date, '', tName(x.trainerUid, x.trainerName), mName(x), '완료(일정 없이)']))
     lines.sort((a, b) => (a === lines[0] ? -1 : b === lines[0] ? 1 : (a[0] + a[1]).localeCompare(b[0] + b[1])))
     downloadText(`bodytailor-pt-${ym}.csv`, toCsv(lines))
     logAdmin(admin, { action: 'export', detail: `PT 일정 CSV 내보내기(${ym}, ${lines.length - 1}줄)` })
@@ -102,7 +127,7 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
   async function fixStatus(s, status) {
     if (status === s.status) return
     const ses = sessionOf(s)
-    const name = memberName(byUid[s.memberUid])
+    const name = mName(s)
     let cancel = false
     if (ses && status === 'scheduled') {
       cancel = await confirm(`${fmtYmd(s.date)} ${s.time} ${name}님 일정을 '예정'으로 되돌려요. 이 일정으로 뺀 PT 1회도 돌려줄까요?`, { okLabel: '차감도 취소', cancelLabel: '상태만 바꾸기' })
@@ -125,15 +150,15 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
     }
   }
   async function cancelDeduct(ses) {
-    const name = memberName(byUid[ses.memberUid])
-    if (!(await confirm(`${fmtYmd(ses.date)} ${name}님 PT 차감을 취소할까요? 남은 횟수가 1회 늘고 정산에서 빠져요.${ses.scheduleId ? ' 일정은 예정으로 되돌려요.' : ''}`, { okLabel: '차감 취소', cancelLabel: '닫기' }))) return
+    const name = mName(ses)
+    if (!(await confirm(ses.unpaid ? `${fmtYmd(ses.date)} ${name}님 미결제 기록을 지울까요? 남은 횟수는 그대로이고 정산에서 빠져요.${ses.scheduleId ? ' 일정은 예정으로 되돌려요.' : ''}` : `${fmtYmd(ses.date)} ${name}님 PT 차감을 취소할까요? 남은 횟수가 1회 늘고 정산에서 빠져요.${ses.scheduleId ? ' 일정은 예정으로 되돌려요.' : ''}`, { okLabel: ses.unpaid ? '지우기' : '차감 취소', cancelLabel: '닫기' }))) return
     setBusy(ses.id)
     try {
       await adminCancelPtSession(ses, { reopen: true })
       dropSes(ses.id)
       if (ses.scheduleId) patchSch(ses.scheduleId, 'scheduled')
       await onUserChanged?.(ses.memberUid)
-      await logAdmin(admin, { action: 'ptfix', targetUid: ses.memberUid, targetName: name, detail: `${ses.date} ${ses.noshow ? '노쇼' : 'PT'} 차감 취소(남은 횟수 +1)` })
+      await logAdmin(admin, { action: 'ptfix', targetUid: ses.memberUid, targetName: name, detail: ses.unpaid ? `${ses.date} 미결제 PT 기록 삭제` : `${ses.date} ${ses.noshow ? '노쇼' : 'PT'} 차감 취소(남은 횟수 +1)` })
     } catch (err) {
       console.error('차감 취소 실패:', err)
       await confirm('차감을 취소하지 못했어요.', { okLabel: '확인', cancelLabel: '닫기' })
@@ -195,7 +220,7 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
         {!overdue ? <p style={muted}>불러오는 중…</p> : !overdue.length ? <p style={muted}>없어요. 정산 누락이 없어요.</p> : overdue.slice(0, 50).map((s, i) => (
           <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '8px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 15.5 }}>
             <button type="button" onClick={() => byUid[s.memberUid] && onOpenMember(byUid[s.memberUid])} style={{ textAlign: 'left', color: 'var(--color-label-strong)', fontSize: 15.5 }}>
-              <b className="bt-num">{fmtYmd(s.date)} {s.time}</b> {memberName(byUid[s.memberUid])} <span style={muted}>· {tName(s.trainerUid, s.trainerName)}</span>
+              <b className="bt-num">{fmtYmd(s.date)} {s.time}</b> {mName(s)} <span style={muted}>· {tName(s.trainerUid, s.trainerName)}</span>
             </button>
             {fixCtl(s)}
           </div>
@@ -203,6 +228,22 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
         {overdue && overdue.length > 50 && <p style={{ ...muted, margin: '6px 0 0' }}>앞 50건만 보여요.</p>}
         {overdue && overdue.length > 0 && <p className="text-keep-all" style={{ ...muted, margin: '8px 0 0' }}>여기서 완료·노쇼로 바꾸면 상태만 바뀌어요(남은 PT 차감은 담당 트레이너 화면에서). 차감을 바로잡을 때는 날짜를 눌러 '차감 취소'를 써요.</p>}
       </Card>
+
+      {unpaid.length > 0 && (
+        <Card>
+          <p style={sectionTitle}>미결제 PT <span style={{ ...muted, fontWeight: 500 }}>(남은 PT가 없을 때 트레이너가 완료한 수업)</span></p>
+          {unpaid.map((x, i) => (
+            <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '8px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 15.5 }}>
+              <span><b className="bt-num">{fmtYmd(x.date)}</b> {mName(x)} <span style={muted}>· {tName(x.trainerUid, x.trainerName)} · 남은 PT {byUid[x.memberUid]?.ptRemaining ?? 0}회</span></span>
+              <span style={{ display: 'flex', gap: 6 }}>
+                <button type="button" className="adm-act primary" disabled={busy === x.id} onClick={() => settle(x)}>결제 후 차감</button>
+                <button type="button" className="adm-act" disabled={busy === x.id} onClick={() => cancelDeduct(x)}>기록 지우기</button>
+              </span>
+            </div>
+          ))}
+          <p className="text-keep-all" style={{ ...muted, margin: '8px 0 0' }}>회원이 PT를 다시 등록하면 '결제 후 차감'으로 남은 횟수에서 1회를 빼요. 잘못 남긴 기록은 지워요(남은 횟수는 그대로).</p>
+        </Card>
+      )}
 
       <Card>
         <p style={sectionTitle}>트레이너별 정산</p>
@@ -268,7 +309,7 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
             {!(schByDay[day] || []).length ? <p style={muted}>일정이 없어요.</p> : schByDay[day].map((s) => (
               <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', width: '100%', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)', fontSize: 15.5 }}>
                 <button type="button" onClick={() => byUid[s.memberUid] && onOpenMember(byUid[s.memberUid])} style={{ textAlign: 'left', color: 'var(--color-label-strong)', fontSize: 15.5 }}>
-                  <b className="bt-num">{s.time}</b> {memberName(byUid[s.memberUid])}{' '}
+                  <b className="bt-num">{s.time}</b> {mName(s)}{' '}
                   <span style={muted}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: color[s.trainerUid], marginRight: 4 }} />{tName(s.trainerUid, s.trainerName)}{sessionOf(s) ? ' · 차감됨' : ''}</span>
                 </button>
                 {fixCtl(s)}
@@ -276,7 +317,7 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
             ))}
             {(data?.ses || []).filter((x) => x.date === day && !x.scheduleId).map((x) => (
               <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)', fontSize: 15.5 }}>
-                <span>{memberName(byUid[x.memberUid])} <span style={muted}>· {tName(x.trainerUid, x.trainerName)} · 일정 없이 1회 완료</span></span>
+                <span>{mName(x)} <span style={muted}>· {tName(x.trainerUid, x.trainerName)} · 일정 없이 1회 완료</span></span>
                 <button type="button" className="adm-act" disabled={busy === x.id} onClick={() => cancelDeduct(x)}>차감 취소</button>
               </div>
             ))}

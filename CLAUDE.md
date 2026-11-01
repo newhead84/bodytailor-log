@@ -2,7 +2,7 @@
 
 > 이 파일은 저장소 루트에 두고 Claude가 작업 시작 시 항상 먼저 읽는 작업 지침이다.
 > claude.ai 프로젝트 지침과 내용이 다르면 **이 파일이 최신 기준**이다. 규칙이 바뀌면 이 파일을 갱신하고 커밋한다.
-> 최종 갱신: 2026-11-01 (전체 점검 반영: 입력값 확인·저장 실패 처리·관리자 정합성·보안 규칙 강화, 법적 정비 구현·Spark 한도 절약·홍보 페이지 문장 단위 줄바꿈, Phase2 P2-1 회원 승인·관리자 대시보드·P2-2 트레이너 연결, 다음 무게 추천 고도화, 법적·라이선스 기준·다음 작업 인계 추가, 스트레칭 가이드·목표 5종, 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 개선·등급 방패 아이콘, 자동 저장 검토 팝업·MY 설정 화면, 온보딩 닉네임·주당 목표, 디자인 기본값·MY 접기, 등급 Lv 리뉴얼·전면 점검 반영, 옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
+> 최종 갱신: 2026-11-01 (2차 점검 반영: 랭킹 시즌 평균·미결제 PT·트레이너 HOME·memberPrivate·App Check·기록 트랜잭션, 전체 점검 반영: 입력값 확인·저장 실패 처리·관리자 정합성·보안 규칙 강화, 법적 정비 구현·Spark 한도 절약·홍보 페이지 문장 단위 줄바꿈, Phase2 P2-1 회원 승인·관리자 대시보드·P2-2 트레이너 연결, 다음 무게 추천 고도화, 법적·라이선스 기준·다음 작업 인계 추가, 스트레칭 가이드·목표 5종, 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 개선·등급 방패 아이콘, 자동 저장 검토 팝업·MY 설정 화면, 온보딩 닉네임·주당 목표, 디자인 기본값·MY 접기, 등급 Lv 리뉴얼·전면 점검 반영, 옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
 
 ---
 
@@ -59,7 +59,9 @@
 - `firestore.rules`: 본인 uid만 읽기/쓰기. `users`의 `role/roleRequestStatus/tier/lifetimeBadges/trainerProfile`은 클라이언트 수정 불가, XP는 1회 변경 −200~+200·0 이상(자동 저장 되돌리기 시 감소, 시즌 전환 시 리셋 허용), `leaderboard`는 필드 화이트리스트+점수 0~200, `exercisePopularity`는 counts 맵만, `activeSessions/{uid}`는 본인만.
 - 회원 승인(2026-10-31 P2-1): 새 users 문서는 `memberStatus:'pending'`으로만 생성(tier·badges·trainerProfile 기본값 강제), 본인은 memberStatus·approvedAt·approvedBy·memberNo·rosterId·statusUpdatedAt 변경 불가. 관리자(`role=='관리자'`)는 전체 users 읽기 + 승인·역할 필드만 수정(본인 관리자 권한 해제 불가). `isApproved()`(memberStatus 없음=기존 계정 승인, 관리자 항상)가 아니면 workoutLogs·routineTemplates·activeSessions·leaderboard·exercisePopularity 쓰기 거부. `gymRoster`는 관리자만. 트레이너 연결(P2-2): `connections/{trainerUid_memberUid}` 생성·재활성은 관리자, 종료(status 'ended')는 관리자·당사자, 읽기는 관리자·당사자. `isTrainerOf(uid)`(활성 연결 + 트레이너 역할)면 그 회원의 workoutLogs 읽기와 users 문서 읽기 허용(PT 회원 신체정보·목표 트레이너 공유 - 쓰기 불가, 연결 종료 시 즉시 차단). P2-3: 담당 트레이너는 그 회원 routineTemplates 읽기 + `byTrainer.uid`가 자기인 계획만 생성·수정·삭제(`trainerPlanOk` 필드 화이트리스트). 회원 본인은 `byTrainer`를 새로 넣거나 바꿀 수 없음. 본인 `signupInfo`는 승인 대기·거절·첫 입력일 때만 수정 가능. 회원권(2026-10-31): `isApproved()`는 `membershipEndAt`(종료일 23:59:59 KST)이 지나면 거부(트레이너·관리자 예외, 없으면 제한 없음 - 관리자도 회원권·PT·트레이너 연결 대상이지만 만료돼도 막지 않고 표시만, 트레이너만 회원권 대상 제외), 회원권·PT 필드는 본인 수정 불가(lockedUserKeys)·관리자 수정. PT 차감: `settings/app.ptDeductEnabled`가 켜져 있을 때만 담당 트레이너가 users.ptRemaining ±1(0~ptTotal) + `ptSessions` 생성·삭제. `trainerProfiles`는 로그인 사용자 읽기·관리자 쓰기(사진 최대 3장). `ptSchedules`는 담당 트레이너 생성·완료(status/doneAt/date/time만)·삭제, 당사자·관리자 읽기. `inquiries`는 본인·관리자 삭제 가능. 탈퇴(2026-10-31): 본인 users 문서 삭제 허용(다시 가입하면 pending으로 새로 생성), workoutLogs·routineTemplates·leaderboard 본인 삭제는 isApproved 없이 허용(만료·대기 계정도 탈퇴 가능). 대시보드 확장(2026-10-31): `adminNotes` 관리자만, `adminLogs`는 수정·삭제 불가이고 생성은 관리자 + 담당 트레이너 action 'pt'(isTrainerOf) + 본인 action 'withdraw'(이름 없이 '회원 1명 탈퇴')만 - 화면은 `logAction()`(App이 `setLogActor`로 관리자·트레이너 지정)으로 남긴다, `gymStats`는 승인 회원이 sessions +1씩만·관리자만 읽기, pauseStart/pauseEnd는 관리자 필드, ptSchedules status에 noshow, ptSessions에 noshow, settings에 noshowPolicy. 규칙을 바꾸면 배포 후 콘솔 게시(에뮬레이터 없음 - 콘솔 규칙 플레이그라운드로 확인).
 - 전체 점검 강화(2026-11-01): PT 차감은 `users.ptSessionRef` + 같은 일괄 쓰기의 ptSessions 생성(-1)·삭제(+1)로만(`ptPairOk`, 관리자 수동 수정·삭제는 예외) / `exercisePopularity`는 `names`(≤8)에 적은 종목만 정수 1~30 증가 / 문의는 users 문서 필요·필드 화이트리스트·`users.lastInquiryAt`과 함께 1분 간격 / XP 증가 쓰기는 `users.xpAt == request.time` + 직전 2분 경과(감소는 예외, 거부되면 addWorkoutLog가 XP 없이 재저장) / leaderboard 점수 0~100·보너스 0~20·finalScore는 공식 ±1·≤125, 그룹 'all', 기간 `season-YYYY-Q`, 읽기는 `isApproved() || isStaff()` / adminLogs: 트레이너 'pt'·'plan'·'goal'(isTrainerOf), 트레이너 'guide'(대상 없음), 'withdraw'는 deletedAccounts를 처음 만드는 같은 일괄 쓰기에서만 / gymStats는 `hk`·`dk` 한 칸만 +1 / users 필드 크기 검사(닉네임 30자 등), workoutLogs 종목 ≤60 / 동의 전에는 users 문서를 만들지 않음(`createUserDoc`) / 회원은 goalProposal 지우기·goalByTrainer 수락·seen만 / 거절 회원은 `reReviewRequested`·`reReviewAt` 쓰기 가능(관리자 해제) / `pauses`는 관리자 필드 / 탈퇴 시 본인 ended 연결의 memberName·memberNickname 비움 / `exerciseGuides/{id}/history` 트레이너·관리자 읽기·생성.
-- **배포 순서(2026-11-01 강화분)**: 새 클라이언트 + 옛 규칙이면 트레이너 PT 차감이 거부되고, 옛 클라이언트 + 새 규칙이면 PT 차감·인기 운동·gymStats가 거부된다 → 푸시(배포) 직후 바로 콘솔에서 규칙 게시.
+- 2차 점검 강화(2026-11-01): 번호 해시는 `memberPrivate/{uid}`(본인·관리자, 앱을 열 때 users.signupInfo.phoneHash에서 옮기고 지움 - AppGuards) / `trainerNotes/{트레이너uid_회원uid}`(담당 트레이너·관리자, 1000자, 탈퇴 표시가 있으면 회원 본인 삭제) / ptSessions `unpaid`(남은 0회 완료, 짝 검사 없이 생성, 관리자만 unpaid·settledAt 수정) - **미결제 기록으로는 users.ptRemaining ±1 불가** / 담당 트레이너 `users.ptLastChange` / 회원 연결 해제 시 'disconnect' 이력(이름 없음)·그 트레이너와의 '예정' 일정 삭제 / adminLogs·leaderboard는 관리자가 2년 지난 이력·지난 시즌 삭제 / inquiries `type:'pt'`·`trainerId` / settings `staleDays`·`ptLowCount`·`expireSoonDays`(정수 1~365). App Check는 `VITE_APPCHECK_SITE_KEY`가 있을 때만 초기화(콘솔 Enforce 전에는 막지 않음). 관리자 복구용 bootstrap 규칙은 만들지 않음(get() 한도·관리자 이메일 노출) - 관리자를 2명 이상 둔다.
+- 알고 있는 낮은 위험(2차 검토): 'disconnect' 이력은 연결 종료와 묶여 있지 않아 반복 기록 가능 / XP는 2분마다 +200까지 기록 없이 쓸 수 있음(본인 등급 표시만) / 예전 승인 계정은 memberPrivate 첫 생성 때 해시를 임의로 넣을 수 있음(명단 대조만 영향) / 연결이 끝난 회원은 그 트레이너의 지난 '예정' 일정도 지울 수 있음.
+- **배포 순서(2026-11-01 강화분)**: 새 클라이언트 + 옛 규칙이면 트레이너 PT 차감이 거부되고, 옛 클라이언트 + 새 규칙이면 PT 차감·인기 운동·gymStats가 거부된다 → 푸시(배포) 직후 바로 콘솔에서 규칙 게시. 2차분도 같음: 새 클라이언트 + 옛 규칙이면 PT 일정 등록·차감·탈퇴가 막힌다(온보딩·대기 화면 저장, 연결 해제는 옛 방식으로 넘어감).
 - 규칙 파일을 바꾸면 **코드 배포 후 Firebase 콘솔에서 규칙 게시**가 필요함을 안내한다(로컬 에뮬레이터 없음).
 - `.env`는 .gitignore 포함·이력 노출 여부 확인. 실질 보안은 Rules + 승인된 도메인(Authorized domains).
 - Google 로그인: Firebase Authentication → 승인된 도메인에 배포 주소가 등록돼 있는지 확인.
@@ -169,6 +171,7 @@
 - **운동 목표 맞춤 기준**(2026-10-30, `utils/goals.js`): `onboarding.goals` 배열 순서 = 우선순위. 1순위 기준 + 2순위 1/3 + (유산소만) 3순위 1/6 → 목표 반복·자동 휴식·부위별 주간 세트·주간 유산소. 가입 8주 미만(`users.createdAt`)은 주간 세트 상한 12·하한 6. App이 렌더 중 `setTrainingProfile`(setBodyweightKg와 같은 방식), 화면은 `getTrainingProfile()`. 옛 라벨(3종·1차 7종)은 `normalizeGoals`로 변환. 목표를 추가할 때는 프로그램(반복·휴식·세트·유산소·체크 카드)이 실제로 달라지는 경우만 - 비슷한 목표는 합친다(2026-10-30 사용자 지적). 목표별 값을 바꾸면 온보딩·MY 요약 문구(describeTrainingProfile)가 같이 바뀐다.
 - 근육별 주간 세트(직접 1·보조 0.5, 하체는 앞/뒤로 나눔, 목표 기준 권장 밴드(근육량 10–20), '부족'은 4세트 미만만, 코어는 범위 없음, 이번 주는 진행 중인 세션의 체크한 세트 포함), 최근 PR, 정체 종목(최근 3회 e1RM이 직전 3–6회 최고 이하, 6회 이상 기록 종목)·디로드 제안(6주 연속 고강도 + 정체 종목 또는 최근 2주 RIR 0–1 비율 30% 이상), 유산소 주간 분/목표 분(운동 목표 기준, 고강도 ×2 환산 `isVigorousCardio`), 골밀도 목표 체크(목표에 골밀도가 있으면, 하체 = 스쿼트·힌지·런지 패턴), 밀기·당기기 균형(최근 2주, 당기기 ≥ 밀기 0.8배, 자세·코어 목표면 코어 체크 - `BalanceCard`), 종목 추이는 추정 1RM.
 - 랭킹 점수: 출석 40%·볼륨 30%·과부하 30% + 연속 출석 보너스(4주마다 +5, 최대 +20, 16주 조회). 운동 완료 시 자동 갱신.
+  - (2026-11-01) 전체 랭킹 = 시즌 주별 점수 평균(`scoring.computeSeasonScore`): 시즌 안 첫 운동 주부터 평균, 그 뒤 쉰 주는 0점, 진행 중인 이번 주는 평균을 올릴 때만 포함. 동점은 같은 순위(`rankAt`). 문구는 TierInfoScreen·ReportTab.
   - 출석 = 이번 주 운동한 날 수(하루 여러 번은 1일) / 목표 일수(`users.weeklyTargetDays`, 없으면 첫 루틴 파트 수, 2~6일). 리포트 출석률 카드도 같은 기준(랭킹만 과거 추가 기록 제외).
   - 볼륨 기준 = 이번 주 직전 4주(지난주 일요일까지) 평균.
 - 시즌 XP: 분기마다 초기화(`seasonKey`), 누적 XP(`lifetimeXp`) 유지. 티어는 시즌 XP 기준(세션당 기본 50XP, 자유운동 0.7배, 볼륨 보너스 최대 80·시간 보너스 75분까지 최대 25·신기록 1개당 +10 최대 20 - 2026-10-30). 티어 키 iron/bronze/silver/gold/platinum/diamond/legend.
@@ -226,7 +229,10 @@ gymRoster/{no_회원번호 | ph_해시앞20자}: { name, phoneHash, phoneLast4, 
 // 트레이너 목표(2026-11-01): users.goalProposal { goals, weeklyTargetDays, byUid, byName, at } | null, users.goalByTrainer { byUid, byName, at, seen, accepted } | null
 // 전체 점검(2026-11-01): users.xpAt, lastInquiryAt, ptSessionRef, pauses[{start,end,days,at}](pauseStart/End = 최근 휴회), reReviewRequested, reReviewAt
 //   exercisePopularity.names[] · gymStats.hk/dk(이번에 +1 할 칸) · adminNotes.rejectReason, renewal.reason · exerciseGuides/{id}/history/{h}(이전 본, savedBy·savedAt)
-connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, memberName, memberNickname, status:'active'|'ended', startedAt, createdBy, endedAt?, endedBy? }
+// 2차 점검(2026-11-01): memberPrivate/{uid} { phoneHash }, trainerNotes/{T_M} { trainerUid, memberUid, text, updatedAt }, users.ptLastChange · goalProposalResult,
+//   ptSessions.memberName · unpaid · settledAt, ptSchedules.memberName, connections.history[{startedAt,endedAt,endedBy}], inquiries.type('pt') · trainerId,
+//   settings/app.staleDays · ptLowCount · expireSoonDays, workoutLogs.saveNonce(트랜잭션 저장 확인용)
+connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, memberName, memberNickname, status:'active'|'ended', startedAt, createdBy, endedAt?, endedBy?, history? }
 ```
 - 종목키 = `이름` 또는 `이름::그립`(그립이 다르면 별개 종목으로 집계).
 - 옛 종목명은 읽을 때 정규화: 기록은 `storage.js readLogDoc → normalizeLogExercises()`(그립 통합 전 이름은 `LEGACY_EXERCISE_GRIP_MAP`으로 grip도 채움), 루틴은 `normalizeExerciseNames()`. PR 맵에 옛 이름 키가 있으면 App이 한 번 재계산.
@@ -253,7 +259,10 @@ connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, member
 - 운영 세팅 추가(2026-10-31 2차): ⑦ (완료) rules 재게시 ⑧ 처리방침 보호책임자 이름·연락처 확정 ⑨ 앱 아이콘·트레이너 사진 출처 확인(`docs/ASSET_SOURCES.md`).
 - 완료(2026-10-31 3차): 관리자 대시보드 확장(요약·회원 상세·재등록·휴회·회원 CSV·PT 정산·노쇼 설정·일정 캘린더·소진 예상·통계·관리 이력), 관리자도 회원권·PT 대상, 홍보 페이지 줄바꿈 B, 긴 줄표 전면 제거.
 - 완료(2026-11-01 전체 점검): 점검 문서 `claude/BodyTailor_Log_전체점검_20261101.md`(U·A·S 항목) 반영 - 입력값 확인(`utils/inputCheck.js`, 막지 않고 '맞나요?'), 저장 실패 처리, 관리자 PT 정정·휴회 이력·명단 재업로드 보존, 보안 규칙 강화(4장), 앱 소개 링크 복사·공유. 남긴 것: U11 기기 뒤로가기 확인, U21 캘린더 스테퍼, A19 담당 회원 목록 남은 PT, A39 일괄 작업, S6 번호 해시 분리, S3 App Check, S20 동시 완료 트랜잭션.
-- 2차 점검(2026-11-01, 운영·트레이너 B1~B33, 회원 경험)은 같은 문서에 추가 - 사용자 우선순위 확인 대기.
+- 완료(2026-11-01 2차 점검): 회원 경험(랭킹 시즌 평균·안전영역·청크 오류 복구·화면 꺼짐 방지·알림·오프라인 sw v2 등) + 운영·트레이너 B1~B33(B21 겹침 확인·B24 bootstrap 제외) + A19·A39·S3·S6·S20, U11·U21. 1차 '남긴 것'도 모두 처리.
+- 확인 대기(사용자 결정): 처리방침에 트레이너 메모·PT 상담·2년 보존·memberPrivate를 적었지만 `CONSENT_VERSION`은 올리지 않음(다시 동의 받을지).
+- 실기기 확인 필요: iOS 설치 앱 안전영역·팝업 로그인, 화면 꺼짐 방지, 안드로이드 서비스워커 휴식 알림, sw v2 이후 오프라인·업데이트, 루틴 편집 나가기 확인, 320px 글자 크기.
+- 운영자 콘솔(2차): 규칙 게시(배포 직후) / App Check 선택(reCAPTCHA v3 사이트 키 → Vercel `VITE_APPCHECK_SITE_KEY` → 재배포 → 측정값 충분하면 Enforce) / 관리자 2명 이상 / 새 색인 없음.
 - 다음 할 일 후보: 랭킹 100위 밖 내 순위, `WorkoutInput.jsx` 분리, 홍보 페이지 새 화면 캡처(가이드·스트레칭·PT 일정), 식단(Phase2).
 - 알고 있는 낮은 위험(보류): 담당 트레이너는 회원 users 문서 전체 읽기(phoneHash 포함, 화면 미표시) / 일반 목록·랭킹 XP는 클라이언트 계산.
 - QA 하네스 메모: 스크래치 클론 + `vite.harness.config.mjs`(firebase → 메모리 목업) 방식. 새 채팅에서 클론을 다시 만들 때 장치 폴더와 파일이 어긋나지 않게 git archive 스냅샷으로 동기화할 것(부분 복사로 옛 파일이 덮인 사례 있음).

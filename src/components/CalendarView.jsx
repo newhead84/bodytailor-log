@@ -9,6 +9,7 @@ import {
   getExercisesForPart,
   getExerciseInputType,
   getExerciseAtom,
+  getWeightStep,
 } from '../utils/exerciseLibrary'
 import { getHolidaysForMonth } from '../utils/holidays'
 import { getCardioFieldsForSet, formatCardioSet, makeCardioSet, toSavedCardioSet } from '../utils/cardioFields'
@@ -225,6 +226,9 @@ function EditLogForm({
   const hasExercises = (editDraft?.exercises?.length || 0) > 0
   // [2026-10-29] 복사 후 날짜 칸이 원래 날짜로 돌아가므로, 복사한 날짜를 그대로 보여 준다
   const justCopied = !!copiedToDate
+  // [2026-11-01] U21: 세트 줄의 ± 버튼을 누르면 그 세트 아래에 무게·횟수 스테퍼 줄이 열린다(320px에서도 한 줄에 들어가게 따로 줄을 씀)
+  const [stepperKey, setStepperKey] = useState(null)
+  const bump = (v, d) => String(Math.max(0, Math.round(((Number(v) || 0) + d) * 100) / 100))
   return (
     <Card style={{ marginBottom: 10 }}>
       {/* [2026-10-29] 운동 시간(웜업·본운동 분) - 저장하면 총 운동 시간·칼로리도 다시 계산 */}
@@ -283,11 +287,11 @@ function EditLogForm({
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{ex.name}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {ex.sets.map((s, setIdx) => (
-              // [2026-07-30 신규] 운동명이 길거나(카디오처럼 입력창이 많은 경우) 세트 행 전체
-              // 너비가 화면보다 커지면 오른쪽(특히 삭제 버튼)이 잘리던 문제 → 잘라내는 대신
-              // 행 자체를 가로 스크롤 가능하게 해서 끝까지 확인/조작할 수 있도록 변경.
+              <React.Fragment key={setIdx}>
+              {/* [2026-07-30 신규] 운동명이 길거나(카디오처럼 입력창이 많은 경우) 세트 행 전체
+                  너비가 화면보다 커지면 오른쪽(특히 삭제 버튼)이 잘리던 문제 → 잘라내는 대신
+                  행 자체를 가로 스크롤 가능하게 해서 끝까지 확인/조작할 수 있도록 변경. */}
               <div
-                key={setIdx}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -350,11 +354,33 @@ function EditLogForm({
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
                   </>
                 )}
+                {ex.inputType !== 'cardio' && (
+                  <button
+                    type="button"
+                    onClick={() => setStepperKey((k) => (k === `${exIdx}-${setIdx}` ? null : `${exIdx}-${setIdx}`))}
+                    aria-label="스테퍼로 조정"
+                    aria-expanded={stepperKey === `${exIdx}-${setIdx}`}
+                    className="bt-num"
+                    style={{
+                      marginLeft: 'auto',
+                      width: 30,
+                      height: 30,
+                      flexShrink: 0,
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--color-line)',
+                      background: stepperKey === `${exIdx}-${setIdx}` ? 'var(--color-bg-elevated)' : 'transparent',
+                      color: 'var(--color-label-strong)',
+                      fontSize: 15,
+                    }}
+                  >
+                    ±
+                  </button>
+                )}
                 <button
                   onClick={() => onDeleteSet(exIdx, setIdx)}
                   aria-label="세트 삭제"
                   style={{
-                    marginLeft: 'auto',
+                    marginLeft: ex.inputType !== 'cardio' ? 0 : 'auto',
                     width: 24,
                     height: 24,
                     display: 'flex',
@@ -367,6 +393,45 @@ function EditLogForm({
                   <X size={14} strokeWidth={2} />
                 </button>
               </div>
+              {stepperKey === `${exIdx}-${setIdx}` && ex.inputType !== 'cardio' && (() => {
+                const wStep = getWeightStep(ex.name)
+                const rStep = repsUnit(ex.name) === '초' ? 5 : 1
+                const btns = [
+                  ...(ex.inputType === 'reps' ? [] : [
+                    { label: `−${wStep}`, aria: `무게 ${wStep} 빼기`, on: () => onUpdateSet(exIdx, setIdx, 'weight', bump(s.weight, -wStep)) },
+                    { label: `+${wStep}`, aria: `무게 ${wStep} 더하기`, on: () => onUpdateSet(exIdx, setIdx, 'weight', bump(s.weight, wStep)) },
+                  ]),
+                  { label: `−${rStep}`, aria: `${repsUnit(ex.name)} ${rStep} 빼기`, on: () => onUpdateSet(exIdx, setIdx, 'reps', bump(s.reps, -rStep)) },
+                  { label: `+${rStep}`, aria: `${repsUnit(ex.name)} ${rStep} 더하기`, on: () => onUpdateSet(exIdx, setIdx, 'reps', bump(s.reps, rStep)) },
+                ]
+                return (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {btns.map((b, bi) => (
+                      <button
+                        key={b.aria}
+                        type="button"
+                        onClick={b.on}
+                        aria-label={b.aria}
+                        className="bt-num"
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          height: 40,
+                          marginLeft: ex.inputType !== 'reps' && bi === 2 ? 6 : 0,
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-line)',
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-label-strong)',
+                          fontSize: 14,
+                        }}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
+              </React.Fragment>
             ))}
           </div>
           <button
@@ -564,7 +629,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   const loadMonth = useCallback(async () => {
     // [2026-08-02 신규] 전월 날짜 패딩(⑧)에도 기록을 표시하기 위해, 이번 달 1일 앞에 채워지는
     // 이전 달 말일들도 함께 조회 범위에 포함한다.
-    const firstDayOfWeek = new Date(cursor.year, cursor.month, 1).getDay()
+    // [2026-11-01] M6: 주는 월요일 시작(통계와 같은 기준) - 월요일 0 ~ 일요일 6
+    const firstDayOfWeek = (new Date(cursor.year, cursor.month, 1).getDay() + 6) % 7
     const prevMonthLastDate = new Date(cursor.year, cursor.month, 0)
     const daysInPrevMonth = prevMonthLastDate.getDate()
     const paddingStartDay = daysInPrevMonth - firstDayOfWeek + 1
@@ -635,7 +701,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   // 처럼 오인하기 쉬웠다. 이제 그 자리에 실제 이전 달 날짜(회색조)와 그날 기록을 함께 표시하고,
   // 클릭하면 달력 자체는 이동하지 않고 하단에 그 날짜의 상세 정보만 보여준다.
   const grid = useMemo(() => {
-    const firstDayOfWeek = new Date(cursor.year, cursor.month, 1).getDay()
+    const firstDayOfWeek = (new Date(cursor.year, cursor.month, 1).getDay() + 6) % 7 // [2026-11-01] M6: 월요일 시작
     const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate()
     const prevMonthLastDate = new Date(cursor.year, cursor.month, 0)
     const daysInPrevMonth = prevMonthLastDate.getDate()
@@ -1069,14 +1135,15 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
-        {['일', '월', '화', '수', '목', '금', '토'].map((d, idx) => (
+        {['월', '화', '수', '목', '금', '토', '일'].map((d, idx) => (
           <div
             key={d}
             style={{
               textAlign: 'center',
               fontSize: 12,
               // [2026-07-30 신규] 일요일 빨강 / 토요일 파랑, 요일 헤더도 날짜 숫자와 동일 톤으로 통일(⑥)
-              color: idx === 0 ? 'var(--color-danger)' : idx === 6 ? 'var(--color-info)' : 'var(--color-label-neutral)',
+              // [2026-11-01] M6: 월요일 시작이라 토요일 5, 일요일 6
+              color: idx === 6 ? 'var(--color-danger)' : idx === 5 ? 'var(--color-info)' : 'var(--color-label-neutral)',
               padding: '4px 0',
             }}
           >
@@ -1114,9 +1181,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
             summary.atomList.forEach((a) => summaryRows.push({ kind: 'atom', ...a }))
           }
           const visibleRows = summaryRows
-          // [2026-07-30 신규] 요일 기준 색상(⑥): 그리드는 항상 일요일(0)~토요일(6) 순으로
-          // 배치되므로, 그리드 인덱스를 7로 나눈 나머지가 곧 요일이다.
-          const dow = i % 7
+          // [2026-07-30 신규] 요일 기준 색상(⑥). [2026-11-01] M6: 그리드가 월요일 시작이라 실제 날짜의 요일(일 0, 토 6)로 판정
+          const dow = new Date(cell.y, cell.m, cell.day).getDay()
           // [2026-08-02 신규] 전월 패딩 날짜는 회색조(옅은 색)로 눌러줘서 "지난 달"임을
           // 한눈에 인식하게 하되, 일요일/공휴일/토요일 색상 구분은 그대로 적용한다(⑧).
           const dateColor = isSelected
@@ -1355,25 +1421,26 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div style={{ fontWeight: 700 }}>{log.date}</div>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {/* [2026-11-01] 터치 영역 40px, 삭제는 수정과 떨어뜨려 잘못 누르지 않게 */}
+                    <div style={{ display: 'flex', gap: 2, alignItems: 'center', margin: '-6px -8px -6px 0' }}>
                       <button
                         onClick={() => handleCopyLog(log)}
                         aria-label="복사"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-sm)', color: copiedLogId === log.id ? 'var(--color-success)' : 'var(--color-primary-strong)' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 'var(--radius-sm)', color: copiedLogId === log.id ? 'var(--color-success)' : 'var(--color-primary-strong)' }}
                       >
                         <Copy size={16} strokeWidth={1.8} />
                       </button>
                       <button
                         onClick={() => startEdit(log)}
                         aria-label="수정"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-sm)', color: 'var(--color-primary-strong)' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 'var(--radius-sm)', color: 'var(--color-primary-strong)' }}
                       >
                         <Pencil size={16} strokeWidth={1.8} />
                       </button>
                       <button
                         onClick={() => handleDeleteLog(log)}
                         aria-label="삭제"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-sm)', color: 'var(--color-label-neutral)' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, marginLeft: 12, borderRadius: 'var(--radius-sm)', color: 'var(--color-label-neutral)' }}
                       >
                         <Trash2 size={16} strokeWidth={1.8} />
                       </button>

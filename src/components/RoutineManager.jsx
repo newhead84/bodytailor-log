@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { Button, Card, ScreenHeader, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine } from '../storage'
@@ -11,22 +11,28 @@ const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 
 // [2026-07-28 신규] "내 루틴"을 최대 8개까지 만들고, 각각 이름을 붙여 관리하는 화면.
 // isFirstSetup === true면 아직 루틴이 하나도 없는 상태(온보딩 직후)로,
-// 최소 1개는 만들어야 메인 화면으로 넘어갈 수 있지만, "나중에 입력"으로 건너뛸 수도 있다.
+// 최소 1개는 만들어야 메인 화면으로 넘어갈 수 있지만, "나중에"로 건너뛸 수도 있다.
 export default function RoutineManager({ uid, templates, customExercises, onChanged, onClose, onSkip, isFirstSetup, weeklyTargetDays = 3 }) {
   const confirm = useConfirm()
-  const [editingId, setEditingId] = useState(isFirstSetup ? 'new' : null) // null | 'new' | templateId
+  // [2026-11-01] H3: 첫 설정은 빈 편집기 대신 분할 템플릿 목록(주 N일 추천이 맨 위)부터 보여준다. 직접 만들기·나중에도 그대로.
+  const firstEmpty = isFirstSetup && templates.length === 0
+  const [editingId, setEditingId] = useState(null) // null | 'new' | templateId
   const [error, setError] = useState('')
   // [2026-07-28] MY탭에만 있던 "분할운동 템플릿에서 추가"를 이 화면에도 제공.
-  const [pickingSplitTemplate, setPickingSplitTemplate] = useState(false)
+  const [pickingSplitTemplate, setPickingSplitTemplate] = useState(firstEmpty)
+  const recommendedKey = recommendedSplitKey(weeklyTargetDays || 3)
+  const sortedPresets = [...SPLIT_TEMPLATE_PRESETS].sort((a, b) => (b.key === recommendedKey) - (a.key === recommendedKey))
   const [addingTemplateKey, setAddingTemplateKey] = useState(null)
 
   // [2026-07-29] "+ 새 루틴 추가"/"수정"으로 들어가는 RoutineSetup 화면도 상단에
   // "← 취소하고 돌아가기"가 있는 화면 전환이므로, 기기 뒤로가기로도 닫히도록 연결한다.
-  // 단, 최초 설정(isFirstSetup)에서 루틴이 하나도 없어 취소 자체가 불가능한 경우는 제외.
-  const canCancelEditing = !(isFirstSetup && templates.length === 0)
+  // [2026-11-01] H3: 첫 설정에서도 편집기를 닫으면 템플릿 목록으로 돌아온다.
+  const canCancelEditing = true
   const ownCount = templates.filter(isOwnRoutine).length // [P2-3] 트레이너 계획은 5개 제한에서 제외
   const closeEditing = useCallback(() => setEditingId(null), [])
-  useBackableScreen(!!editingId && canCancelEditing, closeEditing)
+  // [2026-11-01] U11: 기기 뒤로가기도 저장 안 한 변경이 있으면 RoutineSetup이 확인한다
+  const leaveGuardRef = useRef(null)
+  useBackableScreen(!!editingId && canCancelEditing, closeEditing, () => leaveGuardRef.current?.())
 
   async function handleAddSplitTemplate(preset) {
     if (ownCount >= MAX_ROUTINES) {
@@ -54,8 +60,9 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
       <RoutineSetup
         initialTemplate={target}
         customExercises={customExercises}
-        canCancel={!(isFirstSetup && templates.length === 0)}
-        onSkip={isFirstSetup && templates.length === 0 ? onSkip : null}
+        canCancel={canCancelEditing}
+        onSkip={firstEmpty ? onSkip : null}
+        leaveGuardRef={leaveGuardRef}
         onCancel={() => {
           setError('')
           closeEditing()
@@ -89,10 +96,20 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
 
   return (
     <div style={{ padding: '0 20px 40px', height: '100%', overflowY: 'auto' }}>
-      <ScreenHeader title={`내 루틴 (${ownCount}/${MAX_ROUTINES})`} onBack={isFirstSetup ? null : onClose} />
+      <ScreenHeader
+        title={`내 루틴 (${ownCount}/${MAX_ROUTINES})`}
+        onBack={isFirstSetup ? null : onClose}
+        right={
+          firstEmpty && onSkip ? (
+            <button onClick={onSkip} style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-neutral)', padding: '10px 8px', whiteSpace: 'nowrap' }}>
+              나중에
+            </button>
+          ) : null
+        }
+      />
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         {isFirstSetup
-          ? '먼저 루틴을 하나 만들어 주세요. 부위를 자유롭게 조합할 수 있어요.'
+          ? `주 ${weeklyTargetDays || 3}일 운동에 맞는 분할을 맨 위에 추천했어요. 고르면 바로 시작할 수 있고, 나중에 자유롭게 고칠 수 있어요. 부위를 직접 묶고 싶다면 '직접 만들기'를 눌러 주세요.`
           : `루틴은 최대 ${MAX_ROUTINES}개까지 만들 수 있고, 기록 탭에서 그때그때 골라 사용할 수 있어요.`}
       </p>
 
@@ -135,9 +152,11 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
 
       {ownCount < MAX_ROUTINES && (
         <>
-          <Button full onClick={() => { setError(''); setEditingId('new') }} style={{ marginBottom: 10 }}>
-            + 새 루틴 추가
-          </Button>
+          {!firstEmpty && (
+            <Button full onClick={() => { setError(''); setEditingId('new') }} style={{ marginBottom: 10 }}>
+              + 새 루틴 추가
+            </Button>
+          )}
 
           {!pickingSplitTemplate ? (
             <button
@@ -163,7 +182,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
                 근육 성장에는 부위당 주 2회가 유리해서, 주당 운동 일수에 맞는 분할에 '추천'을 표시했어요. 선택하면 내 루틴에 추가되고, 이후 자유롭게 수정할 수 있어요.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-                {SPLIT_TEMPLATE_PRESETS.map((preset) => (
+                {sortedPresets.map((preset) => (
                   <button
                     key={preset.key}
                     onClick={() => handleAddSplitTemplate(preset)}
@@ -179,7 +198,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontWeight: 700, fontSize: 14, marginBottom: 2, color: 'var(--color-label-strong)' }}>
                       {preset.label} {addingTemplateKey === preset.key && '· 추가 중…'}
                       {/* [2026-10-30] 주당 목표 일수에 맞는 분할 추천 + 부위당 주 횟수 */}
-                      {recommendedSplitKey(weeklyTargetDays || 3) === preset.key && (
+                      {recommendedKey === preset.key && (
                         <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 11.5, fontWeight: 800 }}>주 {weeklyTargetDays || 3}일 추천</span>
                       )}
                       <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}>부위당 주 약 {perPartWeeklyFrequency(preset.parts.length, weeklyTargetDays || 3)}회</span>
@@ -190,10 +209,17 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
                   </button>
                 ))}
               </div>
-              <button onClick={() => setPickingSplitTemplate(false)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                취소
-              </button>
+              {!firstEmpty && (
+                <button onClick={() => setPickingSplitTemplate(false)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
+                  취소
+                </button>
+              )}
             </Card>
+          )}
+          {firstEmpty && (
+            <Button variant="secondary" full onClick={() => { setError(''); setEditingId('new') }} style={{ marginTop: 10 }}>
+              직접 만들기
+            </Button>
           )}
         </>
       )}

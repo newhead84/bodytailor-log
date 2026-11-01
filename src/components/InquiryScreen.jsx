@@ -114,7 +114,7 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
                 </span>
                 <span
                   style={{
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 700,
                     padding: '2px 8px',
                     borderRadius: 'var(--radius-sm)',
@@ -130,7 +130,7 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
               </p>
               {q.reply && (
                 <div
-                  className="text-keep-all"
+                  className="text-keep-all bt-selectable"
                   style={{
                     marginTop: 6,
                     padding: 10,

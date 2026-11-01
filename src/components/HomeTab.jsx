@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Dumbbell, Moon, ClipboardCheck } from 'lucide-react'
+import { Dumbbell, Moon, ClipboardCheck, X } from 'lucide-react'
 import { Card, Button, useConfirm } from './ui'
 import MembershipNotice from './MembershipNotice'
 import { TrainerGoalNotice } from './TrainerGoal'
+import HomePtCards from './HomePtCards'
 import { getRecentWorkoutLogs, getWorkoutLogsInRange, listPtSchedules, listPtSessions } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
 import { suggestNextSet, workingSetsOf } from '../utils/strength'
@@ -23,6 +24,8 @@ function formatShortDate(ds) {
 import { getSuggestedNext } from '../utils/routineSuggestion'
 import { pickRandomQuote } from '../utils/quotes'
 import { todayStr, toLocalDateStr } from '../utils/date'
+import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
+import { getLevelInfo } from '../utils/tier'
 
 // 로그 하나에서 실제로 수행한 부위들을 중복 없이 뽑아 "가슴·삼두"처럼 요약한다.
 function summarizePartsOfLog(log) {
@@ -230,10 +233,14 @@ export default function HomeTab({
         </Card>
       )}
 
+      {/* [2026-11-01] M7: 새 시즌 첫 접속 때 한 번 안내 */}
+      <SeasonChangeNotice userDoc={userDoc} />
       {/* [2026-10-31] 회원권 종료 임박(D-7)·만료 안내 */}
       <MembershipNotice userDoc={userDoc} />
       {/* [2026-10-31] 담당 트레이너의 목표 제안(수락·거절)·직접 수정 알림 */}
       <TrainerGoalNotice uid={uid} userDoc={userDoc} onChanged={onProfileUpdated} />
+      {/* [2026-11-01] PT 일정 변경 알림(회원)·오늘 PT(트레이너) */}
+      <HomePtCards uid={uid} userDoc={userDoc} />
 
       {/* [2026-10-28 리디자인] "오늘" 블록 - 카드 대신 큰 헤드라인(오늘 차례) + 보조 정보 + 버튼 */}
       <section style={{ marginBottom: 24 }}>
@@ -337,7 +344,7 @@ export default function HomeTab({
 
       {nextPt && (
         <p style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--color-label-normal)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6, border: '1.5px solid var(--color-primary-normal)', color: 'var(--color-primary-strong)' }}>PT</span>
+          <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 7px', borderRadius: 6, border: '1.5px solid var(--color-primary-normal)', color: 'var(--color-primary-strong)' }}>PT</span>
           <span>다음 PT · <b>{(() => { const [y, mo, da] = nextPt.date.split('-').map(Number); return `${mo}/${da}(${'일월화수목금토'[new Date(y, mo - 1, da).getDay()]})` })()} {nextPt.time}</b>{nextPt.trainerName ? ` · ${nextPt.trainerName}` : ''}</span>
         </p>
       )}
@@ -365,5 +372,44 @@ export default function HomeTab({
         </div>
       )}
     </div>
+  )
+}
+
+// [2026-11-01] M7: 분기가 바뀐 뒤 처음 HOME을 열면 시즌 초기화를 한 번 알린다. 지난 시즌 XP가 아직
+// users 문서에 남아 있을 때(새 시즌 첫 운동 전)만 보이고, 닫으면 이 기기에서 그 시즌 동안 다시 안 보인다.
+function SeasonChangeNotice({ userDoc }) {
+  const period = getSeasonPeriod()
+  const storageKey = `bt-season-notice-${period}`
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(storageKey) === '1'
+    } catch {
+      return false
+    }
+  })
+  if (hidden || !userDoc?.seasonKey || userDoc.seasonKey === period) return null
+  const lastXp = Number(userDoc.seasonXp) || 0
+  function dismiss() {
+    setHidden(true)
+    try {
+      localStorage.setItem(storageKey, '1')
+    } catch {
+      // 저장이 막혀 있어도 이번 화면에서는 닫힘
+    }
+  }
+  return (
+    <Card style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p className="text-keep-all" style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+          새 시즌이 시작됐어요{lastXp > 0 ? ` · 지난 시즌 Lv ${getLevelInfo(lastXp).level}` : ''}
+        </p>
+        <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13.5, lineHeight: 1.6, color: 'var(--color-label-normal)' }}>
+          {formatSeasonLabel(period)}부터 Lv과 랭킹 점수가 처음부터 다시 쌓여요. 누적 XP와 성취는 그대로 남아요.
+        </p>
+      </div>
+      <button type="button" onClick={dismiss} aria-label="새 시즌 안내 닫기" style={{ width: 44, height: 44, margin: '-10px -10px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)', flexShrink: 0 }}>
+        <X size={18} aria-hidden="true" />
+      </button>
+    </Card>
   )
 }

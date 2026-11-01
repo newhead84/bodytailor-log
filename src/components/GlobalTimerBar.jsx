@@ -13,7 +13,8 @@ import { List, RectangleVertical } from 'lucide-react'
 export const GLOBAL_TIMER_BAR_HEIGHT = 40
 // 컨트롤(±10초/초기화/일시정지) 행이 펼쳐졌을 때 추가되는 높이. App.jsx가 콘텐츠 상단 여백
 // 계산에 함께 써야 화면 내용이 이 바에 가려지지 않는다.
-export const GLOBAL_TIMER_BAR_CONTROLS_HEIGHT = 40
+// [2026-11-01] 버튼 터치 영역 40px로 키우며 48로
+export const GLOBAL_TIMER_BAR_CONTROLS_HEIGHT = 48
 
 function formatElapsed(totalSeconds) {
   const s = Math.max(0, Math.floor(totalSeconds))
@@ -124,17 +125,18 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 8,
+            gap: 6,
             height: GLOBAL_TIMER_BAR_CONTROLS_HEIGHT,
             paddingBottom: 6,
           }}
         >
           <button
             title="10초 빼기"
+            aria-label="10초 빼기"
             onClick={() => onAdjust?.(-10)}
             style={{
-              width: 26,
-              height: 26,
+              width: 40,
+              height: 40,
               borderRadius: 'var(--radius-sm)',
               fontSize: 14,
               fontWeight: 700,
@@ -148,10 +150,11 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           </button>
           <button
             title="10초 더하기"
+            aria-label="10초 더하기"
             onClick={() => onAdjust?.(10)}
             style={{
-              width: 26,
-              height: 26,
+              width: 40,
+              height: 40,
               borderRadius: 'var(--radius-sm)',
               fontSize: 14,
               fontWeight: 700,
@@ -167,9 +170,10 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
             title="운동시간 초기화"
             onClick={onReset}
             style={{
-              padding: '6px 10px',
+              minHeight: 40,
+              padding: '0 8px',
               borderRadius: 'var(--radius-sm)',
-              fontSize: 12,
+              fontSize: 12.5,
               fontWeight: 700,
               whiteSpace: 'nowrap',
               color: 'var(--color-label-neutral)',
@@ -183,7 +187,8 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           <button
             onClick={onTogglePause}
             style={{
-              padding: '6px 12px',
+              minHeight: 40,
+              padding: '0 10px',
               borderRadius: 'var(--radius-sm)',
               fontSize: 13,
               fontWeight: 700,
@@ -199,7 +204,8 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           <button
             onClick={onPress}
             style={{
-              padding: '6px 12px',
+              minHeight: 40,
+              padding: '0 10px',
               borderRadius: 'var(--radius-sm)',
               fontSize: 13,
               fontWeight: 700,

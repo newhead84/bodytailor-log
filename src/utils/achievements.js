@@ -79,8 +79,12 @@ function maxPullupReps(logs) {
   logs.forEach((l) =>
     (l.exercises || []).forEach((ex) => {
       if (!['풀업', '친업', '웨이티드(중량) 풀업'].includes(ex.name)) return
+      // [2026-11-01] L7: 맨몸 성취라 웨이티드 풀업은 추가 무게 0kg(맨몸) 세트만 센다
+      const weighted = ex.name === '웨이티드(중량) 풀업'
       ;(ex.sets || []).forEach((st) => {
-        if (st.type !== 'warmup') best = Math.max(best, Number(st.reps) || 0)
+        if (st.type === 'warmup') return
+        if (weighted && Number(st.weight) > 0) return
+        best = Math.max(best, Number(st.reps) || 0)
       })
     })
   )

@@ -20,7 +20,7 @@ import ExerciseGuideToggle from './ExerciseGuideToggle'
 // initialTemplate: { id?, title, parts: [{name, atoms, exercises}] } - 없으면 신규 생성 모드
 // [2026-10-31 P2-3] forTrainer: 트레이너가 담당 회원의 계획을 만들 때 - 제목 문구 변경 + 회원에게 보일 메모(note) 입력.
 // [2026-11-01] saveError: 저장 실패 문구를 이 화면에서 보여 준다(이전엔 목록 화면에만 그려져 안 보였다, 전체 점검 U10)
-export default function RoutineSetup({ initialTemplate, customExercises, onSave, onCancel, onSkip, canCancel = true, forTrainer = null, saveError = '' }) {
+export default function RoutineSetup({ initialTemplate, customExercises, onSave, onCancel, onSkip, canCancel = true, forTrainer = null, saveError = '', leaveGuardRef = null }) {
   const confirm = useConfirm()
   const isEditing = !!initialTemplate
   const [title, setTitle] = useState(initialTemplate?.title || '')
@@ -125,6 +125,8 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
     if (dirty && !(await confirm('저장하지 않은 변경 내용이 사라져요. 나갈까요?', { okLabel: '나가기', cancelLabel: '계속 편집' }))) return
     action()
   }
+  // [2026-11-01] U11: 기기 뒤로가기(RoutineManager의 useBackableScreen)도 같은 확인을 거친다. 변경이 없으면 null(바로 닫힘)
+  if (leaveGuardRef) leaveGuardRef.current = dirty ? () => confirm('저장하지 않은 변경 내용이 사라져요. 나갈까요?', { okLabel: '나가기', cancelLabel: '계속 편집' }) : null
 
   async function handleSave() {
     setSaving(true)
@@ -157,7 +159,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         {forTrainer
           ? '저장하면 회원의 기록 화면 루틴 목록에 "트레이너 계획"으로 바로 나타나요. 세트·횟수·무게 같은 지시는 아래 메모에 적어 주세요.'
-          : <>원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&이두&삼두, 하체&가슴){onSkip && ' 지금 정하기 어렵다면 "나중에 입력"을 눌러 건너뛸 수 있어요.'}</>}
+          : <>원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&이두&삼두, 하체&가슴){onSkip && ' 지금 정하기 어렵다면 오른쪽 위 "나중에"를 눌러 건너뛸 수 있어요.'}</>}
       </p>
 
       <div style={{ marginBottom: 22 }}>

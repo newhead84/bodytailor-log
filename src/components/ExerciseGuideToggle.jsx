@@ -167,7 +167,7 @@ export function ExerciseGuidePanel({ name }) {
               {guide.gymNote ? <p className="text-keep-all" style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: 'var(--color-primary-strong)' }}>메모 · {guide.gymNote}</p> : null}
               <KeyPoints list={guide.keyPoints} compact />
               <Mistakes list={guide.mistakes?.slice(0, 1)} compact />
-              <p style={{ margin: 0, fontSize: 11, color: 'var(--color-label-neutral)' }}>자세한 하는 법은 HOWTO 탭에서 볼 수 있어요.</p>
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>자세한 하는 법은 HOWTO 탭에서 볼 수 있어요.</p>
             </div>
           ) : (
           <p
@@ -180,7 +180,7 @@ export function ExerciseGuidePanel({ name }) {
           {desc.tip && !guide && (
             <p
               className="text-keep-all"
-              style={{ margin: 0, fontSize: 11.5, lineHeight: 1.5, color: 'var(--color-label-normal)', display: 'flex', gap: 6 }}
+              style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--color-label-normal)', display: 'flex', gap: 6 }}
             >
               {/* [2026-10-28 리디자인] 이모지 → 라인 아이콘 */}
               <Lightbulb size={14} strokeWidth={1.8} style={{ color: 'var(--color-primary-normal)', flexShrink: 0, marginTop: 1 }} />

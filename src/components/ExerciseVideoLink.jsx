@@ -36,7 +36,7 @@ export default function ExerciseVideoLink({ name, compact = false }) {
     >
       <CirclePlay size={compact ? 17 : 19} strokeWidth={1.8} style={{ color: 'var(--color-primary-normal)', flexShrink: 0 }} />
       <span className="text-keep-all" style={{ flex: 1, minWidth: 0 }}>영상으로 자세 보기</span>
-      <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-label-neutral)' }}>YouTube</span>
+      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)' }}>YouTube</span>
       <ExternalLink size={14} strokeWidth={1.8} style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }} />
     </a>
   )

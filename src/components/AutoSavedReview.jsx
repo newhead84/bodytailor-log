@@ -27,7 +27,7 @@ const inputStyle = {
   fontWeight: 700,
   textAlign: 'center',
 }
-const unitStyle = { fontSize: 11.5, color: 'var(--color-label-neutral)', flexShrink: 0 }
+const unitStyle = { fontSize: 12.5, color: 'var(--color-label-neutral)', flexShrink: 0 }
 const selectAll = (e) => {
   const el = e.target
   setTimeout(() => {
@@ -144,7 +144,7 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved,
         style={{
           width: '100%',
           maxWidth: 520,
-          maxHeight: '88vh',
+          maxHeight: 'calc(var(--vh-full) * 0.88)', // [2026-11-01] dvh(없으면 vh)
           display: 'flex',
           flexDirection: 'column',
           background: 'var(--color-bg)',

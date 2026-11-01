@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { X, Download, Share, MoreVertical, Menu, PlusSquare } from 'lucide-react'
+import { hasOpenScreens } from '../hooks/useBackableScreen'
 
 // [2026-07-30 신규] 최초 URL 접속 시(미설치 상태) 상단에 설치 유도 배너(⑧).
 // [2026-10-31 개편] Chrome/Edge(beforeinstallprompt)뿐 아니라 OS·브라우저별로 홈 화면 추가 방법을 안내한다.
@@ -11,6 +12,8 @@ import { X, Download, Share, MoreVertical, Menu, PlusSquare } from 'lucide-react
 // 닫으면 7일 동안 다시 띄우지 않는다(계속 방해하지 않되, 나중에 다시 알려 주기 위해).
 const DISMISS_KEY = 'bt_install_banner_dismissed_at'
 const DISMISS_DAYS = 7
+// [2026-11-01] "이미 추가했어요"를 누르면 이 기기에서는 다시 띄우지 않는다(iOS는 설치 여부를 사파리에서 알 수 없음)
+const INSTALLED_KEY = 'bt_install_banner_installed'
 
 function isStandalone() {
   if (typeof window === 'undefined') return false
@@ -53,6 +56,7 @@ function manualGuide({ os, browser }) {
 
 function wasDismissed() {
   try {
+    if (localStorage.getItem(INSTALLED_KEY) === '1') return true
     const t = Number(localStorage.getItem(DISMISS_KEY) || 0)
     return t > 0 && Date.now() - t < DISMISS_DAYS * 86400000
   } catch {
@@ -69,12 +73,21 @@ export default function InstallBanner() {
   const blocked = isStandalone() || !!window.__btInApp?.isInApp // 인앱 브라우저는 inapp.js 띠가 안내
   // [2026-10-31] 관리자 대시보드(/admin)에서는 숨김 - App이 화면을 바꿀 때 'bt-route' 이벤트를 보낸다
   const [onAdmin, setOnAdmin] = useState(() => typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))
+  // [2026-11-01] 메인 탭에 들어온 뒤에만(로그인·동의·온보딩·승인 대기 제외) 띄우고, 운동 중이거나
+  // 상세 화면·확인 창이 열려 있으면 숨긴다(타이머 바·ScreenHeader ‹ 버튼을 덮지 않게). App이 'bt-route'로 알린다.
+  const [placeOk, setPlaceOk] = useState(false)
   useEffect(() => {
-    const sync = () => setOnAdmin(window.location.pathname.startsWith('/admin'))
+    const sync = () => {
+      setOnAdmin(window.location.pathname.startsWith('/admin'))
+      setPlaceOk(!!window.__btMainTabs && !window.__btWorkoutActive && !hasOpenScreens())
+    }
+    sync()
     window.addEventListener('bt-route', sync)
+    window.addEventListener('bt-screens', sync)
     window.addEventListener('popstate', sync)
     return () => {
       window.removeEventListener('bt-route', sync)
+      window.removeEventListener('bt-screens', sync)
       window.removeEventListener('popstate', sync)
     }
   }, [])
@@ -108,6 +121,15 @@ export default function InstallBanner() {
     }
   }
 
+  function handleAlreadyInstalled() {
+    setDismissed(true)
+    try {
+      localStorage.setItem(INSTALLED_KEY, '1')
+    } catch {
+      // 무시 - 이번 세션에서만 닫힌다
+    }
+  }
+
   async function handleInstall() {
     if (!deferredPrompt) return
     deferredPrompt.prompt()
@@ -116,7 +138,7 @@ export default function InstallBanner() {
     if (choice?.outcome === 'accepted') setDismissed(true)
   }
 
-  if (blocked || dismissed || onAdmin) return null
+  if (blocked || dismissed || onAdmin || !placeOk) return null
   const guide = deferredPrompt ? null : manualGuide(env)
   // 크롬 계열(안드로이드·PC)은 설치 신호가 늦게 올 수 있어 3초 기다린 뒤에만 수동 안내
   if (!deferredPrompt && (!guide || (env.os !== 'ios' && !waited))) return null
@@ -161,7 +183,7 @@ export default function InstallBanner() {
             {open ? '접기' : '방법'}
           </button>
         )}
-        <button onClick={handleDismiss} aria-label="닫기" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, flexShrink: 0, color: 'var(--color-label-neutral)' }}>
+        <button onClick={handleDismiss} aria-label="7일 동안 닫기" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, margin: '-8px -10px -8px -6px', flexShrink: 0, color: 'var(--color-label-neutral)' }}>
           <X size={15} strokeWidth={2} />
         </button>
       </div>
@@ -171,6 +193,13 @@ export default function InstallBanner() {
             <li key={i} className="text-keep-all" style={{ fontSize: 12.5, lineHeight: 1.5, color: 'var(--color-label-normal)' }}>{s}</li>
           ))}
         </ol>
+      )}
+      {!deferredPrompt && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: -6 }}>
+          <button type="button" onClick={handleAlreadyInstalled} style={{ minHeight: 36, padding: '0 6px', fontSize: 12.5, color: 'var(--color-label-neutral)', textDecoration: 'underline' }}>
+            이미 추가했어요
+          </button>
+        </div>
       )}
     </div>
   )

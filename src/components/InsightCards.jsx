@@ -120,7 +120,7 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
                 </span>
                 <span
                   style={{
-                    fontSize: 11,
+                    fontSize: 12,
                     textAlign: 'right',
                     whiteSpace: 'nowrap',
                     color: status === '적정' ? 'var(--color-success)' : status === '부족' || status === '진행 중' ? 'var(--color-label-neutral)' : 'var(--color-warning)',
@@ -133,7 +133,7 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
           })
         )}
         {hasLive && (
-          <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>오늘 진행 중인 운동(체크한 세트) 포함</span>
+          <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>오늘 진행 중인 운동(체크한 세트) 포함</span>
         )}
         {/* [2026-10-28 리디자인] 기준 설명은 접어 두기 */}
         <Disclosure>
@@ -173,7 +173,7 @@ export function CardioCard({ logs, liveExercises = null }) {
           </span>
           <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>/ {goal}분</span>
           {cur.vigorousMin > 0 && (
-            <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', width: '100%' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', width: '100%' }}>
               실제 {Math.round(cur.minutes)}분 · 고강도 {Math.round(cur.vigorousMin)}분은 2배로 계산
             </span>
           )}
@@ -201,13 +201,13 @@ export function CardioCard({ logs, liveExercises = null }) {
           <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: `calc(${(goal / maxWeek) * 60}px + 26px)`, borderTop: '1px dashed var(--color-line-strong)' }} />
           {weeks.map((w, k) => (
             <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <span className="bt-num" style={{ fontSize: 11.5, color: 'var(--color-label-normal)' }}>{Math.round(w.effectiveMin)}</span>
+              <span className="bt-num" style={{ fontSize: 12, color: 'var(--color-label-normal)' }}>{Math.round(w.effectiveMin)}</span>
               <div style={{ width: '60%', maxWidth: 34, height: Math.max(2, (w.effectiveMin / maxWeek) * 60), borderRadius: 4, background: k === 3 ? 'var(--color-fill-strong)' : 'var(--color-line-strong)' }} />
-              <span style={{ fontSize: 11, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>{weekLabel(k)}</span>
+              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>{weekLabel(k)}</span>
             </div>
           ))}
         </div>
-        {live && <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>오늘 진행 중인 운동(체크한 세트) 포함</span>}
+        {live && <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>오늘 진행 중인 운동(체크한 세트) 포함</span>}
         <Disclosure>
           대화가 가능한 중강도 유산소 주 150분(고강도면 75분)이 건강 기준(WHO)이라, 인터벌·에어바이크·배틀로프·줄넘기·시속 8km 이상 달리기는 1분을 2분으로 계산해요. 목표 분은 MY 프로필의 운동 목표에 맞춰져요. 웨이트와 같이 해도 근육 성장에는 지장이 없고, 순발력이 중요하면 웨이트와 시간을
           떨어뜨려 하세요. 거리는 적은 값이 없으면 속도 × 시간으로 계산해요.
@@ -326,7 +326,7 @@ export function PrCard({ prs, limit = 5, title = '최근 개인 기록' }) {
                 {fmt1(p.e1rm)}
                 <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}> kg</span>
               </span>
-              <span style={{ fontSize: 11, color: 'var(--color-label-neutral)' }}>추정 1RM</span>
+              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>추정 1RM</span>
             </div>
           </div>
         ))}

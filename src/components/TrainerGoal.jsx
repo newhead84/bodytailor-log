@@ -62,7 +62,15 @@ export function TrainerGoalEditor({ member, memberUid, memberName = '', trainer,
             </div>
           </>
         ) : (
-          <Button variant="secondary" onClick={start}>목표 정하기</Button>
+          <>
+            {/* [2026-11-01] B23: 회원이 제안을 거절했으면 트레이너에게 보인다(새 제안을 보내면 사라짐) */}
+            {member?.goalProposalResult?.declined && member.goalProposalResult.byUid === trainer?.uid && (
+              <p className="text-keep-all" style={{ ...small, margin: '0 0 8px', color: 'var(--color-warning)' }}>
+                회원이 {fmtDate(member.goalProposalResult.at) || '최근'}에 목표 제안을 거절했어요. 회원과 이야기한 뒤 다시 제안해 보세요.
+              </p>
+            )}
+            <Button variant="secondary" onClick={start}>목표 정하기</Button>
+          </>
         )}
       </div>
     )
@@ -120,7 +128,7 @@ export function TrainerGoalNotice({ uid, userDoc, onChanged }) {
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <Button disabled={busy} onClick={() => run(() => acceptGoalProposal(uid, p))}>수락</Button>
-          <Button variant="secondary" disabled={busy} onClick={() => run(() => declineGoalProposal(uid))}>거절</Button>
+          <Button variant="secondary" disabled={busy} onClick={() => run(() => declineGoalProposal(uid, p))}>거절</Button>
         </div>
       </Card>
     )

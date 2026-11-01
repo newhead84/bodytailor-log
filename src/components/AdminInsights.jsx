@@ -1,21 +1,25 @@
 // AdminInsights.jsx - [2026-10-31] 관리자 대시보드: 요약 홈 · 재등록 관리 · 이용 통계 · 관리 이력 · 회원 목록 CSV
 // 운동 기록 내용은 읽지 않는다(users.activity의 마지막 운동일·주별 운동 일수·마지막 운동 부위만). 통계의 시간대·요일은 익명 집계 gymStats.
+// [2026-11-01] 2차: 기준값 설정(B16), '운동 없음'에서 신규·기록 없는 회원 분리(B15), 미결제 PT·PT 상담 신청 KPI(B4·B33),
+//  이력에 메모 내용 안 옮김(B3), 관리 이력 더 보기(B14), 회원 CSV 끝 4자리 선택(B32)
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip } from './ui'
 import { ACTION, Badge, Bars, LogRow, isGymMember, muted, sectionTitle, selectStyle, statusOf, toCsv } from './adminUi'
 import { adminGetGymStats, adminListLogs, adminPtRange, adminSaveNote, logAdmin } from '../storage'
-import { UserPlus, Clock, Dumbbell, Moon, CalendarDays, MessageSquare } from 'lucide-react'
+import { UserPlus, Clock, Dumbbell, Moon, CalendarDays, MessageSquare, Receipt, Handshake } from 'lucide-react'
+import { dashSetting } from './AdminTools'
 import { daysBetween, fmtYmd, memberName, membershipState, MEMBER_STATUS } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
 import { downloadText } from '../utils/exportCsv'
 
-const STALE_DAYS = 14
-const PT_LOW = 3
 
 // ───────── 요약 홈(대시보드) ─────────
-const KPI_ICON = { pending: UserPlus, expiring: Clock, ptLow: Dumbbell, stale: Moon, todayPt: CalendarDays, inq: MessageSquare }
-export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, onOpenMember, onApprove, onEditMembership }) {
+const KPI_ICON = { pending: UserPlus, expiring: Clock, ptLow: Dumbbell, stale: Moon, todayPt: CalendarDays, inq: MessageSquare, unpaid: Receipt, ptAsk: Handshake }
+export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings, onGo, onOpenMember, onApprove, onEditMembership }) {
   const today = todayStr()
+  const STALE_DAYS = dashSetting(settings, 'staleDays')
+  const PT_LOW = dashSetting(settings, 'ptLowCount')
+  const SOON = dashSetting(settings, 'expireSoonDays')
   const ym = today.slice(0, 7)
   const [month, setMonth] = useState(null) // { sch, ses } 이번 달 PT
   useEffect(() => {
@@ -27,20 +31,29 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, on
   }, [ym])
   const members = users.filter(isGymMember)
   const byUid = Object.fromEntries(users.map((u) => [u.uid, u]))
-  const expiring = members.filter((u) => u.membershipEnd && daysBetween(today, u.membershipEnd) >= 0 && daysBetween(today, u.membershipEnd) <= 7)
+  const expiring = members.filter((u) => u.membershipEnd && daysBetween(today, u.membershipEnd) >= 0 && daysBetween(today, u.membershipEnd) <= SOON)
   const ptLow = members.filter((u) => (u.ptTotal || 0) > 0 && (u.ptRemaining ?? 0) <= PT_LOW)
   const active = members.filter((u) => membershipState(u, today).kind !== 'expired')
-  const stale = active.filter((u) => !u.activity?.lastDate || daysBetween(u.activity.lastDate, today) > STALE_DAYS)
+  // [2026-11-01] B15: 기록이 있는 회원만 '운동 없음'으로 센다. 가입한 지 기준 일수가 안 된 회원·기록이 아직 없는 회원은 따로
+  const createdMs = (u) => (u.createdAt?.toMillis ? u.createdAt.toMillis() : typeof u.createdAt?.seconds === 'number' ? u.createdAt.seconds * 1000 : 0)
+  const isNew = (u) => createdMs(u) > Date.now() - STALE_DAYS * 86400000
+  const stale = active.filter((u) => u.activity?.lastDate && daysBetween(u.activity.lastDate, today) > STALE_DAYS)
+  const noRecord = active.filter((u) => !u.activity?.lastDate && !isNew(u))
   const unanswered = (inquiries || []).filter((q) => q.status === '대기')
+  const ptAsk = unanswered.filter((q) => q.type === 'pt')
   const todayPt = (month?.sch || []).filter((s) => s.date === today)
   const matched = pending.filter((u) => matchOf(u)?.nameOk).length
   const kpis = [
     { key: 'pending', label: '승인 대기', n: pending.length, s: pending.length ? `명단 일치 ${matched}명` : '처리할 가입 없음', alert: pending.length > 0, go: () => onGo('pending') },
-    { key: 'expiring', label: '7일 안에 만료', n: expiring.length, s: '재등록 연락 대상', alert: expiring.length > 0, go: () => onGo('renewal') },
+    { key: 'expiring', label: `${SOON}일 안에 만료`, n: expiring.length, s: '재등록 연락 대상', alert: expiring.length > 0, go: () => onGo('renewal') },
     { key: 'ptLow', label: `남은 PT ${PT_LOW}회 이하`, n: ptLow.length, s: `소진 ${ptLow.filter((u) => (u.ptRemaining ?? 0) === 0).length}명`, go: () => onGo('pt') },
-    { key: 'stale', label: `${STALE_DAYS}일 넘게 운동 없음`, n: stale.length, s: active.length ? `이용 중 회원의 ${Math.round((stale.length / active.length) * 100)}%` : '이용 중 회원 없음', go: () => onGo('members') },
+    { key: 'stale', label: `${STALE_DAYS}일 넘게 운동 없음`, n: stale.length, s: `${active.length ? `이용 중 회원의 ${Math.round((stale.length / active.length) * 100)}%` : '이용 중 회원 없음'}${noRecord.length ? ` · 기록 없음 ${noRecord.length}명` : ''}`, go: () => onGo('members') },
     { key: 'todayPt', label: '오늘 PT', n: month ? todayPt.length : '…', s: month ? `완료 ${todayPt.filter((x) => x.status === 'done').length} · 예정 ${todayPt.filter((x) => x.status === 'scheduled').length}` : '', go: () => onGo('pt') },
     { key: 'inq', label: '답변 안 한 문의', n: unanswered.length, s: unanswered.length ? '문의 관리에서 답변' : '모두 답변함', alert: unanswered.length > 0, go: () => onGo('inquiries') },
+    // [2026-11-01] B33: 트레이너 프로필에서 온 PT 상담 신청(답변 전)
+    { key: 'ptAsk', label: 'PT 상담 신청', n: ptAsk.length, s: ptAsk.length ? '문의에서 답변·연락' : '새 신청 없음', alert: ptAsk.length > 0, go: () => onGo('inquiries') },
+    // [2026-11-01] B4: 남은 PT가 없을 때 트레이너가 남긴 '완료(미결제)'(이번 달)
+    { key: 'unpaid', label: '미결제 PT', n: month ? (month.ses || []).filter((x) => x.unpaid).length : '…', s: '결제 후 PT 관리에서 차감', alert: !!month && (month.ses || []).some((x) => x.unpaid), go: () => onGo('pt') },
   ]
   // 처리할 회원: 사유별 한 줄(우선순위 순), 같은 회원은 첫 사유만
   const todo = []
@@ -66,8 +79,9 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, on
   ptLow.filter((u) => (u.ptRemaining ?? 0) === 0 && soldOutRecent(u)).forEach((u) => push(u, 'PT 소진', 'bad', { label: 'PT 등록', run: () => onEditMembership(u) }))
   ptLow.filter((u) => (u.ptRemaining ?? 0) > 0).forEach((u) => push(u, `PT ${u.ptRemaining}회 남음`, 'warn', { label: '상세', run: () => onOpenMember(u) }))
   stale.sort((a, b) => String(a.activity?.lastDate || '').localeCompare(String(b.activity?.lastDate || ''))).forEach((u) =>
-    push(u, u.activity?.lastDate ? `${daysBetween(u.activity.lastDate, today)}일 미운동` : '운동 기록 없음', 'neutral', { label: '상세', run: () => onOpenMember(u) })
+    push(u, `${daysBetween(u.activity.lastDate, today)}일 미운동`, 'neutral', { label: '상세', run: () => onOpenMember(u) })
   )
+  noRecord.forEach((u) => push(u, '운동 기록 없음', 'neutral', { label: '상세', run: () => onOpenMember(u) }))
   const [showAll, setShowAll] = useState(false)
   const shown = showAll ? todo : todo.slice(0, 8)
   // 주간 운동한 회원(최근 8주)
@@ -191,7 +205,8 @@ export function RenewalTab({ users, notes, admin, onOpenMember, onSaved }) {
     try {
       const renewal = { status, note: note.slice(0, 200), end: x.u.membershipEnd, at: today, by: admin.name }
       await adminSaveNote(x.u.uid, { renewal }, admin.uid)
-      await logAdmin(admin, { action: 'renewal', targetUid: x.u.uid, targetName: memberName(x.u), detail: `재등록 연락: ${RENEWAL[status]}${note ? ` · ${note.slice(0, 80)}` : ''}` })
+      // [2026-11-01] B3: 지울 수 없는 이력에는 메모 내용을 옮기지 않는다(메모는 관리자 메모에만)
+      await logAdmin(admin, { action: 'renewal', targetUid: x.u.uid, targetName: memberName(x.u), detail: `재등록 연락: ${RENEWAL[status]}${note ? ' · 메모 있음' : ''}` })
       await onSaved(x.u.uid, { renewal })
     } catch (err) {
       console.error('재등록 기록 실패:', err)
@@ -303,15 +318,40 @@ export function StatsTab({ users }) {
 }
 
 // ───────── 관리 이력 ─────────
-export function LogsTab() {
+const LOG_PAGE = 300
+export function LogsTab({ users = [] }) {
   const [logs, setLogs] = useState(null)
   const [act, setAct] = useState('')
   const [q, setQ] = useState('')
+  const [more, setMore] = useState(false) // [2026-11-01] B14: 300건이 차면 '더 보기'
+  const [loadingMore, setLoadingMore] = useState(false)
   useEffect(() => {
-    adminListLogs().then(setLogs).catch(() => setLogs([]))
+    adminListLogs({ count: LOG_PAGE })
+      .then((l) => {
+        setLogs(l)
+        setMore(l.length >= LOG_PAGE)
+      })
+      .catch(() => setLogs([]))
   }, [])
+  async function loadMore() {
+    const last = logs[logs.length - 1]
+    if (!last?.at) return
+    setLoadingMore(true)
+    try {
+      const next = await adminListLogs({ count: LOG_PAGE, after: last.at })
+      setLogs((l) => [...l, ...next.filter((x) => !l.some((y) => y.id === x.id))])
+      setMore(next.length >= LOG_PAGE)
+    } catch (err) {
+      console.error('이력 더 불러오기 실패:', err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
   if (!logs) return <p style={muted}>불러오는 중…</p>
-  const list = logs.filter((l) => (!act || l.action === act) && (!q || `${l.targetName}${l.byName}${l.detail}`.includes(q.trim())))
+  // [2026-11-01] B8: 회원이 직접 남긴 이력(이름 없음)은 회원 목록에서 이름을 찾아 보여 준다
+  const byUid = Object.fromEntries(users.map((u) => [u.uid, u]))
+  const named = logs.map((l) => (!l.targetName && l.targetUid && byUid[l.targetUid] ? { ...l, targetName: memberName(byUid[l.targetUid]), byName: l.byName || (l.byUid === l.targetUid ? '회원 본인' : '') } : l))
+  const list = named.filter((l) => (!act || l.action === act) && (!q || `${l.targetName}${l.byName}${l.detail}`.includes(q.trim())))
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="회원·관리자 이름, 내용 검색" aria-label="이력 검색" style={{ ...selectStyle, padding: '11px 12px', fontSize: 15.5 }} />
@@ -323,18 +363,20 @@ export function LogsTab() {
         {!list.length && <p style={{ ...muted, padding: '10px 0' }}>기록이 없어요. 이 기능을 켠 뒤(2026-10-31)부터 쌓여요.</p>}
         {list.map((l, i) => <LogRow key={l.id} l={l} first={i === 0} />)}
       </Card>
-      <p style={{ ...muted, margin: 0 }}>최근 300건 · 이력은 고치거나 지울 수 없어요.</p>
+      {more && <Button variant="secondary" disabled={loadingMore} onClick={loadMore}>{loadingMore ? '불러오는 중…' : `이전 이력 ${LOG_PAGE}건 더 보기`}</Button>}
+      <p style={{ ...muted, margin: 0 }}>최근 {logs.length}건 · 이력은 고칠 수 없고, 2년이 지나면 설정·도구에서 지울 수 있어요.</p>
     </div>
   )
 }
 // ───────── 회원 목록 CSV ─────────
-export function exportMembersCsv(users, conns, admin = null) {
+// [2026-11-01] B32: 휴대폰 끝 4자리는 고를 때만 넣는다(기본 빼기)
+export function exportMembersCsv(users, conns, admin = null, { withPhone = false } = {}) {
   const trainerOf = Object.fromEntries(conns.filter((c) => c.status === 'active').map((c) => [c.memberUid, c.trainerName]))
-  const rows = [['이름', '닉네임', '휴대폰 끝 4자리', '회원번호', '승인 상태', '역할', '회원권 시작', '회원권 종료', 'PT 총', 'PT 남음', '휴회 시작', '휴회 종료', '담당 트레이너', '마지막 운동일']]
+  const rows = [['이름', '닉네임', ...(withPhone ? ['휴대폰 끝 4자리'] : []), '회원번호', '승인 상태', '역할', '회원권 시작', '회원권 종료', 'PT 총', 'PT 남음', '휴회 시작', '휴회 종료', '담당 트레이너', '마지막 운동일']]
   users.forEach((u) => {
-    rows.push([u.signupInfo?.name || '', u.nickname || '', u.signupInfo?.phoneLast4 || '', u.memberNo || '', MEMBER_STATUS[statusOf(u)] || '', u.role || '일반회원', u.membershipStart || '', u.membershipEnd || '', u.ptTotal ?? '', u.ptRemaining ?? '', u.pauseStart || '', u.pauseEnd || '', trainerOf[u.uid] || '', u.activity?.lastDate || ''])
+    rows.push([u.signupInfo?.name || '', u.nickname || '', ...(withPhone ? [u.signupInfo?.phoneLast4 || ''] : []), u.memberNo || '', MEMBER_STATUS[statusOf(u)] || '', u.role || '일반회원', u.membershipStart || '', u.membershipEnd || '', u.ptTotal ?? '', u.ptRemaining ?? '', u.pauseStart || '', u.pauseEnd || '', trainerOf[u.uid] || '', u.activity?.lastDate || ''])
   })
   downloadText(`bodytailor-members-${todayStr().replace(/-/g, '')}.csv`, toCsv(rows))
   // [2026-11-01] 개인정보 반출 기록(A29)
-  if (admin) logAdmin(admin, { action: 'export', detail: `회원 목록 CSV 내보내기(${users.length}명)` })
+  if (admin) logAdmin(admin, { action: 'export', detail: `회원 목록 CSV 내보내기(${users.length}명${withPhone ? ', 끝 4자리 포함' : ''})` })
 }

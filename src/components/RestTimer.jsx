@@ -65,7 +65,8 @@ export function playSound(soundId, times = 2) {
   }
 }
 
-function showSystemNotification(title, options) {
+// [2026-11-01] App의 "운동 진행 중" 알림도 같은 방식(서비스워커 우선)으로 쓰도록 내보낸다
+export function showSystemNotification(title, options) {
   const fallback = () => {
     try {
       new Notification(title, options)
@@ -85,6 +86,19 @@ function showSystemNotification(title, options) {
     fallback()
   } catch (e) {
     fallback()
+  }
+}
+
+// [2026-11-01] 같은 tag의 알림 닫기(서비스워커로 띄운 알림은 Notification 객체가 없어 registration에서 찾는다)
+export function closeSystemNotification(tag) {
+  try {
+    navigator.serviceWorker
+      ?.getRegistration?.()
+      .then((reg) => reg?.getNotifications?.({ tag }))
+      .then((list) => (list || []).forEach((n) => n.close()))
+      .catch(() => {})
+  } catch (e) {
+    // 무시
   }
 }
 
@@ -244,8 +258,9 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
         // [2026-07-31] 평상시 배경을 --color-bg-elevated에서 전용 토큰(--color-rest-bg)으로
         // 교체 - 두 테마 모두에서 페이지 배경과 구분이 잘 안 되던 문제 수정(휴식 초과 시의
         // danger 배경과는 별개 톤).
-        background: overtime ? 'var(--color-danger, #E5484D)' : 'var(--color-rest-bg)',
-        color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)',
+        background: overtime ? 'var(--color-danger)' : 'var(--color-rest-bg)',
+        // [2026-11-01] 휴식 초과 글자 대비(이전 on-gold는 2.5~2.9:1) → 테마별 --color-on-danger
+        color: overtime ? 'var(--color-on-danger)' : 'var(--color-label-strong)',
         borderRadius: 'var(--radius-lg)',
         padding: '12px 16px',
         display: 'flex',
@@ -255,13 +270,13 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 13, opacity: 0.85 }}>{overtime ? '휴식 시간 초과' : '휴식 중'}</span>
+        <span style={{ fontSize: 13, opacity: overtime ? 1 : 0.85 }}>{overtime ? '휴식 시간 초과' : '휴식 중'}</span>
         <span className="record-notation" style={{ fontSize: 20, fontWeight: 800 }}>
           {isNegative ? '−' : ''}
           {mm}:{ss}
         </span>
       </div>
-      <button onClick={handleDismiss} style={{ color: overtime ? 'var(--color-on-gold)' : 'var(--color-label-strong)', fontSize: 13, opacity: 0.9, padding: '10px 12px', margin: '-6px -8px', minHeight: 40, touchAction: 'manipulation' }}>
+      <button onClick={handleDismiss} style={{ color: overtime ? 'var(--color-on-danger)' : 'var(--color-label-strong)', fontSize: 13, opacity: overtime ? 1 : 0.9, padding: '10px 12px', margin: '-6px -8px', minHeight: 40, touchAction: 'manipulation' }}>
         {overtime ? '닫기' : '건너뛰기'}
       </button>
       {!overtime && (

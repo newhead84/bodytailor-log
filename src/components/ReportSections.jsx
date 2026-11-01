@@ -12,6 +12,7 @@ import { BODY_PART_ATOMS, getExerciseAtom, getExerciseInputType, getPartColor } 
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 import { workingSetsOf, bestE1rmOfSets, fractionalSetsByAtom, getWeeklySetGuide, LEG_FRONT, LEG_BACK } from '../utils/strength'
 import { logVolumeKg } from '../utils/load'
+import { rankAt } from '../utils/scoring'
 import { startOfWeekStr } from './InsightCards'
 import { toLocalDateStr } from '../utils/date'
 
@@ -306,11 +307,11 @@ export function FrequentBySetsCard({ logs }) {
 // ───────── 랭킹(상위 10명 + 나) ─────────
 export function RankingList({ entries, uid, myNickname, onOpenMine }) {
   const myIdx = entries.findIndex((e) => e.uid === uid)
-  const rows = entries.slice(0, 10).map((e, i) => ({ e, rank: i + 1 }))
-  if (myIdx >= 10) rows.push({ e: entries[myIdx], rank: myIdx + 1, gap: true })
+  const rows = entries.slice(0, 10).map((e, i) => ({ e, rank: rankAt(entries, i), first: i === 0 }))
+  if (myIdx >= 10) rows.push({ e: entries[myIdx], rank: rankAt(entries, myIdx), gap: true })
   return (
     <Card style={{ marginBottom: 20, padding: '6px 16px' }}>
-      {rows.map(({ e, rank, gap }) => {
+      {rows.map(({ e, rank, gap, first }) => {
         const me = e.uid === uid
         return (
           <React.Fragment key={e.uid}>
@@ -319,7 +320,7 @@ export function RankingList({ entries, uid, myNickname, onOpenMine }) {
               type="button"
               onClick={me ? onOpenMine : undefined}
               disabled={!me}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 0', borderTop: rank > 1 && !gap ? '1px solid var(--color-line)' : 'none', textAlign: 'left', color: 'var(--color-label-strong)', cursor: me ? 'pointer' : 'default', opacity: 1 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 0', borderTop: !first && !gap ? '1px solid var(--color-line)' : 'none', textAlign: 'left', color: 'var(--color-label-strong)', cursor: me ? 'pointer' : 'default', opacity: 1 }}
             >
               <span className="bt-num" style={{ width: 28, fontSize: rank <= 3 ? 20 : 16, fontWeight: 800, color: rank <= 3 ? 'var(--color-label-strong)' : 'var(--color-label-neutral)' }}>{rank}</span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: me ? 800 : 600 }}>

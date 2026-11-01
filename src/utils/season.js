@@ -9,6 +9,11 @@ export function getSeasonPeriod(date = new Date()) {
   return `season-${date.getFullYear()}-${quarter}`
 }
 
+// [2026-11-01] H6: 시즌(분기) 시작일 - 랭킹 시즌 평균 계산용
+export function getSeasonStartDate(date = new Date()) {
+  return new Date(date.getFullYear(), Math.floor(date.getMonth() / 3) * 3, 1)
+}
+
 export function formatSeasonLabel(period) {
   const m = /^season-(\d{4})-(\d)$/.exec(period || '')
   if (!m) return period
