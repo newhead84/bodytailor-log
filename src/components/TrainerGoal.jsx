@@ -7,7 +7,7 @@ import React, { useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
 import { GoalPicker } from './GoalPicker'
 import { normalizeGoals, GOAL_LABELS } from '../utils/goals'
-import { trainerProposeGoals, trainerCancelGoalProposal, trainerEditGoals, acceptGoalProposal, declineGoalProposal, markGoalEditSeen } from '../storage'
+import { trainerProposeGoals, trainerCancelGoalProposal, trainerEditGoals, acceptGoalProposal, declineGoalProposal, markGoalEditSeen, logAction } from '../storage'
 
 const DAY_OPTIONS = [2, 3, 4, 5, 6]
 const fmtGoals = (goals) => {
@@ -20,7 +20,8 @@ const fmtDate = (ts) => {
 }
 const small = { margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--color-label-neutral)' }
 
-export function TrainerGoalEditor({ member, memberUid, trainer, onChanged }) {
+// [2026-11-01] memberName: 관리 이력(action 'goal')의 회원 이름 - rules가 연결 문서의 memberName과 같은지 확인한다(A33)
+export function TrainerGoalEditor({ member, memberUid, memberName = '', trainer, onChanged }) {
   const confirm = useConfirm()
   const [open, setOpen] = useState(false)
   const [goals, setGoals] = useState([])
@@ -32,10 +33,11 @@ export function TrainerGoalEditor({ member, memberUid, trainer, onChanged }) {
     setDays(member?.weeklyTargetDays || 3)
     setOpen(true)
   }
-  async function run(fn, fail) {
+  async function run(fn, fail, logDetail) {
     setBusy(true)
     try {
       await fn()
+      if (logDetail) logAction({ action: 'goal', targetUid: memberUid, targetName: memberName, detail: logDetail })
       setOpen(false)
       await onChanged?.()
     } catch (e) {
@@ -56,7 +58,7 @@ export function TrainerGoalEditor({ member, memberUid, trainer, onChanged }) {
             <p className="text-keep-all" style={small}>{fmtGoals(proposal.goals)} · 주 {proposal.weeklyTargetDays}일</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <Button variant="secondary" disabled={busy} onClick={start}>다시 정하기</Button>
-              <Button variant="secondary" disabled={busy} onClick={() => run(() => trainerCancelGoalProposal(memberUid), '제안을 취소하지 못했어요.')}>제안 취소</Button>
+              <Button variant="secondary" disabled={busy} onClick={() => run(() => trainerCancelGoalProposal(memberUid), '제안을 취소하지 못했어요.', '목표 제안 취소')}>제안 취소</Button>
             </div>
           </>
         ) : (
@@ -75,13 +77,13 @@ export function TrainerGoalEditor({ member, memberUid, trainer, onChanged }) {
       </div>
       <p className="text-keep-all" style={{ ...small, marginTop: 12 }}>제안은 회원이 수락하면 바뀌고, 바로 바꾸면 회원 화면에 트레이너가 바꿨다고 표시돼요.</p>
       <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-        <Button disabled={busy || empty} onClick={() => run(() => trainerProposeGoals(memberUid, trainer, data), '제안을 보내지 못했어요.')}>회원에게 제안</Button>
+        <Button disabled={busy || empty} onClick={() => run(() => trainerProposeGoals(memberUid, trainer, data), '제안을 보내지 못했어요.', `목표 제안: ${fmtGoals(data.goals)} · 주 ${data.weeklyTargetDays}일`)}>회원에게 제안</Button>
         <Button
           variant="secondary"
           disabled={busy || empty}
           onClick={async () => {
             if (!(await confirm('회원 수락 없이 목표를 바로 바꿀까요? 회원 화면에 바뀌었다고 알려요.', { okLabel: '바로 바꾸기', cancelLabel: '취소' }))) return
-            run(() => trainerEditGoals(memberUid, trainer, data), '목표를 바꾸지 못했어요.')
+            run(() => trainerEditGoals(memberUid, trainer, data), '목표를 바꾸지 못했어요.', `목표 바로 바꿈: ${fmtGoals(data.goals)} · 주 ${data.weeklyTargetDays}일`)
           }}
         >
           바로 바꾸기

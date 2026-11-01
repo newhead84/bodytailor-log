@@ -3,14 +3,17 @@
 // 기록 읽기는 firestore.rules isTrainerOf(활성 연결 + 트레이너 역할)가 허용한다.
 // [2026-10-31] PT 회원의 신체정보(성별·나이·키·몸무게)·운동 목표·주당 목표 일수도 트레이너에게 보여준다(users 문서 읽기 허용).
 // [2026-10-31 P2-3] 회원 화면 상단 "운동 계획": 트레이너가 회원의 루틴(계획)을 만들어 보내고 수정·삭제한다(RoutineSetup forTrainer 재사용).
+// [2026-11-01] 처리 안 된 지난 일정(A20), 회원 목록에 다음 PT(이미 읽은 7일 일정, 추가 읽기 없음, A19 일부), 같은 시간 중복 예약 경고(A17),
+//  회원권 만료·휴회 표시와 만료 회원 일정 경고(A18), 미래 일정 완료 확인(A21), 일정 없이 완료 날짜 선택(A22), 계획 변경 이력(A33)
 import React, { useCallback, useEffect, useState } from 'react'
 import { ScreenHeader, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerGoalEditor } from './TrainerGoal'
 import { useBackableScreen } from '../hooks/useBackableScreen'
-import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
+import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, trainerListOverdueSchedules, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS } from '../storage'
 import { toLocalDateStr } from '../utils/date'
+import { membershipState, isPausedOn, pausesOf } from '../utils/member'
 import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
 import { formatLoad, repsUnit, logVolumeKg } from '../utils/load'
@@ -33,6 +36,7 @@ function setsText(ex) {
 export default function TraineesScreen({ uid, trainerName = '', customExercises = {}, onClose }) {
   const [list, setList] = useState(null)
   const [sel, setSel] = useState(null)
+  const [weekItems, setWeekItems] = useState([]) // 7일 일정(회원 카드의 '다음 PT'에 재사용)
   // 회원 상세에서 기기 뒤로가기 → 회원 목록으로(내 회원 화면 전체가 닫히지 않게)
   const closeSel = useCallback(() => setSel(null), [])
   useBackableScreen(!!sel, closeSel)
@@ -50,7 +54,8 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
     <div style={{ height: '100%', overflowY: 'auto', padding: '0 20px 80px', boxSizing: 'border-box' }}>
       <ScreenHeader title="내 회원" onBack={onClose} />
       <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>관리자가 연결한 담당 회원이에요. 운동 계획을 만들어 보내고, 회원이 남긴 기록을 볼 수 있어요(기록 수정은 회원만).</p>
-      {list && list.length > 0 && <WeekSchedules uid={uid} list={list} onOpen={setSel} />}
+      {list && list.length > 0 && <OverdueSchedules uid={uid} list={list} onOpen={setSel} />}
+      {list && list.length > 0 && <WeekSchedules uid={uid} list={list} onOpen={setSel} onItems={setWeekItems} />}
       {list === null ? (
         <p style={{ color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
       ) : list.length === 0 ? (
@@ -60,7 +65,13 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
           {list.map((c) => (
             <Card key={c.id} onClick={() => setSel(c)}>
               <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{c.memberName}{c.memberNickname ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}> · {c.memberNickname}</span> : null}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>계획 · 기록 보기 ›</p>
+              <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+                {(() => {
+                  const next = weekItems.find((s) => s.memberUid === c.memberUid && s.status === 'scheduled')
+                  return next ? <>다음 PT <span className="bt-num">{fmtDay(next.date)} {next.time}</span> · </> : null
+                })()}
+                계획 · 기록 보기 ›
+              </p>
             </Card>
           ))}
         </div>
@@ -69,8 +80,42 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
   )
 }
 
+// [2026-11-01] 처리 안 된 지난 일정(A20): 내 'scheduled' 일정 중 오늘 전 날짜(등호 조건 2개, 복합 색인 없이). 없으면 카드를 그리지 않는다.
+function OverdueSchedules({ uid, list, onOpen }) {
+  const [items, setItems] = useState(null)
+  const today = toLocalDateStr(new Date())
+  useEffect(() => {
+    let alive = true
+    trainerListOverdueSchedules(uid, today)
+      .then((l) => alive && setItems(l))
+      .catch((err) => {
+        console.error('지난 일정 불러오기 실패:', err)
+        if (alive) setItems([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [uid, today])
+  const byMember = Object.fromEntries(list.map((c) => [c.memberUid, c]))
+  const shown = (items || []).filter((s) => byMember[s.memberUid])
+  if (!shown.length) return null
+  return (
+    <Card style={{ marginBottom: 14 }}>
+      <p style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 700, color: 'var(--color-warning)' }}>처리 안 된 지난 일정 {shown.length}건</p>
+      <p className="text-keep-all" style={{ margin: '0 0 4px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>날짜가 지났는데 아직 예정이에요. 회원 화면에서 완료·노쇼·삭제로 정리해 주세요(정산에 빠질 수 있어요).</p>
+      {shown.map((s) => (
+        <button key={s.id} type="button" onClick={() => onOpen(byMember[s.memberUid])} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 0', borderTop: '1px solid var(--color-line)', textAlign: 'left', color: 'var(--color-label-strong)' }}>
+          <span className="bt-num" style={{ minWidth: 92, fontSize: 14, fontWeight: 700 }}>{fmtDay(s.date)} {s.time}</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{byMember[s.memberUid].memberName}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}>정리 ›</span>
+        </button>
+      ))}
+    </Card>
+  )
+}
+
 // [2026-10-31] 오늘·이번 주(오늘부터 7일) PT 일정 모아보기 - 줄을 누르면 그 회원 화면으로
-function WeekSchedules({ uid, list, onOpen }) {
+function WeekSchedules({ uid, list, onOpen, onItems }) {
   const [items, setItems] = useState(null)
   const today = toLocalDateStr(new Date())
   const dates = Array.from({ length: 7 }, (_, i) => {
@@ -81,7 +126,11 @@ function WeekSchedules({ uid, list, onOpen }) {
   useEffect(() => {
     let alive = true
     listTrainerSchedulesByDates(uid, dates)
-      .then((l) => alive && setItems(l))
+      .then((l) => {
+        if (!alive) return
+        setItems(l)
+        onItems?.(l)
+      })
       .catch((err) => {
         console.error('PT 일정 모아보기 실패:', err)
         if (alive) setItems([])
@@ -183,6 +232,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
         onSave={async (data) => {
           try {
             await saveTrainerPlan(conn.memberUid, { uid, name: trainerName }, data)
+            logAction({ action: 'plan', targetUid: conn.memberUid, targetName: conn.memberName, detail: `운동 계획 ${editing === 'new' ? '새로 보냄' : '수정'}: ${String(data?.title || '').slice(0, 40)}` })
             setEditing(null)
             setPlansKey((k) => k + 1)
           } catch (e) {
@@ -199,7 +249,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
     <div style={{ height: '100%', overflowY: 'auto', padding: '0 20px 80px', boxSizing: 'border-box' }}>
       <ScreenHeader title={conn.memberName} onBack={onBack} backLabel="회원 목록" />
       <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>최근 8주 운동 기록 · 이번 주 <span className="bt-num">{thisWeekDays}</span>일 운동</p>
-      <MemberBody member={member} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
+      <MemberBody member={member} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} memberName={conn.memberName} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
       <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={loadMember} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} />
       <h2 style={{ fontSize: 16, margin: '22px 0 10px' }}>운동 기록</h2>
@@ -263,6 +313,7 @@ function MemberPlans({ conn, uid, onNew, onEdit }) {
     if (!(await confirm(`"${t.title}" 계획을 삭제할까요? 회원 화면에서도 사라져요.`))) return
     try {
       await deleteRoutineTemplate(conn.memberUid, t.id)
+      logAction({ action: 'plan', targetUid: conn.memberUid, targetName: conn.memberName, detail: `운동 계획 삭제: ${String(t.title || '').slice(0, 40)}` })
       load()
     } catch (e) {
       console.error('계획 삭제 실패:', e)
@@ -344,6 +395,7 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
   const today = toLocalDateStr(new Date())
   const [newDate, setNewDate] = useState(today)
   const [newTime, setNewTime] = useState('19:00')
+  const [useDate, setUseDate] = useState(today) // [2026-11-01] 일정 없이 1회 완료 날짜(A22)
   const trainer = { uid, name: trainerName }
   const reload = useCallback(() => {
     listPtSessions({ memberUid: conn.memberUid, trainerUid: uid }).then(setSessions).catch((err) => console.error('PT 기록 불러오기 실패:', err))
@@ -359,6 +411,12 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
     reload()
   }, [reload])
   if (!member) return null
+  // [2026-11-01] 회원권 상태(A18): 만료·D-day·휴회 표시, 만료 회원 일정·완료 때 확인
+  const ms = membershipState(member, today)
+  const paused = isPausedOn(member, today)
+  const curPause = paused ? pausesOf(member).find((p) => p.start <= today && today <= p.end) : null
+  const expired = ms.kind === 'expired'
+  const expiredOk = async (what) => !expired || confirm(`회원권이 ${String(ms.end).replace(/-/g, '.')}에 끝난 회원이에요. 그래도 ${what}할까요? 재등록 여부는 관리자에게 확인해 주세요.`, { okLabel: what, cancelLabel: '취소' })
   const total = typeof member.ptTotal === 'number' ? member.ptTotal : 0
   const left = member.ptRemaining ?? 0
   const deduct = enabled && total > 0
@@ -382,18 +440,38 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
     }
   }
   async function use() {
-    if (!(await confirm(`${conn.memberName}님 PT 1회를 완료로 기록할까요? 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.`, { okLabel: '1회 완료', cancelLabel: '취소' }))) return
-    run(() => trainerUsePt(conn.memberUid, trainer, today), '기록하지 못했어요', `일정 없이 PT 1회 완료(차감 ${left}→${left - 1})`)
+    const d = useDate && useDate <= today ? useDate : today
+    if (!(await expiredOk('기록'))) return
+    if (!(await confirm(`${conn.memberName}님 ${fmtDay(d)} PT 1회를 완료로 기록할까요? 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.`, { okLabel: '1회 완료', cancelLabel: '취소' }))) return
+    run(() => trainerUsePt(conn.memberUid, trainer, d), '기록하지 못했어요', `${d} 일정 없이 PT 1회 완료(차감 ${left}→${left - 1})`)
   }
   async function complete(s) {
     if (deduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+    // [2026-11-01] 아직 오지 않은 날짜의 일정을 미리 완료하면 정산 달이 어긋날 수 있어 한 번 더 확인(A21)
+    if (s.date > today && !(await confirm(`${fmtDay(s.date)} 일정은 아직 날짜가 안 됐어요. 수업을 앞당겨 했을 때만 완료해 주세요(완료 날짜는 일정 날짜로 남아요). 계속할까요?`, { okLabel: '계속', cancelLabel: '취소' }))) return
+    if (!(await expiredOk('완료'))) return
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 완료로 바꿀까요?${deduct ? ` 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ''}`, { okLabel: '완료', cancelLabel: '취소' }))) return
     run(() => trainerCompleteSchedule(s, trainer, deduct), '완료 처리하지 못했어요', `${s.date} ${s.time} PT 완료${deduct ? `(차감 ${left}→${left - 1})` : ''}`)
   }
   async function noshow(s) {
+    if (s.date > today) return confirm('아직 날짜가 안 된 일정은 노쇼로 처리할 수 없어요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (noshowDeduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 노쇼로 처리할까요?${noshowDeduct ? ` 노쇼도 1회 차감돼 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ' 남은 횟수는 그대로예요.'}`, { okLabel: '노쇼 처리', cancelLabel: '취소' }))) return
     run(() => trainerNoShowSchedule(s, trainer, noshowDeduct), '노쇼 처리하지 못했어요', `${s.date} ${s.time} 노쇼${noshowDeduct ? `(차감 ${left}→${left - 1})` : ''}`)
+  }
+  // [2026-11-01] 일정 추가: 만료 회원 확인(A18) + 같은 날 내 일정 중 1시간 안에 겹치는 것 경고(A17, 그날 내 일정 1번 조회)
+  async function addSchedule() {
+    const date = newDate
+    const time = newTime.slice(0, 5)
+    if (!(await expiredOk('일정 추가'))) return
+    try {
+      const mins = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+      const same = (await listTrainerSchedulesByDates(uid, [date])).filter((x) => x.status !== 'noshow' && Math.abs(mins(x.time) - mins(time)) < 60)
+      if (same.length && !(await confirm(`${fmtDay(date)} ${same.map((x) => x.time).join(', ')}에 이미 PT가 있어요(1시간 안). 그래도 ${time}에 추가할까요?`, { okLabel: '추가', cancelLabel: '취소' }))) return
+    } catch (err) {
+      console.error('중복 일정 확인 실패:', err) // 확인을 못 해도 추가는 막지 않는다
+    }
+    run(() => trainerAddSchedule(conn.memberUid, trainer, date, time), '일정을 등록하지 못했어요', `${date} ${time} PT 일정 등록`)
   }
   async function remove(s) {
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT 일정을 삭제할까요? 회원 캘린더에서도 사라져요.`, { okLabel: '삭제', cancelLabel: '취소' }))) return
@@ -415,9 +493,18 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
           </p>
         </div>
         {deduct && (
-          <Button variant="ghost" disabled={busy || left <= 0} onClick={use} style={{ flexShrink: 0, fontSize: 13 }}>일정 없이 1회 완료</Button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+            <input type="date" value={useDate} max={today} onChange={(e) => setUseDate(e.target.value)} aria-label="PT 한 날짜" style={{ ...field, padding: '7px 8px', fontSize: 13 }} />
+            <Button variant="ghost" disabled={busy || left <= 0} onClick={use} style={{ fontSize: 13 }}>일정 없이 1회 완료</Button>
+          </div>
         )}
       </div>
+      {(expired || ms.kind === 'soon' || paused) && (
+        <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12.5, fontWeight: 700, color: expired ? 'var(--color-danger)' : 'var(--color-warning)' }}>
+          {expired ? `회원권 만료(${String(ms.end).replace(/-/g, '.')})` : ms.kind === 'soon' ? `회원권 D-${ms.daysLeft} (${String(ms.end).replace(/-/g, '.')}까지)` : ''}
+          {paused ? `${expired || ms.kind === 'soon' ? ' · ' : ''}휴회 중(${String(curPause.end).replace(/-/g, '.')}까지)` : ''}
+        </p>
+      )}
       {!enabled && <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>PT 횟수 차감은 관리자가 대시보드에서 켜면 쓸 수 있어요(일정 등록·완료 표시는 지금도 돼요).</p>}
 
       <p style={{ margin: '16px 0 6px', fontSize: 14, fontWeight: 700 }}>PT 일정 <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· 회원 홈 캘린더에 보여요</span></p>
@@ -438,7 +525,7 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
       <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
         <input type="date" value={newDate} min={today} onChange={(e) => setNewDate(e.target.value)} aria-label="PT 날짜" style={{ ...field, flex: '1 1 140px' }} />
         <input type="time" value={newTime} step="600" onChange={(e) => setNewTime(e.target.value)} aria-label="PT 시간" style={{ ...field, flex: '1 1 100px' }} />
-        <Button disabled={busy || !newDate || !newTime} onClick={() => run(() => trainerAddSchedule(conn.memberUid, trainer, newDate, newTime.slice(0, 5)), '일정을 등록하지 못했어요', `${newDate} ${newTime.slice(0, 5)} PT 일정 등록`)} style={{ flex: '0 0 auto' }}>일정 추가</Button>
+        <Button disabled={busy || !newDate || !newTime} onClick={addSchedule} style={{ flex: '0 0 auto' }}>일정 추가</Button>
       </div>
 
       {(sessions.length > 0 || doneNoSession.length > 0) && (

@@ -5,7 +5,7 @@
 //  - FocusSetPanel: "포커스형" 기록 방식 - 한 번에 한 세트를 큰 숫자·큰 버튼으로 입력.
 //  - PlatePanel: 바벨 원판 계산(한쪽 기준, 20kg 봉).
 //  - ExerciseSettingEditor: 종목별 목표 반복 범위·휴식 시간 설정.
-import React from 'react'
+import React, { useRef } from 'react'
 import { SET_TYPES, SET_TYPE_LABEL, SET_TYPE_SHORT, SET_TYPE_DESC, platesPerSide } from '../utils/strength'
 
 const TYPE_COLOR = {
@@ -157,7 +157,7 @@ function BigStep({ label, onClick }) {
   )
 }
 
-function BigValue({ caption, value, onChange, children }) {
+function BigValue({ caption, value, onChange, children, integer = false }) {
   return (
     <div
       style={{
@@ -176,7 +176,7 @@ function BigValue({ caption, value, onChange, children }) {
       <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{caption}</span>
       <input
         type="number"
-        inputMode="decimal"
+        inputMode={integer ? 'numeric' : 'decimal'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="bt-num"
@@ -199,6 +199,7 @@ function BigValue({ caption, value, onChange, children }) {
 
 // 포커스형: sets(중량형)·reps(횟수형) 종목에서 "지금 할 세트" 하나를 크게 보여준다.
 export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무게 kg', repsLabel = '횟수', repsUnitLabel = '회', rirEnabled = true, onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, onRemoveSet, workingIndexOf }) {
+  const saveLockRef = useRef(0)
   const idx = focusIdx != null && sets[focusIdx] ? focusIdx : Math.max(0, sets.findIndex((s) => !s.saved))
   const cur = sets[idx] || {}
   const isReps = inputType === 'reps'
@@ -295,7 +296,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
                 <BigStep label={`+${weightStep}`} onClick={() => onField(idx, 'weight', step(cur.weight, weightStep))} />
               </BigValue>
             )}
-            <BigValue caption={repsLabel} value={cur.reps ?? ''} onChange={(v) => onField(idx, 'reps', v)}>
+            <BigValue caption={repsLabel} value={cur.reps ?? ''} onChange={(v) => onField(idx, 'reps', v)} integer>
               <BigStep label="−1" onClick={() => onField(idx, 'reps', step(cur.reps, -1))} />
               <BigStep label="+1" onClick={() => onField(idx, 'reps', step(cur.reps, 1))} />
             </BigValue>
@@ -332,7 +333,12 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
           <button
             type="button"
             data-guide="set-save"
-            onClick={() => onSave(idx)}
+            onClick={() => {
+              // [2026-11-01] 연타 시 다음 세트(프리필)까지 저장되던 문제: 누른 뒤 0.6초 잠금(전체 점검 U9)
+              if (Date.now() < saveLockRef.current) return
+              saveLockRef.current = Date.now() + 600
+              onSave(idx)
+            }}
             style={{
               height: 56,
               borderRadius: 'var(--radius-lg)',

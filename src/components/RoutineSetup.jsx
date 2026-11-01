@@ -19,7 +19,8 @@ import ExerciseGuideToggle from './ExerciseGuideToggle'
 //
 // initialTemplate: { id?, title, parts: [{name, atoms, exercises}] } - 없으면 신규 생성 모드
 // [2026-10-31 P2-3] forTrainer: 트레이너가 담당 회원의 계획을 만들 때 - 제목 문구 변경 + 회원에게 보일 메모(note) 입력.
-export default function RoutineSetup({ initialTemplate, customExercises, onSave, onCancel, onSkip, canCancel = true, forTrainer = null }) {
+// [2026-11-01] saveError: 저장 실패 문구를 이 화면에서 보여 준다(이전엔 목록 화면에만 그려져 안 보였다, 전체 점검 U10)
+export default function RoutineSetup({ initialTemplate, customExercises, onSave, onCancel, onSkip, canCancel = true, forTrainer = null, saveError = '' }) {
   const confirm = useConfirm()
   const isEditing = !!initialTemplate
   const [title, setTitle] = useState(initialTemplate?.title || '')
@@ -108,6 +109,22 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
 
   const totalExercises = parts.reduce((sum, p) => sum + p.exercises.length, 0)
   const canSave = title.trim().length > 0 && parts.length > 0 && totalExercises > 0
+  // [2026-11-01] 저장 버튼이 꺼진 이유(전체 점검 U27)
+  const saveBlockedReason = !title.trim()
+    ? `${forTrainer ? '계획' : '루틴'} 이름을 입력해 주세요.`
+    : parts.length === 0
+    ? '파트를 하나 이상 추가해 주세요.'
+    : totalExercises === 0
+    ? '종목을 하나 이상 골라 주세요.'
+    : ''
+  // [2026-11-01] 고친 내용이 있으면 뒤로·나중에를 누를 때 확인(전체 점검 U11)
+  const [initialSig] = useState(() => JSON.stringify({ t: initialTemplate?.title || '', n: initialTemplate?.note || '', p: initialTemplate?.parts || [] }))
+  const dirty = JSON.stringify({ t: title, n: note, p: parts }) !== initialSig
+  async function confirmLeave(action) {
+    if (!action) return
+    if (dirty && !(await confirm('저장하지 않은 변경 내용이 사라져요. 나갈까요?', { okLabel: '나가기', cancelLabel: '계속 편집' }))) return
+    action()
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -127,11 +144,11 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
     <div style={{ padding: '0 20px 120px', height: '100%', overflowY: 'auto' }}>
       <ScreenHeader
         title={forTrainer ? `${forTrainer.memberName}님 계획 ${isEditing ? '수정' : '만들기'}` : isEditing ? '내 루틴 수정' : '새 루틴 만들기'}
-        onBack={canCancel ? onCancel : null}
+        onBack={canCancel ? () => confirmLeave(onCancel) : null}
         backLabel="취소하고 돌아가기"
         right={
           onSkip ? (
-            <button onClick={onSkip} style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-neutral)', padding: '10px 8px', whiteSpace: 'nowrap' }}>
+            <button onClick={() => confirmLeave(onSkip)} style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-neutral)', padding: '10px 8px', whiteSpace: 'nowrap' }}>
               나중에
             </button>
           ) : null
@@ -229,9 +246,15 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
           background: 'var(--color-bg-card)',
           boxShadow: 'var(--shadow-nav)',
           display: 'flex',
+          flexDirection: 'column',
           gap: 8,
         }}
       >
+        {(saveError || saveBlockedReason) && (
+          <p role={saveError ? 'alert' : undefined} className="text-keep-all" style={{ margin: 0, fontSize: 12.5, textAlign: 'center', color: saveError ? 'var(--color-danger)' : 'var(--color-label-neutral)' }}>
+            {saveError || saveBlockedReason}
+          </p>
+        )}
         <Button full disabled={!canSave || saving} onClick={handleSave}>
           {saving ? '저장 중…' : isEditing ? `변경사항 저장 (${totalExercises}개 종목)` : `${forTrainer ? '계획 보내기' : '루틴 저장하기'} (${totalExercises}개 종목)`}
         </Button>

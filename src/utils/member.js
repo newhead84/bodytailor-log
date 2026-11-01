@@ -99,6 +99,9 @@ export function normalizeDate(s) {
   const mm = String(Number(m)).padStart(2, '0')
   const dd = String(Number(day)).padStart(2, '0')
   if (!(Number(mm) >= 1 && Number(mm) <= 12 && Number(dd) >= 1 && Number(dd) <= 31)) return ''
+  // [2026-11-01] 없는 날짜('2026-02-31')는 버린다(A25) - 표시 종료일과 실제 차단일이 어긋나지 않게
+  const t = new Date(Date.UTC(Number(y), Number(mm) - 1, Number(dd)))
+  if (t.getUTCMonth() !== Number(mm) - 1 || t.getUTCDate() !== Number(dd)) return ''
   return `${y}-${mm}-${dd}`
 }
 // 명단 문서 ID: 회원번호가 있으면 그것, 없으면 전화 해시 앞 20자
@@ -155,3 +158,12 @@ export function daysBetween(a, b) {
   return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000)
 }
 export const memberName = (u) => u?.signupInfo?.name || u?.nickname || '(이름 없음)'
+
+// [2026-11-01] 휴회 이력(A2): users.pauses 배열, 없으면 예전 pauseStart/pauseEnd 하나를 이력으로 본다(legacy)
+export function pausesOf(u) {
+  if (Array.isArray(u?.pauses)) return u.pauses
+  if (u?.pauseStart && u?.pauseEnd) return [{ start: u.pauseStart, end: u.pauseEnd, days: daysBetween(u.pauseStart, u.pauseEnd) + 1, at: 0, legacy: true }]
+  return []
+}
+// 오늘이 휴회 기간 안인지
+export const isPausedOn = (u, today) => pausesOf(u).some((p) => p.start <= today && today <= p.end)

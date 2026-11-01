@@ -1,10 +1,11 @@
 // TrainerProfilesTab.jsx - [2026-10-31] 관리자 대시보드 "트레이너 프로필"
 //  - 프로필(사진·직함·전문 분야·경력·자격·소개·인스타) 추가·수정·순서, 트레이너 앱 계정 연결
 //  - 퇴사 처리: 앱 소개에서 숨김(기록 유지, 재직으로 되돌리기 가능) + 담당 회원을 다른 트레이너로 옮기거나 연결 해제 + 계정 역할 정리
+//  - [2026-11-01] 퇴사 처리를 한 번에 저장(writeBatch, A8) + 남은 예정 PT 일정도 새 트레이너로 옮기거나 삭제(A3) + 회원별 관리 이력(A31)
 import React, { useEffect, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
 import TrainerProfileView, { TrainerAvatar, TrainerTags } from './TrainerProfileView'
-import { listTrainerProfiles, adminSaveTrainerProfile, adminDeleteTrainerProfile, adminConnect, endConnection, adminUpdateMember, logAction } from '../storage'
+import { listTrainerProfiles, adminSaveTrainerProfile, adminDeleteTrainerProfile, adminTrainerLeave, adminListFutureSchedulesOf, logAction } from '../storage'
 import { DEFAULT_TRAINER_PROFILES, resizePhoto, splitLines, splitTags, photoList, MAX_TRAINER_PHOTOS } from '../utils/trainerProfile'
 import { todayStr } from '../utils/date'
 
@@ -12,7 +13,7 @@ const field = { padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: 
 const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }
 const nameOf = (u) => u?.signupInfo?.name || u?.nickname || '(이름 없음)'
 
-export default function TrainerProfilesTab({ users, conns, adminUid, onChanged }) {
+export default function TrainerProfilesTab({ users, conns, adminUid, admin, onChanged }) {
   const confirm = useConfirm()
   const [list, setList] = useState(null)
   const [editing, setEditing] = useState(null) // null | 'new' | profile
@@ -118,22 +119,18 @@ export default function TrainerProfilesTab({ users, conns, adminUid, onChanged }
         conns={conns}
         profiles={active}
         onCancel={() => setLeaving(null)}
-        onDone={async ({ moveTo, demote }) => {
+        onDone={async ({ moveTo, demote, schedules }) => {
           setBusy(true)
           try {
             const mine = leaving.linkedUid ? conns.filter((c) => c.status === 'active' && c.trainerUid === leaving.linkedUid) : []
-            const target = moveTo && users.find((u) => u.uid === moveTo)
-            for (const c of mine) {
-              const m = users.find((u) => u.uid === c.memberUid)
-              if (target && m) await adminConnect(m, target, adminUid)
-              else await endConnection(c.id, adminUid)
-            }
-            if (demote && leaving.linkedUid) await adminUpdateMember(leaving.linkedUid, { role: '일반회원' }, adminUid)
+            const target = (moveTo && users.find((u) => u.uid === moveTo)) || null
+            const members = Object.fromEntries(users.map((u) => [u.uid, u]))
+            await adminTrainerLeave({ admin: admin || { uid: adminUid, name: '관리자' }, leaverUid: demote ? leaving.linkedUid : '', leaverName: leaving.name, conns: mine, members, target, schedules: schedules || [], demote })
             await adminSaveTrainerProfile({ id: leaving.id, active: false, leftAt: todayStr() })
-            await logAction({ action: 'profile', targetUid: leaving.linkedUid || '', targetName: leaving.name, detail: `퇴사 처리 · 담당 회원 ${mine.length}명 ${target ? `${leaving.name} → ${target.signupInfo?.name || target.nickname} 이관` : '연결 해제'}${demote ? ' · 역할 일반회원' : ''}` })
+            await logAction({ action: 'profile', targetUid: leaving.linkedUid || '', targetName: leaving.name, detail: `퇴사 처리 · 담당 회원 ${mine.length}명 ${target ? `${leaving.name} → ${target.signupInfo?.name || target.nickname} 이관` : '연결 해제'}${schedules?.length ? ` · 예정 일정 ${schedules.length}건 ${target ? '이관' : '삭제'}` : ''}${demote ? ' · 역할 일반회원' : ''}` })
             setLeaving(null)
             await load()
-            await onChanged?.()
+            await onChanged?.([leaving.linkedUid, ...mine.map((c) => c.memberUid)].filter(Boolean))
           } catch (err) {
             await fail(err, '퇴사 처리')
           } finally {
@@ -329,6 +326,16 @@ function LeavePanel({ p, users, conns, profiles, onCancel, onDone }) {
   const [moveTo, setMoveTo] = useState('')
   const [demote, setDemote] = useState(!!p.linkedUid)
   const [saving, setSaving] = useState(false)
+  const [schedules, setSchedules] = useState(p.linkedUid ? null : []) // 남은 예정 PT 일정(오늘 이후)
+  useEffect(() => {
+    if (!p.linkedUid) return
+    adminListFutureSchedulesOf(p.linkedUid, todayStr())
+      .then(setSchedules)
+      .catch((err) => {
+        console.error('예정 일정 불러오기 실패:', err)
+        setSchedules([])
+      })
+  }, [p.linkedUid])
   return (
     <Card style={{ maxWidth: 560 }}>
       <p style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>{p.name} 트레이너 퇴사 처리</p>
@@ -350,6 +357,11 @@ function LeavePanel({ p, users, conns, profiles, onCancel, onDone }) {
         )}
       </div>
       {p.linkedUid && (
+        <p className="text-keep-all" style={{ margin: '14px 0 0', fontSize: 15.5, color: schedules?.length ? 'var(--color-warning)' : 'var(--color-label-neutral)' }}>
+          {schedules === null ? '남은 PT 일정 확인 중…' : schedules.length ? `오늘 이후 예정된 PT 일정 ${schedules.length}건: ${moveTo ? '고른 트레이너에게 함께 옮겨요.' : '옮길 트레이너가 없으면 삭제돼요(회원 캘린더에서도 사라져요).'}` : '남은 예정 PT 일정이 없어요.'}
+        </p>
+      )}
+      {p.linkedUid && (
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 14, fontSize: 15.5 }}>
           <input type="checkbox" checked={demote} onChange={(e) => setDemote(e.target.checked)} />
           앱 계정 역할을 '일반회원'으로 바꾸기 (회원 기록 열람·계획 보내기 권한 해제)
@@ -358,10 +370,10 @@ function LeavePanel({ p, users, conns, profiles, onCancel, onDone }) {
       <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
         <Button variant="ghost" onClick={onCancel}>취소</Button>
         <Button
-          disabled={saving}
+          disabled={saving || schedules === null}
           onClick={async () => {
             setSaving(true)
-            await onDone({ moveTo, demote })
+            await onDone({ moveTo, demote, schedules })
             setSaving(false)
           }}
         >

@@ -6,15 +6,18 @@
 //  - 문의·도구: 기존 문의 관리 화면, 온보딩 화면 미리보기
 // [2026-10-31] 회원권 기간(=앱 사용 기간)·PT 횟수 편집, 만료 임박/만료 필터, 명단 만료일 자동 반영, 설정(PT 차감 켜기), 트레이너 프로필 탭
 // [2026-10-31 확장] 요약 홈(첫 탭)·회원 상세(AdminMemberDetail)·재등록·PT 관리(AdminPtTab)·이용 통계·관리 이력(adminLogs)·회원 CSV·노쇼 처리 설정
+// [2026-11-01] 읽기 절감(A5): 동작 뒤에는 바뀐 회원 문서·연결만 다시 읽고, 명단은 필요한 탭에서만 읽는다. 문의는 대시보드 안 '문의' 탭(대시보드 상태 유지).
+//  승인·연결은 writeBatch로 한 번에(A7·A9), 회원권은 바뀐 항목만 저장·PT 등록은 increment(A1), 연장 사유(재등록·수정·보상, A16), 명단 재업로드 보호(A10~A14)
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
-import { LayoutDashboard, UserPlus, Users, RefreshCw, CalendarDays, Link2, UserRound, BarChart3, History, FileUp, Settings, ArrowLeft, Menu, Search } from 'lucide-react'
+import { LayoutDashboard, UserPlus, Users, RefreshCw, CalendarDays, Link2, UserRound, BarChart3, History, FileUp, Settings, ArrowLeft, Menu, Search, MessageSquare } from 'lucide-react'
 import '../styles/admin.css'
-import { adminListUsers, adminUpdateMember, adminGetRoster, adminSaveRoster, adminLinkRoster, adminListConnections, adminConnect, endConnection, adminSetMembership, getAppSettings, adminSaveSettings, adminListNotes, getAllInquiries, logAdmin, logAction } from '../storage'
+import { adminListUsers, adminGetUser, adminApproveMember, adminUpdateMember, adminGetRoster, adminSaveRoster, adminListConnections, adminListMemberConnections, adminConnect, adminEndTrainerAndSetRole, endConnection, adminSetMembership, getAppSettings, adminSaveSettings, adminListNotes, adminSaveNote, getAllInquiries, logAdmin, logAction, onLogFail } from '../storage'
 import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId, membershipState, addMonths, fmtYmd, memberName } from '../utils/member'
 import TrainerProfilesTab from './TrainerProfilesTab'
 import AdminMemberDetail from './AdminMemberDetail'
 import AdminPtTab from './AdminPtTab'
+import InquiryAdminScreen from './InquiryAdminScreen'
 import { SummaryTab, RenewalTab, StatsTab, LogsTab, exportMembersCsv } from './AdminInsights'
 import { Badge, fmtDate, selectStyle, statusOf } from './adminUi'
 import { todayStr } from '../utils/date'
@@ -27,6 +30,7 @@ const TABS = [
   { key: 'pt', label: 'PT 관리', icon: CalendarDays },
   { key: 'connect', label: '트레이너 연결', icon: Link2 },
   { key: 'trainers', label: '트레이너 프로필', icon: UserRound },
+  { key: 'inquiries', label: '문의', icon: MessageSquare },
   { key: 'stats', label: '통계', icon: BarChart3 },
   { key: 'logs', label: '관리 이력', icon: History },
   { key: 'roster', label: '명단 가져오기', icon: FileUp },
@@ -34,7 +38,7 @@ const TABS = [
 ]
 const NAV = [
   { group: '', items: ['summary'] },
-  { group: '회원', items: ['pending', 'members', 'renewal'] },
+  { group: '회원', items: ['pending', 'members', 'renewal', 'inquiries'] },
   { group: 'PT·트레이너', items: ['pt', 'connect', 'trainers'] },
   { group: '운영', items: ['stats', 'logs', 'roster', 'etc'] },
 ]
@@ -43,29 +47,31 @@ const NOSHOW = [
   ['mark', '표시만', '노쇼로 표시하고 정산에 따로 세요. 남은 PT는 그대로예요.'],
   ['deduct', '1회 차감', '노쇼도 남은 PT에서 1회 빼요(PT 횟수 차감이 켜져 있을 때).'],
 ]
+// [2026-11-01] 회원권 종료일을 바꾼 사유(A16) - '재등록'만 재등록률에 센다
+const EXT_REASON = { renew: '재등록', fix: '수정·오타', comp: '보상' }
 
-export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOnboardingPreview }) {
+export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }) {
   const confirm = useConfirm()
   const [tab, setTab] = useState('summary')
   const [notes, setNotes] = useState({})
-  const [inquiries, setInquiries] = useState([])
+  const [inquiries, setInquiries] = useState(null)
   const [detailUid, setDetailUid] = useState('')
   const [editUid, setEditUid] = useState('') // 회원 상세 → '수정·연장'으로 회원 탭 편집기 열기
   const [menuOpen, setMenuOpen] = useState(false) // 휴대폰 ☰ 메뉴
   const [memberQ, setMemberQ] = useState('') // 상단 검색 → 회원 목록
   const [users, setUsers] = useState(null)
-  const [roster, setRoster] = useState([])
+  const [roster, setRoster] = useState(null) // null = 아직 안 읽음(필요한 탭에서만)
   const [conns, setConns] = useState([])
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState('')
   const [settings, setSettings] = useState({})
+  const [logFails, setLogFails] = useState(0) // [2026-11-01] 관리 이력 저장 실패 수(A32)
 
   async function load() {
     setLoadError('')
     try {
-      const [u, r, c, st, nt, iq] = await Promise.all([adminListUsers(), adminGetRoster(), adminListConnections(), getAppSettings().catch(() => ({})), adminListNotes().catch(() => ({})), getAllInquiries().catch(() => [])])
+      const [u, c, st, nt, iq] = await Promise.all([adminListUsers(), adminListConnections(), getAppSettings().catch(() => ({})), adminListNotes().catch(() => ({})), getAllInquiries().catch(() => [])])
       setUsers(u)
-      setRoster(r)
       setConns(c)
       setSettings(st || {})
       setNotes(nt || {})
@@ -76,13 +82,43 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
       setUsers([])
     }
   }
+  async function loadRoster() {
+    try {
+      setRoster(await adminGetRoster())
+    } catch (err) {
+      console.error('명단 불러오기 실패:', err)
+      setRoster([])
+    }
+  }
+  // 바뀐 회원 문서만 다시 읽어 목록에 반영(1읽기)
+  async function refreshUser(id) {
+    if (!id) return
+    try {
+      const fresh = await adminGetUser(id)
+      setUsers((list) => (list || []).map((x) => (x.uid === id ? fresh || x : x)))
+    } catch (err) {
+      console.error('회원 다시 읽기 실패:', err)
+    }
+  }
+  // 한 회원의 연결만 다시 읽어 합친다(연결·해제 뒤)
+  async function refreshConnsOf(memberUid) {
+    try {
+      const mine = await adminListMemberConnections(memberUid)
+      setConns((list) => [...list.filter((c) => c.memberUid !== memberUid), ...mine])
+    } catch (err) {
+      console.error('연결 다시 읽기 실패:', err)
+    }
+  }
+  const patchNote = (id, patch) => setNotes((n) => ({ ...n, [id]: { ...(n[id] || {}), ...patch } }))
   useEffect(() => {
     load()
+    onLogFail(() => setLogFails((n) => n + 1))
+    return () => onLogFail(null)
   }, [])
 
   const rosterByHash = useMemo(() => {
     const m = new Map()
-    roster.forEach((r) => r.phoneHash && m.set(r.phoneHash, r))
+    ;(roster || []).forEach((r) => r.phoneHash && m.set(r.phoneHash, r))
     return m
   }, [roster])
   const matchOf = (u) => {
@@ -90,7 +126,14 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
     if (!r) return null
     return { roster: r, nameOk: normalizeName(r.name) === normalizeName(u.signupInfo?.name) }
   }
-  const pending = (users || []).filter((u) => statusOf(u) === 'pending')
+  // [2026-11-01] 거절된 회원이 정보를 고쳐 재검토를 요청하면 승인 대기에 함께 보인다
+  const pending = (users || []).filter((u) => statusOf(u) === 'pending' || (statusOf(u) === 'rejected' && u.reReviewRequested === true))
+  // 명단은 일치 확인이 필요한 탭에서만 읽는다(요약은 승인 대기가 있을 때만)
+  const needRoster = tab === 'roster' || tab === 'pending' || (tab === 'summary' && pending.length > 0)
+  useEffect(() => {
+    if (users && needRoster && roster === null) loadRoster()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, needRoster, roster])
   // 관리 이력에 남길 '나'
   const me = (users || []).find((x) => x.uid === uid)
   const admin = { uid, name: me ? memberName(me) : '관리자' }
@@ -105,62 +148,86 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
     await confirm(`${what}에 실패했어요. 관리자 계정인지, Firebase 규칙이 게시됐는지 확인해 주세요.`, { okLabel: '확인', cancelLabel: '닫기' })
   }
   // 명단 연결: 이름·번호가 모두 맞을 때만 자동, 번호만 맞으면 관리자 확인 후(다른 사람 번호를 입력한 경우 대비)
+  // [2026-11-01] 확인 창(재승인 구분, A35) + 이미 다른 회원과 연결된 명단이면 경고(A9) + 한 번에 저장(writeBatch)
   async function approve(u, { silent = false } = {}) {
     const m = matchOf(u)
+    const prevStatus = statusOf(u)
+    const re = prevStatus !== 'pending'
     let link = !!m?.nameOk
-    if (m && !m.nameOk && !silent) {
-      link = await confirm(`신청 이름(${u.signupInfo?.name})과 명단 이름(${m.roster.name})이 달라요. 명단과 연결해서 승인할까요? (취소하면 연결 없이 승인)`, { okLabel: '연결해서 승인', cancelLabel: '연결 없이 승인' })
-    }
+    const takenBy = m?.roster.linkedUid && m.roster.linkedUid !== u.uid ? (users || []).find((x) => x.uid === m.roster.linkedUid) : null
+    if (!silent) {
+      if (m && !m.nameOk) {
+        link = await confirm(`신청 이름(${u.signupInfo?.name})과 명단 이름(${m.roster.name})이 달라요. 명단과 연결해서 승인할까요? (취소하면 연결 없이 승인)`, { okLabel: '연결해서 승인', cancelLabel: '연결 없이 승인' })
+      } else if (!(await confirm(`${memberName(u)}님을 ${re ? `다시 승인할까요? (지금: ${MEMBER_STATUS[prevStatus]})` : '승인할까요?'}`, { okLabel: re ? '다시 승인' : '승인', cancelLabel: '취소' }))) return
+      if (link && takenBy) {
+        link = await confirm(`이 명단은 이미 ${memberName(takenBy)}님 계정과 연결돼 있어요. ${memberName(u)}님 계정으로 연결을 옮길까요? (취소하면 연결 없이 승인)`, { okLabel: '연결 옮기기', cancelLabel: '연결 없이 승인' })
+      }
+    } else if (takenBy) link = false // 일괄 승인: 이미 연결된 명단은 건드리지 않는다
+    const setEnd = link && m.roster.expireDate && !u.membershipEnd
     setBusy(u.uid)
     try {
-      await adminUpdateMember(u.uid, { memberStatus: 'approved', ...(link ? { rosterId: m.roster.id, memberNo: m.roster.memberNo || '' } : {}) }, uid)
-      if (link) await adminLinkRoster(m.roster.id, u.uid)
-      // 명단 만료일 → 회원권 종료일(=앱 사용 기간). 이미 기간을 직접 정해 둔 회원은 건드리지 않는다.
-      if (link && m.roster.expireDate && !u.membershipEnd) await adminSetMembership(u.uid, { start: u.membershipStart || '', end: m.roster.expireDate })
-      await log('approve', u, `가입 승인${link ? ' · 명단 연결' : ''}${link && m.roster.expireDate && !u.membershipEnd ? ` · 회원권 ~${fmtYmd(m.roster.expireDate)}` : ''}`)
+      await adminApproveMember(u.uid, uid, link ? { rosterId: m.roster.id, memberNo: m.roster.memberNo || '', expireDate: setEnd ? m.roster.expireDate : '', start: u.membershipStart || '' } : null)
+      await log('approve', u, `${re ? '재승인' : '가입 승인'}${link ? ' · 명단 연결' : ''}${takenBy && link ? `(${memberName(takenBy)}에서 옮김)` : ''}${setEnd ? ` · 회원권 ~${fmtYmd(m.roster.expireDate)}` : ''}`)
+      if (link) setRoster((list) => (list || []).map((r) => (r.id === m.roster.id ? { ...r, linkedUid: u.uid } : r)))
     } catch (err) {
       if (!silent) await fail(err, '승인')
       else throw err
     } finally {
       setBusy('')
     }
-    if (!silent) await load()
+    await refreshUser(u.uid)
   }
   async function setStatus(u, memberStatus) {
     if (memberStatus === 'approved') return approve(u)
     if (!(await confirm(`${u.signupInfo?.name || u.nickname || '이 회원'}님을 '${MEMBER_STATUS[memberStatus]}'(으)로 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
+    // [2026-11-01] 거절 사유(A36) - 관리자 메모(adminNotes)에만 남긴다(회원에게는 보이지 않음)
+    const reason = memberStatus === 'rejected' ? (window.prompt('거절 사유를 적어 두세요(선택, 관리자만 봐요).', '') || '').trim().slice(0, 200) : ''
     setBusy(u.uid)
     try {
       await adminUpdateMember(u.uid, { memberStatus }, uid)
-      await log('status', u, `${MEMBER_STATUS[statusOf(u)]} → ${MEMBER_STATUS[memberStatus]}`)
+      if (reason) {
+        await adminSaveNote(u.uid, { rejectReason: reason }, uid)
+        patchNote(u.uid, { rejectReason: reason })
+      }
+      await log('status', u, `${MEMBER_STATUS[statusOf(u)]} → ${MEMBER_STATUS[memberStatus]}${reason ? ` · 사유: ${reason}` : ''}`)
     } catch (err) {
       await fail(err, '상태 변경')
     } finally {
       setBusy('')
     }
-    await load()
+    await refreshUser(u.uid)
   }
   async function setRole(u, role) {
     if (u.uid === uid && role !== '관리자') {
       await confirm('내 계정의 관리자 권한은 여기서 뺄 수 없어요. 다른 관리자 계정에서 바꿔 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
       return
     }
-    if (!(await confirm(`${u.signupInfo?.name || u.nickname || '이 회원'}님의 역할을 '${role}'(으)로 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
+    // [2026-11-01] 트레이너 역할을 빼면 담당 연결이 숨은 채 남던 문제(A6): 연결이 있으면 경고 후 함께 해제
+    const mine = u.role === '트레이너' && role !== '트레이너' ? conns.filter((c) => c.status === 'active' && c.trainerUid === u.uid) : []
+    if (mine.length) {
+      if (!(await confirm(`${memberName(u)} 트레이너에게 담당 회원 ${mine.length}명(${mine.map((c) => c.memberName).join(', ')})이 연결돼 있어요. 역할을 '${role}'(으)로 바꾸면 이 연결을 모두 해제해요. 다른 트레이너에게 옮기려면 '트레이너 프로필'의 퇴사 처리를 써 주세요.`, { okLabel: '연결 해제하고 바꾸기', cancelLabel: '취소' }))) return
+    } else if (!(await confirm(`${u.signupInfo?.name || u.nickname || '이 회원'}님의 역할을 '${role}'(으)로 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
     setBusy(u.uid)
     try {
-      await adminUpdateMember(u.uid, { role }, uid)
-      await log('role', u, `${u.role || '일반회원'} → ${role}`)
+      if (mine.length) {
+        await adminEndTrainerAndSetRole(u.uid, mine.map((c) => c.id), role, uid)
+        setConns((list) => list.map((c) => (mine.some((x) => x.id === c.id) ? { ...c, status: 'ended' } : c)))
+        await log('role', u, `${u.role || '일반회원'} → ${role} · 담당 회원 ${mine.length}명 연결 해제`)
+      } else {
+        await adminUpdateMember(u.uid, { role }, uid)
+        await log('role', u, `${u.role || '일반회원'} → ${role}`)
+      }
     } catch (err) {
       await fail(err, '역할 변경')
     } finally {
       setBusy('')
     }
-    await load()
+    await refreshUser(u.uid)
   }
   async function approveAllMatched() {
     const list = pending.filter((u) => matchOf(u)?.nameOk)
     if (!list.length) return
-    if (!(await confirm(`명단과 이름·번호가 모두 일치하는 ${list.length}명을 승인할까요?`, { okLabel: '모두 승인', cancelLabel: '취소' }))) return
+    if (!(await confirm(`명단과 이름·번호가 모두 일치하는 ${list.length}명을 승인할까요? 이미 다른 계정과 연결된 명단은 연결 없이 승인해요.`, { okLabel: '모두 승인', cancelLabel: '취소' }))) return
     let done = 0
     try {
       for (const u of list) {
@@ -170,7 +237,28 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
     } catch (err) {
       await fail(err, `일괄 승인(${done}/${list.length}명 완료)`)
     }
-    await load()
+  }
+  // [2026-11-01] 회원권·PT 저장(A1·A16): patch는 바뀐 항목만, reason은 종료일을 늘린 사유
+  async function saveMembership(u, patch, reason) {
+    setBusy(u.uid)
+    try {
+      await adminSetMembership(u.uid, patch)
+      const parts = []
+      if ('end' in patch) parts.push(`회원권 ${u.membershipEnd ? `~${fmtYmd(u.membershipEnd)}` : '미설정'} → ${patch.end ? `${patch.start ? fmtYmd(patch.start) : ''}~${fmtYmd(patch.end)}` : '제한 없음'}${reason ? `(${EXT_REASON[reason]})` : ''}`)
+      if (patch.ptAdd) parts.push(`PT ${patch.ptAdd}회 등록(남은 ${u.ptRemaining ?? 0} → ${(u.ptRemaining ?? 0) + patch.ptAdd})`)
+      else if (patch.ptTotal !== undefined || patch.ptRemaining !== undefined) parts.push(`PT ${u.ptRemaining ?? 0}/${u.ptTotal ?? 0} → ${patch.ptRemaining ?? u.ptRemaining ?? 0}/${patch.ptTotal ?? u.ptTotal ?? 0}`)
+      if (parts.length) await log('membership', u, parts.join(' · '))
+      if (reason === 'renew' && patch.end) {
+        const renewal = { ...(notes[u.uid]?.renewal || {}), status: 'renewed', end: u.membershipEnd || '', renewedTo: patch.end, at: todayStr(), by: admin.name }
+        await adminSaveNote(u.uid, { renewal }, uid)
+        patchNote(u.uid, { renewal })
+      }
+    } catch (err) {
+      await fail(err, '회원권·PT 저장')
+    } finally {
+      setBusy('')
+    }
+    await refreshUser(u.uid)
   }
 
   const pageLabel = TABS.find((t) => t.key === tab)?.label || ''
@@ -226,7 +314,7 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
                 setMemberQ(e.target.value)
                 if (tab !== 'members' || detailUid) go('members')
               }}
-              placeholder="회원 이름·휴대폰 끝 4자리"
+              placeholder="회원 이름·휴대폰 번호(끝 4자리 또는 전체)"
               aria-label="회원 검색"
             />
           </label>
@@ -234,18 +322,23 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
         </header>
         <div className="adm-content">
         {loadError && <Card style={{ marginBottom: 12, color: 'var(--color-danger)', fontSize: 15.5 }}>{loadError}</Card>}
+        {logFails > 0 && (
+          <Card style={{ marginBottom: 12, color: 'var(--color-warning)', fontSize: 15.5 }}>
+            관리 이력 {logFails}건을 남기지 못했어요(작업 자체는 저장됐어요). Firebase 규칙이 최신으로 게시됐는지 확인해 주세요.{' '}
+            <button type="button" className="adm-link" onClick={() => setLogFails(0)}>닫기</button>
+          </Card>
+        )}
         {users === null ? (
           <p style={{ color: 'var(--color-label-neutral)', fontSize: 15.5 }}>불러오는 중…</p>
         ) : tab === 'summary' ? (
           <SummaryTab
             users={users}
             conns={conns}
-            inquiries={inquiries}
+            inquiries={inquiries || []}
             pending={pending}
             matchOf={matchOf}
             onGo={go}
             onOpenMember={openMember}
-            onOpenInquiries={onOpenInquiries}
             onApprove={approve}
             onEditMembership={(u) => {
               setEditUid(u.uid)
@@ -260,22 +353,25 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
             note={notes[detailUid]}
             admin={admin}
             onBack={() => setDetailUid('')}
-            onChanged={load}
+            onUserChanged={refreshUser}
+            onNotePatched={patchNote}
             onEditMembership={() => {
               setEditUid(detailUid)
               setDetailUid('')
             }}
           />
         ) : tab === 'renewal' ? (
-          <RenewalTab users={users} notes={notes} admin={admin} onOpenMember={openMember} onSaved={load} />
+          <RenewalTab users={users} notes={notes} admin={admin} onOpenMember={openMember} onSaved={patchNote} />
         ) : tab === 'pt' ? (
-          <AdminPtTab users={users} conns={conns} onOpenMember={openMember} />
+          <AdminPtTab users={users} conns={conns} admin={admin} onOpenMember={openMember} onUserChanged={refreshUser} />
+        ) : tab === 'inquiries' ? (
+          inquiries === null ? <p style={{ color: 'var(--color-label-neutral)', fontSize: 15.5 }}>불러오는 중…</p> : <InquiryAdminScreen embedded initial={inquiries} onListChange={setInquiries} />
         ) : tab === 'stats' ? (
           <StatsTab users={users} />
         ) : tab === 'logs' ? (
           <LogsTab />
         ) : tab === 'pending' ? (
-          <PendingTab pending={pending} matchOf={matchOf} busy={busy} onApprove={approve} onReject={(u) => setStatus(u, 'rejected')} onApproveAll={approveAllMatched} rosterCount={roster.length} />
+          <PendingTab pending={pending} matchOf={matchOf} busy={busy} onApprove={approve} onReject={(u) => setStatus(u, 'rejected')} onApproveAll={approveAllMatched} rosterCount={roster === null ? -1 : roster.length} />
         ) : tab === 'members' ? (
           <MembersTab
             users={users}
@@ -285,26 +381,12 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
             onRole={setRole}
             selfUid={uid}
             onOpen={(u) => setDetailUid(u.uid)}
-            onCsv={() => exportMembersCsv(users, conns)}
+            onCsv={() => exportMembersCsv(users, conns, admin)}
             initialEditing={editUid}
             conns={conns}
             q={memberQ}
             onQ={setMemberQ}
-            onMembership={async (u, v) => {
-              setBusy(u.uid)
-              try {
-                await adminSetMembership(u.uid, v)
-                const parts = []
-                if ((v.end || '') !== (u.membershipEnd || '') || (v.start || '') !== (u.membershipStart || '')) parts.push(`회원권 ${u.membershipEnd ? `~${fmtYmd(u.membershipEnd)}` : '미설정'} → ${v.end ? `${v.start ? fmtYmd(v.start) : ''}~${fmtYmd(v.end)}` : '제한 없음'}`)
-                if ((v.ptTotal ?? 0) !== (u.ptTotal ?? 0) || (v.ptRemaining ?? 0) !== (u.ptRemaining ?? 0)) parts.push(`PT ${u.ptRemaining ?? 0}/${u.ptTotal ?? 0} → ${v.ptRemaining}/${v.ptTotal}`)
-                if (parts.length) await log('membership', u, parts.join(' · '))
-              } catch (err) {
-                await fail(err, '회원권·PT 저장')
-              } finally {
-                setBusy('')
-              }
-              await load()
-            }}
+            onMembership={saveMembership}
           />
         ) : tab === 'connect' ? (
           <ConnectTab
@@ -317,23 +399,44 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
               } catch (err) {
                 await fail(err, '트레이너 연결')
               }
-              await load()
+              await Promise.all([refreshConnsOf(member.uid), refreshUser(member.uid)])
             }}
             onEnd={async (c) => {
               if (!(await confirm(`${c.trainerName} 트레이너와 ${c.memberName}님의 연결을 해제할까요? 트레이너는 더 이상 이 회원의 기록을 볼 수 없어요(기록은 그대로).`, { okLabel: '해제', cancelLabel: '취소' }))) return
               try {
                 await endConnection(c.id, uid)
                 await log('disconnect', { uid: c.memberUid, signupInfo: { name: c.memberName } }, `${c.trainerName} 트레이너 연결 해제`)
+                setConns((list) => list.map((x) => (x.id === c.id ? { ...x, status: 'ended' } : x)))
               } catch (err) {
                 await fail(err, '연결 해제')
               }
-              await load()
             }}
           />
         ) : tab === 'roster' ? (
-          <RosterTab roster={roster} users={users} onSaved={load} />
+          roster === null ? <p style={{ color: 'var(--color-label-neutral)', fontSize: 15.5 }}>불러오는 중…</p> : (
+            <RosterTab
+              roster={roster}
+              users={users}
+              admin={admin}
+              onSaved={async (changedUids) => {
+                await loadRoster()
+                await Promise.all((changedUids || []).map(refreshUser))
+              }}
+              onRenewed={(id, r) => patchNote(id, { renewal: { ...(notes[id]?.renewal || {}), ...r } })}
+            />
+          )
         ) : tab === 'trainers' ? (
-          <TrainerProfilesTab users={users} conns={conns} adminUid={uid} onChanged={load} />
+          <TrainerProfilesTab
+            users={users}
+            conns={conns}
+            adminUid={uid}
+            admin={admin}
+            onChanged={async (changedUids) => {
+              // 퇴사 처리 뒤: 연결은 바뀐 게 여러 건이라 연결 목록만 다시, 회원은 바뀐 계정만
+              setConns(await adminListConnections().catch(() => conns))
+              await Promise.all((changedUids || []).map(refreshUser))
+            }}
+          />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <Card>
@@ -394,10 +497,6 @@ export default function AdminDashboard({ uid, onClose, onOpenInquiries, onOpenOn
               </div>
               {settings.noshowPolicy === 'deduct' && !settings.ptDeductEnabled && <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--color-warning)' }}>PT 횟수 차감이 꺼져 있어 지금은 표시만 돼요. 위에서 차감을 켜 주세요.</p>}
             </Card>
-            <Card onClick={onOpenInquiries}>
-              <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>문의 관리</p>
-              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 14.5, color: 'var(--color-label-neutral)' }}>회원이 남긴 문의를 확인하고 답변해요.</p>
-            </Card>
             <Card onClick={onOpenOnboardingPreview}>
               <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>온보딩 화면 미리보기</p>
               <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 14.5, color: 'var(--color-label-neutral)' }}>가입할 때 보이는 화면을 다시 열어봐요. 입력해도 저장되지 않아요.</p>
@@ -452,54 +551,103 @@ function MembershipLine({ u }) {
   )
 }
 
+// [2026-11-01] 바뀐 항목만 저장(A1): '+N회 등록'은 더할 횟수(ptAdd, increment)로 보내 편집 중 트레이너 차감이 되살아나지 않게.
+// 숫자를 직접 고치면 그 값으로 저장(남은 > 총이면 저장 막음, 빈칸 안내, A24). 종료일을 늘리면 사유(재등록·수정·보상, A16). 연장 시 빈 시작일은 오늘로(A37).
 function MembershipEditor({ u, busy, onSave, onClose }) {
   const [start, setStart] = useState(u.membershipStart || '')
   const [end, setEnd] = useState(u.membershipEnd || '')
   const [ptTotal, setPtTotal] = useState(u.ptTotal ?? '')
   const [ptRemaining, setPtRemaining] = useState(u.ptRemaining ?? '')
+  const [ptAdd, setPtAdd] = useState(0) // '+N회 등록'으로 더한 횟수
+  const [ptManual, setPtManual] = useState(false) // 숫자 칸을 직접 고쳤는지
+  const [reason, setReason] = useState('') // '' = 자동(연장 버튼이면 재등록, 날짜 직접 고치면 수정)
+  const [usedChip, setUsedChip] = useState(false)
   const today = todayStr()
   const extend = (n) => {
     const base = end && end >= today ? end : today
-    if (!start || (end && end < today)) setStart(end && end >= today ? start : today)
+    if (!start || (end && end < today)) setStart(today)
     setEnd(addMonths(base, n))
+    setUsedChip(true)
   }
   const bad = start && end && end < start
+  const origEnd = u.membershipEnd || ''
+  const msChanged = end !== origEnd || (end ? start : '') !== (u.membershipStart || '')
+  const extended = end && end > origEnd && !!origEnd
+  const why = reason || (usedChip ? 'renew' : 'fix')
+  const tNum = ptTotal === '' ? 0 : Number(ptTotal)
+  const rNum = ptRemaining === '' ? 0 : Number(ptRemaining)
+  const ptOver = rNum > tNum
+  const ptBlank = ptManual && (ptTotal === '' || ptRemaining === '') && ((u.ptTotal || 0) > 0 || (u.ptRemaining || 0) > 0)
+  const ptChanged = ptManual ? tNum !== (u.ptTotal ?? 0) || rNum !== (u.ptRemaining ?? 0) : ptAdd > 0
   const inputStyle = { ...selectStyle, padding: '9px 10px', fontSize: 15.5, minWidth: 0 }
   const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }
+  function submit() {
+    const patch = {}
+    if (msChanged) {
+      patch.start = end ? start : ''
+      patch.end = end
+    }
+    if (ptChanged) {
+      if (ptManual) {
+        patch.ptTotal = tNum
+        patch.ptRemaining = rNum
+      } else patch.ptAdd = ptAdd
+    }
+    if (!Object.keys(patch).length) return onClose()
+    onSave({ patch, reason: msChanged && extended ? why : msChanged ? 'fix' : '' })
+  }
   return (
     <div style={{ width: '100%', padding: '4px 0' }}>
-      <p style={{ margin: '0 0 8px', fontSize: 14.5, fontWeight: 700 }}>회원권 기간 = 앱 사용 기간</p>
+      <p style={{ margin: '0 0 8px', fontSize: 15.5, fontWeight: 700 }}>회원권 기간 = 앱 사용 기간</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
         <label style={lab}>시작일<input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={inputStyle} /></label>
-        <label style={lab}>종료일<input type="date" value={end} onChange={(e) => setEnd(e.target.value)} style={inputStyle} /></label>
+        <label style={lab}>종료일<input type="date" value={end} onChange={(e) => { setEnd(e.target.value); setUsedChip(false) }} style={inputStyle} /></label>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
         {[1, 3, 6, 12].map((n) => (
-          <Chip key={n} onClick={() => extend(n)} style={{ padding: '6px 12px', fontSize: 14.5 }}>+{n}개월</Chip>
+          <Chip key={n} onClick={() => extend(n)} style={{ padding: '6px 12px', fontSize: 15.5 }}>+{n}개월</Chip>
         ))}
-        {end && <Chip onClick={() => { setEnd(''); setStart('') }} style={{ padding: '6px 12px', fontSize: 14.5 }}>기간 제한 없음</Chip>}
+        {end && <Chip onClick={() => { setEnd(''); setStart('') }} style={{ padding: '6px 12px', fontSize: 15.5 }}>기간 제한 없음</Chip>}
       </div>
-      <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13.5, color: bad ? 'var(--color-danger)' : 'var(--color-label-neutral)' }}>
-        {bad ? '종료일이 시작일보다 빨라요.' : '종료일이 지나면 새 운동 기록이 막혀요(지난 기록은 볼 수 있어요). 연장 버튼은 남은 기간 뒤에 이어 붙여요.'}
+      {extended && (
+        <label style={{ ...lab, marginTop: 10, maxWidth: 260 }}>
+          연장 사유 (재등록만 재등록률에 세요)
+          <select value={why} onChange={(e) => setReason(e.target.value)} style={inputStyle}>
+            {Object.entries(EXT_REASON).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </label>
+      )}
+      <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 15.5, color: bad ? 'var(--color-danger)' : 'var(--color-label-neutral)' }}>
+        {bad ? '종료일이 시작일보다 빨라요.' : '종료일이 지나면 새 운동 기록이 막혀요(지난 기록은 볼 수 있어요). 연장 버튼은 남은 기간 뒤에 이어 붙여요. 휴회는 회원 상세에서 넣어요.'}
       </p>
-      <p style={{ margin: '14px 0 8px', fontSize: 14.5, fontWeight: 700 }}>PT 횟수 <span style={{ fontWeight: 400, color: 'var(--color-label-neutral)' }}>(회원권과 별도)</span></p>
+      <p style={{ margin: '14px 0 8px', fontSize: 15.5, fontWeight: 700 }}>PT 횟수 <span style={{ fontWeight: 400, color: 'var(--color-label-neutral)' }}>(회원권과 별도)</span></p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-        <label style={lab}>총 횟수<input type="number" min="0" max="999" inputMode="numeric" value={ptTotal} onChange={(e) => setPtTotal(e.target.value)} style={inputStyle} /></label>
-        <label style={lab}>남은 횟수<input type="number" min="0" max="999" inputMode="numeric" value={ptRemaining} onChange={(e) => setPtRemaining(e.target.value)} style={inputStyle} /></label>
+        <label style={lab}>총 횟수<input type="number" min="0" max="999" inputMode="numeric" value={ptTotal} onChange={(e) => { setPtTotal(e.target.value); setPtManual(true) }} style={inputStyle} /></label>
+        <label style={lab}>남은 횟수<input type="number" min="0" max="999" inputMode="numeric" value={ptRemaining} onChange={(e) => { setPtRemaining(e.target.value); setPtManual(true) }} style={inputStyle} /></label>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
         {[10, 20, 30].map((n) => (
-          <Chip key={n} onClick={() => { setPtTotal(String((Number(ptTotal) || 0) + n)); setPtRemaining(String((Number(ptRemaining) || 0) + n)) }} style={{ padding: '6px 12px', fontSize: 14.5 }}>+{n}회 등록</Chip>
+          <Chip
+            key={n}
+            onClick={() => {
+              setPtTotal(String((Number(ptTotal) || 0) + n))
+              setPtRemaining(String((Number(ptRemaining) || 0) + n))
+              if (!ptManual) setPtAdd((x) => x + n)
+            }}
+            style={{ padding: '6px 12px', fontSize: 15.5 }}
+          >
+            +{n}회 등록
+          </Chip>
         ))}
       </div>
+      {(ptOver || ptBlank || (!ptManual && ptAdd > 0)) && (
+        <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 15.5, color: ptOver ? 'var(--color-danger)' : ptBlank ? 'var(--color-warning)' : 'var(--color-label-neutral)' }}>
+          {ptOver ? '남은 횟수가 총 횟수보다 많아요. 숫자를 다시 확인해 주세요.' : ptBlank ? '빈 칸은 0회로 저장돼요.' : `저장하면 지금 남은 횟수에 ${ptAdd}회를 더해요(그 사이 트레이너가 차감한 횟수는 그대로).`}
+        </p>
+      )}
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         <Button variant="ghost" onClick={onClose}>닫기</Button>
-        <Button
-          disabled={busy || bad}
-          onClick={() => onSave({ start: end ? start : '', end, ptTotal: ptTotal === '' ? 0 : Number(ptTotal), ptRemaining: ptRemaining === '' ? 0 : Math.min(Number(ptRemaining), Number(ptTotal) || 0) })}
-        >
-          저장
-        </Button>
+        <Button disabled={busy || bad || (ptManual && ptOver)} onClick={submit}>저장</Button>
       </div>
     </div>
   )
@@ -520,7 +668,10 @@ function PendingTab({ pending, matchOf, busy, onApprove, onReject, onApproveAll,
       )}
       {pending.map((u) => (
         <Card key={u.uid} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <MemberLine u={u} match={matchOf(u)} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            {u.reReviewRequested === true && <span style={{ alignSelf: 'flex-start', fontSize: 13.5, fontWeight: 700, color: 'var(--color-warning)' }}>재검토 요청(거절 후 정보 수정)</span>}
+            <MemberLine u={u} match={matchOf(u)} />
+          </div>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             <Button variant="ghost" disabled={busy === u.uid} onClick={() => onReject(u)}>거절</Button>
             <Button disabled={busy === u.uid} onClick={() => onApprove(u)}>승인</Button>
@@ -553,11 +704,24 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
   const [editing, setEditing] = useState(initialEditing)
   const today = todayStr()
   const trainerOf = Object.fromEntries((conns || []).filter((c) => c.status === 'active').map((c) => [c.memberUid, c.trainerName]))
+  // [2026-11-01] 휴대폰 전체 번호로도 찾기(A26): 저장된 번호 변환값(해시)과 비교
+  const digits = q.replace(/\D/g, '')
+  const [qHash, setQHash] = useState('')
+  useEffect(() => {
+    let alive = true
+    if (isValidMobile(digits)) phoneHash(digits).then((h) => alive && setQHash(h)).catch(() => {})
+    else setQHash('')
+    return () => {
+      alive = false
+    }
+  }, [digits])
   const list = users
     .filter((u) => filterOf(u, filter, today))
     .filter((u) => {
       const s = q.replace(/\s/g, '')
       if (!s) return true
+      if (qHash) return u.signupInfo?.phoneHash === qHash
+      if (digits.length === 4 && u.signupInfo?.phoneLast4 === digits) return true
       return [u.signupInfo?.name, u.nickname, u.signupInfo?.phoneLast4, u.memberNo].some((v) => String(v || '').replace(/\s/g, '').includes(s))
     })
     .sort((a, b) => String(a.signupInfo?.name || a.nickname || '').localeCompare(String(b.signupInfo?.name || b.nickname || ''), 'ko'))
@@ -635,15 +799,18 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
                     {editing === u.uid && (
                       <tr>
                         <td colSpan={8} style={{ background: '#fafbfc' }}>
+                          {/* [2026-11-01] 휴대폰에서 표가 가로로 넓어도 편집 창은 화면 폭 안에 머물게(왼쪽 고정) */}
+                          <div style={{ position: 'sticky', left: 0, maxWidth: 'min(100%, calc(100vw - 48px))' }}>
                           <MembershipEditor
                             u={u}
                             busy={busy === u.uid}
                             onClose={() => setEditing('')}
                             onSave={async (v) => {
-                              await onMembership(u, v)
+                              await onMembership(u, v.patch, v.reason)
                               setEditing('')
                             }}
                           />
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -669,7 +836,10 @@ function ConnectTab({ users, conns, onConnect, onEnd }) {
   const [memberUid, setMemberUid] = useState('')
   const [trainerUid, setTrainerUid] = useState('')
   const [saving, setSaving] = useState(false)
+  const [mq, setMq] = useState('') // [2026-11-01] 회원이 수백 명이어도 고르기 쉽게 이름·끝 4자리로 거르기(A26)
   const label = (u) => `${u.signupInfo?.name || u.nickname || '(이름 없음)'}${u.signupInfo?.phoneLast4 ? ` · ${u.signupInfo.phoneLast4}` : ''}`
+  const mqs = mq.replace(/\s/g, '')
+  const memberOptions = mqs ? members.filter((u) => u.uid === memberUid || label(u).replace(/\s/g, '').includes(mqs)) : members
   const current = active.find((c) => c.memberUid === memberUid)
   async function handle() {
     const m = members.find((u) => u.uid === memberUid)
@@ -692,10 +862,14 @@ function ConnectTab({ users, conns, onConnect, onEnd }) {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginTop: 12, alignItems: 'end' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }}>
-              회원
+              회원 찾기
+              <input value={mq} onChange={(e) => setMq(e.target.value)} placeholder="이름·끝 4자리" style={{ ...selectStyle, fontSize: 15.5 }} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }}>
+              회원 {mqs ? `(${memberOptions.length}명)` : ''}
               <select value={memberUid} onChange={(e) => setMemberUid(e.target.value)} style={selectStyle}>
                 <option value="">회원 선택</option>
-                {members.map((u) => <option key={u.uid} value={u.uid}>{label(u)}</option>)}
+                {memberOptions.map((u) => <option key={u.uid} value={u.uid}>{label(u)}</option>)}
               </select>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }}>
@@ -742,7 +916,7 @@ const FIELDS = [
   { key: 'expireDate', label: '만료일', required: false },
 ]
 
-function RosterTab({ roster, users, onSaved }) {
+function RosterTab({ roster, users, admin, onSaved, onRenewed }) {
   const [rows, setRows] = useState(null) // string[][] (첫 줄 = 헤더)
   const [map, setMap] = useState({})
   const [fileName, setFileName] = useState('')
@@ -775,50 +949,78 @@ function RosterTab({ roster, users, onSaved }) {
   const ready = map.name >= 0 && map.phone >= 0 && !sameCol
   const invalid = ready ? body.filter((r) => !isValidMobile(r[map.phone]) || !String(r[map.name] || '').trim()).length : 0
 
+  // [2026-11-01] 재업로드 보호: 매핑 안 한 열(만료일·회원번호)은 저장하지 않아 기존 값을 지우지 않는다(A10). 같은 번호의 기존 문서가 있으면
+  // 그 문서 ID를 그대로 써서 회원번호 열이 새로 생겨도 연결이 끊기지 않게(A11). 종료일은 늘어날 때만 반영하고 줄어드는 회원은 따로 알림(A12).
+  // CSV 안 중복 줄 수 안내(A13), 중간 실패 시 저장된 인원 안내(A14), 종료일이 바뀐 회원마다 이력(A30).
   async function handleSave() {
     if (!ready) return
     setSaving(true)
     setResult('')
+    const changed = []
+    let saved = 0
+    let synced = 0
     try {
+      const byId = new Map(roster.map((r) => [r.id, r]))
+      const byHash = new Map()
+      roster.forEach((r) => r.phoneHash && !byHash.has(r.phoneHash) && byHash.set(r.phoneHash, r))
       const out = new Map()
+      let dup = 0
       for (const r of body) {
         const name = String(r[map.name] || '').trim()
         const phone = r[map.phone]
         if (!name || !isValidMobile(phone)) continue
-        const row = {
-          name: name.slice(0, 30),
-          phoneHash: await phoneHash(phone),
-          phoneLast4: phoneLast4(phone),
-          memberNo: map.memberNo >= 0 ? String(r[map.memberNo] || '').trim().slice(0, 30) : '',
-          expireDate: map.expireDate >= 0 ? normalizeDate(r[map.expireDate]) : '',
-        }
-        out.set(rosterDocId(row), row)
+        const row = { name: name.slice(0, 30), phoneHash: await phoneHash(phone), phoneLast4: phoneLast4(phone) }
+        const no = map.memberNo >= 0 ? String(r[map.memberNo] || '').trim().slice(0, 30) : ''
+        if (no) row.memberNo = no
+        const exp = map.expireDate >= 0 ? normalizeDate(r[map.expireDate]) : ''
+        if (exp) row.expireDate = exp
+        let id = rosterDocId(row)
+        if (!byId.has(id) && byHash.has(row.phoneHash)) id = byHash.get(row.phoneHash).id
+        if (out.has(id)) dup++
+        out.set(id, row)
       }
       const list = [...out.entries()].map(([id, r]) => ({ id, ...r }))
-      await adminSaveRoster(list)
-      // 명단과 연결된 회원의 회원권 종료일을 새 만료일로 맞춘다(만료일 열이 있을 때만)
-      let synced = 0
+      try {
+        saved = await adminSaveRoster(list)
+      } catch (err) {
+        saved = err?.saved || 0
+        throw err
+      }
+      // 명단과 연결된 회원의 회원권 종료일: 새 만료일이 더 늦을 때만(또는 아직 없을 때) 바꾼다
+      const shorter = []
       if (map.expireDate >= 0) {
-        const byId = new Map(roster.map((r) => [r.id, r]))
         for (const r of list) {
           const linked = byId.get(r.id)?.linkedUid
           const u = linked && (users || []).find((x) => x.uid === linked)
-          if (u && r.expireDate && u.membershipEnd !== r.expireDate) {
-            await adminSetMembership(u.uid, { start: u.membershipStart || '', end: r.expireDate })
-            synced++
+          if (!u || !r.expireDate || u.membershipEnd === r.expireDate) continue
+          if (u.membershipEnd && r.expireDate < u.membershipEnd) {
+            shorter.push(`${memberName(u)}(앱 ${fmtYmd(u.membershipEnd)} / 명단 ${fmtYmd(r.expireDate)})`)
+            continue
+          }
+          await adminSetMembership(u.uid, { start: u.membershipStart || '', end: r.expireDate })
+          synced++
+          changed.push(u.uid)
+          await logAdmin(admin, { action: 'roster', targetUid: u.uid, targetName: memberName(u), detail: `명단 반영: 회원권 ${u.membershipEnd ? `~${fmtYmd(u.membershipEnd)}` : '미설정'} → ~${fmtYmd(r.expireDate)}${u.membershipEnd ? '(재등록)' : ''}` })
+          // 명단 만료일이 늘었다 = 프런트에서 재등록한 것으로 본다(A16)
+          if (u.membershipEnd) {
+            const renewal = { status: 'renewed', end: u.membershipEnd, renewedTo: r.expireDate, at: todayStr(), by: admin.name }
+            await adminSaveNote(u.uid, { renewal }, admin.uid).catch(() => {})
+            onRenewed?.(u.uid, renewal)
           }
         }
       }
-      await logAction({ action: 'roster', detail: `명단 ${list.length}명 가져오기${synced ? ` · 회원권 종료일 ${synced}명 반영` : ''}${invalid ? ` · ${invalid}줄 건너뜀` : ''}` })
-      setResult(`${list.length}명을 저장했어요.${synced ? ` 연결된 회원 ${synced}명의 회원권 종료일을 새 만료일로 바꿨어요.` : ''}${invalid ? ` 형식이 맞지 않은 ${invalid}줄은 건너뛰었어요.` : ''}`)
+      await logAction({ action: 'roster', detail: `명단 ${list.length}명 가져오기${synced ? ` · 회원권 종료일 ${synced}명 반영` : ''}${shorter.length ? ` · 종료일이 줄어드는 ${shorter.length}명은 그대로` : ''}${dup ? ` · 중복 ${dup}줄 합침` : ''}${invalid ? ` · ${invalid}줄 건너뜀` : ''}` })
+      setResult(
+        `${list.length}명을 저장했어요.${dup ? ` 파일 안에 같은 회원이 겹친 ${dup}줄은 하나로 합쳤어요.` : ''}${synced ? ` 연결된 회원 ${synced}명의 회원권 종료일을 새 만료일로 늘렸어요.` : ''}${invalid ? ` 형식이 맞지 않은 ${invalid}줄은 건너뛰었어요.` : ''}${shorter.length ? `\n명단 만료일이 앱보다 빨라 바꾸지 않은 회원 ${shorter.length}명: ${shorter.join(', ')}. 맞다면 회원 탭에서 직접 고쳐 주세요.` : ''}`
+      )
       setRows(null)
-      await onSaved?.()
     } catch (err) {
       console.error('명단 저장 실패:', err)
-      setResult('저장하지 못했어요. 관리자 계정·Firebase 규칙 게시를 확인해 주세요.')
+      setResult(saved ? `중간에 멈췄어요. ${saved}명은 저장됐고${synced ? ` 회원권 ${synced}명은 반영됐어요` : ''}, 나머지는 저장하지 못했어요. 같은 파일을 다시 올리면 이어서 저장돼요(이미 저장된 회원은 같은 정보로 덮어써요).` : '저장하지 못했어요. 관리자 계정·Firebase 규칙 게시를 확인해 주세요.')
     } finally {
       setSaving(false)
     }
+    await onSaved?.(changed)
   }
 
   return (
@@ -826,14 +1028,14 @@ function RosterTab({ roster, users, onSaved }) {
       <Card>
         <p style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>현재 명단 <span className="bt-num">{roster.length}</span>명</p>
         <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-label-neutral)' }}>
-          출입관리 프로그램에서 회원 명단을 엑셀로 내보낸 뒤, 엑셀에서 "다른 이름으로 저장 → CSV"로 저장해 올려 주세요. 파일은 이 브라우저 안에서만 읽고, 이름·회원번호·만료일과 휴대폰 번호의 변환값·뒤 4자리만 저장해요. 다시 올리면 같은 회원은 새 정보로 바뀌고, 앱 회원과 연결된 사람은 회원권 종료일(=앱 사용 기간)도 새 만료일로 바뀌어요.
+          출입관리 프로그램에서 회원 명단을 엑셀로 내보낸 뒤, 엑셀에서 "다른 이름으로 저장 → CSV"로 저장해 올려 주세요. 파일은 이 브라우저 안에서만 읽고, 이름·회원번호·만료일과 휴대폰 번호의 변환값·뒤 4자리만 저장해요. 다시 올리면 같은 회원은 새 정보로 바뀌고, 앱 회원과 연결된 사람은 회원권 종료일(=앱 사용 기간)이 새 만료일로 늘어나요(앱 종료일보다 빠르면 바꾸지 않고 알려 드려요). 고르지 않은 열(만료일·회원번호)은 기존 값을 그대로 둬요.
         </p>
         <label style={{ display: 'inline-block', marginTop: 12 }}>
           <input type="file" accept=".csv,text/csv" onChange={handleFile} style={{ display: 'none' }} />
           <span style={{ display: 'inline-block', padding: '11px 16px', borderRadius: 'var(--radius-md)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontWeight: 700, fontSize: 15.5, cursor: 'pointer' }}>CSV 파일 고르기</span>
         </label>
       </Card>
-      {result && <p className="text-keep-all" style={{ margin: 0, fontSize: 15.5, color: 'var(--color-label-strong)' }}>{result}</p>}
+      {result && <p className="text-keep-all" style={{ margin: 0, fontSize: 15.5, color: 'var(--color-label-strong)', whiteSpace: 'pre-line' }}>{result}</p>}
       {rows && (
         <Card>
           <p style={{ margin: 0, fontSize: 15.5, fontWeight: 700 }}>{fileName} · <span className="bt-num">{body.length}</span>줄</p>
@@ -875,7 +1077,7 @@ function RosterTab({ roster, users, onSaved }) {
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <Button variant="ghost" onClick={() => setRows(null)}>취소</Button>
-            <Button disabled={!ready || saving} onClick={handleSave}>{saving ? '저장 중…' : `${body.length - invalid}명 저장`}</Button>
+            <Button disabled={!ready || saving} onClick={handleSave}>{saving ? '저장 중…' : `${body.length - invalid}줄 저장`}</Button>
           </div>
         </Card>
       )}

@@ -232,7 +232,9 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   const popularTop = useMemo(() => {
     const entry = popularityByAtom.find((r) => r.atom === selectedPopAtom)
     if (!entry) return []
+    // [2026-11-01] S2: 운동 라이브러리에 있는 종목 이름만 표시(임의 문구 노출 방지)
     return Object.entries(entry.counts)
+      .filter(([name]) => getExerciseAtom(name))
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)

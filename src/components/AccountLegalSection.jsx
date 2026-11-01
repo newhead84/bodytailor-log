@@ -98,7 +98,8 @@ export function DeletedAccountScreen() {
   )
 }
 
-function DeleteAccountCard({ uid }) {
+// [2026-11-01] 승인 대기 화면(MemberPendingScreen)에서도 같은 탈퇴 흐름을 쓴다. compact: 제목 없이, CSV 안내 줄 생략(대기 화면엔 데이터 메뉴 없음)
+export function DeleteAccountCard({ uid, compact = false }) {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
   const [busy, setBusy] = useState(false)
@@ -131,7 +132,7 @@ function DeleteAccountCard({ uid }) {
 
   return (
     <>
-      <SectionTitle>계정</SectionTitle>
+      {!compact && <SectionTitle>계정</SectionTitle>}
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {!open ? (
           <Button variant="ghost" full onClick={() => setOpen(true)}>
@@ -142,7 +143,7 @@ function DeleteAccountCard({ uid }) {
             <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>계정을 삭제할까요?</p>
             <ul className="text-keep-all" style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, lineHeight: 1.55, color: 'var(--color-label-normal)' }}>
               <li>운동 기록·루틴·트레이너 계획·랭킹·문의·프로필(신체 정보 포함)이 모두 지워지고 되돌릴 수 없어요.</li>
-              <li>필요하면 먼저 위 "데이터"에서 운동 기록을 CSV로 받아 두세요.</li>
+              {!compact && <li>필요하면 먼저 위 "데이터"에서 운동 기록을 CSV로 받아 두세요.</li>}
               <li>담당 트레이너 연결은 끝나요. PT 이용 기록(날짜·횟수)은 헬스장 정산을 위해 헬스장이 관리해요.</li>
               <li>다시 가입하면 새 계정으로 처음부터 시작하고, 헬스장 승인을 다시 받아요.</li>
             </ul>

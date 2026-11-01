@@ -29,6 +29,8 @@
   --adm-side: #ffffff;
   --adm-side-active: #f1f6dc;
   --font-body: 'Paperlogy', 'Pretendard', system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif; /* 2026-10-31 앱 기본 폰트와 같게 */
+  /* [2026-11-01] 앱 테마가 다크여도 관리 화면은 라이트 고정: 네이티브 버튼 글자색(☰ 아이콘)·날짜·선택 칸이 흰 배경에 흰색으로 보이던 문제 */
+  color-scheme: light;
   font-family: var(--font-body);
   font-size: 15.5px;
   color: var(--color-label-strong);

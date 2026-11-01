@@ -1,9 +1,10 @@
 // AdminPtTab.jsx - [2026-10-31] 관리자 대시보드 PT 관리: 월간 정산(트레이너별 완료·노쇼·담당 회원) · 전체 PT 일정 캘린더 · PT 소진 예상 · CSV
 // 완료 횟수 = 완료 처리한 일정 + 일정 없이 완료(ptSessions, scheduleId 없음). 노쇼 = 노쇼 처리한 일정.
+// [2026-11-01] 관리자 PT 정정(상태 바꾸기·차감 취소 + 이력, A4) · 처리 안 된 지난 일정(A20) · 기간 조회 5분 캐시(A27) · CSV 내보내기 이력(A29)
 import React, { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Chip } from './ui'
-import { Badge, isGymMember, muted, sectionTitle, toCsv } from './adminUi'
-import { adminListPtSchedulesRange, adminListPtSessionsRange } from '../storage'
+import { Button, Card, useConfirm } from './ui'
+import { Badge, isGymMember, muted, sectionTitle, selectStyle, toCsv } from './adminUi'
+import { adminPtRange, adminListOverdueSchedules, adminSetScheduleStatus, adminCancelPtSession, logAdmin } from '../storage'
 import { addDays, fmtYmd, memberName } from '../utils/member'
 import { todayStr } from '../utils/date'
 import { downloadText } from '../utils/exportCsv'
@@ -21,8 +22,13 @@ const shiftMonth = (ym, n) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-export default function AdminPtTab({ users, conns, onOpenMember }) {
+const ST = { scheduled: '예정', done: '완료', noshow: '노쇼' }
+
+export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserChanged }) {
+  const confirm = useConfirm()
   const today = todayStr()
+  const [overdue, setOverdue] = useState(null) // 처리 안 된 지난 일정
+  const [busy, setBusy] = useState('')
   const [ym, setYm] = useState(today.slice(0, 7))
   const [data, setData] = useState(null) // { sch, ses }
   const [recent, setRecent] = useState(null) // 최근 8주 PT(소진 예상)
@@ -31,8 +37,8 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
     setData(null)
     setDay('')
     const [from, to] = monthRange(ym)
-    Promise.all([adminListPtSchedulesRange(from, to), adminListPtSessionsRange(from, to)])
-      .then(([sch, ses]) => setData({ sch, ses }))
+    adminPtRange(from, to)
+      .then(setData)
       .catch((err) => {
         console.error('PT 불러오기 실패:', err)
         setData({ sch: [], ses: [] })
@@ -40,9 +46,15 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
   }, [ym])
   useEffect(() => {
     const from = addDays(today, -56)
-    Promise.all([adminListPtSchedulesRange(from, today), adminListPtSessionsRange(from, today)])
-      .then(([sch, ses]) => setRecent({ sch, ses }))
+    adminPtRange(from, today)
+      .then(setRecent)
       .catch(() => setRecent({ sch: [], ses: [] }))
+    adminListOverdueSchedules(today)
+      .then(setOverdue)
+      .catch((err) => {
+        console.error('지난 일정 불러오기 실패:', err)
+        setOverdue([])
+      })
   }, [today])
 
   const byUid = useMemo(() => Object.fromEntries(users.map((u) => [u.uid, u])), [users])
@@ -71,6 +83,74 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
     data.ses.filter((x) => !x.scheduleId && !x.noshow).forEach((x) => lines.push([x.date, '', tName(x.trainerUid, x.trainerName), memberName(byUid[x.memberUid]), '완료(일정 없이)']))
     lines.sort((a, b) => (a === lines[0] ? -1 : b === lines[0] ? 1 : (a[0] + a[1]).localeCompare(b[0] + b[1])))
     downloadText(`bodytailor-pt-${ym}.csv`, toCsv(lines))
+    logAdmin(admin, { action: 'export', detail: `PT 일정 CSV 내보내기(${ym}, ${lines.length - 1}줄)` })
+  }
+
+  // ── 관리자 정정(A4) ── 화면 상태만 고치고(다시 읽지 않음) 회원 문서만 다시 읽는다
+  const sessionOf = (s) => (data?.ses || []).find((x) => x.scheduleId === s.id) || null
+  const patchSch = (id, status) => {
+    const f = (l) => l.map((x) => (x.id === id ? { ...x, status } : x))
+    setData((d) => (d ? { ...d, sch: f(d.sch) } : d))
+    setRecent((d) => (d ? { ...d, sch: f(d.sch) } : d))
+    setOverdue((l) => (l ? l.filter((x) => !(x.id === id && status !== 'scheduled')) : l))
+  }
+  const dropSes = (id) => {
+    const f = (l) => l.filter((x) => x.id !== id)
+    setData((d) => (d ? { ...d, ses: f(d.ses) } : d))
+    setRecent((d) => (d ? { ...d, ses: f(d.ses) } : d))
+  }
+  async function fixStatus(s, status) {
+    if (status === s.status) return
+    const ses = sessionOf(s)
+    const name = memberName(byUid[s.memberUid])
+    let cancel = false
+    if (ses && status === 'scheduled') {
+      cancel = await confirm(`${fmtYmd(s.date)} ${s.time} ${name}님 일정을 '예정'으로 되돌려요. 이 일정으로 뺀 PT 1회도 돌려줄까요?`, { okLabel: '차감도 취소', cancelLabel: '상태만 바꾸기' })
+    } else if (!(await confirm(`${fmtYmd(s.date)} ${s.time} ${name}님 일정을 '${ST[status]}'(으)로 바꿀까요?${ses ? '' : ' 남은 PT 횟수는 바뀌지 않아요.'}`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
+    setBusy(s.id)
+    try {
+      if (cancel) await adminCancelPtSession(ses, { reopen: true })
+      else await adminSetScheduleStatus(s.id, status)
+      patchSch(s.id, status)
+      if (cancel) {
+        dropSes(ses.id)
+        await onUserChanged?.(s.memberUid)
+      }
+      await logAdmin(admin, { action: 'ptfix', targetUid: s.memberUid, targetName: name, detail: `${s.date} ${s.time} ${ST[s.status] || s.status} → ${ST[status]}${cancel ? ' · 차감 취소(남은 횟수 +1)' : ''}` })
+    } catch (err) {
+      console.error('PT 정정 실패:', err)
+      await confirm('정정하지 못했어요. 관리자 계정·Firebase 규칙 게시를 확인해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+    } finally {
+      setBusy('')
+    }
+  }
+  async function cancelDeduct(ses) {
+    const name = memberName(byUid[ses.memberUid])
+    if (!(await confirm(`${fmtYmd(ses.date)} ${name}님 PT 차감을 취소할까요? 남은 횟수가 1회 늘고 정산에서 빠져요.${ses.scheduleId ? ' 일정은 예정으로 되돌려요.' : ''}`, { okLabel: '차감 취소', cancelLabel: '닫기' }))) return
+    setBusy(ses.id)
+    try {
+      await adminCancelPtSession(ses, { reopen: true })
+      dropSes(ses.id)
+      if (ses.scheduleId) patchSch(ses.scheduleId, 'scheduled')
+      await onUserChanged?.(ses.memberUid)
+      await logAdmin(admin, { action: 'ptfix', targetUid: ses.memberUid, targetName: name, detail: `${ses.date} ${ses.noshow ? '노쇼' : 'PT'} 차감 취소(남은 횟수 +1)` })
+    } catch (err) {
+      console.error('차감 취소 실패:', err)
+      await confirm('차감을 취소하지 못했어요.', { okLabel: '확인', cancelLabel: '닫기' })
+    } finally {
+      setBusy('')
+    }
+  }
+  const fixCtl = (s) => {
+    const ses = sessionOf(s)
+    return (
+      <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+        <select aria-label="일정 상태 정정" value={s.status} disabled={busy === s.id} onChange={(e) => fixStatus(s, e.target.value)} style={selectStyle}>
+          {Object.entries(ST).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        {ses && <button type="button" className="adm-act" disabled={busy === ses.id} onClick={() => cancelDeduct(ses)}>차감 취소</button>}
+      </span>
+    )
   }
 
   // 캘린더
@@ -109,6 +189,20 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
         <Button variant="ghost" onClick={() => setYm(shiftMonth(ym, 1))} style={{ padding: '7px 12px' }} aria-label="다음 달">›</Button>
         {data && <Button variant="secondary" onClick={exportCsv} style={{ marginLeft: 'auto', padding: '8px 12px', fontSize: 14.5 }}>이 달 CSV</Button>}
       </div>
+
+      <Card>
+        <p style={sectionTitle}>처리 안 된 지난 일정 <span style={{ ...muted, fontWeight: 500 }}>(날짜가 지났는데 아직 '예정')</span></p>
+        {!overdue ? <p style={muted}>불러오는 중…</p> : !overdue.length ? <p style={muted}>없어요. 정산 누락이 없어요.</p> : overdue.slice(0, 50).map((s, i) => (
+          <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '8px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 15.5 }}>
+            <button type="button" onClick={() => byUid[s.memberUid] && onOpenMember(byUid[s.memberUid])} style={{ textAlign: 'left', color: 'var(--color-label-strong)', fontSize: 15.5 }}>
+              <b className="bt-num">{fmtYmd(s.date)} {s.time}</b> {memberName(byUid[s.memberUid])} <span style={muted}>· {tName(s.trainerUid, s.trainerName)}</span>
+            </button>
+            {fixCtl(s)}
+          </div>
+        ))}
+        {overdue && overdue.length > 50 && <p style={{ ...muted, margin: '6px 0 0' }}>앞 50건만 보여요.</p>}
+        {overdue && overdue.length > 0 && <p className="text-keep-all" style={{ ...muted, margin: '8px 0 0' }}>여기서 완료·노쇼로 바꾸면 상태만 바뀌어요(남은 PT 차감은 담당 트레이너 화면에서). 차감을 바로잡을 때는 날짜를 눌러 '차감 취소'를 써요.</p>}
+      </Card>
 
       <Card>
         <p style={sectionTitle}>트레이너별 정산</p>
@@ -172,10 +266,19 @@ export default function AdminPtTab({ users, conns, onOpenMember }) {
           <div style={{ marginTop: 12 }}>
             <p style={{ margin: '0 0 4px', fontSize: 15.5, fontWeight: 700 }}>{fmtYmd(day)}({DAY[new Date(`${day}T00:00:00`).getDay()]})</p>
             {!(schByDay[day] || []).length ? <p style={muted}>일정이 없어요.</p> : schByDay[day].map((s) => (
-              <button key={s.id} type="button" onClick={() => byUid[s.memberUid] && onOpenMember(byUid[s.memberUid])} style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)', fontSize: 15, color: 'var(--color-label-strong)', textAlign: 'left' }}>
-                <span><b className="bt-num">{s.time}</b> {memberName(byUid[s.memberUid])}</span>
-                <span style={muted}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: color[s.trainerUid], marginRight: 4 }} />{tName(s.trainerUid, s.trainerName)} · {s.status === 'done' ? '완료' : s.status === 'noshow' ? '노쇼' : '예정'}</span>
-              </button>
+              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', width: '100%', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)', fontSize: 15.5 }}>
+                <button type="button" onClick={() => byUid[s.memberUid] && onOpenMember(byUid[s.memberUid])} style={{ textAlign: 'left', color: 'var(--color-label-strong)', fontSize: 15.5 }}>
+                  <b className="bt-num">{s.time}</b> {memberName(byUid[s.memberUid])}{' '}
+                  <span style={muted}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: color[s.trainerUid], marginRight: 4 }} />{tName(s.trainerUid, s.trainerName)}{sessionOf(s) ? ' · 차감됨' : ''}</span>
+                </button>
+                {fixCtl(s)}
+              </div>
+            ))}
+            {(data?.ses || []).filter((x) => x.date === day && !x.scheduleId).map((x) => (
+              <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)', fontSize: 15.5 }}>
+                <span>{memberName(byUid[x.memberUid])} <span style={muted}>· {tName(x.trainerUid, x.trainerName)} · 일정 없이 1회 완료</span></span>
+                <button type="button" className="adm-act" disabled={busy === x.id} onClick={() => cancelDeduct(x)}>차감 취소</button>
+              </div>
             ))}
           </div>
         )}

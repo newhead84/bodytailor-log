@@ -56,7 +56,11 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
         customExercises={customExercises}
         canCancel={!(isFirstSetup && templates.length === 0)}
         onSkip={isFirstSetup && templates.length === 0 ? onSkip : null}
-        onCancel={closeEditing}
+        onCancel={() => {
+          setError('')
+          closeEditing()
+        }}
+        saveError={error}
         onSave={async (data) => {
           setError('')
           try {
@@ -73,8 +77,14 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
 
   async function handleDelete(t) {
     if (!(await confirm(`"${t.title}" 루틴을 삭제할까요? 되돌릴 수 없어요.`))) return
-    await deleteRoutineTemplate(uid, t.id)
-    await onChanged()
+    // [2026-11-01] 삭제 실패를 화면에 알린다(전체 점검 U10과 같은 묶음)
+    setError('')
+    try {
+      await deleteRoutineTemplate(uid, t.id)
+      await onChanged()
+    } catch (e) {
+      setError('루틴을 삭제하지 못했어요. 연결을 확인하고 다시 시도해 주세요.')
+    }
   }
 
   return (
@@ -99,7 +109,10 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
               <div style={{ fontWeight: 700, fontSize: 16 }}>{t.title}{t.byTrainer && <TrainerPlanBadge t={t} />}</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
-                  onClick={() => setEditingId(t.id)}
+                  onClick={() => {
+                    setError('')
+                    setEditingId(t.id)
+                  }}
                   style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}
                 >
                   수정
@@ -122,7 +135,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
 
       {ownCount < MAX_ROUTINES && (
         <>
-          <Button full onClick={() => setEditingId('new')} style={{ marginBottom: 10 }}>
+          <Button full onClick={() => { setError(''); setEditingId('new') }} style={{ marginBottom: 10 }}>
             + 새 루틴 추가
           </Button>
 

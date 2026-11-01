@@ -8,18 +8,22 @@ import { Button, Chip } from './ui'
 import { GOAL_OPTIONS, GOAL_LABELS, MAX_RANKED_GOALS, buildTrainingProfile, describeTrainingProfile, normalizeGoals } from '../utils/goals'
 
 const RANK_MARKS = ['①', '②', '③']
+// [2026-11-01] 직접 입력 목표는 3개까지(전체 점검 U23, 목표 목록 전체 8개 이하 - 트레이너 목표 규칙 goalListOk와 같은 상한)
+const MAX_CUSTOM_GOALS = 3
 
 export function GoalPicker({ goals, onChange }) {
   const list = normalizeGoals(goals)
   const [adding, setAdding] = useState(false)
   const [custom, setCustom] = useState('')
   const ranked = list.filter((g) => GOAL_LABELS.includes(g))
+  const customCount = list.filter((g) => !GOAL_LABELS.includes(g)).length
+  const canAddCustom = customCount < MAX_CUSTOM_GOALS
   function toggle(label) {
     onChange(list.includes(label) ? list.filter((g) => g !== label) : [...list, label])
   }
   function addCustom() {
     const t = custom.trim().slice(0, 30)
-    if (t && !list.includes(t)) onChange([...list, t])
+    if (t && !list.includes(t) && canAddCustom) onChange([...list, t])
     setCustom('')
     setAdding(false)
   }
@@ -74,17 +78,27 @@ export function GoalPicker({ goals, onChange }) {
               {g}
             </Chip>
           ))}
-        <Chip active={adding} onClick={() => setAdding((v) => !v)}>
-          기타: 자유입력
-        </Chip>
+        {canAddCustom && (
+          <Chip active={adding} onClick={() => setAdding((v) => !v)}>
+            기타: 자유입력
+          </Chip>
+        )}
       </div>
-      {adding && (
+      {!canAddCustom && (
+        <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+          직접 입력한 목표는 {MAX_CUSTOM_GOALS}개까지 넣을 수 있어요. 바꾸려면 위 목표를 눌러 빼 주세요.
+        </span>
+      )}
+      {adding && canAddCustom && (
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             autoFocus
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addCustom()}
+            // [2026-11-01] "추가"를 누르지 않고 다음으로 넘어가도 적은 목표가 사라지지 않게(전체 점검 U23)
+            onBlur={() => custom.trim() && addCustom()}
+            maxLength={30}
             placeholder="목표를 직접 입력해 주세요"
             className="text-keep-all"
             style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14 }}

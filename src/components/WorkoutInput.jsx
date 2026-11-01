@@ -40,6 +40,7 @@ import {
 import { estimateCaloriesV2 } from '../utils/calories'
 import { getSuggestedNext } from '../utils/routineSuggestion'
 import { membershipEndAt } from '../utils/member'
+import { confirmSetValues, roundReps } from '../utils/inputCheck'
 import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate, updateUserProfile, updateExerciseSetting, saveActiveSession, getActiveSession, clearActiveSession } from '../storage'
 import {
   buildExercisesFromRecords,
@@ -53,6 +54,7 @@ import {
   sessionLogId,
   sessionIdentity,
   isFilledSet,
+  isCountableSet,
 } from '../utils/sessionPayload'
 import { todayStr, toLocalDateStr } from '../utils/date'
 import { getLevelInfo } from '../utils/tier'
@@ -120,6 +122,26 @@ function readLocalDrafts(uid) {
   const todayEntry = found.find((f) => f.key === draftKey(uid))
   const chosen = active[0] || todayEntry || null
   return { chosen, all: found }
+}
+// [2026-11-01] 방치 세션 자동 저장이 끝나기 전까지 보관하는 사본(전체 점검 U7). draft 접두어와 달라
+// 일반 draft 정리(removeLocalDraftKeys)·오늘 draft 덮어쓰기에 지워지지 않는다. 저장에 성공하면 지운다.
+function unsavedKey(uid) {
+  return `bodytailor-unsaved-${uid}`
+}
+function readUnsavedDraft(uid) {
+  try {
+    return JSON.parse(localStorage.getItem(unsavedKey(uid)) || 'null')
+  } catch (e) {
+    return null
+  }
+}
+function writeUnsavedDraft(uid, draft) {
+  try {
+    if (draft) localStorage.setItem(unsavedKey(uid), JSON.stringify(draft))
+    else localStorage.removeItem(unsavedKey(uid))
+  } catch (e) {
+    // 저장 공간 부족·접근 불가는 무시
+  }
 }
 function removeLocalDraftKeys(uid, exceptKey = null) {
   const { all } = readLocalDrafts(uid)
@@ -638,7 +660,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const localDraft = chosen?.draft || null
     const localStale = isSessionActive(localDraft) && isSessionStale(localDraft)
     if (localStale) {
-      // 방치된 세션: 메모리에 잡아둔 뒤 로컬 키는 즉시 정리(아래에서 자동 저장)
+      // 방치된 세션: 별도 사본에 보관한 뒤 draft 키는 정리(아래에서 자동 저장, 성공하면 사본도 지움)
+      writeUnsavedDraft(uid, localDraft)
       removeLocalDraftKeys(uid)
     } else if (localDraft) {
       applyDraft(localDraft)
@@ -647,9 +670,18 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     draftLoadedRef.current = true
     ;(async () => {
       try {
-        if (localStale) {
-          await autoFinalizeDraft(localDraft)
-          clearActiveSession(uid)
+        // [2026-11-01] 지난번 자동 저장이 실패해(회원권 만료·오프라인) 남은 사본도 다시 시도한다
+        const pending = localStale ? localDraft : readUnsavedDraft(uid)
+        if (isSessionActive(pending)) {
+          try {
+            await autoFinalizeDraft(pending)
+            writeUnsavedDraft(uid, null)
+            clearActiveSession(uid)
+          } catch (err) {
+            console.error('방치 세션 자동 저장 실패(기기에 보관 후 다음에 다시 시도):', err)
+          }
+        } else if (pending) {
+          writeUnsavedDraft(uid, null)
         }
         // 다른 기기에서 시작했거나 이 기기의 브라우저 데이터가 지워진 경우: 서버 백업 확인
         const remote = await getActiveSession(uid)
@@ -674,7 +706,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 휴식시간 설정은 오늘 draft와 별개로, 바뀔 때마다 uid 기준으로 영속 저장한다.
   useEffect(() => {
     if (!uid) return
-    localStorage.setItem(restSecondsKey(uid), String(restSeconds))
+    // [2026-11-01] 저장소 접근이 막힌 환경(사생활 보호 모드 등)에서도 화면이 멈추지 않게(전체 점검 U29)
+    try {
+      localStorage.setItem(restSecondsKey(uid), String(restSeconds))
+    } catch (e) {
+      // 무시
+    }
   }, [uid, restSeconds])
 
   // 변경될 때마다 임시 저장
@@ -1161,11 +1198,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       saveSetAndStartRest(key, idx)
       return
     }
+    // [2026-11-01] 빈 칸 판단을 완료 저장(isFilledSet)과 같게: 필드가 없거나 숫자가 아니어도 빈 값
+    const blank = (v) => v === '' || v == null
     const isEmpty =
       !set ||
-      (inputType === 'cardio' ? set.durationMin === '' : inputType === 'reps' ? set.reps === '' : set.weight === '' || set.reps === '')
+      (inputType === 'cardio' ? blank(set.durationMin) : inputType === 'reps' ? blank(set.reps) : blank(set.weight) || blank(set.reps))
     // [2026-10-29] 맨몸+추가 종목(웨이티드 풀업·딥스 등)의 추가 0kg = 맨몸 세트, 어시스트의 보조 0kg = 보조 없이 한 세트라 정상 기록
     const zeroWeightOk = allowsZeroWeight(parseExerciseKey(key).name)
+    // [2026-11-01] 음수·숫자 아님은 저장 막기, 너무 큰 값은 "맞나요?" 확인(전체 점검 U5·U28)
+    if (set && !(await confirmSetValues(confirm, [{ name: parseExerciseKey(key).name, set, prevTop: Math.max(Number(personalRecords?.[key]?.topWeight) || 0, Number(personalRecords?.[key]?.weight) || 0) }]))) return
     const isZero =
       !isEmpty &&
       (inputType === 'cardio'
@@ -1179,7 +1220,18 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       }
       return
     }
-    if (isEmpty && !(await confirm('값이 비어 있어요. 그대로 저장할까요?'))) return
+    // [2026-11-01] 빈 값으로 "그대로 저장"해도 완료 때 빈 세트로 빠져 기록이 사라졌다(전체 점검 U4).
+    // 0kg가 정상인 종목(맨몸+추가·어시스트)은 무게만 비었으면 0kg로 채워 저장, 그 외에는 저장하지 않고 안내.
+    if (isEmpty) {
+      if (inputType === 'sets' && zeroWeightOk && blank(set.weight) && !blank(set.reps)) {
+        if (!(await confirm(`무게 칸이 비어 있어요. 0kg(${isAssistedExercise(parseExerciseKey(key).name) ? '보조 없이' : '맨몸'})로 저장할까요?`, { okLabel: '0kg로 저장', cancelLabel: '고칠게요' }))) return
+        setRecords((r) => ({ ...r, [key]: (r[key] || []).map((st, i) => (i === idx ? { ...st, weight: '0' } : st)) }))
+        saveSetAndStartRest(key, idx)
+        return
+      }
+      await confirm(inputType === 'cardio' ? '운동 시간을 입력한 뒤 저장해 주세요.' : inputType === 'reps' || !blank(set?.weight) ? '횟수를 입력한 뒤 저장해 주세요.' : !blank(set?.reps) ? '무게를 입력한 뒤 저장해 주세요.' : '무게와 횟수를 입력한 뒤 저장해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+      return
+    }
     saveSetAndStartRest(key, idx)
   }
 
@@ -1225,7 +1277,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         if (i !== idx) return s
         // [2026-10-29] 유산소 타이머로 기록 중이면 경과 시간(분)을 채우고 타이머를 끝낸다
         const timed = s.cardioTimer?.startAt ? { durationMin: String(cardioTimerMinutes(s.cardioTimer)), cardioTimer: null } : {}
-        return { ...s, ...timed, saved: true, auto: false, planned: false, savedAt: Date.now() }
+        // [2026-11-01] 횟수는 정수로 저장(8.5회 방지, 전체 점검 U16)
+        const rounded = s.reps != null && s.reps !== '' ? { reps: roundReps(s.reps) } : {}
+        return { ...s, ...timed, ...rounded, saved: true, auto: false, planned: false, savedAt: Date.now() }
       })
       const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]
@@ -1288,6 +1342,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   async function hideExerciseToday(name) {
     const savedCount = (records[name] || []).filter((st) => st.saved).length
     if (savedCount > 0 && !(await confirm(`"${exerciseKeyLabel(name)}"에 저장한 세트 ${savedCount}개가 있어요. 오늘 목록에서 숨기면 이 세트들은 기록에서 빠져요. 숨길까요?`, { okLabel: '숨기기', cancelLabel: '그대로 두기' }))) return
+    // [2026-11-01] 저장(V) 전이라도 직접 입력한 행이 있으면 확인(전체 점검 U24). 자동 프리필·미리 만든 행은 제외
+    const typedCount = savedCount > 0 ? 0 : (records[name] || []).filter((st) => !st.saved && isCountableSet(st) && isFilledSet(st, getExerciseInputType(parseExerciseKey(name).name))).length
+    if (typedCount > 0 && !(await confirm(`"${exerciseKeyLabel(name)}"에 입력해 둔 세트 ${typedCount}개가 있어요. 숨기면 입력한 값이 사라져요. 숨길까요?`, { okLabel: '숨기기', cancelLabel: '그대로 두기' }))) return
     setHiddenToday((prev) => [...prev, name])
     unpairSuperset(name)
     setRecords((r) => {
@@ -1306,6 +1363,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   async function removeExerciseFromRoutine(name) {
     if (!selectedTemplate || !selectedPart) return
     if (!(await confirm(`"${exerciseKeyLabel(name)}"을(를) 이 파트에서 완전히 삭제할까요? 이후 세션에서도 보이지 않습니다.`))) return
+    const prevOrder = partOrder
+    const prevSets = records[name]
     const nextExercises = partOrder.filter((n) => n !== name)
     setPartOrder(nextExercises)
     unpairSuperset(name)
@@ -1318,7 +1377,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       return rest
     })
     if (expandedExercise === name) setExpandedExercise(null)
-    await persistPartExercises(nextExercises)
+    // [2026-11-01] 저장 실패 시 화면만 지워지고 다음에 되살아나던 문제: 되돌리고 알림(전체 점검 U19)
+    try {
+      await persistPartExercises(nextExercises)
+    } catch (err) {
+      console.error('루틴 종목 삭제 실패:', err)
+      setPartOrder(prevOrder)
+      if (prevSets) setRecords((r) => ({ ...r, [name]: prevSets }))
+      showToast('루틴에서 삭제하지 못했어요. 연결을 확인하고 다시 시도해 주세요.', 2600)
+    }
   }
 
   // 내 루틴 파트에 종목 추가(파트 부위 조합에 맞는 종목 중에서 골라 저장)
@@ -1340,10 +1407,18 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       setAddingExercise(false)
       return
     }
+    const prevOrder = partOrder
     const next = [...partOrder, trimmed]
     setPartOrder(next)
     setAddingExercise(false)
-    await persistPartExercises(next)
+    // [2026-11-01] 저장 실패 시 되돌리고 알림(전체 점검 U19)
+    try {
+      await persistPartExercises(next)
+    } catch (err) {
+      console.error('루틴 종목 추가 실패:', err)
+      setPartOrder(prevOrder)
+      showToast('루틴에 추가하지 못했어요. 연결을 확인하고 다시 시도해 주세요.', 2600)
+    }
   }
 
   // 현재 선택된 파트의 종목 순서/구성을 Firestore 템플릿에 반영
@@ -1531,16 +1606,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // 반영했는데(④), 그러다 보니 사용자가 의도치 않게 루틴 순서가 바뀌었다고 느끼거나(10, 11번
     // 피드백), 언제 바뀌는지 파악하기 어려웠다. 이제는 완료 순서가 등록된 루틴 순서와 다를 때만
     // "루틴 순서를 이 순서로 바꿀까요?"라고 먼저 물어보고, 확인한 경우에만 반영한다.
+    // [2026-11-01] 순서 질문·저장은 기록 저장과 세션 정리를 모두 마친 뒤(맨 아래)로 옮겼다. 오프라인이면 루틴 저장이
+    // 끝나지 않아 '저장 중'에 멈추고 진행 세션이 지워지지 않아 다시 열면 같은 세션이 되살아났다(전체 점검 U1).
+    let reorderTo = null
     if (sessionType === 'routine' && selectedTemplate && selectedPart) {
       const completedOrder = completionOrderRef.current.filter((n) => partOrder.includes(n))
       if (completedOrder.length > 0) {
         const remaining = partOrder.filter((n) => !completedOrder.includes(n))
         const nextOrder = [...completedOrder, ...remaining]
-        const changed = nextOrder.some((n, i) => n !== partOrder[i])
-        if (changed && (await confirm('오늘 완료한 순서대로 "내 루틴"의 종목 순서를 바꿀까요?'))) {
-          setPartOrder(nextOrder)
-          await persistPartExercises(nextOrder)
-        }
+        if (nextOrder.some((n, i) => n !== partOrder[i])) reorderTo = nextOrder
       }
     }
     completionOrderRef.current = []
@@ -1594,6 +1668,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       },
     })
     onSaved?.()
+    if (reorderTo && (await confirm('오늘 완료한 순서대로 "내 루틴"의 종목 순서를 바꿀까요?'))) {
+      const prevOrder = partOrder
+      setPartOrder(reorderTo)
+      try {
+        await persistPartExercises(reorderTo)
+      } catch (err) {
+        console.error('루틴 순서 저장 실패:', err)
+        setPartOrder(prevOrder)
+        showToast('루틴 순서를 바꾸지 못했어요. 운동 기록은 저장됐어요.', 2600)
+      }
+    }
   }
 
   // [2026-08-02 신규] 완료 팝업의 "오늘 운동 내루틴에 반영" 버튼 핸들러(⑫). 오늘 기록한 종목 중
@@ -2435,8 +2520,9 @@ export function ExerciseCard({
             // [2026-10-28] 좁은 화면에서 "추정 1RM / 80kg"처럼 단위 중간이 끊기지 않게 항목 단위로 줄바꿈
             <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', display: 'flex', flexWrap: 'wrap', columnGap: 6, rowGap: 1 }}>
               {bestE1rm > 0 && (
-                <span style={{ whiteSpace: 'nowrap' }}>
-                  추정 1RM <span className="bt-num">{fmtKg(bestE1rm)}</span>kg
+                <span>
+                  {/* [2026-11-01] 320px에서 '접기' 버튼에 끝 글자가 가리지 않게 '추정 1RM'과 숫자 사이에서 줄바꿈 허용 */}
+                  추정 1RM <span style={{ whiteSpace: 'nowrap' }}><span className="bt-num">{fmtKg(bestE1rm)}</span>kg</span>
                 </span>
               )}
               {suggestion?.kind === 'increase' && !isDone && (
@@ -2937,12 +3023,12 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
       {/* [2026-10-28] RIR 겹침 수정: 스테퍼 묶음이 남은 폭을 차지하고(flex 1) 스테퍼도 함께 줄어든다(최소 폭까지만). 무게 칸이 조금 더 넓게(grow 1.4) */}
       <div data-guide={guide ? 'set-values' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 3, flex: '1 1 0' }}>
         {inputType === 'reps' ? (
-          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder={repsUnit(exName)} fluid minInput={28} />
+          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder={repsUnit(exName)} fluid minInput={28} integer />
         ) : (
           <>
             <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder={weightUnitShort(exName)} fluid grow={1.25} minInput={40} />
             <span style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }}>×</span>
-            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" fluid minInput={24} />
+            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" fluid minInput={24} integer />
           </>
         )}
       </div>
@@ -3001,7 +3087,8 @@ function IconButton({ children, onClick, title, muted, disabled, tone, className
 //  - fluid(세트 줄): 숫자 칸은 필요한 최소 폭만, 남는 폭은 ± 버튼이 나눠 가짐(최소 26·최대 40px, 높이 36px)
 //  - 버튼은 글자 선택·더블탭 확대가 일어나지 않게(user-select·touch-action), 숫자를 누르면 값 전체 선택(바로 덮어쓰기)
 const STEP_BTN_STYLE = { color: 'var(--color-label-normal)', fontSize: 18, lineHeight: 1, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }
-function Stepper({ value, onChange, step, placeholder, width = 52, fluid = false, grow = 1, minInput = 24 }) {
+// [2026-11-01] integer: 횟수 칸은 소수점 없는 숫자 키패드(전체 점검 U16)
+function Stepper({ value, onChange, step, placeholder, width = 52, fluid = false, grow = 1, minInput = 24, integer = false }) {
   const btn = fluid
     ? { ...STEP_BTN_STYLE, flex: '1 1 0', minWidth: 24, maxWidth: 40, height: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }
     : { ...STEP_BTN_STYLE, padding: '8px 5px', fontSize: 16 }
@@ -3017,7 +3104,7 @@ function Stepper({ value, onChange, step, placeholder, width = 52, fluid = false
       </button>
       <input
         type="number"
-        inputMode="decimal"
+        inputMode={integer ? 'numeric' : 'decimal'}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}

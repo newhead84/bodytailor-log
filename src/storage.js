@@ -24,6 +24,7 @@ import {
   arrayRemove,
   FieldPath,
   writeBatch,
+  runTransaction,
 } from 'firebase/firestore'
 import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises } from './utils/exerciseLibrary'
 import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey } from './utils/strength'
@@ -44,8 +45,14 @@ async function incrementExercisePopularity(exercises) {
     byAtom[atom] = byAtom[atom] || {}
     byAtom[atom][ex.name] = (byAtom[atom][ex.name] || 0) + 1
   })
+  // [2026-11-01] S2: rules가 바뀐 종목을 names(최대 8개)로 확인하므로 부위별로 8개씩 나눠 쓴다
+  const chunks = []
+  Object.entries(byAtom).forEach(([atom, counts]) => {
+    const entries = Object.entries(counts)
+    for (let i = 0; i < entries.length; i += 8) chunks.push([atom, Object.fromEntries(entries.slice(i, i + 8))])
+  })
   await Promise.all(
-    Object.entries(byAtom).map(([atom, counts]) => {
+    chunks.map(([atom, counts]) => {
       // [2026-10-27 W0 버그수정] setDoc(merge)은 'counts.이름' 같은 점(.) 표기를 경로가 아니라
       // 글자 그대로의 최상위 필드명으로 저장한다. 그래서 그동안 counts 맵이 채워지지 않고
       // 'counts.벤치프레스' 같은 최상위 필드가 쌓여 "다른 회원 즐겨찾는 운동"이 비어 보였다.
@@ -54,7 +61,7 @@ async function incrementExercisePopularity(exercises) {
       Object.entries(counts).forEach(([name, n]) => {
         nested[name] = increment(n)
       })
-      return setDoc(doc(db, 'exercisePopularity', atom), { counts: nested }, { merge: true }).catch(() => {})
+      return setDoc(doc(db, 'exercisePopularity', atom), { counts: nested, names: Object.keys(counts) }, { merge: true }).catch(() => {})
     })
   )
 }
@@ -97,17 +104,20 @@ async function fetchExercisePopularityByAtom(atoms) {
 // ───────────── inquiries/{inquiryId} - MY탭 1:1 문의 + 관리자 답변 ─────────────
 // [2026-07-31 신규] 이메일 대신 앱 안에서 문의를 남기고 답변을 확인할 수 있게 한다.
 // 관리자(role === '관리자') 계정만 전체 문의를 열람하고 답변을 남길 수 있다.
+// [2026-11-01] S3: users.lastInquiryAt을 같은 일괄 쓰기로 남긴다(rules: 가입한 계정만, 직전 문의 1분 뒤부터)
 export async function submitInquiry(uid, nickname, content) {
-  const col = collection(db, 'inquiries')
-  await addDoc(col, {
+  const batch = writeBatch(db)
+  batch.set(doc(collection(db, 'inquiries')), {
     uid,
-    nickname: nickname || '',
+    nickname: String(nickname || '').slice(0, 30),
     content,
     status: '대기',
     reply: '',
     repliedAt: null,
     createdAt: serverTimestamp(),
   })
+  batch.update(doc(db, 'users', uid), { lastInquiryAt: serverTimestamp() })
+  await batch.commit()
 }
 
 // 본인이 남긴 문의 목록(최신순)
@@ -124,14 +134,16 @@ export async function deleteInquiry(inquiryId) {
   await deleteDoc(doc(db, 'inquiries', inquiryId))
 }
 
-// 관리자 전용: 전체 문의 목록(미답변 먼저, 그다음 최신순)
+// 관리자 전용: 문의 목록(미답변 먼저, 그다음 최신순)
+// [2026-11-01] Spark 읽기 절약: 전체 대신 미답변 전부 + 최근 50건만 읽는다(단일 필드 조건이라 색인 불필요).
 export async function getAllInquiries() {
   const col = collection(db, 'inquiries')
-  const snap = await getDocs(query(col, orderBy('createdAt', 'desc')))
-  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-  return list.sort((a, b) => {
-    if (a.status === b.status) return 0
-    return a.status === '대기' ? -1 : 1
+  const [open, recent] = await Promise.all([getDocs(query(col, where('status', '==', '대기'))), getDocs(query(col, orderBy('createdAt', 'desc'), limit(50)))])
+  const map = new Map()
+  ;[...open.docs, ...recent.docs].forEach((d) => map.set(d.id, { id: d.id, ...d.data() }))
+  return [...map.values()].sort((a, b) => {
+    if (a.status !== b.status) return a.status === '대기' ? -1 : 1
+    return tsMs(b.createdAt) - tsMs(a.createdAt)
   })
 }
 
@@ -183,18 +195,22 @@ const DEFAULT_USER_DOC = {
   memberStatus: 'pending',
 }
 
-export async function ensureUserDoc(uid, seed = {}) {
+export async function ensureUserDoc(uid) {
   const ref = doc(db, 'users', uid)
   const snap = await getDoc(ref)
   if (!snap.exists()) {
     // [2026-10-31] 탈퇴 도중 로그인 계정 삭제가 안 된 uid - 새로 만들지 않고 '탈퇴 마치기' 화면으로
     const gone = await getDoc(doc(db, 'deletedAccounts', uid)).catch(() => null)
     if (gone?.exists?.()) return { __deleted: true }
-    const initial = { ...DEFAULT_USER_DOC, ...seed, createdAt: serverTimestamp() }
-    await setDoc(ref, initial)
-    return initial
+    // [2026-11-01] S11: 동의 전에는 문서를 만들지 않는다(구글 이름도 저장하지 않음). 화면용 기본값만 돌려주고,
+    // 동의 화면에서 동의하면 createUserDoc으로 만든다(14세 미만 선택 시 아무것도 남지 않음).
+    return { ...DEFAULT_USER_DOC, __unsaved: true }
   }
   return snap.data()
+}
+// [2026-11-01] S11: 동의 직후 사용자 문서 생성(승인 대기, 동의 내역 포함)
+export async function createUserDoc(uid, extra = {}) {
+  await setDoc(doc(db, 'users', uid), { ...DEFAULT_USER_DOC, ...extra, createdAt: serverTimestamp() })
 }
 
 export async function getUserDoc(uid) {
@@ -210,15 +226,19 @@ export async function saveOnboarding(uid, onboardingData, extra = {}) {
   if (Number(extra.weeklyTargetDays) > 0) top.weeklyTargetDays = Math.min(6, Math.max(2, Math.round(Number(extra.weeklyTargetDays))))
   // [2026-10-31] 헬스장 회원 확인용(이름 + 전화 해시·뒤 4자리, 원문 번호는 저장하지 않음)
   if (extra.signupInfo && typeof extra.signupInfo === 'object') top.signupInfo = extra.signupInfo
-  await updateDoc(ref, {
-    onboarding: onboardingData,
-    onboardingCompleted: true,
-    ...top,
-  })
+  // [2026-11-01] 오프라인에서 서버 응답을 끝없이 기다리지 않게(전체 점검 U2·U3)
+  await settleOrTimeout(
+    updateDoc(ref, {
+      onboarding: onboardingData,
+      onboardingCompleted: true,
+      ...top,
+    })
+  )
 }
 
+// [2026-11-01] 오프라인이면 로컬 대기열에 넣고 4초 뒤 진행, 권한 거부 등 즉시 실패는 throw(전체 점검 U3)
 export async function updateUserProfile(uid, partial) {
-  await updateDoc(doc(db, 'users', uid), partial)
+  await settleOrTimeout(updateDoc(doc(db, 'users', uid), partial))
 }
 
 // [2026-10-31] 트레이너 목표 제안·직접 수정(users 문서). 목표 = onboarding.goals, 주간 목표 = weeklyTargetDays.
@@ -344,7 +364,7 @@ export const MAX_TRAINER_PLANS = 3
 export const isOwnRoutine = (t) => !t?.byTrainer
 export async function saveTrainerPlan(memberUid, trainer, plan) {
   const col = collection(db, 'routineTemplates', memberUid, 'templates')
-  const byTrainer = { uid: trainer.uid, name: trainer.name || '' }
+  const byTrainer = { uid: trainer.uid, name: String(trainer.name || '').slice(0, 30) } // [2026-11-01] rules: 이름 30자 이하
   const note = String(plan.note || '').slice(0, 300)
   if (plan.id) {
     // 수정은 updateDoc - 회원이 그사이 지운 계획이면 실패(merge로 order 없는 문서가 되살아나 목록에서 안 보이는 문제 방지)
@@ -361,7 +381,8 @@ export async function saveTrainerPlan(memberUid, trainer, plan) {
 }
 
 export async function updateRoutineTemplate(uid, templateId, partial) {
-  await updateDoc(doc(db, 'routineTemplates', uid, 'templates', templateId), partial)
+  // [2026-11-01] 오프라인에서 운동 완료·종목 추가가 멈추지 않게(전체 점검 U1·U19)
+  await settleOrTimeout(updateDoc(doc(db, 'routineTemplates', uid, 'templates', templateId), partial))
 }
 
 export async function deleteRoutineTemplate(uid, templateId) {
@@ -476,9 +497,14 @@ export async function addWorkoutLog(uid, logData, logId = null) {
   // 반영하되, XP·티어·랭킹 점수에는 반영하지 않는다("과거 기록은 점수에만 미반영" 요청).
   // (PR은 실제 수행 기록이므로 반영한다.)
   let xpEarned = 0
-  if (!logData.isBackfilled) {
+  // [2026-11-01] S4: 직전 XP 저장 2분 안이면 처음부터 XP를 넣지 않는다(느린 망에서 거부가 늦게 와 재시도가 안 도는 경우 방지)
+  const lastXpMs = readOk && u.xpAt && typeof u.xpAt.toMillis === 'function' ? u.xpAt.toMillis() : 0
+  const xpTooSoon = lastXpMs > 0 && Date.now() - lastXpMs < 125000
+  if (!logData.isBackfilled && !xpTooSoon) {
     xpEarned = computeSessionXp(logData, (newRecords || []).length)
     updates.lifetimeXp = increment(xpEarned)
+    // [2026-11-01] S4: XP가 늘어나는 쓰기는 서버 시각을 함께 남긴다(rules: 직전 XP에서 2분 뒤부터)
+    updates.xpAt = serverTimestamp()
     // 시즌 XP는 분기(시즌)마다 0부터 다시 쌓는다. 누적 XP(lifetimeXp)는 유지.
     // seasonKey가 없던 기존 계정은 이번 시즌으로 표시만 하고 초기화하지 않는다(갑작스러운 등급 하락 방지).
     const season = getSeasonPeriod()
@@ -510,7 +536,15 @@ export async function addWorkoutLog(uid, logData, logId = null) {
     }
   }
   if (Object.keys(updates).length > 0) {
-    await settleOrTimeout(updateDoc(userRef, updates))
+    try {
+      await settleOrTimeout(updateDoc(userRef, updates))
+    } catch (err) {
+      // [2026-11-01] S4: 2분 안에 또 저장해 XP 간격 규칙에 걸리면 XP 없이 PR·활동 요약만 저장(기록은 이미 저장됨)
+      if (err?.code !== 'permission-denied' || !xpEarned) throw err
+      ;['lifetimeXp', 'seasonXp', 'seasonKey', 'xpAt'].forEach((k) => delete updates[k])
+      xpEarned = 0
+      if (Object.keys(updates).length > 0) await settleOrTimeout(updateDoc(userRef, updates))
+    }
   }
   if (!logData.isBackfilled) bumpGymStats(logId)
 
@@ -522,9 +556,12 @@ function bumpGymStats(logId) {
   const m = /^session-(\d+)$/.exec(logId || '')
   const start = new Date(m ? Number(m[1]) : Date.now())
   const wk = weekStartStr(start)
+  const hk = String(start.getHours())
+  const dk = String(start.getDay())
+  // [2026-11-01] S8: rules가 hk·dk 칸만 +1인지 확인한다
   setDoc(
     doc(db, 'gymStats', wk),
-    { sessions: increment(1), hours: { [String(start.getHours())]: increment(1) }, days: { [String(start.getDay())]: increment(1) } },
+    { sessions: increment(1), hours: { [hk]: increment(1) }, days: { [dk]: increment(1) }, hk, dk },
     { merge: true }
   ).catch(() => {})
 }
@@ -550,33 +587,45 @@ export function getEffectiveSeasonXp(userDoc) {
 
 export async function updateWorkoutLog(uid, logId, partial) {
   invalidateRecentLogsCache()
-  await updateDoc(doc(db, 'workoutLogs', uid, 'logs', logId), partial)
+  // [2026-11-01] 오프라인에서 '저장 중'에 멈추지 않게(전체 점검 U3)
+  await settleOrTimeout(updateDoc(doc(db, 'workoutLogs', uid, 'logs', logId), partial))
   rebuildPersonalRecords(uid).catch(() => {})
 }
 
 // [2026-07-28] 홈탭 캘린더에서 기록 삭제 기능 추가를 위해 신규 작성.
 export async function deleteWorkoutLog(uid, logId) {
   invalidateRecentLogsCache()
-  await deleteDoc(doc(db, 'workoutLogs', uid, 'logs', logId))
+  await settleOrTimeout(deleteDoc(doc(db, 'workoutLogs', uid, 'logs', logId)))
   rebuildPersonalRecords(uid).catch(() => {})
 }
 
 // [2026-10-29] 자동 저장된 운동 "되돌리기": 기록을 지우고 그때 받은 XP도 뺀다(0 아래로는 안 내려감).
 // 시즌 XP는 같은 시즌일 때만 뺀다(이미 새 시즌이면 그 XP는 지난 시즌 몫). firestore.rules가 ±200 변경을 허용해야 한다.
+// [2026-11-01] 기록 삭제와 XP 차감을 한 트랜잭션으로(전체 점검 S19). 이전엔 기록을 먼저 지운 뒤 XP를 따로 빼서,
+// 중간에 실패하면 기록만 사라지고 XP는 남았다. 트랜잭션은 둘 다 되거나 둘 다 안 되고, 서버의 최신 값으로 계산해
+// 두 기기에서 동시에 눌러도 XP를 두 번 빼지 않는다(기록이 이미 없으면 아무것도 안 함). 오프라인이면 실패(throw)하고
+// 화면은 팝업을 유지한다. 회원권이 끝난 계정은 rules가 XP 변경을 막으므로 기록도 지워지지 않는다(XP만 남는 상태 방지).
 export async function deleteWorkoutLogAndRevertXp(uid, logId, xp) {
-  // 이미 지워진 기록(캘린더 삭제·다른 기기)이면 XP는 건드리지 않는다(같은 XP를 두 번 빼지 않게)
-  const logSnap = await getDoc(doc(db, 'workoutLogs', uid, 'logs', logId))
-  if (!logSnap.exists()) return
-  await deleteWorkoutLog(uid, logId)
-  const amount = Math.max(0, Math.min(200, Math.round(Number(xp) || 0)))
-  if (!amount) return
+  const logRef = doc(db, 'workoutLogs', uid, 'logs', logId)
   const userRef = doc(db, 'users', uid)
-  const snap = await getDoc(userRef)
-  if (!snap.exists()) return
-  const u = snap.data()
-  const updates = { lifetimeXp: Math.max(0, (u.lifetimeXp || 0) - amount) }
-  if (!u.seasonKey || u.seasonKey === getSeasonPeriod()) updates.seasonXp = Math.max(0, (u.seasonXp || 0) - amount)
-  await settleOrTimeout(updateDoc(userRef, updates))
+  const amount = Math.max(0, Math.min(200, Math.round(Number(xp) || 0)))
+  const removed = await runTransaction(db, async (tx) => {
+    const logSnap = await tx.get(logRef)
+    if (!logSnap.exists()) return false
+    const snap = amount ? await tx.get(userRef) : null
+    tx.delete(logRef)
+    if (snap?.exists()) {
+      const u = snap.data()
+      const updates = { lifetimeXp: Math.max(0, (u.lifetimeXp || 0) - amount) }
+      if (!u.seasonKey || u.seasonKey === getSeasonPeriod()) updates.seasonXp = Math.max(0, (u.seasonXp || 0) - amount)
+      tx.update(userRef, updates)
+    }
+    return true
+  })
+  if (removed) {
+    invalidateRecentLogsCache()
+    rebuildPersonalRecords(uid).catch(() => {})
+  }
 }
 
 export async function getWorkoutLogsInRange(uid, fromDateStr, toDateStr) {
@@ -677,29 +726,68 @@ export async function adminListUsers() {
 // patch: { memberStatus?, role?, memberNo?, rosterId? } - 승인 시 승인자·시각을 함께 남긴다
 export async function adminUpdateMember(uid, patch, adminUid) {
   const data = { ...patch, statusUpdatedAt: serverTimestamp() }
+  // [2026-11-01] 상태를 정하면 재검토 요청 표시를 내린다
+  if (patch.memberStatus) data.reReviewRequested = false
   if (patch.memberStatus === 'approved') {
     data.approvedAt = serverTimestamp()
     data.approvedBy = adminUid || null
   }
   await updateDoc(doc(db, 'users', uid), data)
 }
-// [2026-10-31] 회원권 기간·PT 횟수(관리자). end가 비면 기간 제한 해제.
-export async function adminSetMembership(uid, { start = '', end = '', ptTotal, ptRemaining } = {}) {
-  const data = {
-    membershipStart: start || '',
-    membershipEnd: end || '',
-    membershipEndAt: end ? new Date(`${end}T23:59:59+09:00`) : null,
-    statusUpdatedAt: serverTimestamp(),
+// [2026-11-01] 관리자 화면: 바뀐 회원 문서 하나만 다시 읽기(동작마다 전체 회원을 다시 읽지 않게)
+export async function adminGetUser(uid) {
+  const snap = await getDoc(doc(db, 'users', uid))
+  return snap.exists() ? { uid, ...snap.data() } : null
+}
+// [2026-11-01] 승인 한 번에 저장(writeBatch): 승인 필드 + (명단 연결) 명단 linkedUid + (명단 만료일) 회원권 종료일
+// link: { rosterId, memberNo, expireDate? } | null
+export async function adminApproveMember(uid, adminUid, link = null) {
+  const batch = writeBatch(db)
+  const data = { memberStatus: 'approved', statusUpdatedAt: serverTimestamp(), approvedAt: serverTimestamp(), approvedBy: adminUid || null, reReviewRequested: false }
+  if (link) {
+    data.rosterId = link.rosterId
+    data.memberNo = link.memberNo || ''
+    if (link.expireDate) {
+      data.membershipStart = link.start || ''
+      data.membershipEnd = link.expireDate
+      data.membershipEndAt = new Date(`${link.expireDate}T23:59:59+09:00`)
+    }
+    batch.set(doc(db, 'gymRoster', link.rosterId), { linkedUid: uid }, { merge: true })
   }
-  if (ptTotal !== undefined) data.ptTotal = Math.max(0, Math.min(999, Math.round(Number(ptTotal) || 0)))
-  if (ptRemaining !== undefined) data.ptRemaining = Math.max(0, Math.min(data.ptTotal ?? 999, Math.round(Number(ptRemaining) || 0)))
-  if (ptTotal !== undefined || ptRemaining !== undefined) data.ptUpdatedAt = serverTimestamp()
+  batch.update(doc(db, 'users', uid), data)
+  await batch.commit()
+}
+// [2026-10-31] 회원권 기간·PT 횟수(관리자). end가 비면 기간 제한 해제.
+// [2026-11-01] 바뀐 항목만 저장(A1): 회원권만 고치면 PT 필드를 건드리지 않고, PT 등록(+N회)은 increment라
+// 편집 창을 연 뒤 트레이너가 차감한 횟수가 되살아나지 않는다. patch: { start?, end?, ptAdd?, ptTotal?, ptRemaining? }
+export async function adminSetMembership(uid, patch = {}) {
+  const data = { statusUpdatedAt: serverTimestamp() }
+  if ('end' in patch || 'start' in patch) {
+    const end = patch.end || ''
+    data.membershipStart = patch.start || ''
+    data.membershipEnd = end
+    data.membershipEndAt = end ? new Date(`${end}T23:59:59+09:00`) : null
+  }
+  const clamp = (v) => Math.max(0, Math.min(999, Math.round(Number(v) || 0)))
+  if (patch.ptAdd) {
+    data.ptTotal = increment(Math.round(patch.ptAdd))
+    data.ptRemaining = increment(Math.round(patch.ptAdd))
+  } else {
+    if (patch.ptTotal !== undefined) data.ptTotal = clamp(patch.ptTotal)
+    if (patch.ptRemaining !== undefined) data.ptRemaining = Math.min(clamp(patch.ptRemaining), data.ptTotal ?? 999)
+  }
+  if (patch.ptAdd || patch.ptTotal !== undefined || patch.ptRemaining !== undefined) data.ptUpdatedAt = serverTimestamp()
   await updateDoc(doc(db, 'users', uid), data)
 }
 // ───────────── [2026-10-31] 관리자 대시보드 확장 ─────────────
 // 관리 이력(adminLogs) - 관리자만 생성·조회, 수정·삭제 불가. action: 'approve'|'status'|'role'|'membership'|'pt'|'pause'|'connect'|'disconnect'|'renewal'|'settings'
-export async function logAdmin(admin, { action, targetUid = '', targetName = '', detail = '' }) {
-  await addDoc(collection(db, 'adminLogs'), {
+// [2026-11-01] 이력 저장 실패를 화면에 알릴 수 있게(A32) - 대시보드가 onLogFail로 듣는다. 실패해도 본 작업은 막지 않는다.
+let logFailListener = null
+export function onLogFail(fn) {
+  logFailListener = fn
+}
+function logDoc(admin, { action, targetUid = '', targetName = '', detail = '' }) {
+  return {
     at: serverTimestamp(),
     byUid: admin.uid,
     byName: String(admin.name || '').slice(0, 30),
@@ -707,7 +795,13 @@ export async function logAdmin(admin, { action, targetUid = '', targetName = '',
     targetUid,
     targetName: String(targetName || '').slice(0, 30),
     detail: String(detail || '').slice(0, 300),
-  }).catch((err) => console.error('관리 이력 저장 실패:', err))
+  }
+}
+export async function logAdmin(admin, entry) {
+  await addDoc(collection(db, 'adminLogs'), logDoc(admin, entry)).catch((err) => {
+    console.error('관리 이력 저장 실패:', err)
+    logFailListener?.(err)
+  })
 }
 // [2026-10-31] 지금 로그인한 관리자·트레이너(App이 세팅) - 화면마다 이름을 넘기지 않고 이력을 남기기 위해
 let logActor = null
@@ -732,8 +826,11 @@ export async function adminSaveNote(uid, patch, adminUid) {
   await setDoc(doc(db, 'adminNotes', uid), { ...patch, updatedAt: serverTimestamp(), updatedBy: adminUid }, { merge: true })
 }
 // 휴회: 기간을 남기고 그 일수만큼 회원권 종료일을 늘린다(newEnd는 화면에서 계산)
-export async function adminSetPause(uid, { pauseStart, pauseEnd, newEnd }) {
-  const data = { pauseStart: pauseStart || '', pauseEnd: pauseEnd || '', statusUpdatedAt: serverTimestamp() }
+// [2026-11-01] 휴회 이력 배열(A2): pauses [{ start, end, days, at(ms) }]. 휴회를 더하면 그 일수만, 취소하면 그 휴회 일수만 종료일에서 뺀다.
+// pauseStart/pauseEnd는 예전 화면·CSV 호환용으로 가장 최근 휴회를 그대로 둔다. rules: adminUserKeys에 'pauses' 추가 필요.
+export async function adminSetPauses(uid, { pauses, newEnd }) {
+  const latest = [...pauses].sort((a, b) => String(b.start).localeCompare(String(a.start)))[0]
+  const data = { pauses, pauseStart: latest?.start || '', pauseEnd: latest?.end || '', statusUpdatedAt: serverTimestamp() }
   if (newEnd) {
     data.membershipEnd = newEnd
     data.membershipEndAt = new Date(`${newEnd}T23:59:59+09:00`)
@@ -754,6 +851,49 @@ export async function adminListPtSchedulesRange(from, to) {
   const snap = await getDocs(query(collection(db, 'ptSchedules'), where('date', '>=', from), where('date', '<=', to)))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
 }
+// [2026-11-01] 요약·PT 탭을 오갈 때 같은 기간을 다시 읽지 않게 5분 세션 캐시(A27). PT 정정 후에는 invalidateAdminPt().
+const ADMIN_PT_CACHE_MS = 5 * 60 * 1000
+const adminPtCache = new Map() // `${from}|${to}` -> { at, promise }
+export function adminPtRange(from, to) {
+  const key = `${from}|${to}`
+  const hit = adminPtCache.get(key)
+  if (hit && Date.now() - hit.at < ADMIN_PT_CACHE_MS) return hit.promise
+  const promise = Promise.all([adminListPtSchedulesRange(from, to), adminListPtSessionsRange(from, to)])
+    .then(([sch, ses]) => ({ sch, ses }))
+    .catch((err) => {
+      adminPtCache.delete(key)
+      throw err
+    })
+  adminPtCache.set(key, { at: Date.now(), promise })
+  return promise
+}
+export function invalidateAdminPt() {
+  adminPtCache.clear()
+}
+// [2026-11-01] 처리 안 된 지난 일정(A20): status 'scheduled'만 읽고 오늘 이전 날짜를 거른다(단일 필드 조건, 색인 불필요).
+export async function adminListOverdueSchedules(today) {
+  const snap = await getDocs(query(collection(db, 'ptSchedules'), where('status', '==', 'scheduled')))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((s) => s.date < today).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+}
+// 트레이너용: 내 'scheduled' 일정 중 지난 날짜(등호 조건 2개라 복합 색인 없이 동작)
+export async function trainerListOverdueSchedules(trainerUid, today) {
+  const snap = await getDocs(query(collection(db, 'ptSchedules'), where('trainerUid', '==', trainerUid), where('status', '==', 'scheduled')))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((s) => s.date < today).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+}
+// [2026-11-01] 관리자 PT 정정(A4): 일정 상태만 바꾸기(예정·완료·노쇼). 차감은 건드리지 않는다(차감 취소는 adminCancelPtSession).
+export async function adminSetScheduleStatus(id, status) {
+  await updateDoc(doc(db, 'ptSchedules', id), { status, doneAt: status === 'scheduled' ? null : serverTimestamp() })
+  invalidateAdminPt()
+}
+// 차감 취소: ptSessions 삭제 + 회원 남은 횟수 +1(한 번에). reopen이면 연결된 일정을 '예정'으로 되돌린다.
+export async function adminCancelPtSession(session, { reopen = false } = {}) {
+  const batch = writeBatch(db)
+  batch.delete(doc(db, 'ptSessions', session.id))
+  batch.update(doc(db, 'users', session.memberUid), { ptRemaining: increment(1), ptUpdatedAt: serverTimestamp() })
+  if (reopen && session.scheduleId) batch.update(doc(db, 'ptSchedules', session.scheduleId), { status: 'scheduled', doneAt: null })
+  await batch.commit()
+  invalidateAdminPt()
+}
 export async function adminGetGymStats(weekKeys) {
   const snaps = await Promise.all(weekKeys.map((k) => getDoc(doc(db, 'gymStats', k)).catch(() => null)))
   return Object.fromEntries(weekKeys.map((k, i) => [k, snaps[i]?.exists?.() ? snaps[i].data() : null]))
@@ -768,16 +908,18 @@ export async function adminSaveSettings(patch) {
   await setDoc(doc(db, 'settings', 'app'), { ...patch, updatedAt: serverTimestamp() }, { merge: true })
 }
 // PT 차감(트레이너, 설정에서 켠 경우만): 회원 ptRemaining -1 + ptSessions 기록. 되돌리기는 +1 + 기록 삭제.
+// [2026-11-01] S1: rules가 차감과 기록을 짝으로 확인하도록 users.ptSessionRef에 기록 ID를 함께 쓴다
 export async function trainerUsePt(memberUid, trainer, dateStr) {
   const batch = writeBatch(db)
-  batch.update(doc(db, 'users', memberUid), { ptRemaining: increment(-1), ptUpdatedAt: serverTimestamp() })
-  batch.set(doc(collection(db, 'ptSessions')), { memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: dateStr, at: serverTimestamp() })
+  const ref = doc(collection(db, 'ptSessions'))
+  batch.update(doc(db, 'users', memberUid), { ptRemaining: increment(-1), ptUpdatedAt: serverTimestamp(), ptSessionRef: ref.id })
+  batch.set(ref, { memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: dateStr, at: serverTimestamp() })
   await batch.commit()
 }
 // session: { id, scheduleId? } - 일정에서 완료한 기록이면 일정도 '예정'으로 되돌린다
 export async function trainerUndoPt(memberUid, session) {
   const batch = writeBatch(db)
-  batch.update(doc(db, 'users', memberUid), { ptRemaining: increment(1), ptUpdatedAt: serverTimestamp() })
+  batch.update(doc(db, 'users', memberUid), { ptRemaining: increment(1), ptUpdatedAt: serverTimestamp(), ptSessionRef: session.id })
   batch.delete(doc(db, 'ptSessions', session.id))
   if (session.scheduleId) batch.update(doc(db, 'ptSchedules', session.scheduleId), { status: 'scheduled', doneAt: null })
   await batch.commit()
@@ -816,8 +958,9 @@ export async function trainerCompleteSchedule(s, trainer, deduct) {
   const batch = writeBatch(db)
   batch.update(doc(db, 'ptSchedules', s.id), { status: 'done', doneAt: serverTimestamp() })
   if (deduct) {
-    batch.update(doc(db, 'users', s.memberUid), { ptRemaining: increment(-1), ptUpdatedAt: serverTimestamp() })
-    batch.set(doc(collection(db, 'ptSessions')), { memberUid: s.memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: s.date, at: serverTimestamp(), scheduleId: s.id })
+    const ref = doc(collection(db, 'ptSessions'))
+    batch.update(doc(db, 'users', s.memberUid), { ptRemaining: increment(-1), ptUpdatedAt: serverTimestamp(), ptSessionRef: ref.id })
+    batch.set(ref, { memberUid: s.memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: s.date, at: serverTimestamp(), scheduleId: s.id })
   }
   await batch.commit()
 }
@@ -826,8 +969,9 @@ export async function trainerNoShowSchedule(s, trainer, deduct) {
   const batch = writeBatch(db)
   batch.update(doc(db, 'ptSchedules', s.id), { status: 'noshow', doneAt: serverTimestamp() })
   if (deduct) {
-    batch.update(doc(db, 'users', s.memberUid), { ptRemaining: increment(-1), ptUpdatedAt: serverTimestamp() })
-    batch.set(doc(collection(db, 'ptSessions')), { memberUid: s.memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: s.date, at: serverTimestamp(), scheduleId: s.id, noshow: true })
+    const ref = doc(collection(db, 'ptSessions'))
+    batch.update(doc(db, 'users', s.memberUid), { ptRemaining: increment(-1), ptUpdatedAt: serverTimestamp(), ptSessionRef: ref.id })
+    batch.set(ref, { memberUid: s.memberUid, trainerUid: trainer.uid, trainerName: (trainer.name || '').slice(0, 30), date: s.date, at: serverTimestamp(), scheduleId: s.id, noshow: true })
   }
   await batch.commit()
 }
@@ -867,10 +1011,24 @@ export async function listGuideOverrides() {
   const snap = await getDocs(collection(db, 'exerciseGuides'))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 }
-export async function saveGuideOverride(name, data, by) {
+// [2026-11-01] 이전 수정본을 exerciseGuides/{종목}/history/{자동 ID}에 남긴다(A23). rules에 history 규칙이 게시되기 전에는
+// 이 쓰기가 거부되지만 본 저장은 막지 않는다(best-effort).
+async function keepGuideHistory(name, prev, by) {
+  if (!prev) return
+  const { id, editedBy, editedAt, ...rest } = prev
+  await addDoc(collection(db, 'exerciseGuides', name, 'history'), { ...rest, savedBy: { uid: by.uid, name: (by.name || '').slice(0, 30) }, savedAt: serverTimestamp() }).catch((err) => console.warn('가이드 이전 본 저장 건너뜀:', err?.code || err))
+}
+export async function saveGuideOverride(name, data, by, prev = null) {
+  await keepGuideHistory(name, prev, by)
   await setDoc(doc(db, 'exerciseGuides', name), { ...data, updatedBy: { uid: by.uid, name: (by.name || '').slice(0, 30) }, updatedAt: serverTimestamp() })
 }
-export async function deleteGuideOverride(name) {
+// 기본으로 되돌리기: 헬스장 메모(gymNote)가 있으면 메모만 남기고 고친 내용만 지운다
+export async function deleteGuideOverride(name, { keepNote = '', by = null, prev = null } = {}) {
+  if (by) await keepGuideHistory(name, prev, by)
+  if (keepNote && by) {
+    await setDoc(doc(db, 'exerciseGuides', name), { gymNote: keepNote.slice(0, 300), updatedBy: { uid: by.uid, name: (by.name || '').slice(0, 30) }, updatedAt: serverTimestamp() })
+    return
+  }
   await deleteDoc(doc(db, 'exerciseGuides', name))
 }
 
@@ -879,14 +1037,24 @@ export async function adminGetRoster() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 }
 // rows: [{ id, name, phoneHash, phoneLast4, memberNo, expireDate }] - 400개씩 나눠 일괄 저장(merge: 연결 정보 유지)
+// [2026-11-01] 중간에 실패하면 err.saved에 저장된 인원을 담아 던진다(A14)
 export async function adminSaveRoster(rows) {
+  let saved = 0
   for (let i = 0; i < rows.length; i += 400) {
     const batch = writeBatch(db)
-    rows.slice(i, i + 400).forEach(({ id, ...r }) => {
+    const chunk = rows.slice(i, i + 400)
+    chunk.forEach(({ id, ...r }) => {
       batch.set(doc(db, 'gymRoster', id), { ...r, importedAt: serverTimestamp() }, { merge: true })
     })
-    await batch.commit()
+    try {
+      await batch.commit()
+    } catch (err) {
+      err.saved = saved
+      throw err
+    }
+    saved += chunk.length
   }
+  return saved
 }
 export async function adminLinkRoster(rosterId, uid) {
   await setDoc(doc(db, 'gymRoster', rosterId), { linkedUid: uid || null }, { merge: true })
@@ -901,13 +1069,9 @@ export async function adminListConnections() {
   const snap = await getDocs(collection(db, 'connections'))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 }
-export async function adminConnect(member, trainer, adminUid) {
-  const col = collection(db, 'connections')
-  const prev = await getDocs(query(col, where('memberUid', '==', member.uid), where('status', '==', 'active')))
-  for (const d of prev.docs) {
-    if (d.id !== connId(trainer.uid, member.uid)) await updateDoc(d.ref || doc(db, 'connections', d.id), { status: 'ended', endedAt: serverTimestamp(), endedBy: adminUid })
-  }
-  await setDoc(doc(db, 'connections', connId(trainer.uid, member.uid)), {
+// [2026-11-01] 이전 연결 종료·새 연결·역할 변경을 한 번에(writeBatch, A7) - 중간 실패로 활성 연결이 2개 생기지 않게
+function connData(member, trainer, adminUid) {
+  return {
     trainerUid: trainer.uid,
     memberUid: member.uid,
     trainerName: memberLabel(trainer),
@@ -916,8 +1080,53 @@ export async function adminConnect(member, trainer, adminUid) {
     status: 'active',
     startedAt: serverTimestamp(),
     createdBy: adminUid,
+  }
+}
+export async function adminConnect(member, trainer, adminUid) {
+  const col = collection(db, 'connections')
+  const prev = await getDocs(query(col, where('memberUid', '==', member.uid), where('status', '==', 'active')))
+  const batch = writeBatch(db)
+  prev.docs.forEach((d) => {
+    if (d.id !== connId(trainer.uid, member.uid)) batch.update(doc(db, 'connections', d.id), { status: 'ended', endedAt: serverTimestamp(), endedBy: adminUid })
   })
-  if (!member.role || member.role === '일반회원') await updateDoc(doc(db, 'users', member.uid), { role: 'PT회원', statusUpdatedAt: serverTimestamp() })
+  batch.set(doc(db, 'connections', connId(trainer.uid, member.uid)), connData(member, trainer, adminUid))
+  if (!member.role || member.role === '일반회원') batch.update(doc(db, 'users', member.uid), { role: 'PT회원', statusUpdatedAt: serverTimestamp() })
+  await batch.commit()
+}
+// [2026-11-01] 트레이너 역할 해제(A6): 활성 연결 모두 종료 + 역할 변경을 한 번에
+export async function adminEndTrainerAndSetRole(trainerUid, connIds, role, adminUid) {
+  const batch = writeBatch(db)
+  connIds.forEach((id) => batch.update(doc(db, 'connections', id), { status: 'ended', endedAt: serverTimestamp(), endedBy: adminUid }))
+  batch.update(doc(db, 'users', trainerUid), { role, statusUpdatedAt: serverTimestamp() })
+  await batch.commit()
+}
+// [2026-11-01] 퇴사 트레이너의 남은 예정 일정(오늘 이후, A3) - 관리자만 읽기
+export async function adminListFutureSchedulesOf(trainerUid, today) {
+  const snap = await getDocs(query(collection(db, 'ptSchedules'), where('trainerUid', '==', trainerUid)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((s) => s.status === 'scheduled' && s.date >= today)
+}
+// [2026-11-01] 퇴사 처리 한 번에(A3·A8·A31): 담당 회원 이관/해제 + 예정 일정 이관/삭제 + 역할 정리 + 회원별 관리 이력.
+// conns: 퇴사자의 활성 연결, members: { [uid]: users 문서 }, target: 새 트레이너 users 문서 | null, schedules: 남은 예정 일정
+export async function adminTrainerLeave({ admin, leaverUid, leaverName, conns, members, target, schedules, demote }) {
+  const ops = []
+  conns.forEach((c) => {
+    ops.push((b) => b.update(doc(db, 'connections', c.id), { status: 'ended', endedAt: serverTimestamp(), endedBy: admin.uid }))
+    const m = members[c.memberUid]
+    if (target && m) ops.push((b) => b.set(doc(db, 'connections', connId(target.uid, m.uid)), connData(m, target, admin.uid)))
+    ops.push((b) => b.set(doc(collection(db, 'adminLogs')), logDoc(admin, { action: target && m ? 'connect' : 'disconnect', targetUid: c.memberUid, targetName: c.memberName, detail: target && m ? `퇴사 이관: ${leaverName} → ${memberLabel(target)}` : `퇴사로 ${leaverName} 트레이너 연결 해제` })))
+  })
+  schedules.forEach((s) => {
+    if (target) ops.push((b) => b.update(doc(db, 'ptSchedules', s.id), { trainerUid: target.uid, trainerName: memberLabel(target) }))
+    else ops.push((b) => b.delete(doc(db, 'ptSchedules', s.id)))
+  })
+  if (demote && leaverUid) ops.push((b) => b.update(doc(db, 'users', leaverUid), { role: '일반회원', statusUpdatedAt: serverTimestamp() }))
+  // 한 배치 최대 500개 - 넘으면 나눠 저장(대부분 한 번)
+  for (let i = 0; i < ops.length; i += 450) {
+    const b = writeBatch(db)
+    ops.slice(i, i + 450).forEach((op) => op(b))
+    await b.commit()
+  }
+  invalidateAdminPt()
 }
 export async function endConnection(id, byUid) {
   await updateDoc(doc(db, 'connections', id), { status: 'ended', endedAt: serverTimestamp(), endedBy: byUid || null })
@@ -977,13 +1186,33 @@ export async function deleteMyAccountData(uid, onProgress) {
     getDocs(query(collection(db, 'connections'), where('trainerUid', '==', uid), where('status', '==', 'active'))),
   ])
   await Promise.all([...asMember.docs, ...asTrainer.docs].map((d) => updateDoc(d.ref, { status: 'ended', endedAt: serverTimestamp(), endedBy: uid })))
+  // [2026-11-01] S22: 회원으로서의 연결(종료된 것 포함)에 남은 이름·닉네임을 지운다(실패해도 탈퇴는 계속)
+  try {
+    const mine = await getDocs(query(collection(db, 'connections'), where('memberUid', '==', uid)))
+    await Promise.all(
+      mine.docs
+        .filter((d) => d.data().memberName || d.data().memberNickname)
+        .map((d) => updateDoc(d.ref, { memberName: '', memberNickname: '' }).catch(() => {}))
+    )
+  } catch (e) {
+    // 무시
+  }
   onProgress?.('계정 정보를 지우는 중…')
   // 진행 세션 백업은 사용자 문서 바로 앞에서 지운다(그 사이 백업 타이머가 다시 만드는 것 방지 - 사용자 문서가 없으면 규칙이 거부)
   await deleteDoc(doc(db, 'activeSessions', uid))
   // 관리 이력에는 이름 없이 '회원 1명 탈퇴'만 남긴다(개인정보 삭제가 목적)
-  await addDoc(collection(db, 'adminLogs'), { at: serverTimestamp(), byUid: '', byName: '', action: 'withdraw', targetUid: '', targetName: '', detail: '회원 1명 탈퇴' }).catch(() => {})
+  // [2026-11-01] S7: 탈퇴 표시와 같은 일괄 쓰기로만 남길 수 있다(rules). 다시 시도할 때는 표시가 이미 있어 이력은 남기지 않음.
   const mark = doc(db, 'deletedAccounts', uid)
-  if (!(await getDoc(mark)).exists()) await setDoc(mark, { deletedAt: serverTimestamp() }) // 다시 시도할 때는 이미 있음(수정 불가 규칙)
+  if (!(await getDoc(mark)).exists()) {
+    const batch = writeBatch(db)
+    batch.set(mark, { deletedAt: serverTimestamp() })
+    batch.set(doc(collection(db, 'adminLogs')), { at: serverTimestamp(), byUid: '', byName: '', action: 'withdraw', targetUid: '', targetName: '', detail: '회원 1명 탈퇴' })
+    try {
+      await batch.commit()
+    } catch (e) {
+      await setDoc(mark, { deletedAt: serverTimestamp() }) // 이력 저장이 막혀도 탈퇴는 계속
+    }
+  }
   await deleteDoc(doc(db, 'users', uid))
   try {
     Object.keys(localStorage).filter((k) => k.includes(uid)).forEach((k) => localStorage.removeItem(k))
@@ -1042,6 +1271,8 @@ export function getLeaderboard(group, period, count = 100) {
     .then((snap) => snap.docs.map((d) => ({ uid: d.id, ...d.data() })))
     .catch((err) => {
       if (leaderboardCache.get(key)?.promise === promise) leaderboardCache.delete(key)
+      // [2026-11-01] S17: 랭킹 읽기는 승인(회원권 유효)·트레이너·관리자만 - 막히면 빈 목록(화면이 멈추지 않게)
+      if (err?.code === 'permission-denied') return []
       throw err
     })
   leaderboardCache.set(key, { count, at: Date.now(), promise })

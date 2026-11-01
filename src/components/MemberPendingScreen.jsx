@@ -5,6 +5,8 @@ import React, { useState } from 'react'
 import { Button } from './ui'
 import { logout } from '../firebase'
 import { updateUserProfile } from '../storage'
+import { serverTimestamp } from 'firebase/firestore'
+import { DeleteAccountCard } from './AccountLegalSection'
 import { isValidMobile, phoneHash, phoneLast4 } from '../utils/member'
 
 const COPY = {
@@ -24,7 +26,11 @@ export default function MemberPendingScreen({ uid, userDoc, onRefresh }) {
     if (!name.trim() || !isValidMobile(phone)) return
     setChecking(true)
     try {
-      await updateUserProfile(uid, { signupInfo: { name: name.trim().slice(0, 30), phoneHash: await phoneHash(phone), phoneLast4: phoneLast4(phone) } })
+      // [2026-11-01] 거절된 회원이 정보를 고치면 다시 확인해 달라는 표시(reReviewRequested·reReviewAt)를 함께 남긴다(전체 점검 U14).
+      // rules: 거절 상태에서만 본인이 쓸 수 있고 시각은 서버 시각. 관리자 승인 대기 탭에 '재검토 요청'으로 보인다.
+      const patch = { signupInfo: { name: name.trim().slice(0, 30), phoneHash: await phoneHash(phone), phoneLast4: phoneLast4(phone) } }
+      if (userDoc?.memberStatus === 'rejected') { patch.reReviewRequested = true; patch.reReviewAt = serverTimestamp() }
+      await updateUserProfile(uid, patch)
       await onRefresh?.()
       setEditing(false)
       setPhone('')
@@ -43,20 +49,27 @@ export default function MemberPendingScreen({ uid, userDoc, onRefresh }) {
     try {
       const still = await onRefresh?.()
       if (still) setMsg('아직 승인 전이에요. 조금 뒤에 다시 확인해 주세요.')
+    } catch (err) {
+      // [2026-11-01] 확인 실패 안내(전체 점검 U26)
+      console.error('승인 확인 실패:', err)
+      setMsg('확인하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.')
     } finally {
       setChecking(false)
     }
   }
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 'calc(var(--safe-top, 0px) + 48px) 24px calc(var(--safe-bottom, 0px) + 32px)', boxSizing: 'border-box' }}>
+    <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: 'calc(var(--safe-top, 0px) + 48px) 24px calc(var(--safe-bottom, 0px) + 32px)', boxSizing: 'border-box' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-normal)', margin: '0 0 10px' }}>바디테일러 PT&amp;헬스 회원 전용</p>
         <h1 className="text-keep-all" style={{ fontSize: 28, lineHeight: 1.3, margin: '0 0 14px', color: 'var(--color-label-strong)' }}>{c.title}</h1>
         <p className="text-keep-all" style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--color-label-normal)', margin: 0 }}>{c.body}</p>
+        {/* [2026-11-01] 만료 회원은 신청 정보를 고칠 수 없어(rules: 대기·거절만) 버튼을 숨긴다(전체 점검 U14) */}
         {userDoc?.signupInfo?.name && !editing && (
           <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginTop: 18 }}>
             신청 정보: {userDoc.signupInfo.name} · 휴대폰 끝자리 <span className="bt-num">{userDoc.signupInfo.phoneLast4}</span>{' '}
-            <button type="button" onClick={() => setEditing(true)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-normal)', textDecoration: 'underline', padding: 0 }}>정보 고치기</button>
+            {userDoc?.memberStatus !== 'expired' && (
+              <button type="button" onClick={() => setEditing(true)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-normal)', textDecoration: 'underline', padding: 0 }}>정보 고치기</button>
+            )}
           </p>
         )}
         {editing && (
@@ -77,6 +90,10 @@ export default function MemberPendingScreen({ uid, userDoc, onRefresh }) {
       {msg && <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', textAlign: 'center', margin: '0 0 10px' }}>{msg}</p>}
       <Button full onClick={handleCheck} disabled={checking}>{checking ? '확인 중…' : '승인 확인하기'}</Button>
       <Button variant="ghost" full onClick={logout} style={{ marginTop: 8 }}>로그아웃</Button>
+      {/* [2026-11-01] 대기·거절·만료 회원도 탈퇴할 수 있게(동의 화면 안내와 맞춤, 전체 점검 U15). MY 설정과 같은 삭제 흐름 */}
+      <div style={{ marginTop: 20 }}>
+        <DeleteAccountCard uid={uid} compact />
+      </div>
     </div>
   )
 }

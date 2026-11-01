@@ -325,7 +325,8 @@ export function ConfirmProvider({ children }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 100,
+            // [2026-11-01] 자동 저장 팝업(300)·사용법 가이드(400) 위에서도 확인 창이 보이게
+            zIndex: 500,
             padding: 24,
           }}
           onClick={() => respond(state.dismissValue)}

@@ -68,7 +68,7 @@ export default function LoginScreen() {
       <p style={{ margin: '14px 0 0', textAlign: 'center', fontSize: 12, color: 'var(--color-label-neutral)' }}>
         <a href="/privacy/" target="_blank" rel="noopener" style={{ color: 'inherit' }}>개인정보 처리방침</a>
         {' · '}
-        <a href="/intro/" style={{ color: 'inherit' }}>앱 소개</a>
+        <a href="/intro/" target="_blank" rel="noopener" style={{ color: 'inherit' }}>앱 소개</a>
       </p>
     </div>
   )

@@ -6,12 +6,13 @@
 import React, { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
-import { Button } from './ui'
+import { Button, useConfirm } from './ui'
 import { updateWorkoutLog } from '../storage'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
 import { getCardioFieldsForSet, toSavedCardioSet } from '../utils/cardioFields'
 import { logVolumeKg, getBodyweightKg, weightUnitShort, repsUnit } from '../utils/load'
 import { estimateCaloriesV2 } from '../utils/calories'
+import { confirmSetValues, prevTopWeight } from '../utils/inputCheck'
 
 const inputStyle = {
   width: '100%',
@@ -42,7 +43,9 @@ function toMin(sec) {
   return sec > 0 ? String(Math.round(sec / 60)) : ''
 }
 
-export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved }) {
+// [2026-11-01] prs: 너무 큰 무게 확인용 지난 최고 무게(users.prs, 추가 읽기 없음)
+export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved, prs = null }) {
+  const confirm = useConfirm()
   const editable = Array.isArray(notice?.exercises)
   const initWarm = notice?.warmupActualSec != null ? toMin(notice.warmupActualSec) : ''
   const initMain = toMin(Math.max(0, (notice?.totalDurationSec || 0) - (notice?.warmupActualSec || 0)))
@@ -60,8 +63,9 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved 
           const sets = ex.sets
             .map((s) => {
               if (type === 'cardio') return { ...s, ...toSavedCardioSet(ex.name, s) }
-              if (type === 'reps') return { ...s, weight: 0, reps: Number(s.reps) || 0 }
-              return { ...s, weight: Number(s.weight) || 0, reps: Number(s.reps) || 0 }
+              // [2026-11-01] 횟수는 정수로(전체 점검 U16)
+              if (type === 'reps') return { ...s, weight: 0, reps: Math.round(Number(s.reps)) || 0 }
+              return { ...s, weight: Number(s.weight) || 0, reps: Math.round(Number(s.reps)) || 0 }
             })
             // 무게 칸을 비우면 0kg 세트가 아니라 빈 세트로 보고 뺀다(운동 완료 저장과 같은 기준)
             .filter((s, j) => (type === 'cardio' ? s.durationMin > 0 : s.reps > 0 && (type === 'reps' || String(ex.sets[j]?.weight ?? '').trim() !== '')))
@@ -80,11 +84,22 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved 
     setExercises((prev) => prev.map((ex, i) => (i !== ei ? ex : { ...ex, sets: ex.sets.filter((_, j) => j !== si) })))
   }
 
+  // [2026-11-01] 고친 내용이 있는지(닫기 전에 확인, 전체 점검 U18)
+  const dirty = warmMin !== initWarm || mainMin !== initMain || (editable && JSON.stringify(exercises) !== JSON.stringify(notice.exercises))
+  async function handleClose() {
+    if (busy) return
+    if (dirty && !(await confirm('고친 내용을 저장하지 않고 닫을까요?', { okLabel: '닫기', cancelLabel: '계속 고치기' }))) return
+    onClose?.()
+  }
+
   async function handleSave() {
     if (cleaned.length === 0) {
       setError('남은 세트가 없어요. 기록을 지우려면 "기록 삭제"를 눌러 주세요.')
       return
     }
+    // [2026-11-01] 음수·숫자 아님은 막고, 너무 큰 값은 확인(전체 점검 U5·U28)
+    const items = exercises.flatMap((ex) => ex.sets.map((st) => ({ name: ex.name, set: st, prevTop: prevTopWeight(prs, ex.name, ex.grip || null) })))
+    if (!(await confirmSetValues(confirm, items))) return
     setBusy('save')
     setError('')
     try {
@@ -108,11 +123,15 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved 
     }
   }
 
+  // [2026-11-01] 확인 없이 지워지던 문제, 실패해도 팝업이 닫히던 문제(전체 점검 U6): 확인 후 삭제, 실패하면 팝업 유지 + 안내
   async function handleUndo() {
+    if (!(await confirm('이 운동 기록을 지울까요?\n이 운동으로 받은 경험치도 함께 빠지고, 되돌릴 수 없어요.', { okLabel: '기록 삭제', cancelLabel: '취소' }))) return
     setBusy('undo')
+    setError('')
     try {
       await onUndo?.()
-    } finally {
+    } catch (err) {
+      setError('기록을 지우지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.')
       setBusy(null)
     }
   }
@@ -140,7 +159,7 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved 
               {notice.date} · "오늘 운동 완료"를 누르지 않아 마지막 세트 시각까지로 자동 저장했어요. 실제와 다르면 고쳐 주세요.
             </span>
           </div>
-          <button type="button" onClick={onClose} aria-label="닫기" style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)', flexShrink: 0 }}>
+          <button type="button" onClick={handleClose} disabled={!!busy} aria-label="닫기" style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)', flexShrink: 0 }}>
             <X size={20} />
           </button>
         </div>
@@ -220,16 +239,17 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved 
           {error && <span style={{ fontSize: 13, color: 'var(--color-danger)' }}>{error}</span>}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, padding: '10px 18px 16px', borderTop: '1px solid var(--color-line)' }}>
+        {/* [2026-11-01] 320px에서 '저장'이 눌려 글자가 넘치지 않게: 자리가 모자라면 '저장'이 다음 줄 전체 폭으로 */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '10px 18px 16px', borderTop: '1px solid var(--color-line)' }}>
           <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} disabled={!!busy} onClick={handleUndo}>
             {busy === 'undo' ? '삭제 중…' : '기록 삭제'}
           </Button>
           {editable ? (
             <>
-              <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} disabled={!!busy} onClick={onClose}>
+              <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} disabled={!!busy} onClick={handleClose}>
                 그대로 둘게요
               </Button>
-              <Button style={{ flex: 1, minWidth: 0 }} disabled={!!busy} onClick={handleSave}>
+              <Button style={{ flex: '1 1 96px', minWidth: 96 }} disabled={!!busy} onClick={handleSave}>
                 {busy === 'save' ? '저장 중…' : '저장'}
               </Button>
             </>

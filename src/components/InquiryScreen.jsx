@@ -5,6 +5,9 @@ import React, { useEffect, useState } from 'react'
 import { Card, SectionTitle, Button, ScreenHeader, EmptyState, useConfirm } from './ui'
 import { submitInquiry, getMyInquiries, deleteInquiry } from '../storage'
 
+// [2026-11-01] firestore.rules inquiries content.size() <= 2000과 같은 한도
+const INQUIRY_MAX = 2000
+
 export default function InquiryScreen({ uid, nickname, onClose }) {
   const [inquiries, setInquiries] = useState([])
   const [loading, setLoading] = useState(true)
@@ -67,7 +70,9 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
       <Card style={{ marginBottom: 20 }}>
         <textarea
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => setContent(e.target.value.slice(0, INQUIRY_MAX))}
+          // [2026-11-01] 규칙의 글자 수 한도를 넘으면 '인터넷 연결' 오류로 보이던 문제: 입력 제한 + 글자 수(전체 점검 U17)
+          maxLength={INQUIRY_MAX}
           placeholder="문의 내용을 입력해 주세요"
           rows={4}
           className="text-keep-all"
@@ -81,9 +86,12 @@ export default function InquiryScreen({ uid, nickname, onClose }) {
             fontFamily: 'inherit',
             background: 'var(--color-bg)',
             color: 'var(--color-label-strong)',
-            marginBottom: 10,
+            marginBottom: 4,
           }}
         />
+        <p className="bt-num" style={{ margin: '0 0 10px', fontSize: 12, textAlign: 'right', color: content.length >= INQUIRY_MAX ? 'var(--color-danger)' : 'var(--color-label-neutral)' }}>
+          {content.length.toLocaleString()} / {INQUIRY_MAX.toLocaleString()}자
+        </p>
         <Button full disabled={!content.trim() || submitting} onClick={handleSubmit}>
           {submitting ? '보내는 중…' : '문의 보내기'}
         </Button>

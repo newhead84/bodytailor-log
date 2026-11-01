@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button, BackButton } from './ui'
 import { HOWTO_ONBOARDING_TEXT } from '../utils/howtoText'
 import { GoalPicker, TrainingPlanSummary } from './GoalPicker'
 import { isValidMobile } from '../utils/member'
+import { bodyRangeError } from '../utils/inputCheck'
 
 const GENDERS = ['남성', '여성']
 
@@ -17,6 +18,30 @@ const GENDERS = ['남성', '여성']
 // [2026-10-31 Phase2] 첫 단계 'member': 헬스장 회원 확인(이름·휴대폰 번호, 승인용)
 const STEPS = ['member', 'nickname', 'gender', 'age', 'weight', 'height', 'goals', 'days', 'plan']
 const TARGET_DAY_OPTIONS = [2, 3, 4, 5, 6]
+
+// [2026-11-01] 온보딩 진행 상태를 탭 세션(sessionStorage)에 보관해 새로고침해도 처음부터 다시 하지 않게(전체 점검 U22).
+// 휴대폰 번호는 원문을 남기지 않으려고 보관하지 않는다(앱은 해시·뒤 4자리만 저장하는 원칙). 복원하면 회원 정보 단계에서
+// 번호만 다시 입력하고, "다음"을 누르면 하던 단계로 바로 돌아간다.
+const PROGRESS_KEY = 'bt-onboarding-progress'
+function readProgress() {
+  try {
+    const p = JSON.parse(sessionStorage.getItem(PROGRESS_KEY) || 'null')
+    return p && typeof p === 'object' && p.form ? p : null
+  } catch (e) {
+    return null
+  }
+}
+function writeProgress(step, form) {
+  try {
+    if (step == null) sessionStorage.removeItem(PROGRESS_KEY)
+    else {
+      const { phone: _omit, ...rest } = form
+      sessionStorage.setItem(PROGRESS_KEY, JSON.stringify({ step, form: rest }))
+    }
+  } catch (e) {
+    // 저장소 접근이 막힌 환경은 무시(처음부터 진행)
+  }
+}
 
 const STEP_TITLES = {
   member: '바디테일러 회원 정보를 알려주세요',
@@ -45,11 +70,13 @@ const stepVariants = {
 // 않는 순수 뷰어로 동작한다: 상단에 닫기 버튼이 뜨고, 마지막 단계에서 "시작하기"를 눌러도
 // onComplete(실제 Firestore 저장)를 호출하지 않고 그냥 onClose로 미리보기를 닫는다.
 export default function Onboarding({ onComplete, previewMode = false, onClose, initialNickname = '' }) {
+  const [restored] = useState(() => (previewMode ? null : readProgress()))
   const [step, setStep] = useState(0)
+  // 복원했으면 번호 입력 뒤 돌아갈 단계
+  const [resumeTo, setResumeTo] = useState(() => (restored && Number(restored.step) > 0 ? Math.min(STEPS.length - 1, Number(restored.step)) : null))
   const [direction, setDirection] = useState(1)
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => ({
     memberName: '',
-    phone: '',
     nickname: (initialNickname || '').slice(0, 30),
     weeklyTargetDays: 3,
     gender: '',
@@ -57,8 +84,14 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
     weightKg: '',
     heightCm: '',
     goals: [],
-  })
+    ...(restored?.form || {}),
+    phone: '',
+  }))
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  useEffect(() => {
+    if (!previewMode) writeProgress(Math.max(step, resumeTo || 0), form)
+  }, [previewMode, step, resumeTo, form])
 
   function update(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -66,6 +99,11 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
 
   function goNext() {
     setDirection(1)
+    if (resumeTo != null && step === 0) {
+      setStep(resumeTo)
+      setResumeTo(null)
+      return
+    }
     setStep((s) => s + 1)
   }
 
@@ -79,9 +117,10 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
     nickname: form.nickname.trim().length > 0,
     days: !!form.weeklyTargetDays,
     gender: !!form.gender,
-    age: !!form.age,
-    weight: !!form.weightKg,
-    height: !!form.heightCm,
+    // [2026-11-01] 범위 밖 값은 다음으로 못 넘어감(전체 점검 U12)
+    age: !!form.age && !bodyRangeError('age', form.age),
+    weight: !!form.weightKg && !bodyRangeError('weightKg', form.weightKg),
+    height: !!form.heightCm && !bodyRangeError('heightCm', form.heightCm),
     goals: form.goals.length > 0,
     plan: true,
   }[STEPS[step]]
@@ -92,16 +131,25 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
       onClose?.()
       return
     }
+    // [2026-11-01] 저장 실패 시 '저장 중…'에 갇히지 않게 하고 이유를 알린다(전체 점검 U2)
     setSaving(true)
-    await onComplete({
-      ...form,
-      nickname: form.nickname.trim().slice(0, 30),
-      weeklyTargetDays: Number(form.weeklyTargetDays) || 3,
-      age: Number(form.age),
-      weightKg: Number(form.weightKg),
-      heightCm: Number(form.heightCm),
-    })
-    setSaving(false)
+    setSaveError('')
+    try {
+      await onComplete({
+        ...form,
+        nickname: form.nickname.trim().slice(0, 30),
+        weeklyTargetDays: Number(form.weeklyTargetDays) || 3,
+        age: Number(form.age),
+        weightKg: Number(form.weightKg),
+        heightCm: Number(form.heightCm),
+      })
+      writeProgress(null)
+    } catch (err) {
+      console.error('온보딩 저장 실패:', err)
+      setSaveError('저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요. 입력한 내용은 그대로 있어요.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -197,6 +245,11 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
                     style={{ width: '100%', boxSizing: 'border-box', padding: '18px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 18, fontWeight: 700 }}
                   />
                 </div>
+                {resumeTo != null && (
+                  <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)', marginTop: 10 }}>
+                    이어서 진행해요. 휴대폰 번호는 보관하지 않아 한 번 더 입력해 주세요. 나머지 답은 그대로 있어요.
+                  </p>
+                )}
                 {form.phone && !isValidMobile(form.phone) && (
                   <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 10 }}>휴대폰 번호를 확인해 주세요.</p>
                 )}
@@ -260,18 +313,21 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
             {STEPS[step] === 'age' && (
               <StepBlock title={STEP_TITLES.age}>
                 <BigNumberField unit="세" value={form.age} onChange={(v) => update('age', v)} />
+                <RangeHint text={bodyRangeError('age', form.age)} />
               </StepBlock>
             )}
 
             {STEPS[step] === 'weight' && (
               <StepBlock title={STEP_TITLES.weight}>
                 <BigNumberField unit="kg" value={form.weightKg} onChange={(v) => update('weightKg', v)} />
+                <RangeHint text={bodyRangeError('weightKg', form.weightKg)} />
               </StepBlock>
             )}
 
             {STEPS[step] === 'height' && (
               <StepBlock title={STEP_TITLES.height}>
                 <BigNumberField unit="cm" value={form.heightCm} onChange={(v) => update('heightCm', v)} />
+                <RangeHint text={bodyRangeError('heightCm', form.heightCm)} />
                 <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginTop: 20 }}>
                   신체 정보는 기본적으로 비공개이며, VIP 회원만 연동 트레이너에게 자동 공유돼요.
                 </p>
@@ -298,6 +354,11 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
         </AnimatePresence>
       </div>
 
+      {saveError && (
+        <p role="alert" className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-danger)', margin: '0 0 10px' }}>
+          {saveError}
+        </p>
+      )}
       <div style={{ display: 'flex', gap: 8 }}>
         {step > 0 && (
           <Button variant="ghost" onClick={goPrev}>
@@ -315,6 +376,15 @@ export default function Onboarding({ onComplete, previewMode = false, onClose, i
         )}
       </div>
     </div>
+  )
+}
+
+function RangeHint({ text }) {
+  if (!text) return null
+  return (
+    <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 10 }}>
+      {text}
+    </p>
   )
 }
 

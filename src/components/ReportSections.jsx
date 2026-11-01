@@ -18,9 +18,10 @@ import { toLocalDateStr } from '../utils/date'
 const muted = { fontSize: 13, color: 'var(--color-label-neutral)' }
 
 // 다른 회원 닉네임 가리기: 첫 글자 + 나머지 글자 수만큼 *(최대 3개)
+// [2026-11-01] 닉네임이 비면 '회*'(이전 '회원'은 leaderboard 규칙 형식 ^.[*]{1,3}$와 달라 랭킹 저장이 거부됨, 전체 점검 S23)
 export function maskName(name) {
   const s = String(name || '').trim()
-  if (!s) return '회원'
+  if (!s) return '회*'
   const chars = [...s]
   return chars[0] + '*'.repeat(Math.min(3, Math.max(1, chars.length - 1)))
 }

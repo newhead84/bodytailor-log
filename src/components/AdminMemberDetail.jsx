@@ -3,19 +3,21 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Card } from './ui'
 import { Badge, Bars, LogRow, fmtDate, fmtDateTime, muted, sectionTitle, selectStyle, statusOf } from './adminUi'
-import { adminListLogs, adminListMemberConnections, adminSaveNote, adminSetPause, listPtSessions, listPtSchedules, logAdmin } from '../storage'
-import { addDays, daysBetween, fmtYmd, memberName, membershipState, MEMBER_STATUS } from '../utils/member'
+import { adminListLogs, adminListMemberConnections, adminSaveNote, adminSetPauses, listPtSessions, listPtSchedules, logAdmin } from '../storage'
+import { addDays, daysBetween, fmtYmd, memberName, membershipState, pausesOf, MEMBER_STATUS } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
 
-export default function AdminMemberDetail({ u, note, admin, onBack, onChanged, onEditMembership }) {
+// [2026-11-01] onUserChanged(uid): 바뀐 회원 문서만 다시 읽기, onNotePatched(uid, patch): 메모를 화면 상태에만 반영(전체 재조회 없음, A5)
+export default function AdminMemberDetail({ u, note, admin, onBack, onUserChanged, onNotePatched, onEditMembership }) {
   const today = todayStr()
   const [conns, setConns] = useState(null)
   const [pt, setPt] = useState(null)
   const [logs, setLogs] = useState(null)
   const [memo, setMemo] = useState(note?.memo || '')
   const [memoMsg, setMemoMsg] = useState('')
-  const [pause, setPause] = useState({ start: u.pauseStart || '', end: u.pauseEnd || '' })
+  const [pause, setPause] = useState({ start: '', end: '' })
   const [pauseMsg, setPauseMsg] = useState('')
+  const [pauseBusy, setPauseBusy] = useState(false) // [2026-11-01] 두 번 눌러 두 배 연장되지 않게(A15)
   useEffect(() => {
     adminListMemberConnections(u.uid).then(setConns).catch(() => setConns([]))
     Promise.all([listPtSessions({ memberUid: u.uid }).catch(() => []), listPtSchedules({ memberUid: u.uid }).catch(() => [])]).then(([ses, sch]) => {
@@ -30,38 +32,59 @@ export default function AdminMemberDetail({ u, note, admin, onBack, onChanged, o
   const ms = membershipState(u, today)
   const weeks = Array.from({ length: 8 }, (_, i) => weekStartStr(new Date(), i - 7))
   const wkItems = weeks.map((w, i) => ({ label: `${Number(w.slice(5, 7))}/${Number(w.slice(8, 10))}`, value: u.activity?.weeks?.[w] || 0, highlight: i === 7 }))
+  // [2026-11-01] 휴회 이력(A2): 새 휴회는 그 일수만큼만 연장, 취소는 그 휴회 일수만 뺀다(예전 칸 1개 방식은 두 번째 휴회 때 이전 일수를 빼 종료일이 줄었음)
+  const pauses = pausesOf(u)
   const pauseDays = pause.start && pause.end && pause.end >= pause.start ? daysBetween(pause.start, pause.end) + 1 : 0
-  const prevDays = u.pauseStart && u.pauseEnd ? daysBetween(u.pauseStart, u.pauseEnd) + 1 : 0
-  // 이미 반영한 휴회가 있으면 그 일수를 빼고 새 일수만큼 연장(같은 휴회를 고쳐도 두 번 늘지 않게)
-  const newEnd = u.membershipEnd && pauseDays ? addDays(u.membershipEnd, pauseDays - prevDays) : ''
+  const overlap = pauseDays ? pauses.find((p) => !(pause.end < p.start || pause.start > p.end)) : null
+  const newEnd = u.membershipEnd && pauseDays ? addDays(u.membershipEnd, pauseDays) : ''
 
   async function saveMemo() {
     setMemoMsg('')
     try {
-      await adminSaveNote(u.uid, { memo: memo.slice(0, 1000) }, admin.uid)
+      const m = memo.slice(0, 1000)
+      await adminSaveNote(u.uid, { memo: m }, admin.uid)
       await logAdmin(admin, { action: 'memo', targetUid: u.uid, targetName: memberName(u), detail: '관리자 메모 수정' })
       setMemoMsg('저장했어요.')
-      onChanged()
+      onNotePatched?.(u.uid, { memo: m, updatedAt: { toMillis: () => Date.now() } })
     } catch (err) {
       setMemoMsg('저장하지 못했어요.')
     }
   }
-  async function savePause(clear = false) {
+  async function addPause() {
+    if (pauseBusy || !pauseDays || overlap) return
     setPauseMsg('')
+    setPauseBusy(true)
     try {
-      const v = clear ? { pauseStart: '', pauseEnd: '', newEnd: u.membershipEnd && prevDays ? addDays(u.membershipEnd, -prevDays) : '' } : { pauseStart: pause.start, pauseEnd: pause.end, newEnd }
-      await adminSetPause(u.uid, v)
-      await logAdmin(admin, {
-        action: 'pause',
-        targetUid: u.uid,
-        targetName: memberName(u),
-        detail: clear ? `휴회 취소${prevDays ? ` · 종료일 ${fmtYmd(u.membershipEnd)} → ${fmtYmd(v.newEnd)}` : ''}` : `휴회 ${fmtYmd(pause.start)}~${fmtYmd(pause.end)}(${pauseDays}일)${newEnd ? ` · 종료일 ${fmtYmd(u.membershipEnd)} → ${fmtYmd(newEnd)}` : ''}`,
-      })
-      if (clear) setPause({ start: '', end: '' })
-      setPauseMsg(clear ? '휴회를 취소했어요.' : '저장했어요.')
-      onChanged()
+      const next = [...pauses.map(({ legacy, ...p }) => p), { start: pause.start, end: pause.end, days: pauseDays, at: Date.now() }]
+      await adminSetPauses(u.uid, { pauses: next, newEnd })
+      await logAdmin(admin, { action: 'pause', targetUid: u.uid, targetName: memberName(u), detail: `휴회 ${fmtYmd(pause.start)}~${fmtYmd(pause.end)}(${pauseDays}일)${newEnd ? ` · 종료일 ${fmtYmd(u.membershipEnd)} → ${fmtYmd(newEnd)}` : ''}` })
+      setPause({ start: '', end: '' })
+      setPauseMsg('저장했어요.')
+      await onUserChanged?.(u.uid)
     } catch (err) {
+      console.error('휴회 저장 실패:', err)
+      setPauseMsg('저장하지 못했어요. Firebase 규칙 게시(휴회 이력)를 확인해 주세요.')
+    } finally {
+      setPauseBusy(false)
+    }
+  }
+  async function cancelPause(idx) {
+    const p = pauses[idx]
+    if (!p || pauseBusy) return
+    setPauseMsg('')
+    setPauseBusy(true)
+    try {
+      const next = pauses.filter((_, i) => i !== idx).map(({ legacy, ...x }) => x)
+      const back = u.membershipEnd && p.days ? addDays(u.membershipEnd, -p.days) : ''
+      await adminSetPauses(u.uid, { pauses: next, newEnd: back })
+      await logAdmin(admin, { action: 'pause', targetUid: u.uid, targetName: memberName(u), detail: `휴회 취소 ${fmtYmd(p.start)}~${fmtYmd(p.end)}(${p.days}일)${back ? ` · 종료일 ${fmtYmd(u.membershipEnd)} → ${fmtYmd(back)}` : ''}` })
+      setPauseMsg('휴회를 취소했어요.')
+      await onUserChanged?.(u.uid)
+    } catch (err) {
+      console.error('휴회 취소 실패:', err)
       setPauseMsg('저장하지 못했어요.')
+    } finally {
+      setPauseBusy(false)
     }
   }
   const inputStyle = { ...selectStyle, padding: '9px 10px', fontSize: 15.5, minWidth: 0 }
@@ -94,16 +117,25 @@ export default function AdminMemberDetail({ u, note, admin, onBack, onChanged, o
       <Card>
         <p style={sectionTitle}>휴회</p>
         <p className="text-keep-all" style={{ ...muted, margin: '-4px 0 10px' }}>휴회 일수만큼 회원권 종료일이 늘어나요. 휴회 중에도 앱 기록은 그대로 쓸 수 있어요(집에서 운동 등).</p>
+        {pauses.length > 0 && (
+          <div style={{ marginBottom: 10 }}>
+            {pauses.map((p, i) => (
+              <div key={`${p.start}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 15.5 }}>
+                <span>{fmtYmd(p.start)} ~ {fmtYmd(p.end)} <span style={muted}>({p.days}일){p.start <= today && today <= p.end ? ' · 휴회 중' : ''}</span></span>
+                <button type="button" className="adm-act" disabled={pauseBusy} onClick={() => cancelPause(i)}>취소</button>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
           <label style={lab}>휴회 시작<input type="date" value={pause.start} onChange={(e) => setPause((p) => ({ ...p, start: e.target.value }))} style={inputStyle} /></label>
           <label style={lab}>휴회 종료<input type="date" value={pause.end} min={pause.start || undefined} onChange={(e) => setPause((p) => ({ ...p, end: e.target.value }))} style={inputStyle} /></label>
         </div>
-        <p style={{ ...muted, margin: '8px 0 0' }}>
-          {pauseDays ? `${pauseDays}일${u.membershipEnd ? ` → 종료일 ${fmtYmd(u.membershipEnd)} → ${fmtYmd(newEnd)}` : ' (회원권 종료일이 없어 연장할 날짜가 없어요)'}` : '시작·종료일을 고르세요.'}
+        <p style={{ ...muted, margin: '8px 0 0', color: overlap ? 'var(--color-danger)' : muted.color }}>
+          {overlap ? `이미 있는 휴회(${fmtYmd(overlap.start)}~${fmtYmd(overlap.end)})와 겹쳐요.` : pauseDays ? `${pauseDays}일${u.membershipEnd ? ` → 종료일 ${fmtYmd(u.membershipEnd)} → ${fmtYmd(newEnd)}` : ' (회원권 종료일이 없어 연장할 날짜가 없어요)'}` : '시작·종료일을 고르세요.'}
         </p>
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          <Button disabled={!pauseDays || (pause.start === u.pauseStart && pause.end === u.pauseEnd)} onClick={() => savePause(false)}>휴회 저장</Button>
-          {u.pauseStart && <Button variant="ghost" onClick={() => savePause(true)}>휴회 취소</Button>}
+          <Button disabled={!pauseDays || !!overlap || pauseBusy} onClick={addPause}>{pauseBusy ? '저장 중…' : '휴회 추가'}</Button>
           {pauseMsg && <span style={{ ...muted, alignSelf: 'center' }}>{pauseMsg}</span>}
         </div>
       </Card>

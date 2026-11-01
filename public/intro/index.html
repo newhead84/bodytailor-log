@@ -400,6 +400,14 @@ p,dd,.why,.foot{text-wrap:pretty}
 </div></footer>
 
 <script>
+// [2026-11-01] '시작하기'는 소개 페이지를 방문 기록에서 지우고 앱으로 이동(설치된 앱에서 뒤로가기로 소개 페이지가 다시 열리지 않게)
+document.querySelectorAll('a[href="/"]').forEach(a => a.addEventListener('click', e => {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+  e.preventDefault()
+  location.replace('/')
+}))
+</script>
+<script>
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
 const nav = document.getElementById('nav'), hero = document.getElementById('hero')
 const toned = [...document.querySelectorAll('[data-tone]')]

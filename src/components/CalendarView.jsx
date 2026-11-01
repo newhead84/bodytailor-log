@@ -14,6 +14,20 @@ import { getHolidaysForMonth } from '../utils/holidays'
 import { getCardioFieldsForSet, formatCardioSet, makeCardioSet, toSavedCardioSet } from '../utils/cardioFields'
 import { estimateCaloriesV2 } from '../utils/calories'
 import { setsVolumeKg, repsUnit, formatLoad, allowsZeroWeight, weightUnitShort, getBodyweightKg } from '../utils/load'
+import { todayStr } from '../utils/date'
+import { confirmSetValues, prevTopWeight } from '../utils/inputCheck'
+
+// [2026-11-01] 캘린더 입력칸 공용: 숫자 키패드 + 누르면 값 전체 선택(바로 덮어쓰기, 전체 점검 U21)
+const selectOnFocus = (e) => {
+  const el = e.target
+  setTimeout(() => {
+    try {
+      el.select()
+    } catch (err) {
+      // 일부 브라우저는 number 입력 select 미지원
+    }
+  }, 0)
+}
 
 // [2026-07-30 재수정] 프레임 고정(위 CELL_HEIGHT/+N 요약) 방식이 기록 일부를 가려 오히려
 // 불편하다는 피드백에 따라 되돌림. 셀 높이는 내용에 맞춰 자동으로 늘어나고, 그 날의 부위별
@@ -240,6 +254,7 @@ function EditLogForm({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <input
             type="date"
+            max={todayStr()}
             value={editDraft?.date || ''}
             onChange={(e) => onUpdateDate(e.target.value)}
             style={{ padding: '8px 10px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 14 }}
@@ -288,6 +303,8 @@ function EditLogForm({
                     <React.Fragment key={f.key}>
                       <input
                         type="number"
+                        inputMode="decimal"
+                        onFocus={selectOnFocus}
                         value={s[f.key] ?? ''}
                         aria-label={`${f.label} ${f.unit}`}
                         onChange={(e) => onUpdateSet(exIdx, setIdx, f.key, e.target.value)}
@@ -300,6 +317,9 @@ function EditLogForm({
                   <>
                     <input
                       type="number"
+                      inputMode="numeric"
+                      onFocus={selectOnFocus}
+                      aria-label="횟수"
                       value={s.reps}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
                       style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
@@ -310,6 +330,9 @@ function EditLogForm({
                   <>
                     <input
                       type="number"
+                      inputMode="decimal"
+                      onFocus={selectOnFocus}
+                      aria-label="무게"
                       value={s.weight}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'weight', e.target.value)}
                       style={{ width: 64, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
@@ -317,6 +340,9 @@ function EditLogForm({
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{weightUnitShort(ex.name)} ×</span>
                     <input
                       type="number"
+                      inputMode="numeric"
+                      onFocus={selectOnFocus}
+                      aria-label="횟수"
                       value={s.reps}
                       onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
                       style={{ width: 56, padding: '6px 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 13 }}
@@ -451,8 +477,30 @@ function EditLogForm({
 }
 
 // [2026-10-31] ptByDate: { 'YYYY-MM-DD': [{ time, done, trainerName }] } - PT 일정(예정: 테두리 'PT'+시간, 완료: 채운 '✓PT')
-export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsChanged, ptByDate = null }) {
+// [2026-11-01] prs: 너무 큰 무게 확인용 지난 최고 무게(users.prs, 추가 읽기 없음)
+export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsChanged, ptByDate = null, prs = null }) {
   const confirm = useConfirm()
+  // [2026-11-01] 저장·삭제 실패 안내(전체 점검 U8). 승인 전·회원권 만료면 rules가 기록 쓰기를 막는다(삭제는 허용).
+  async function notifyFail(err, what) {
+    console.error(`캘린더 기록 ${what} 실패:`, err)
+    await confirm(
+      err?.code === 'permission-denied'
+        ? `회원권이 끝났거나 승인 전이라 기록을 ${what}할 수 없어요. 지난 기록은 그대로 볼 수 있어요.`
+        : `기록 ${what}에 실패했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.`,
+      { okLabel: '확인', cancelLabel: '닫기' }
+    )
+  }
+  // [2026-11-01] 미래 날짜에는 기록을 만들거나 옮기지 않는다(전체 점검 U20)
+  async function blockFuture(date) {
+    if (!date || date <= todayStr()) return false
+    await confirm('오늘 이후 날짜에는 기록할 수 없어요. 날짜를 확인해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+    return true
+  }
+  // [2026-11-01] 음수·숫자 아님은 막고 너무 큰 값은 확인(전체 점검 U5·U28)
+  function checkDraftValues(draft) {
+    const items = (draft?.exercises || []).flatMap((ex) => ex.sets.map((st) => ({ name: ex.name, set: st, prevTop: prevTopWeight(prs, ex.name, ex.grip || null) })))
+    return confirmSetValues(confirm, items)
+  }
   const [cursor, setCursor] = useState(() => {
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() } // month: 0-indexed
@@ -761,7 +809,9 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     })
     // [2026-10-29] 비어 있는 세트(횟수·시간 0)는 저장하지 않는다 - 0×0 세트가 근육별 세트·캘린더에 집계되던 문제.
     // 세트가 하나도 안 남은 종목도 뺀다.
-    const isFilled = (ex, s) => (ex.inputType === 'cardio' ? Number(s.durationMin) > 0 : parseInt(s.reps, 10) > 0)
+    // [2026-11-01] 횟수는 반올림(이전 parseInt는 8.5를 8로 버림, 전체 점검 U16)
+    const toReps = (v) => Math.round(Number(v)) || 0
+    const isFilled = (ex, s) => (ex.inputType === 'cardio' ? Number(s.durationMin) > 0 : toReps(s.reps) > 0)
     const cleanedExercises = draft.exercises
       .map((ex) => ({ ...ex, sets: ex.sets.filter((s) => isFilled(ex, s)) }))
       .filter((ex) => ex.sets.length > 0)
@@ -776,9 +826,9 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
           return rest
         }
         if (ex.inputType === 'reps') {
-          return { reps: parseInt(s.reps, 10) || 0, ...keepMeta(s) }
+          return { reps: toReps(s.reps), ...keepMeta(s) }
         }
-        return { weight: Number(s.weight) || 0, reps: parseInt(s.reps, 10) || 0, ...keepMeta(s) }
+        return { weight: Number(s.weight) || 0, reps: toReps(s.reps), ...keepMeta(s) }
       }),
     }))
     // 유산소/횟수전용 종목은 무게 개념이 없어 볼륨 계산에서 제외한다(운동기록 입력 화면과 동일 규칙).
@@ -791,6 +841,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
 
   async function saveEdit(log) {
     if (!editDraft?.date) return
+    if (await blockFuture(editDraft.date)) return
     const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
     // [2026-10-29] 남은 세트가 없으면 빈 기록(운동한 날로 집계됨)을 남기지 않고 삭제할지 묻는다
     if (cleanedExercises.length === 0) {
@@ -811,6 +862,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       }
       return
     }
+    if (!(await checkDraftValues(editDraft))) return
     setSavingEdit(true)
     try {
       await updateWorkoutLog(uid, log.id, {
@@ -823,6 +875,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       setLogsByDate(grouped)
       cancelEdit()
       onLogsChanged?.()
+    } catch (err) {
+      await notifyFail(err, '저장')
     } finally {
       setSavingEdit(false)
     }
@@ -833,11 +887,13 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   // 계산(리포트 탭의 attendanceScore/volumeScore/overloadScore)에서는 제외되도록 표시한다(⑦).
   async function saveNewLog() {
     if (!editDraft?.date || editDraft.exercises.length === 0) return
+    if (await blockFuture(editDraft.date)) return
     const { cleanedExercises, totalVolume } = buildCleanedPayload(editDraft)
     if (cleanedExercises.length === 0) {
       await confirm('횟수(또는 시간)를 입력한 세트가 없어요. 세트를 입력한 뒤 저장해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
       return
     }
+    if (!(await checkDraftValues(editDraft))) return
     setSavingEdit(true)
     try {
       await addWorkoutLog(uid, {
@@ -853,6 +909,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       setLogsByDate(grouped)
       cancelEdit()
       onLogsChanged?.()
+    } catch (err) {
+      await notifyFail(err, '저장')
     } finally {
       setSavingEdit(false)
     }
@@ -865,6 +923,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   async function copyDraftToDate() {
     if (!editDraft?.date || editDraft.exercises.length === 0) return
     const targetDate = editDraft.date
+    if (await blockFuture(targetDate)) return
+    if (!(await checkDraftValues(editDraft))) return
     setCopyingToDate(true)
     try {
       const existing = await getWorkoutLogsInRange(uid, targetDate, targetDate)
@@ -890,6 +950,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       // 복사한 날짜로 옮겨지던 문제(원래 날짜는 비고 새 날짜에 기록이 두 개).
       setEditDraft((prev) => (prev?.originalDate ? { ...prev, date: prev.originalDate } : prev))
       setTimeout(() => setCopiedToDate((cur) => (cur === targetDate ? null : cur)), 1500)
+    } catch (err) {
+      await notifyFail(err, '복사')
     } finally {
       setCopyingToDate(false)
     }
@@ -912,11 +974,15 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
 
   async function handleDeleteLog(log) {
     if (!(await confirm(`${log.date} 기록을 삭제할까요? 되돌릴 수 없어요.`))) return
-    await deleteWorkoutLog(uid, log.id)
-    const grouped = await loadMonth()
-    setLogsByDate(grouped)
-    if (editingLogId === log.id) cancelEdit()
-    onLogsChanged?.()
+    try {
+      await deleteWorkoutLog(uid, log.id)
+      const grouped = await loadMonth()
+      setLogsByDate(grouped)
+      if (editingLogId === log.id) cancelEdit()
+      onLogsChanged?.()
+    } catch (err) {
+      await notifyFail(err, '삭제')
+    }
   }
 
   // [2026-07-31 신규] 날짜+기록을 텍스트 블록으로 클립보드에 복사(④). navigator.clipboard가
@@ -960,6 +1026,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
   // 기존 "해당 날짜에 운동내역 복사"(copyDraftToDate)와 동일한 저장 규칙(isBackfilled)을 따른다.
   async function pasteClipboardToDate(targetDate) {
     if (!clipboardLog || !targetDate) return
+    if (await blockFuture(targetDate)) return
     setPastingClipboard(true)
     try {
       const existing = await getWorkoutLogsInRange(uid, targetDate, targetDate)
@@ -968,6 +1035,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
         if (!ok) return
       }
       const { cleanedExercises, totalVolume } = buildCleanedPayload(clipboardLog)
+      if (cleanedExercises.length === 0) return
       await addWorkoutLog(uid, {
         date: targetDate,
         exercises: cleanedExercises,
@@ -979,6 +1047,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
       const grouped = await loadMonth()
       setLogsByDate(grouped)
       onLogsChanged?.()
+    } catch (err) {
+      await notifyFail(err, '붙여넣기')
     } finally {
       setPastingClipboard(false)
     }
@@ -1380,7 +1450,8 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                 copiedToDate={copiedToDate}
                 isNew
               />
-            ) : (
+            ) : selectedDate > todayStr() ? null : (
+              // [2026-11-01] 미래 날짜에는 추가·붙여넣기 버튼을 보이지 않는다(전체 점검 U20)
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                 <button
                   onClick={startCreateNew}

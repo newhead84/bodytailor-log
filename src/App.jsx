@@ -1,6 +1,6 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-10-31] 트레이너 목표 제안·직접 수정(회원 수락·수정 표시), 소개 페이지 배경색 스크롤 연동 전환. 관리자 대시보드 확장(요약·회원 상세·재등록·휴회·PT 정산·노쇼·통계·관리 이력), 긴 줄표 제거.
+ * 최신 변경: [2026-11-01] 전체 점검 반영(앱 소개 공유, 저장 실패 처리, 입력값 확인, 관리자 정합성·PT 정정, 보안 규칙 강화). 직전: [2026-10-31] 트레이너 목표 제안·직접 수정, 소개 페이지 배경 전환.
  *            직전: 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
  *            PT 일정 모아보기·기구 필터·스트레칭 검색, 홍보 페이지 줄바꿈. 직전: 홈 화면 설치 안내. 이전 변경은 CHANGELOG.md 참고.
  * 전체 이력은 CHANGELOG.md 참고.
@@ -9,7 +9,7 @@
 import React, { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { watchAuthState } from './firebase'
 import { LEGACY_EXERCISE_NAME_MAP } from './utils/exerciseLibrary'
-import { setLogActor, ensureUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLogAndRevertXp, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
+import { setLogActor, ensureUserDoc, createUserDoc, getUserDoc, saveOnboarding, getRoutineTemplates, updateUserProfile, deleteWorkoutLogAndRevertXp, getEffectiveSeasonXp, rebuildPersonalRecords } from './storage'
 import { prsVersionKey } from './utils/strength'
 import { setBodyweightKg } from './utils/load'
 import { setTrainingProfile, isBeginnerAccount } from './utils/goals'
@@ -191,7 +191,8 @@ export default function App() {
     const unsub = watchAuthState(async (user) => {
       setAuthUser(user)
       if (user) {
-        const doc = await ensureUserDoc(user.uid, { nickname: (user.displayName || '').slice(0, 30) })
+        // [2026-11-01] S11: 동의 전에는 users 문서를 만들지 않는다(구글 이름은 온보딩 닉네임 미리 채움에만 auth에서 읽음)
+        const doc = await ensureUserDoc(user.uid)
         setUserDoc(doc)
         const templates = await getRoutineTemplates(user.uid)
         setRoutineTemplates(templates)
@@ -325,10 +326,12 @@ export default function App() {
   const undoAutoNotice = useCallback(async () => {
     if (!autoNotice?.logId || !authUser?.uid) return
     // [2026-10-29] 기록과 함께 그때 받은 XP도 되돌린다(이전엔 기록만 지워지고 XP·등급이 남았다)
+    // [2026-11-01] 실패하면 팝업을 닫지 않고 AutoSavedReview가 안내하도록 다시 던진다(전체 점검 U6)
     try {
       await deleteWorkoutLogAndRevertXp(authUser.uid, autoNotice.logId, autoNotice.xpEarned)
     } catch (err) {
       console.error('자동 저장 되돌리기 실패:', err)
+      throw err
     }
     dismissAutoNotice()
     setLogsVersion((v) => v + 1)
@@ -439,7 +442,9 @@ export default function App() {
     return (
       <ConsentScreen
         onAgree={async (consents) => {
-          await updateUserProfile(authUser.uid, { consents })
+          // [2026-11-01] S11: 새 계정은 동의하는 순간 문서를 만든다(14세 미만 선택 시 아무것도 남지 않음)
+          if (userDoc.__unsaved) await createUserDoc(authUser.uid, { consents })
+          else await updateUserProfile(authUser.uid, { consents })
           await refreshUserDoc()
         }}
       />
@@ -597,6 +602,7 @@ export default function App() {
           onClose={dismissAutoNotice}
           onUndo={undoAutoNotice}
           onSaved={() => setLogsVersion((v) => v + 1)}
+          prs={userDoc?.prs || null}
         />
       )}
       <GlobalTimerBar

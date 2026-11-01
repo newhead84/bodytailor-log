@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip } from './ui'
 import { ACTION, Badge, Bars, LogRow, isGymMember, muted, sectionTitle, selectStyle, statusOf, toCsv } from './adminUi'
-import { adminGetGymStats, adminListLogs, adminListPtSchedulesRange, adminListPtSessionsRange, adminSaveNote, logAdmin } from '../storage'
+import { adminGetGymStats, adminListLogs, adminPtRange, adminSaveNote, logAdmin } from '../storage'
 import { UserPlus, Clock, Dumbbell, Moon, CalendarDays, MessageSquare } from 'lucide-react'
 import { daysBetween, fmtYmd, memberName, membershipState, MEMBER_STATUS } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
@@ -14,14 +14,15 @@ const PT_LOW = 3
 
 // ───────── 요약 홈(대시보드) ─────────
 const KPI_ICON = { pending: UserPlus, expiring: Clock, ptLow: Dumbbell, stale: Moon, todayPt: CalendarDays, inq: MessageSquare }
-export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, onOpenMember, onOpenInquiries, onApprove, onEditMembership }) {
+export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, onOpenMember, onApprove, onEditMembership }) {
   const today = todayStr()
   const ym = today.slice(0, 7)
   const [month, setMonth] = useState(null) // { sch, ses } 이번 달 PT
   useEffect(() => {
     const last = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate()
-    Promise.all([adminListPtSchedulesRange(`${ym}-01`, `${ym}-${last}`), adminListPtSessionsRange(`${ym}-01`, `${ym}-${last}`)])
-      .then(([sch, ses]) => setMonth({ sch, ses }))
+    // [2026-11-01] PT 탭과 같은 기간 캐시를 함께 쓴다(탭을 오갈 때 다시 읽지 않음, A27)
+    adminPtRange(`${ym}-01`, `${ym}-${last}`)
+      .then(setMonth)
       .catch(() => setMonth({ sch: [], ses: [] }))
   }, [ym])
   const members = users.filter(isGymMember)
@@ -39,7 +40,7 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, on
     { key: 'ptLow', label: `남은 PT ${PT_LOW}회 이하`, n: ptLow.length, s: `소진 ${ptLow.filter((u) => (u.ptRemaining ?? 0) === 0).length}명`, go: () => onGo('pt') },
     { key: 'stale', label: `${STALE_DAYS}일 넘게 운동 없음`, n: stale.length, s: active.length ? `이용 중 회원의 ${Math.round((stale.length / active.length) * 100)}%` : '이용 중 회원 없음', go: () => onGo('members') },
     { key: 'todayPt', label: '오늘 PT', n: month ? todayPt.length : '…', s: month ? `완료 ${todayPt.filter((x) => x.status === 'done').length} · 예정 ${todayPt.filter((x) => x.status === 'scheduled').length}` : '', go: () => onGo('pt') },
-    { key: 'inq', label: '답변 안 한 문의', n: unanswered.length, s: unanswered.length ? '문의 관리에서 답변' : '모두 답변함', alert: unanswered.length > 0, go: onOpenInquiries },
+    { key: 'inq', label: '답변 안 한 문의', n: unanswered.length, s: unanswered.length ? '문의 관리에서 답변' : '모두 답변함', alert: unanswered.length > 0, go: () => onGo('inquiries') },
   ]
   // 처리할 회원: 사유별 한 줄(우선순위 순), 같은 회원은 첫 사유만
   const todo = []
@@ -57,8 +58,13 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, onGo, on
     const d = daysBetween(today, u.membershipEnd)
     push(u, d === 0 ? '오늘 만료' : `D-${d} 만료`, 'warn', { label: '재등록 연락', run: () => onGo('renewal') })
   })
-  ptLow.filter((u) => (u.ptRemaining ?? 0) === 0).forEach((u) => push(u, 'PT 소진', 'bad', { label: 'PT 등록', run: () => onEditMembership(u) }))
-  ptLow.forEach((u) => push(u, `PT ${u.ptRemaining}회 남음`, 'warn', { label: '상세', run: () => onOpenMember(u) }))
+  // [2026-11-01] 소진한 지 30일이 지난 회원은 '처리할 회원'에서 뺀다(A38: 재등록 안 한 회원이 계속 남던 문제). KPI 숫자는 그대로.
+  const soldOutRecent = (u) => {
+    const ms = u.ptUpdatedAt?.toMillis ? u.ptUpdatedAt.toMillis() : typeof u.ptUpdatedAt?.seconds === 'number' ? u.ptUpdatedAt.seconds * 1000 : null
+    return !ms || Date.now() - ms <= 30 * 86400000
+  }
+  ptLow.filter((u) => (u.ptRemaining ?? 0) === 0 && soldOutRecent(u)).forEach((u) => push(u, 'PT 소진', 'bad', { label: 'PT 등록', run: () => onEditMembership(u) }))
+  ptLow.filter((u) => (u.ptRemaining ?? 0) > 0).forEach((u) => push(u, `PT ${u.ptRemaining}회 남음`, 'warn', { label: '상세', run: () => onOpenMember(u) }))
   stale.sort((a, b) => String(a.activity?.lastDate || '').localeCompare(String(b.activity?.lastDate || ''))).forEach((u) =>
     push(u, u.activity?.lastDate ? `${daysBetween(u.activity.lastDate, today)}일 미운동` : '운동 기록 없음', 'neutral', { label: '상세', run: () => onOpenMember(u) })
   )
@@ -168,17 +174,25 @@ export function RenewalTab({ users, notes, admin, onOpenMember, onSaved }) {
     // 기간 안 + 최근 30일 안에 끝난 회원(아직 연락이 필요할 수 있음)
     .filter((x) => x.d <= win && x.d >= -30)
     .sort((a, b) => a.d - b.d)
-  // 연락 때 기록한 종료일보다 지금 종료일이 늦으면 재등록한 것으로 본다
-  const statusOfRow = (x) => (x.r?.end && x.u.membershipEnd > x.r.end ? 'renewed' : x.r?.status || 'none')
-  const counted = list.filter((x) => ['renewed', 'declined'].includes(statusOfRow(x)))
-  const rate = counted.length ? Math.round((counted.filter((x) => statusOfRow(x) === 'renewed').length / counted.length) * 100) : null
+  // [2026-11-01] 재등록 판단(A16): 예전에는 종료일이 늘기만 하면 '재등록'으로 셌는데, 휴회·오타 수정·보상 연장도 섞였다.
+  // 이제 회원권 저장 때 연장 사유가 '재등록'일 때만(또는 명단 재업로드 연장) renewal.status = 'renewed'로 기록하고 그것만 센다.
+  const statusOfRow = (x) => x.r?.status || 'none'
+  // 재등록률: 최근 60일 안에 결과(재등록·안 함)가 정해진 회원 기준 - 재등록해서 목록에서 빠진 회원도 센다
+  const since = (() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 60)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  const counted = users.filter(isGymMember).map((u) => notes[u.uid]?.renewal).filter((r) => r && ['renewed', 'declined'].includes(r.status) && String(r.at || '') >= since)
+  const rate = counted.length ? Math.round((counted.filter((r) => r.status === 'renewed').length / counted.length) * 100) : null
   async function save(x, status) {
     const note = drafts[x.u.uid] ?? x.r?.note ?? ''
     setSaving(x.u.uid)
     try {
-      await adminSaveNote(x.u.uid, { renewal: { status, note: note.slice(0, 200), end: x.u.membershipEnd, at: today, by: admin.name } }, admin.uid)
+      const renewal = { status, note: note.slice(0, 200), end: x.u.membershipEnd, at: today, by: admin.name }
+      await adminSaveNote(x.u.uid, { renewal }, admin.uid)
       await logAdmin(admin, { action: 'renewal', targetUid: x.u.uid, targetName: memberName(x.u), detail: `재등록 연락: ${RENEWAL[status]}${note ? ` · ${note.slice(0, 80)}` : ''}` })
-      await onSaved()
+      await onSaved(x.u.uid, { renewal })
     } catch (err) {
       console.error('재등록 기록 실패:', err)
     } finally {
@@ -192,10 +206,10 @@ export function RenewalTab({ users, notes, admin, onOpenMember, onSaved }) {
           <Chip key={n} active={win === n} onClick={() => setWin(n)} style={{ padding: '6px 12px', fontSize: 14.5 }}>{n}일 이내 만료</Chip>
         ))}
         <span style={{ ...muted, marginLeft: 'auto' }}>
-          재등록률 {rate === null ? '-' : <b className="bt-num" style={{ color: 'var(--color-label-strong)' }}>{rate}%</b>} <span>(재등록·안 함으로 정해진 {counted.length}명 기준)</span>
+          재등록률 {rate === null ? '-' : <b className="bt-num" style={{ color: 'var(--color-label-strong)' }}>{rate}%</b>} <span>(최근 60일 재등록·안 함으로 정해진 {counted.length}명 기준)</span>
         </span>
       </div>
-      <p className="text-keep-all" style={{ ...muted, margin: 0 }}>최근 30일 안에 끝난 회원도 함께 보여요. 연락 결과를 고르면 저장되고, 나중에 회원권이 연장되면 자동으로 '재등록'이 돼요.</p>
+      <p className="text-keep-all" style={{ ...muted, margin: 0 }}>최근 30일 안에 끝난 회원도 함께 보여요. 연락 결과를 고르면 저장돼요. 회원권을 '재등록' 사유로 연장하면 자동으로 '재등록'이 되고, 휴회·수정·보상 연장은 재등록으로 세지 않아요.</p>
       {!list.length && <Card><p style={{ ...muted, margin: 0 }}>기간 안에 만료되는 회원이 없어요.</p></Card>}
       {list.map((x) => {
         const st = statusOfRow(x)
@@ -314,11 +328,13 @@ export function LogsTab() {
   )
 }
 // ───────── 회원 목록 CSV ─────────
-export function exportMembersCsv(users, conns) {
+export function exportMembersCsv(users, conns, admin = null) {
   const trainerOf = Object.fromEntries(conns.filter((c) => c.status === 'active').map((c) => [c.memberUid, c.trainerName]))
   const rows = [['이름', '닉네임', '휴대폰 끝 4자리', '회원번호', '승인 상태', '역할', '회원권 시작', '회원권 종료', 'PT 총', 'PT 남음', '휴회 시작', '휴회 종료', '담당 트레이너', '마지막 운동일']]
   users.forEach((u) => {
     rows.push([u.signupInfo?.name || '', u.nickname || '', u.signupInfo?.phoneLast4 || '', u.memberNo || '', MEMBER_STATUS[statusOf(u)] || '', u.role || '일반회원', u.membershipStart || '', u.membershipEnd || '', u.ptTotal ?? '', u.ptRemaining ?? '', u.pauseStart || '', u.pauseEnd || '', trainerOf[u.uid] || '', u.activity?.lastDate || ''])
   })
   downloadText(`bodytailor-members-${todayStr().replace(/-/g, '')}.csv`, toCsv(rows))
+  // [2026-11-01] 개인정보 반출 기록(A29)
+  if (admin) logAdmin(admin, { action: 'export', detail: `회원 목록 CSV 내보내기(${users.length}명)` })
 }

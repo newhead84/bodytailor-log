@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronLeft, ExternalLink, Settings } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ExternalLink, Settings, Link2, Share2 } from 'lucide-react'
 import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches, ScreenHeader } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
-import { getMyTrainerConnection, endConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, setThemePreference, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
+import { getMyTrainerConnection, endConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerAvatar } from './TrainerProfileView'
 import { membershipState, fmtYmd } from '../utils/member'
@@ -11,6 +11,7 @@ import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import AccountLegalSection from './AccountLegalSection'
 import { todayStr } from '../utils/date'
+import { BODY_RANGES, bodyRangeError } from '../utils/inputCheck'
 import { getTierByXp, getNextTier, getLevelInfo, stageLevelRange } from '../utils/tier'
 import { computeAchievements } from '../utils/achievements'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS, getExercisesForPart, recommendedSplitKey, perPartWeeklyFrequency } from '../utils/exerciseLibrary'
@@ -157,12 +158,27 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   }
 
   // [2026-07-28] 닉네임 단독 저장 버튼 제거: 닉네임도 프로필 수정 폼의 일부로 통합해 한 번에 저장한다.
+  // [2026-11-01] 닉네임 공백·신체 정보 빈칸/범위 밖 값은 저장하지 않는다(전체 점검 U12·U13). 빈칸이 0으로 저장되던 문제
+  const profileErrors = editingProfile
+    ? [
+        !String(profileForm.nickname || '').trim() ? '닉네임을 입력해 주세요.' : '',
+        ...['age', 'weightKg', 'heightCm'].map((k) =>
+          profileForm[k] === '' || profileForm[k] == null ? `${BODY_RANGES[k].label}를 입력해 주세요.` : bodyRangeError(k, profileForm[k])
+        ),
+      ].filter(Boolean)
+    : []
+  const [profileSaveError, setProfileSaveError] = useState('')
+
   async function saveProfileEdit() {
+    if (profileErrors.length > 0) return
     setSaving(true)
+    setProfileSaveError('')
     const { nickname, weeklyTargetDays, ...onboardingForm } = profileForm
     // [2026-10-31] 회원이 목표·주간 목표를 직접 바꾸면 '트레이너 수정' 표시를 지운다
     const goalsChanged = JSON.stringify(normalizeGoals(onboardingForm.goals)) !== JSON.stringify(normalizeGoals(userDoc?.onboarding?.goals)) ||
       (weeklyTargetDays && weeklyTargetDays !== userDoc?.weeklyTargetDays)
+    // [2026-11-01] 저장 실패 시 '저장 중…'에 멈추지 않게(전체 점검 U2)
+    try {
     await updateUserProfile(uid, {
       ...(goalsChanged && userDoc?.goalByTrainer ? { goalByTrainer: null } : {}),
       nickname: (nickname || '').trim().slice(0, 30), // [2026-10-29] 랭킹 규칙(30자 이하)에 맞춤
@@ -175,9 +191,38 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         heightCm: Number(onboardingForm.heightCm),
       },
     })
-    await onProfileUpdated?.()
+    } catch (err) {
+      console.error('프로필 저장 실패:', err)
+      setProfileSaveError('저장하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.')
+      setSaving(false)
+      return
+    }
+    try {
+      await onProfileUpdated?.()
+    } catch (e) {
+      // 다시 불러오기 실패는 무시(저장은 됨)
+    }
     setSaving(false)
     setEditingProfile(false)
+  }
+
+  // [2026-11-01] 설정 저장이 실패하면 화면 선택을 되돌리고 알린다(전체 점검 U25). 오프라인은 대기열에 넣고 진행(실패 아님)
+  async function saveSetting(apply, prev, next, patch) {
+    apply(next)
+    try {
+      await updateUserProfile(uid, patch)
+    } catch (err) {
+      console.error('설정 저장 실패:', err)
+      apply(prev)
+      await confirm('설정을 저장하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+      return false
+    }
+    try {
+      await onProfileUpdated?.()
+    } catch (e) {
+      // 다시 불러오기 실패는 무시(저장은 됨)
+    }
+    return true
   }
 
   async function requestNotifPermission() {
@@ -200,13 +245,11 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         return // 요청 실패 환경에서는 켜지 않음
       }
     }
-    setWakeLockEnabled(next)
-    await updateUserProfile(uid, { restTimerWakeLockEnabled: next })
+    await saveSetting(setWakeLockEnabled, !next, next, { restTimerWakeLockEnabled: next })
   }
 
   async function selectRestSound(soundId) {
-    setRestSoundId(soundId)
-    await updateUserProfile(uid, { restTimerSoundId: soundId })
+    await saveSetting(setRestSoundId, restSoundId, soundId, { restTimerSoundId: soundId })
   }
 
   // [2026-07-30 신규] MY탭 "화면 테마" 선택 저장. onProfileUpdated()로 App.jsx의 userDoc을
@@ -239,14 +282,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const themeLabelOf = { dark: '다크', beige: '베이지', light: '라이트' }
 
   async function selectAccent(accent) {
-    setAccentPreferenceState(accent)
-    await updateUserProfile(uid, { accentPreference: accent })
-    await onProfileUpdated?.()
+    await saveSetting(setAccentPreferenceState, accentPreference, accent, { accentPreference: accent })
   }
   async function selectFont(font) {
-    setFontPreferenceState(font)
-    await updateUserProfile(uid, { fontPreference: font })
-    await onProfileUpdated?.()
+    await saveSetting(setFontPreferenceState, fontPreference, font, { fontPreference: font })
   }
   // [2026-10-29] RIR(남은 여력) 기록 켜기/끄기 - 안 쓰는 사용자는 세트 줄에서 RIR 칸을 숨긴다
   const [rirEnabled, setRirEnabledState] = useState(userDoc?.rirEnabled !== false)
@@ -254,14 +293,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     setRirEnabledState(userDoc?.rirEnabled !== false)
   }, [userDoc?.rirEnabled])
   async function selectRirEnabled(on) {
-    setRirEnabledState(on)
-    await updateUserProfile(uid, { rirEnabled: on })
-    await onProfileUpdated?.()
+    await saveSetting(setRirEnabledState, rirEnabled, on, { rirEnabled: on })
   }
   async function selectLogMode(mode) {
-    setLogModeState(mode)
-    await updateUserProfile(uid, { logMode: mode })
-    await onProfileUpdated?.()
+    await saveSetting(setLogModeState, logMode, mode, { logMode: mode })
   }
 
   const [exporting, setExporting] = useState(false)
@@ -279,9 +314,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   }
 
   async function selectTheme(theme) {
-    setThemePreferenceState(theme)
-    await setThemePreference(uid, theme)
-    await onProfileUpdated?.()
+    await saveSetting(setThemePreferenceState, themePreference, theme, { themePreference: theme })
   }
 
   // "분할운동 템플릿" - 트레이너들이 자주 쓰는 2/3/4분할 프리셋을 그대로
@@ -491,14 +524,16 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-normal)' }}>
           BodyTailor Log 소개 페이지예요. 링크를 친구에게 보내 함께 기록해 보세요.
         </p>
+        {/* [2026-11-01] 소개 페이지에 들어가지 않고 바로 공유 - 설치된 앱에서 소개 페이지가 방문 기록에 남지 않게 */}
+        <IntroShareButtons />
         <a
           href="/intro/"
           target="_blank"
           rel="noopener"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)', textDecoration: 'none' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, fontSize: 13.5, fontWeight: 600, color: 'var(--color-label-neutral)', textDecoration: 'none' }}
         >
-          앱 소개 보기
-          <ExternalLink size={15} strokeWidth={2} aria-hidden="true" />
+          소개 페이지 열어 보기
+          <ExternalLink size={14} strokeWidth={2} aria-hidden="true" />
         </a>
       </Card>
 
@@ -657,11 +692,16 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                 <TrainingPlanSummary goals={profileForm.goals} beginner={isBeginnerAccount(userDoc)} />
               </div>
             </div>
+            {(profileErrors.length > 0 || profileSaveError) && (
+              <p role="alert" className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, lineHeight: 1.5, color: 'var(--color-danger)', whiteSpace: 'pre-line' }}>
+                {[...profileErrors, profileSaveError].filter(Boolean).join('\n')}
+              </p>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <Button variant="ghost" style={{ flex: 1 }} onClick={() => setEditingProfile(false)} disabled={saving}>
                 취소
               </Button>
-              <Button style={{ flex: 1 }} onClick={saveProfileEdit} disabled={saving}>
+              <Button style={{ flex: 1 }} onClick={saveProfileEdit} disabled={saving || profileErrors.length > 0}>
                 {saving ? '저장 중…' : '저장'}
               </Button>
             </div>
@@ -1079,6 +1119,63 @@ function NumberField({ label, unit, value, onChange }) {
         />
         <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', flexShrink: 0 }}>{unit}</span>
       </div>
+    </div>
+  )
+}
+
+// [2026-11-01] 앱 소개 링크 복사·공유(Web Share API가 없으면 복사로 대체)
+const INTRO_SHARE_TEXT = 'BodyTailor Log: 바디테일러 회원용 운동 기록 앱'
+function introUrl() {
+  try { return `${window.location.origin}/intro/` } catch { return 'https://bodytailor-log.vercel.app/intro/' }
+}
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true }
+  } catch { /* 아래 대체 */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch { return false }
+}
+function IntroShareButtons() {
+  const [msg, setMsg] = useState('')
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+  async function onCopy() {
+    const ok = await copyText(introUrl())
+    setMsg(ok ? '링크를 복사했어요.' : `복사하지 못했어요. 주소: ${introUrl()}`)
+  }
+  async function onShare() {
+    setMsg('')
+    try {
+      await navigator.share({ title: 'BodyTailor Log', text: INTRO_SHARE_TEXT, url: introUrl() })
+    } catch (err) {
+      if (err?.name !== 'AbortError') onCopy()
+    }
+  }
+  const btn = { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={onCopy} style={{ ...btn, border: '1px solid var(--color-line)', background: 'transparent', color: 'var(--color-label-strong)' }}>
+          <Link2 size={16} strokeWidth={2} aria-hidden="true" />
+          링크 복사
+        </button>
+        {canShare && (
+          <button type="button" onClick={onShare} style={{ ...btn, border: 'none', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)' }}>
+            <Share2 size={16} strokeWidth={2} aria-hidden="true" />
+            공유하기
+          </button>
+        )}
+      </div>
+      {msg && <p role="status" className="text-keep-all" style={{ margin: 0, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>{msg}</p>}
     </div>
   )
 }

@@ -53,6 +53,9 @@ export default function HomeTab({
     setUndoing(true)
     try {
       await onUndoAutoNotice?.()
+    } catch (err) {
+      // [2026-11-01] 삭제 실패를 알린다(App이 실패 시 다시 던짐, 전체 점검 U6)
+      await confirm('기록을 지우지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
     } finally {
       setUndoing(false)
     }
@@ -339,7 +342,7 @@ export default function HomeTab({
         </p>
       )}
       <div style={{ margin: '0 -20px 4px' }}>
-        <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} onLogsChanged={onLogsChanged} ptByDate={ptByDate} />
+        <CalendarView uid={uid} logsVersion={logsVersion} onMonthSummary={setMonthSummary} onLogsChanged={onLogsChanged} ptByDate={ptByDate} prs={userDoc?.prs || null} />
       </div>
 
       {/* [2026-10-28 리디자인] 월 요약 - 카드 대신 주간 요약과 같은 헤어라인 스트립, 숫자는 무채색 */}
