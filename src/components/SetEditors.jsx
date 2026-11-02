@@ -507,7 +507,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, inten
         <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
           {(() => {
             const it = COACH_INTENSITIES.find((x) => x.id === intensity)
-            return it ? `${it.label}: 세트마다 ${it.rir}개 남기는 정도예요.` : '전체 강도를 따라요. 증량 폭은 기구에 맞춰 자동으로 정해져요(덤벨 2kg·머신 5kg·바벨 2.5kg).'
+            return it ? `${it.label}: ${it.rirText} 정도예요.` : '전체 강도를 따라요. 증량 폭은 기구에 맞춰 자동으로 정해져요(덤벨 2kg·머신 5kg·바벨 2.5kg).'
           })()}
         </span>
       </div>

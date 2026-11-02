@@ -484,7 +484,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
             {(() => {
               const c = COACH_INTENSITIES.find((x) => x.id === coachIntensity)
-              return `${c.label}: 세트마다 ${c.rir}개 남기는 정도로 플랜을 짜요. 한계에 가까울수록 근육 성장이 커지지만 피로도 커져요(Refalo 외 2023). 종목마다 따로 바꾸려면 기록 화면의 '목표' 버튼에서 바꿔요.`
+              return `${c.label}: ${c.rirText} 정도로 플랜을 짜요. 한계에 가까울수록 근육 성장이 커지지만 피로도 커져요(Refalo 외 2023). 종목마다 따로 바꾸려면 기록 화면의 '목표' 버튼에서 바꿔요.`
             })()}
           </span>
         </div>

@@ -1039,7 +1039,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function copyLastSet(name, idx) {
     setRecords((r) => {
       const sets = r[name]
-      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, ...base } = sets[idx] || {}
+      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, preDropWeight, ...base } = sets[idx] || {}
       // [2026-10-29] 미리 만든 행은 planned - 체크(V)·수정하지 않으면 완료 시 포함 여부를 묻는다(안 한 세트가 그대로 저장되던 문제).
       // "세트완료" 때 지워지는 auto 행과 달리 남겨 둔다.
       // 웜업·실패 세트를 복사하면 본세트로, 드롭 세트는 연속 드롭을 위해 그대로 둔다
@@ -1122,12 +1122,18 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       const prevSaved = (records[key] || []).slice(0, idx).filter((st) => st.saved && st.type !== 'warmup').pop()
       const dw = prevSaved ? dropSetWeight(exName, prevSaved.weight) : null
       if (dw != null) {
-        patchSet(key, idx, { type: next, weight: String(dw) }, { keepAuto: true })
-        showToast(`드롭 세트: 직전보다 20–25% 가볍게 ${Math.round(dw * 100) / 100}kg로 맞췄어요 · 쉬지 말고 한계까지`, 2600)
+        // 드롭에서 다른 종류로 넘어가면 원래 무게로 되돌리도록 기억해 둔다(preDropWeight)
+        patchSet(key, idx, { type: next, weight: String(dw), preDropWeight: cur.weight ?? '' }, { keepAuto: true })
+        const shown = Math.round(dw * 100) / 100
+        showToast(isAssistedExercise(exName) ? `드롭 세트: 보조를 ${shown}kg로 늘려 20–25% 가볍게 맞췄어요 · 쉬지 말고 한계까지` : `드롭 세트: 직전보다 20–25% 가볍게 ${shown}kg로 맞췄어요 · 쉬지 말고 한계까지`, 2600)
         return
       }
     }
-    patchSet(key, idx, { type: next }, { keepAuto: true })
+    if (cur?.type === 'drop' && cur.preDropWeight !== undefined && !cur.saved) {
+      patchSet(key, idx, { type: next, weight: cur.preDropWeight, preDropWeight: undefined }, { keepAuto: true })
+    } else {
+      patchSet(key, idx, { type: next }, { keepAuto: true })
+    }
     // [2026-10-29] W·D·F가 무엇인지 바꿀 때 한 줄로 안내
     showToast(next === 'working' ? '본세트로 바꿨어요' : `${SET_TYPE_LABEL[next]} 세트로 바꿨어요 · ${SET_TYPE_DESC[next]}`, 1800)
   }
@@ -1331,7 +1337,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         const rounded = s.reps != null && s.reps !== '' ? { reps: roundReps(s.reps) } : {}
         return { ...s, ...timed, ...rounded, saved: true, auto: false, planned: false, savedAt: Date.now() }
       })
-      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, ...base } = sets[idx]
+      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, preDropWeight, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]
       // 웜업 세트를 저장한 뒤 자동으로 생기는 다음 행은 본세트로 시작
       // [2026-10-29] 드롭(D)·실패(F) 세트 다음에 자동으로 생기는 행도 본세트로 시작(또 D/F로 기록되던 문제)

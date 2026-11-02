@@ -34,11 +34,11 @@ export function setTypeMark(s) {
 //  - incAll: 증량 조건(모든 세트 상한) / incRatio: 총 반복이 상한×세트 수의 몇 %면 증량 / plus: 같은 무게일 때 세트마다 +회
 //  - holdOnRir0: 상한을 채웠어도 RIR 0(한계)까지 갔으면 한 번 더 같은 무게 / ups: 운동 중 증량 제안 최대 횟수 / upOver: 상한보다 몇 회 넘으면 증량 제안
 export const COACH_INTENSITIES = [
-  { id: 'easy2', label: '살살', rir: '3–4', incAll: true, incRatio: 1, plus: 0, holdOnRir0: true, ups: 1, upOver: 3 },
-  { id: 'easy', label: '가볍게', rir: '2–3', incAll: true, incRatio: 0.95, plus: 1, holdOnRir0: true, ups: 1, upOver: 2 },
-  { id: 'normal', label: '보통', rir: '1–2', incAll: false, incRatio: 0.9, plus: 1, holdOnRir0: true, ups: 1, upOver: 2 },
-  { id: 'hard', label: '세게', rir: '0–1', incAll: false, incRatio: 0.85, plus: 1, holdOnRir0: false, ups: 2, upOver: 1 },
-  { id: 'max', label: '한계까지', rir: '마지막 세트 0', incAll: false, incRatio: 0.85, plus: 1, holdOnRir0: false, ups: 2, upOver: 1 },
+  { id: 'easy2', label: '살살', rir: '3–4', rirText: '세트마다 3–4개 남기는', incAll: true, incRatio: 1, plus: 1, holdOnRir0: true, ups: 1, upOver: 3 },
+  { id: 'easy', label: '가볍게', rir: '2–3', rirText: '세트마다 2–3개 남기는', incAll: true, incRatio: 0.95, plus: 1, holdOnRir0: true, ups: 1, upOver: 2 },
+  { id: 'normal', label: '보통', rir: '1–2', rirText: '세트마다 1–2개 남기는', incAll: false, incRatio: 0.9, plus: 1, holdOnRir0: true, ups: 1, upOver: 2 },
+  { id: 'hard', label: '세게', rir: '0–1', rirText: '세트마다 0–1개 남기는', incAll: false, incRatio: 0.85, plus: 1, holdOnRir0: false, ups: 2, upOver: 1 },
+  { id: 'max', label: '한계까지', rir: '0–1·마지막 0', rirText: '세트마다 0–1개 남기고 마지막 세트는 한계까지 하는', incAll: false, incRatio: 0.85, plus: 1, holdOnRir0: false, ups: 2, upOver: 1 },
 ]
 const INTENSITY_BY_ID = Object.fromEntries(COACH_INTENSITIES.map((x) => [x.id, x]))
 export function normalizeIntensity(id) {
@@ -293,6 +293,8 @@ function suggestByLastSession(name, lastRecord, setting) {
         ? `지난번 ${ro(topW)} 모든 세트 ${repMax}회 이상 → ${ro(w)} ${repMin}회부터`
         : repsAtTop[0] >= repMax && repsAtTop.every((r) => r >= repMin)
         ? `지난번 ${ro(topW)} 첫 세트 ${repsAtTop[0]}회 · 나머지도 ${repMin}회 이상 → ${ro(w)} ${repMin}회부터`
+        : repsAtTop[0] >= repMax && !it.incAll && it.id !== 'normal'
+        ? `지난번 ${ro(topW)} 첫 세트 ${repsAtTop[0]}회(상한 달성, 강도 ${it.label}) → ${ro(w)} ${repMin}회부터`
         : `지난번 ${ro(topW)} 총 ${totalAtTop}회(상한의 ${Math.round(it.incRatio * 100)}% 이상) → ${ro(w)} ${repMin}회부터`,
     }
   }
@@ -416,7 +418,7 @@ export function suggestNextSet(name, lastRecord, setting, opts = {}) {
   const [repMin, repMax] = getRepRange(name, setting)
   const it = intensityOf(setting)
   const n = top.reps.length
-  const need = Math.ceil((it.incAll ? 1 : it.incRatio) * repMax * n)
+  const need = Math.ceil(it.incRatio * repMax * n)
   let out = { ...res, setTargets: Array(n).fill(res.reps), intensity: it.id, lastSetCount: n }
 
   if (res.kind === 'reps') {
@@ -429,10 +431,12 @@ export function suggestNextSet(name, lastRecord, setting, opts = {}) {
       if (!t || t.topW !== top.topW || t.reps.length !== n) break
       same.push(t)
     }
+    if (!same.length) same.push(top) // history[0]이 lastRecord와 다를 때의 방어
     const best = Math.max(...same.map((t) => t.total))
     const used = same.filter((t, i) => i === 0 || t.total >= best * 0.85)
     const avg = Array.from({ length: n }, (_, i) => used.reduce((a, t) => a + t.reps[i], 0) / used.length)
-    const targets = avg.map((v) => Math.min(repMax, Math.max(repMin, Math.round(v) + it.plus)))
+    // 평균이 지난번보다 낮아도 지난번 횟수 아래로는 목표를 내리지 않는다(추천대로 하면 목표가 내려가던 10-30 버그 재발 방지)
+    const targets = avg.map((v, i) => Math.min(repMax, Math.max(repMin, Math.round(v) + it.plus, top.reps[i])))
     const avgPer = avg.reduce((a, b) => a + b, 0) / n
     const fmt1 = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1))
     out = {
@@ -442,8 +446,8 @@ export function suggestNextSet(name, lastRecord, setting, opts = {}) {
       baseline: { sessions: used.length, avgReps: Math.round(avgPer * 10) / 10 },
       reason:
         used.length > 1
-          ? `최근 ${used.length}회 평균 ${loadLabel(name, top.topW)} × ${fmt1(avgPer)}회 · 목표 ${repMin}–${repMax}회 · ${it.plus ? '세트마다 1회씩 더' : '같은 횟수를 편하게 다지기'} · 총 ${need}회면 다음엔 올리기`
-          : `지난번 ${loadLabel(name, top.topW)} ${top.reps.join('·')}회(총 ${top.total}) · 목표 ${repMin}–${repMax}회 · ${it.plus ? '세트마다 1회씩 더' : '같은 횟수를 편하게 다지기'} · 총 ${need}회면 다음엔 올리기`,
+          ? `최근 ${used.length}회 평균 ${loadLabel(name, top.topW)} × ${fmt1(avgPer)}회 · 목표 ${repMin}–${repMax}회 · 평균보다 세트마다 1회씩 더(지난번 아래로는 안 내림) · 총 ${need}회면 다음엔 올리기`
+          : `지난번 ${loadLabel(name, top.topW)} ${top.reps.join('·')}회(총 ${top.total}) · 목표 ${repMin}–${repMax}회 · 세트마다 1회씩 더 · 총 ${need}회면 다음엔 올리기`,
     }
   }
   if (res.kind === 'reps') out.progress = { total: top.total, need }
@@ -499,7 +503,7 @@ export function planSetTargets(sug, name) {
 }
 
 // 운동 중 세트 단위 조정: 방금 저장한 본세트가 목표 범위를 크게 벗어나면 다음 세트 무게를 제안
-// → { weight?, kind: 'up'|'down'|'info'|'done', reason, extraRestSec? } | null ('info'·'done'은 무게 제안 없이 안내만)
+// → { weight?, kind: 'up'|'down'|'info'|'done', reason } | null ('info'·'done'은 무게 제안 없이 안내만)
 // [2026-11-02 로그 코치] ctx: { prevWorking: 이 세트 전에 저장한 본세트(드롭 제외, 순서대로), plannedCount: 오늘 목표 세트 수, upsGiven: 이미 한 증량 제안 수 }
 //  - 증량 제안은 강도별 횟수 제한(보통 이하 1회·세게 이상 2회), 다음 세트가 마지막이면 무게 대신 횟수로(마지막 세트는 유지)
 //  - 피로 감지: 같은 무게 첫 세트보다 30% 넘게 줄면(속도 20–40% 손실 연구를 반복 수로 옮긴 근사, Pareja-Blanco 외 2017) 낮추거나 마무리
@@ -532,18 +536,19 @@ export function adviseAfterSet(name, set, setting, ctx = {}) {
       reason: `첫 세트 ${first.reps}회 → 이번 ${reps}회, 30% 넘게 줄었어요(피로가 쌓였다는 신호) → ${validDown(nw) ? `다음 세트는 ${loadWith(name, nw)} 낮추거나 ` : ''}여기서 마무리해도 좋아요`,
     }
   }
-  if (failure && it.id !== 'max') {
+  const failNote = set.type === 'failure' || (failure && it.id !== 'hard' && it.id !== 'max')
+  if (planned && done >= planned) {
+    return { kind: 'done', reason: `오늘 플랜 ${planned}세트 끝! ${failNote ? '한계까지 갔으니 여기서 마무리해요' : '더 해도 되지만 여기서 마무리해도 충분해요'}${reps >= repMax ? ' · 상한을 채웠으니 다음엔 올리기가 나올 거예요' : ''}` }
+  }
+  // 세게·한계까지는 RIR 0이 목표 범위라 F로 표시한 세트에만 안내(failNote)
+  if (failNote && it.id !== 'max') {
     const nw = reps < repMin ? lighterWeight(name, w, setting) : w
     const down = reps < repMin && validDown(nw)
     return {
       ...(down ? { weight: nw } : {}),
       kind: down ? 'down' : 'info',
-      extraRestSec: 30,
       reason: `한계(실패)까지 갔어요 → 다음 세트는 한 개 남기고 끝내요(RIR 1)${down ? `, 무게는 ${loadWith(name, nw)}` : ''} · 휴식은 30초 더 쉬어요`,
     }
-  }
-  if (planned && done >= planned) {
-    return { kind: 'done', reason: `오늘 플랜 ${planned}세트 끝! 더 해도 되지만 여기서 마무리해도 충분해요${reps >= repMax ? ' · 상한을 채웠으니 다음엔 올리기가 나올 거예요' : ''}` }
   }
   if (reps >= repMax + it.upOver && !failure) {
     if (planned && done === planned - 1) {
@@ -572,8 +577,11 @@ export function dropSetWeight(name, prevWeight) {
     return load > 0 ? roundTo(w + Math.max(step, roundTo(load * 0.22, step)), 0.25) : null
   }
   if (w <= 0) return null
-  const nw = Math.max(0, roundTo(w * 0.78, step))
-  return nw < w ? nw : Math.max(0, roundTo(w - step, 0.25))
+  let nw = Math.max(0, roundTo(w * 0.78, step))
+  if (nw >= w) nw = Math.max(0, roundTo(w - step, 0.25))
+  // 0kg가 안 되는 종목(머신·덤벨 등)은 가장 가벼운 무게에서 더 못 내린다
+  if (nw <= 0 && !allowsZeroWeight(name)) return null
+  return nw < w ? nw : null
 }
 
 // [2026-11-02 로그 코치] '왜 이렇게?' - 판단별 근거 한 줄(저자·연도만, 논문 문장은 옮기지 않음)
