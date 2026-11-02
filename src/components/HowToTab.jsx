@@ -34,6 +34,7 @@ import { useGuideOverrides, mergeGuide } from '../utils/guideOverrides'
 import GuideEditor from './GuideEditor'
 import { Pencil } from 'lucide-react'
 import { useBackableScreen } from '../hooks/useBackableScreen'
+import { ExerciseName } from '../utils/exerciseName'
 
 const MUSCLE_ROLE_LABELS = [
   { key: 'primary', label: '주동근' },
@@ -175,7 +176,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
         <h2 className="text-keep-all" style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--color-label-strong)' }}>
-          {name}
+          <ExerciseName name={name} />
         </h2>
         {alias && (
           <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>({alias})</span>
@@ -497,7 +498,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <div>
                     <div className="text-keep-all" style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-                      {name}
+                      <ExerciseName name={name} />
                       {alias && <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-label-neutral)' }}> · {alias}</span>}
                     </div>
                     <div style={{ fontSize: 12.5, marginTop: 2, color: 'var(--color-label-neutral)' }}>

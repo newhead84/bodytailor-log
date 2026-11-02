@@ -16,10 +16,13 @@ export const ACCENT_OPTIONS = [
 ]
 
 // [2026-10-29] 디자인 기본값(사용자 지정): 베이지 · 볼트 라임 · 페이퍼로지 · 리스트형
+// [2026-11-02] 기록 방식 기본값을 포커스형으로(사용자 결정, 기존 계정도 한 번 전환 - LOG_MODE_DEFAULT_VERSION)
 export const DEFAULT_THEME = 'beige'
 export const DEFAULT_ACCENT = 'lime'
 export const DEFAULT_FONT = 'paperlogy'
-export const DEFAULT_LOG_MODE = 'list'
+export const DEFAULT_LOG_MODE = 'focus'
+// 기록 방식만 한 번 바꾸는 표시(테마·강조색·폰트는 건드리지 않음). users.logModeDefaultVersion
+export const LOG_MODE_DEFAULT_VERSION = '2026-11-02'
 // 이 버전 키가 없는 계정은 로그인 시 한 번 위 기본값으로 맞춘다(이후엔 각자 바꾼 값 유지).
 export const DESIGN_DEFAULTS_VERSION = '2026-10-29'
 

@@ -16,7 +16,7 @@ import RestTimer from './RestTimer'
 import WorkoutGuide, { WORKOUT_GUIDE_STEPS } from './WorkoutGuide'
 import { nextSetType, nextRir } from './SetEditors'
 import { CountUp } from '../hooks/useCountUp'
-import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, applyDesignAttrs } from '../utils/fonts'
+import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, applyDesignAttrs, DEFAULT_LOG_MODE } from '../utils/fonts'
 import { updateUserProfile } from '../storage'
 
 const THEME_OPTIONS = [
@@ -61,7 +61,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
     theme: userDoc?.themePreference || 'beige',
     font: normalizeFontId(userDoc?.fontPreference),
     accent: normalizeAccentId(userDoc?.accentPreference),
-    logMode: userDoc?.logMode || 'list',
+    logMode: userDoc?.logMode || DEFAULT_LOG_MODE,
   }).current
   const [theme, setTheme] = useState(initial.theme)
   const [font, setFont] = useState(initial.font)

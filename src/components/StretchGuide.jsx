@@ -2,12 +2,13 @@
 // [2026-10-30 신규] 스트레칭 가이드 - "어디가 불편해요?" → 상황(운동 전/후/오래 앉아 있었을 때) → 스트레칭 카드.
 //  - StretchGuide: HOWTO 탭 "스트레칭" 화면
 //  - StretchSuggest: 운동 화면(웜업 중 동적 3개) · 완료 요약(쿨다운 정적 3개)용 작은 카드
+// [2026-11-02] 기구별 필터 칩(맨몸·벽·기둥·수건·밴드·폼롤러·마사지볼) + 카드에 기구 표시.
 // 데이터는 utils/stretches.js(저장하지 않음). 영상은 YouTube 검색 링크로만 연결(이미지·영상 미탑재).
 import React, { useMemo, useState } from 'react'
 import { ChevronDown, AlertCircle, PlayCircle, Search, X } from 'lucide-react'
 import { Card, Chip, Disclosure } from './ui'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
-import { STRETCH_AREAS, STRETCH_SITUATIONS, STRETCH_TYPE_LABEL, getStretches, searchStretches, recommendStretches, getStretchVideoUrl } from '../utils/stretches'
+import { STRETCH_AREAS, STRETCH_SITUATIONS, STRETCH_TYPE_LABEL, STRETCH_EQUIP, STRETCH_EQUIP_LABEL, getStretches, searchStretches, recommendStretches, getStretchVideoUrl } from '../utils/stretches'
 
 export function StretchCard({ s, defaultOpen = false, compact = false }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -27,6 +28,11 @@ export function StretchCard({ s, defaultOpen = false, compact = false }) {
             <span style={{ padding: '1px 7px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-normal)' }}>
               {STRETCH_TYPE_LABEL[s.type]}
             </span>
+            {(s.equip || []).filter((e) => e !== 'none').length > 0 && (
+              <span style={{ padding: '1px 7px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-normal)' }}>
+                {s.equip.filter((e) => e !== 'none').map((e) => STRETCH_EQUIP_LABEL[e]).join('·')}
+              </span>
+            )}
             <span className="bt-num" style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)' }}>
               {s.dose}
             </span>
@@ -70,9 +76,10 @@ export function StretchCard({ s, defaultOpen = false, compact = false }) {
 export function StretchGuide() {
   const [area, setArea] = useState(null)
   const [situation, setSituation] = useState(null)
+  const [equip, setEquip] = useState(null) // [2026-11-02] 기구 필터
   const [query, setQuery] = useState('') // [2026-10-31] 검색(이름·통용 명칭·부위) - 입력하면 부위·상황 선택 대신 검색 결과
   const searching = query.trim().length > 0
-  const list = useMemo(() => (searching ? searchStretches(query) : getStretches({ area, situation })), [searching, query, area, situation])
+  const list = useMemo(() => (searching ? searchStretches(query).filter((s) => !equip || s.equip.includes(equip)) : getStretches({ area, situation, equip })), [searching, query, area, situation, equip])
   const areaInfo = STRETCH_AREAS.find((a) => a.id === area)
   return (
     <div>
@@ -137,15 +144,25 @@ export function StretchGuide() {
       </div>
       </>
       )}
+      <div role="group" aria-label="기구로 거르기" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+        <Chip active={!equip} onClick={() => setEquip(null)}>
+          기구 전체
+        </Chip>
+        {STRETCH_EQUIP.map((e) => (
+          <Chip key={e.id} active={equip === e.id} onClick={() => setEquip(equip === e.id ? null : e.id)}>
+            {e.label}
+          </Chip>
+        ))}
+      </div>
       <Card style={{ padding: '4px 16px 4px' }}>
         <div style={{ padding: '10px 0 8px', fontSize: 12.5, color: 'var(--color-label-neutral)' }} className="text-keep-all">
           {searching
-            ? `"${query.trim()}" 검색 결과 ${list.length}개 · 눌러서 방법 보기`
-            : `${areaInfo ? `${areaInfo.label}` : '모든 부위'} · ${situation ? STRETCH_SITUATIONS.find((x) => x.id === situation)?.label : '모든 상황'} · ${list.length}개 · 눌러서 방법 보기`}
+            ? `"${query.trim()}" 검색 결과${equip ? ` · ${STRETCH_EQUIP_LABEL[equip]}` : ''} ${list.length}개 · 눌러서 방법 보기`
+            : `${areaInfo ? `${areaInfo.label}` : '모든 부위'} · ${situation ? STRETCH_SITUATIONS.find((x) => x.id === situation)?.label : '모든 상황'}${equip ? ` · ${STRETCH_EQUIP_LABEL[equip]}` : ''} · ${list.length}개 · 눌러서 방법 보기`}
         </div>
         {list.length === 0 ? (
           <div className="text-keep-all" style={{ padding: '12px 0 14px', borderTop: '1px solid var(--color-line)', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-            {searching ? '찾는 스트레칭이 없어요. 부위 이름(예: 허리, 어깨)으로 찾아보세요.' : '이 조합에 맞는 스트레칭이 없어요. 상황을 "전체"로 바꿔 보세요.'}
+            {searching ? '찾는 스트레칭이 없어요. 부위 이름(예: 허리, 어깨)으로 찾아보세요.' : '이 조합에 맞는 스트레칭이 없어요. 상황이나 기구를 "전체"로 바꿔 보세요.'}
           </div>
         ) : (
           list.map((s) => <StretchCard key={s.id} s={s} />)

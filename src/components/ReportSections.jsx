@@ -15,6 +15,7 @@ import { logVolumeKg } from '../utils/load'
 import { rankAt } from '../utils/scoring'
 import { startOfWeekStr } from './InsightCards'
 import { toLocalDateStr } from '../utils/date'
+import { ExerciseName } from '../utils/exerciseName'
 
 const muted = { fontSize: 13, color: 'var(--color-label-neutral)' }
 
@@ -221,7 +222,7 @@ export function StrengthTrendCard({ logs, isActive = true }) {
                 <div key={x.key} style={{ borderTop: i ? '1px solid var(--color-line)' : 'none' }}>
                   <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : x.key)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 0', textAlign: 'left', color: 'var(--color-label-strong)' }}>
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      <span className="text-keep-all" style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>{exerciseKeyLabel(x.key)}</span>
+                      <span className="text-keep-all" style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}><ExerciseName name={exerciseKeyLabel(x.key)} /></span>
                       <span style={{ ...muted, fontSize: 12 }}>{x.a.length}회 · 최고 {Math.round(x.best)}kg</span>
                     </span>
                     <Spark values={x.a.map((p) => p.v)} color={getPartColor(x.atom)} />
@@ -294,7 +295,7 @@ export function FrequentBySetsCard({ logs }) {
           top.map((x, i) => (
             <div key={x.k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: i ? '1px solid var(--color-line)' : 'none' }}>
               <span className="bt-num" style={{ width: 18, color: 'var(--color-label-neutral)', fontSize: 14 }}>{i + 1}</span>
-              <span className="text-keep-all" style={{ flex: 1, minWidth: 0, fontSize: 14.5 }}>{exerciseKeyLabel(x.k)}</span>
+              <span className="text-keep-all" style={{ flex: 1, minWidth: 0, fontSize: 14.5 }}><ExerciseName name={exerciseKeyLabel(x.k)} /></span>
               <span className="bt-num" style={{ fontSize: 14, color: 'var(--color-label-normal)', whiteSpace: 'nowrap' }}>{x.sets}세트 <span style={muted}>· {x.days}일</span></span>
             </div>
           ))

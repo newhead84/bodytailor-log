@@ -24,6 +24,7 @@ import {
   LEG_FRONT,
   LEG_BACK,
 } from '../utils/strength'
+import { ExerciseName } from '../utils/exerciseName'
 
 export function startOfWeekStr(d = new Date(), offsetWeeks = 0) {
   const date = new Date(d)
@@ -287,7 +288,7 @@ export function RecoveryCard({ logs }) {
             {plateaus.map((p) => (
               <div key={p.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span className="text-keep-all" style={{ fontSize: 13 }}>
-                  {exerciseKeyLabel(p.key)}
+                  <ExerciseName name={exerciseKeyLabel(p.key)} />
                 </span>
                 <span className="bt-num" style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0 }}>
                   직전 {fmt1(p.bestBefore)} → 최근 {fmt1(p.bestRecent)}kg
@@ -315,7 +316,7 @@ export function PrCard({ prs, limit = 5, title = '최근 개인 기록' }) {
           <div key={p.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span className="text-keep-all" style={{ fontSize: 14, fontWeight: 700 }}>
-                {exerciseKeyLabel(p.key)}
+                <ExerciseName name={exerciseKeyLabel(p.key)} />
               </span>
               <span className="bt-num" style={{ fontSize: 12, color: 'var(--color-label-neutral)', fontWeight: 500 }}>
                 {p.date} · {formatLoad(parseExerciseKey(p.key).name, p.weight)} × {p.reps}{repsUnit(parseExerciseKey(p.key).name)}

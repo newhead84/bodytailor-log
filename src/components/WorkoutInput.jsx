@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { ChevronDown, Info, X, SlidersHorizontal, Play } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure } from './ui'
+import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure, PartBadge } from './ui'
+import { ExerciseName } from '../utils/exerciseName'
 import { CountUp } from '../hooks/useCountUp'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
@@ -31,6 +32,7 @@ import {
   getCustomExercisesForPart,
   getAtomsForPartName,
   getExerciseColorWithCustom,
+  getExerciseAtomWithCustom,
   getExerciseAtom,
   getExerciseInputType,
   getWeightStep,
@@ -60,6 +62,7 @@ import { todayStr, toLocalDateStr } from '../utils/date'
 import { getLevelInfo } from '../utils/tier'
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 import { pickSetEncouragement } from '../utils/setEncouragements'
+import { DEFAULT_LOG_MODE } from '../utils/fonts'
 
 // [2026-10-29] '자동' = 종목별 권장 휴식(다관절 2분30초 / 고립 1분30초). 새 기본값.
 const REST_AUTO = 0
@@ -1084,6 +1087,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // [2026-10-29] W·D·F가 무엇인지 바꿀 때 한 줄로 안내
     showToast(next === 'working' ? '본세트로 바꿨어요' : `${SET_TYPE_LABEL[next]} 세트로 바꿨어요 · ${SET_TYPE_DESC[next]}`, 1800)
   }
+  // [2026-11-02] 포커스형 세트 종류 칩: 순환 대신 바로 지정
+  function setSetType(key, idx, type) {
+    patchSet(key, idx, { type })
+    showToast(type === 'working' ? '본세트로 바꿨어요' : `${SET_TYPE_LABEL[type]} 세트로 바꿨어요 · ${SET_TYPE_DESC[type]}`, 1800)
+  }
   function cycleSetRir(key, idx) {
     const cur = records[key]?.[idx]
     patchSet(key, idx, { rir: nextRir(cur?.rir) })
@@ -1154,7 +1162,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const setting = settingFor(key)
     const sessionBest = bestE1rmOfSets((records[key] || []).filter((st) => st.saved), name)
     return {
-      logMode: logMode || 'list',
+      logMode: logMode || DEFAULT_LOG_MODE,
       suggestion: suggestionFor(key),
       suggestionOpen: !dismissedSuggestions[key] && !(records[key] || []).some((st) => st.saved && st.type !== 'warmup'),
       onDismissSuggestion: () => dismissSuggestion(key),
@@ -1170,6 +1178,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       step: setting?.step ?? null,
       defaultStep: getProgressionIncrement(name),
       onCycleType: (idx) => cycleSetType(key, idx),
+      onSetType: (idx, type) => setSetType(key, idx, type),
       onCycleRir: (idx) => cycleSetRir(key, idx),
       onApplySuggestion: () => applySuggestion(key),
       onAddWarmups: () => toggleWarmups(key),
@@ -1537,6 +1546,15 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       )
       // [2026-10-29] 바깥을 눌러 닫으면 저장하지 않고 운동을 계속한다(이전엔 '체크한 세트만'으로 저장·종료됐다)
       if (includeUnchecked === null) return
+    } else if (checkedCount > 0) {
+      // [2026-11-02] 세트 입력 중 잘못 눌러 바로 끝나지 않게 확인(사용자 요청). 위 두 질문이 나온 경우는 이미 확인한 셈이라 생략
+      const doneEx = buildExercisesFromRecords(records).length
+      const notStarted = (visibleExercises || []).filter((k) => !(records[k] || []).some((st) => st.saved)).length
+      const ok = await confirm(
+        `오늘 운동을 마칠까요?\n${doneEx}종목 · ${checkedCount}세트를 저장해요.${notStarted > 0 ? `\n아직 시작 안 한 종목이 ${notStarted}개 있어요.` : ''}`,
+        { okLabel: '운동 완료', cancelLabel: '계속 운동', dismissValue: false }
+      )
+      if (!ok) return
     }
     setSaving(true)
     const exercises = buildExercisesFromRecords(records, { includeUnchecked })
@@ -2425,6 +2443,7 @@ export function ExerciseCard({
   // 실제 종목명(exName) 기준으로 하고, 화면 제목은 그립이 있으면 "이름 (그립)"으로 보여준다.
   const { name: exName, grip: fixedGrip } = parseExerciseKey(name)
   const color = getExerciseColorWithCustom(exName, customExercises)
+  const partAtom = getExerciseAtomWithCustom(exName, customExercises)
   const inputType = getExerciseInputType(exName)
   const weightStep = getWeightStep(exName)
   // [2026-08-06] 종목명 롱프레스 → 동작 가이드(짧은 재탭/다시 롱프레스/시작·접기/카드 바깥 탭으로 닫힘)
@@ -2490,13 +2509,13 @@ export function ExerciseCard({
               <path d="M5 12l5 5L19 7" />
             </svg>
           </button>
-        ) : (
-          // [2026-10-27] 좌측 굵은 색 띠(카드 왼쪽 보더) 대신 작은 부위 색 점으로 표시
-          <span aria-hidden="true" style={{ flexShrink: 0, width: 8, height: 8, borderRadius: '50%', background: color, margin: '0 4px' }} />
-        )}
+        ) : null}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {/* [2026-11-02] 부위 색 점 → 부위 이름이 든 색 배지(이름 위 한 줄, 이름 폭을 줄이지 않게) */}
+          {partAtom && <PartBadge atom={partAtom} color={color} style={{ alignSelf: 'flex-start', marginBottom: 2, opacity: isDone ? 0.6 : 1 }} />}
           <span
             {...guideProps}
+            className={['text-keep-all', guideProps.className].filter(Boolean).join(' ')}
             style={{
               fontWeight: 700,
               fontSize: 15,
@@ -2504,7 +2523,9 @@ export function ExerciseCard({
               ...guideProps.style,
             }}
           >
-            {fixedGrip ? `${exName} (${fixedGrip})` : exName}
+            {/* [2026-11-02] 긴 이름은 낱말 경계에서만 줄바꿈(덤벨사이드레터럴 / 레이즈) */}
+            <ExerciseName name={exName} />
+            {fixedGrip ? ` (${fixedGrip})` : ''}
           </span>
           {ext.supersetPartner && (
             <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-info)', fontWeight: 700 }}>
@@ -2799,6 +2820,7 @@ export function ExerciseCard({
                 onSaveSet(i)
               }}
               onCycleType={ext.onCycleType}
+              onSetType={ext.onSetType}
               onAddSet={() => onCopySet(sets.length - 1)}
               onRemoveSet={(i) => {
                 setFocusIdx(null)

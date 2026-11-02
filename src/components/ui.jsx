@@ -483,3 +483,32 @@ export function AccentSwatches({ value, onPick }) {
     </div>
   )
 }
+
+// [2026-11-02] 운동 부위 배지: 색 점만으로는 어느 부위인지 외워야 해서, 옅은 부위색 바탕 + 색 점 + 부위 이름.
+// 글자는 기본 글자색(테마별 대비 유지), 부위 색은 점과 바탕에만 쓴다.
+export function PartBadge({ atom, color, style }) {
+  if (!atom) return null
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        flexShrink: 0,
+        padding: '1px 7px 1px 6px',
+        borderRadius: 'var(--radius-pill)',
+        background: `color-mix(in srgb, ${color} 16%, transparent)`,
+        border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
+        fontSize: 11.5,
+        fontWeight: 700,
+        lineHeight: 1.5,
+        color: 'var(--color-label-normal)',
+        whiteSpace: 'nowrap',
+        ...style,
+      }}
+    >
+      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      {atom}
+    </span>
+  )
+}

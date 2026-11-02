@@ -4,6 +4,7 @@
 //  - 운동 전: 움직이며 하는 동적 스트레칭(각 8–12회). 한 자세로 60초 넘게 버티는 정적 스트레칭은 직후 근력·순발력을 떨어뜨릴 수 있어 짧게만.
 //  - 운동 후·뻐근할 때: 정적 스트레칭 30초 × 2–3회, 반동 없이 "당기는 느낌"까지만(통증 X).
 //  - 폼롤러·마사지볼: 부위당 30–60초, 뼈·관절 위는 피한다.
+// [2026-11-02] 기구별 필터(equip: 맨몸·벽·기둥·수건·밴드·폼롤러·마사지볼) + 폼롤러·마사지볼 5종·밴드 4종 추가(사용자 요청).
 // 저장하지 않는 정보 데이터. parts = 이 스트레칭과 관련된 운동 부위(오늘 운동 부위로 웜업·쿨다운 추천에 사용).
 
 export const STRETCH_AREAS = [
@@ -25,6 +26,17 @@ export const STRETCH_SITUATIONS = [
 ]
 
 export const STRETCH_TYPE_LABEL = { dynamic: '동적', static: '정적', foam: '폼롤러' }
+
+// [2026-11-02] 기구(필터용). 스트레칭마다 equip 배열 - 둘 다 되면 둘 다(예: 수건 또는 밴드)
+export const STRETCH_EQUIP = [
+  { id: 'none', label: '맨몸' },
+  { id: 'wall', label: '벽·기둥' },
+  { id: 'towel', label: '수건' },
+  { id: 'band', label: '밴드' },
+  { id: 'roller', label: '폼롤러' },
+  { id: 'ball', label: '마사지볼' },
+]
+export const STRETCH_EQUIP_LABEL = Object.fromEntries(STRETCH_EQUIP.map((e) => [e.id, e.label]))
 
 const S = (id, name, type, areas, when, parts, good, steps, dose, caution) => ({ id, name, type, areas, when, parts, good, steps, dose, caution })
 
@@ -170,17 +182,69 @@ export const STRETCHES = [
     '엉덩이가 저리고 허리까지 묵직할 때',
     ['바닥(또는 벽)에 마사지볼을 두고 엉덩이 바깥쪽을 얹어요.', '천천히 작은 원을 그리며 뻐근한 지점을 찾아요.', '찾으면 20–30초 머물며 숨을 내쉬어요.'],
     '좌우 각 30–60초', '다리가 찌릿하게 저리면 좌골신경 위이니 위치를 옮겨요.'),
+  // [2026-11-02] 폼롤러·마사지볼 추가
+  S('foam-lat', '폼롤러 광배근(옆구리 뒤) 굴리기', 'foam', ['upperback'], ['after', 'before'], ['등'],
+    '랫풀다운·로우 뒤 겨드랑이 아래가 뭉치고 팔이 머리 위로 잘 안 올라갈 때',
+    ['옆으로 누워 폼롤러를 겨드랑이 바로 아래에 놓아요.', '아래쪽 팔을 머리 위로 뻗고 엄지가 천장을 보게 해요.', '겨드랑이부터 갈비뼈 중간까지 천천히 굴리고, 뻐근한 곳에서 몸을 살짝 앞뒤로 돌려요.'],
+    '좌우 각 30–60초', '갈비뼈 아래(허리 옆)까지 내려가지 않아요.'),
+  S('foam-hamstring', '폼롤러 허벅지 뒤 굴리기', 'foam', ['hamstring'], ['after', 'before'], ['하체'],
+    '데드리프트·레그컬 뒤 허벅지 뒤가 단단하게 당길 때',
+    ['앉아서 폼롤러를 허벅지 뒤에 놓고 손으로 바닥을 짚어 엉덩이를 들어요.', '엉덩이 아래부터 무릎 위까지 천천히 굴려요.', '발끝을 안쪽·바깥쪽으로 돌리면 안쪽·바깥쪽 근육까지 닿아요.'],
+    '좌우 각 30–60초', '오금(무릎 뒤)은 누르지 않아요.'),
+  S('foam-adductor', '폼롤러 허벅지 안쪽 굴리기', 'foam', ['hip'], ['after', 'before'], ['하체'],
+    '와이드 스쿼트·런지 뒤 사타구니 쪽이 뻐근할 때',
+    ['엎드려 한쪽 무릎을 옆으로 90도 굽혀 벌려요.', '폼롤러를 그 허벅지 안쪽 아래에 세로로 놓아요.', '팔꿈치로 버티며 무릎 위부터 사타구니 가까이까지 천천히 굴려요.'],
+    '좌우 각 30–60초', '사타구니 뼈 바로 위는 세게 누르지 않아요.'),
+  S('foam-glute', '폼롤러 엉덩이 굴리기', 'foam', ['hip', 'lowback'], ['after', 'sitting', 'before'], ['하체'],
+    '스쿼트·힙쓰러스트 뒤나 오래 앉아 엉덩이가 굳었을 때',
+    ['폼롤러 위에 앉아 한쪽 발목을 반대쪽 무릎 위에 올려요(4자).', '올린 다리 쪽으로 몸을 살짝 기울여요.', '엉덩이 위아래로 천천히 굴리고, 뻐근한 곳에서 20초 머물러요.'],
+    '좌우 각 30–60초', '다리가 저리면 위치를 옮겨요.'),
+  S('ball-chest', '마사지볼 가슴 풀기', 'foam', ['chest'], ['after', 'sitting'], ['가슴', '어깨'],
+    '벤치프레스 뒤나 어깨가 앞으로 말려 가슴 앞이 뻣뻣할 때',
+    ['벽을 보고 서서 쇄골 아래, 어깨 앞 가까운 가슴에 마사지볼을 대요.', '몸을 벽 쪽으로 기대 지그시 눌러요.', '작은 원을 그리며 뻐근한 곳을 찾고, 그 자리에서 팔을 천천히 위아래로 움직여요.'],
+    '좌우 각 30–60초', '쇄골·갈비뼈 위는 피하고, 팔이 저리면 바로 멈춰요.'),
+  // [2026-11-02] 밴드
+  S('band-pull-part', '밴드 당겨 벌리기', 'dynamic', ['upperback', 'neck'], ['before', 'sitting'], ['등', '어깨'],
+    '벤치·숄더프레스 전 어깨 뒤쪽과 날개뼈를 깨울 때',
+    ['가벼운 밴드를 어깨너비로 잡고 팔을 가슴 높이로 앞으로 뻗어요.', '팔을 편 채 밴드를 양옆으로 벌려 가슴에 닿게 해요.', '날개뼈를 모은 채 1초 멈췄다 천천히 돌아와요.'],
+    '12–15회', '어깨가 귀 쪽으로 솟지 않게, 허리를 젖히지 않아요.'),
+  S('band-external-rotation', '밴드 어깨 외회전', 'dynamic', ['chest', 'upperback'], ['before'], ['어깨', '가슴'],
+    '벤치·숄더프레스 전 어깨 속 근육(회전근개)을 데울 때',
+    ['밴드를 기둥에 팔꿈치 높이로 묶고 옆으로 서요.', '바깥쪽 팔꿈치를 옆구리에 붙이고 90도로 굽혀 밴드를 잡아요.', '팔꿈치는 붙인 채 손을 바깥으로 천천히 돌렸다 돌아와요.'],
+    '좌우 각 12–15회', '가벼운 밴드로, 팔꿈치가 옆구리에서 떨어지지 않게 해요.'),
+  S('band-hamstring-3way', '누워 밴드로 허벅지 뒤 3방향 늘리기', 'static', ['hamstring', 'hip'], ['after'], ['하체'],
+    '하체 운동 후 허벅지 뒤와 안쪽·바깥쪽까지 한 번에 풀 때',
+    ['누워서 한 발바닥에 밴드를 걸고 다리를 편 채 위로 올려 30초.', '같은 다리를 바깥쪽으로 천천히 내려 허벅지 안쪽을 30초.', '이번엔 몸 안쪽(반대쪽)으로 넘겨 엉덩이 바깥쪽을 30초.'],
+    '방향별 30초, 좌우', '반대쪽 다리와 골반이 바닥에서 뜨지 않게 해요.'),
+  S('band-ankle', '밴드 발목 가동성', 'dynamic', ['calf'], ['before'], ['하체'],
+    '스쿼트 때 뒤꿈치가 뜨거나 무릎이 앞으로 잘 안 나갈 때',
+    ['밴드를 기둥 낮은 곳에 묶고 발목 앞쪽(발등 위)에 걸어 뒤로 당겨지게 해요.', '그 발을 앞에 두고 런지 자세를 잡아요.', '뒤꿈치를 붙인 채 무릎을 발끝 쪽으로 천천히 밀었다 돌아와요.'],
+    '좌우 각 10–12회', '뒤꿈치가 뜨면 거기까지만 밀어요.'),
 ]
 
-export function getStretches({ area = null, situation = null } = {}) {
-  return STRETCHES.filter((s) => (!area || s.areas.includes(area)) && (!situation || s.when.includes(situation)))
+// [2026-11-02] 기구 - 따로 적지 않은 것은 맨몸
+const EQUIP_BY_ID = {
+  'leg-swing-front': ['wall'], 'leg-swing-side': ['wall'], 'hip-circle': ['wall'], 'ankle-knee-wall': ['wall'],
+  'doorway-chest': ['wall'], 'lat-stretch': ['wall'], 'biceps-wall': ['wall'], 'quad-standing': ['wall'], 'calf-wall': ['wall'],
+  'band-dislocate': ['towel', 'band'], 'hamstring-towel': ['towel', 'band'], 'band-pull-apart': ['none', 'band'],
+  'foam-tspine': ['roller'], 'foam-quad': ['roller'], 'foam-calf': ['roller'], 'foam-lat': ['roller'], 'foam-hamstring': ['roller'],
+  'foam-adductor': ['roller'], 'foam-glute': ['roller'], 'ball-glute': ['ball'], 'ball-chest': ['ball'],
+  'band-pull-part': ['band'], 'band-external-rotation': ['band'], 'band-hamstring-3way': ['band'], 'band-ankle': ['band'],
+}
+STRETCHES.forEach((s) => {
+  s.equip = EQUIP_BY_ID[s.id] || ['none']
+})
+
+export function getStretches({ area = null, situation = null, equip = null } = {}) {
+  return STRETCHES.filter((s) => (!area || s.areas.includes(area)) && (!situation || s.when.includes(situation)) && (!equip || s.equip.includes(equip)))
 }
 
 // 오늘 운동 부위(atoms) → 웜업(동적) / 쿨다운(정적) 추천 n개. 부위 겹침이 많은 순, 겹치면 데이터 순서.
 export function recommendStretches(atoms = [], phase = 'before', n = 3) {
   // 유산소(달리기·사이클 등)는 하체 스트레칭으로
   const set = new Set((atoms || []).filter(Boolean).map((a) => (a === '유산소' ? '하체' : a)))
-  const pool = STRETCHES.filter((s) => (phase === 'before' ? s.type === 'dynamic' : s.type === 'static') && s.when.includes(phase))
+  // [2026-11-02] 운동 화면 추천에는 맨몸·벽·수건으로 할 수 있는 것만(밴드가 없는 사람에게 권하지 않게, 수건 종목은 예전처럼 추천)
+  const pool = STRETCHES.filter((s) => (phase === 'before' ? s.type === 'dynamic' : s.type === 'static') && s.when.includes(phase) && (s.equip || ['none']).some((e) => e === 'none' || e === 'wall' || e === 'towel'))
   const scored = pool
     .map((s, i) => ({ s, i, score: s.parts.filter((p) => set.has(p)).length }))
     .filter((x) => set.size === 0 || x.score > 0)
@@ -238,6 +302,15 @@ export const STRETCH_YT = {
   'foam-quad': '폼롤러 허벅지 앞 바깥 풀기',
   'foam-calf': '폼롤러 종아리 풀기',
   'ball-glute': '마사지볼 엉덩이 이상근 풀기',
+  'foam-lat': '폼롤러 광배근 풀기',
+  'foam-hamstring': '폼롤러 햄스트링 풀기',
+  'foam-adductor': '폼롤러 내전근 풀기',
+  'foam-glute': '폼롤러 엉덩이 둔근 풀기',
+  'ball-chest': '마사지볼 가슴 소흉근 풀기',
+  'band-pull-part': '밴드 풀어파트',
+  'band-external-rotation': '밴드 어깨 외회전 회전근개',
+  'band-hamstring-3way': '밴드 햄스트링 스트레칭 3방향',
+  'band-ankle': '밴드 발목 가동성 운동',
 }
 
 // s: 스트레칭 객체(권장) 또는 이름 문자열
@@ -253,7 +326,7 @@ export function searchStretches(query) {
   if (!q) return STRETCHES
   return STRETCHES.filter((s) => {
     const areaLabels = s.areas.map((id) => STRETCH_AREAS.find((a) => a.id === id)?.label || '')
-    const text = squash([s.name, STRETCH_YT[s.id], STRETCH_TYPE_LABEL[s.type], ...areaLabels, ...s.parts, s.good].join(' '))
+    const text = squash([s.name, STRETCH_YT[s.id], STRETCH_TYPE_LABEL[s.type], ...(s.equip || []).map((e) => STRETCH_EQUIP_LABEL[e]), ...areaLabels, ...s.parts, s.good].join(' '))
     return text.includes(q)
   })
 }

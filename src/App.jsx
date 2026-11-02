@@ -1,6 +1,6 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-02] 알림 눌러 앱 열기(sw notificationclick). 같은 날: 커밋 보관 브랜치 wip(배포 안 함) + 작업 지침 2-0. 같은 날: 세션 환경 판별·클라우드 커밋·푸시 절차. 같은 날: 로그인·온보딩 화면 폰트를 페이퍼로지로.
+ * 최신 변경: [2026-11-02] 스트레칭 기구 필터·9종, 포커스형 세트 종류 칩·기본값, 긴 이름 줄바꿈, 부위 배지, 완료 확인창. 같은 날: 알림 눌러 앱 열기(sw notificationclick). 같은 날: 커밋 보관 브랜치 wip(배포 안 함) + 작업 지침 2-0. 같은 날: 세션 환경 판별·클라우드 커밋·푸시 절차. 같은 날: 로그인·온보딩 화면 폰트를 페이퍼로지로.
  *            직전: [2026-11-01] 2차 점검 반영(랭킹 시즌 평균, 미결제 PT, 트레이너 HOME PT 카드·메모, 전체 내보내기, memberPrivate 분리, App Check, 기록 트랜잭션).
  *            직전: [2026-11-01] 전체 점검 반영(앱 소개 공유, 저장 실패 처리, 입력값 확인, 관리자 정합성·PT 정정, 보안 규칙 강화).
  *            직전: 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
@@ -46,7 +46,7 @@ import { isApprovedMember, phoneHash, phoneLast4, isMembershipExpired } from './
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen, hasOpenScreens } from './hooks/useBackableScreen'
 import { showSystemNotification, closeSystemNotification } from './components/RestTimer'
-import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DEFAULT_ACCENT, DEFAULT_FONT, DESIGN_DEFAULTS_VERSION } from './utils/fonts'
+import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DEFAULT_ACCENT, DEFAULT_FONT, DESIGN_DEFAULTS_VERSION, LOG_MODE_DEFAULT_VERSION } from './utils/fonts'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
@@ -296,11 +296,26 @@ export default function App() {
       fontPreference: DEFAULT_FONT,
       logMode: DEFAULT_LOG_MODE,
       designDefaultsVersion: DESIGN_DEFAULTS_VERSION,
+      logModeDefaultVersion: LOG_MODE_DEFAULT_VERSION,
     })
       .then(() => getUserDoc(authUser.uid))
       .then((doc) => doc && setUserDoc(doc))
       .catch((err) => console.error('디자인 기본값 적용 실패:', err))
   }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.designDefaultsVersion])
+
+  // [2026-11-02] 기록 방식 기본값을 포커스형으로 바꿈(사용자 결정): 기존 계정도 한 번만 포커스형으로 맞추고,
+  // 이후 사용자가 리스트형을 고르면 그대로 둔다. 디자인 기본값(위)과 달리 기록 방식만 바꾼다.
+  const logModeDefaultRef = useRef(false)
+  useEffect(() => {
+    if (!authUser?.uid || !userDoc?.onboardingCompleted || logModeDefaultRef.current) return
+    if (userDoc.designDefaultsVersion !== DESIGN_DEFAULTS_VERSION) return // 위 기본값 적용이 먼저(거기서 함께 표시)
+    if (userDoc.logModeDefaultVersion === LOG_MODE_DEFAULT_VERSION) return
+    logModeDefaultRef.current = true
+    updateUserProfile(authUser.uid, { logMode: DEFAULT_LOG_MODE, logModeDefaultVersion: LOG_MODE_DEFAULT_VERSION })
+      .then(() => getUserDoc(authUser.uid))
+      .then((doc) => doc && setUserDoc(doc))
+      .catch((err) => console.error('기록 방식 기본값 적용 실패:', err))
+  }, [authUser?.uid, userDoc?.onboardingCompleted, userDoc?.designDefaultsVersion, userDoc?.logModeDefaultVersion])
 
   // [2026-10-31 Phase2 P2-1] 관리자가 아닌 계정이 /admin 으로 들어오면 주소를 / 로 되돌리고 일반 화면
   // [2026-10-31] 관리 이력에 남길 '지금 작업하는 사람'(관리자·트레이너만)

@@ -2317,6 +2317,18 @@ export function getExerciseColor(name) {
 // 이름(=커스텀 종목)은 customExercises(users/{uid}.customExercises, 부위별 배열)에서
 // 등록된 부위를 역으로 찾아 그 부위 색상을 반환한다. 커스텀 종목이 항상 회색(중립색)으로만
 // 보이던 문제(⑦) 수정.
+// [2026-11-02] 부위 배지용: 종목 → 원자 부위(직접 추가한 종목 포함), 없으면 null
+export function getExerciseAtomWithCustom(name, customExercises) {
+  const builtInAtom = getExerciseAtom(name)
+  if (builtInAtom) return builtInAtom
+  if (customExercises) {
+    for (const atom of BODY_PART_ATOMS) {
+      if ((customExercises[atom] || []).includes(name)) return atom
+    }
+  }
+  return null
+}
+
 export function getExerciseColorWithCustom(name, customExercises) {
   const builtInAtom = getExerciseAtom(name)
   if (builtInAtom) return getPartColor(builtInAtom)

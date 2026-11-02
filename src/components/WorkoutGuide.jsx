@@ -10,7 +10,7 @@ import { createPortal } from 'react-dom'
 export const WORKOUT_GUIDE_VERSION = '2026-10-29'
 
 export const WORKOUT_GUIDE_STEPS = [
-  { key: 'set-type', title: '세트 번호', body: '누를 때마다 W 웜업 → D 드롭 → F 실패 → 번호로 바뀌어요. 웜업 세트는 볼륨·신기록·다음 무게 추천에서 빠져요. 길게 누르면 그 세트를 삭제해요.' },
+  { key: 'set-type', title: '세트 종류', body: '본세트·웜업·드롭·실패 중에서 골라요(리스트형은 세트 번호를 누를 때마다 W 웜업 → D 드롭 → F 실패 → 번호로 바뀌고, 길게 누르면 삭제). 웜업 세트는 볼륨·신기록·다음 무게 추천에서 빠져요.' },
   { key: 'set-values', title: '무게 × 횟수', body: '지난 기록이 미리 채워져 있어요. − / + 를 누르거나 숫자를 눌러 고치세요.' },
   { key: 'rir', title: 'RIR (남은 여력)', body: '그 세트에서 몇 개 더 할 수 있었는지 적는 칸이에요(0 = 한계까지). 선택 사항이고, 적으면 다음 무게 추천에 반영돼요. 안 쓰면 MY > 디자인에서 끌 수 있어요.' },
   { key: 'set-save', title: '세트 완료', body: '한 세트를 마치면 체크하세요. 기록이 저장되고 휴식 타이머가 바로 시작돼요.' },
