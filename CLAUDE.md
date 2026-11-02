@@ -2,7 +2,7 @@
 
 > 이 파일은 저장소 루트에 두고 Claude가 작업 시작 시 항상 먼저 읽는 작업 지침이다.
 > claude.ai 프로젝트 지침과 내용이 다르면 **이 파일이 최신 기준**이다. 규칙이 바뀌면 이 파일을 갱신하고 커밋한다.
-> 최종 갱신: 2026-11-02 (세션 시작 환경 판별·PC 셸 없는 세션의 커밋·푸시·PC 동기화 절차, 2026-11-01 다음 채팅 인계 갱신, 2차 점검 반영: 랭킹 시즌 평균·미결제 PT·트레이너 HOME·memberPrivate·App Check·기록 트랜잭션, 전체 점검 반영: 입력값 확인·저장 실패 처리·관리자 정합성·보안 규칙 강화, 법적 정비 구현·Spark 한도 절약·홍보 페이지 문장 단위 줄바꿈, Phase2 P2-1 회원 승인·관리자 대시보드·P2-2 트레이너 연결, 다음 무게 추천 고도화, 법적·라이선스 기준·다음 작업 인계 추가, 스트레칭 가이드·목표 5종, 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 개선·등급 방패 아이콘, 자동 저장 검토 팝업·MY 설정 화면, 온보딩 닉네임·주당 목표, 디자인 기본값·MY 접기, 등급 Lv 리뉴얼·전면 점검 반영, 옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
+> 최종 갱신: 2026-11-02 (커밋·푸시 운영: wip 브랜치 보관·배포 없음, 세션 시작 환경 판별, 사용자 git 명령 없음, 2026-11-01 다음 채팅 인계 갱신, 2차 점검 반영: 랭킹 시즌 평균·미결제 PT·트레이너 HOME·memberPrivate·App Check·기록 트랜잭션, 전체 점검 반영: 입력값 확인·저장 실패 처리·관리자 정합성·보안 규칙 강화, 법적 정비 구현·Spark 한도 절약·홍보 페이지 문장 단위 줄바꿈, Phase2 P2-1 회원 승인·관리자 대시보드·P2-2 트레이너 연결, 다음 무게 추천 고도화, 법적·라이선스 기준·다음 작업 인계 추가, 스트레칭 가이드·목표 5종, 목표 우선순위 맞춤 설정·성취 30종·트레이너 관점 개선·등급 방패 아이콘, 자동 저장 검토 팝업·MY 설정 화면, 온보딩 닉네임·주당 목표, 디자인 기본값·MY 접기, 등급 Lv 리뉴얼·전면 점검 반영, 옛 claude.ai 프로젝트 지침 v9 통합, Claude 직접 커밋·푸시, 자동 배포 복구, 전면 리뉴얼 v10 반영, 기록 화면 미리보기·폰트 5종 비교·GIF 삭제, 전 화면 리디자인·강조색 팔레트 5종)
 
 ---
 
@@ -27,28 +27,29 @@
 8. **지침 갱신**: 설계 스펙·디자인 기준의 새 버전 문서가 생기면 다음 작업 전에 이 파일을 먼저 갱신한다. 삭제·변경된 사안은 다른 섹션(보안·로드맵 등)에 남은 언급까지 찾아 지운다. 옛 문서는 참고용으로만 두고 인용하지 않는다.
 
 ## 2. 결과물 전달 · Git
-### 2-0. 세션 시작 시 환경 판별(2026-11-02, 매 채팅 첫 작업 전에 한 번)
-세션마다 쓸 수 있는 도구가 다르다. 사용자에게 묻지 말고 아래 순서로 스스로 판별해 맞는 방식으로 진행한다. 사용자가 `git pull`·`git push`를 직접 치지 않게 하는 것이 목표.
-1. `ToolSearch`로 `device_bash`를 찾는다.
-   - **있으면 (A) PC 셸 방식**: 아래 2장 기존 규칙 그대로(PC 폴더에서 직접 commit, "푸시해"에 push).
-   - **없고 `device_list_dir`·`device_stage_files`·`device_commit_files`만 있으면 (B) 클라우드 방식**(2026-11-02 첫 사용):
-     1) `add_repo`(owner newhead84, repo bodytailor-log, access **push**) → 안내대로 `git clone --depth 1 https://github.com/newhead84/bodytailor-log /home/claude/bodytailor-log`(타임아웃 넉넉히) → `register_repo_root`. 이후 `git fetch --depth=50 origin main`으로 이력을 조금 더 받아 둔다(PC 미푸시 커밋을 가져올 때 그 부모가 클론에 있어야 함).
-     2) PC 상태 읽기: `device_stage_files`로 `.git/refs/heads/main`·`.git/packed-refs`·`.git/logs/HEAD`를 가져와 PC HEAD와 PC의 origin/main을 확인(`push-auth`는 절대 가져오지 않는다).
-     3) PC HEAD가 GitHub에 없으면(PC에서 만든 미푸시 커밋): `device_list_dir`로 `.git/objects` 아래 loose 객체를 찾아 `device_stage_files`로 가져와 클론의 `.git/objects`에 복사 → `git log`·`git diff --stat`로 확인. 커밋 SHA가 PC와 같으니 클론 main을 그 커밋으로 맞춘다(`git checkout -B main <sha>`). PC에서 gc로 객체가 pack에 들어갔으면 이 방법이 안 되니 사용자에게 PowerShell `git push`를 안내.
-   - 둘 다 없으면 폴더 연결이 안 된 것 - 클론에서 작업하고 zip 또는 PowerShell 블록 안내.
-2. **(B) 커밋**: 클론에서 수정·빌드·QA → `git -c user.name=Claude -c user.email=noreply@anthropic.com commit --author="MOON <ikjoomoon84@gmail.com>" -m ... -m ...`(작성자는 MOON, 커미터는 Claude noreply - 클라우드 세션의 커밋 검사가 커미터 이메일을 확인함. 여러 `-m`, 끝에 Co-Authored-By/Claude-Session 줄). 푸시는 하지 않는다.
-3. **(B) PC 폴더는 건드리지 않는다**: 원격 도구는 PC의 `.git`에 쓸 수 없다(2026-11-02 확인: "Writing to .git is not permitted via remote tools"). 작업 파일만 덮어쓰면 PC 저장소가 '수정됨' 상태가 되고 나중 `git pull`이 충돌한다(실제로 겪음). 그래서 (B)에서는 클론→GitHub만 쓰고, PC 폴더는 다음에 (A)가 되는 세션에서 Claude가 맞춘다(아래 6). PC에 결과 파일을 꼭 보여줘야 하면 저장소 밖 새 폴더(예: `_preview/`, .gitignore 확인)에만 쓴다.
-4. **(B) "푸시해"**: `git fetch origin main`(얕은 클론에서 413 방지) → `git push origin HEAD:main` → `git ls-remote origin main`으로 확인.
-5. 작업 끝 보고: 푸시 안 된 커밋 수(`git rev-list --count origin/main..HEAD`). 명령 블록을 사용자에게 넘기는 것은 (A)·(B) 모두 안 될 때만.
-6. **(A) 세션 시작 시 PC 자동 맞추기**: `git status`가 깨끗하면 `git fetch` 후 뒤처져 있으면 `git pull --ff-only`를 Claude가 직접 한다(사용자에게 시키지 않는다). PC에 안 커밋된 변경·미푸시 커밋이 있으면 먼저 알리고 처리. 2026-11-02 (B) 세션에서 PC에 `tools/pc-sync.sh`(미추적, 실패한 동기화 시도의 흔적)가 남았으니 보이면 지운다.
+### 2-0. 커밋·푸시 운영(2026-11-02 확정, 매 채팅 첫 작업 전에 확인)
+**원칙: 사용자는 git 명령을 치지 않는다.** 커밋도, "푸시해"에 따른 푸시도, PC 폴더 맞추기도 Claude가 한다. 커밋은 모아 두고 사용자가 "푸시해"라고 할 때만 배포(main)한다. 세션·PC·도구가 바뀌어도 아래 순서대로 스스로 판별해 진행하고, 사용자에게 묻거나 명령 블록을 넘기지 않는다.
 
-- **전달 방식**((A) PC 셸 방식일 때. (B)는 2-0의 3): 수정 파일을 연결된 로컬 폴더에 저장소 상대 경로 그대로 **덮어쓰기(overlay)** 한다(폴더 삭제 금지). 폴더 연결이 안 된 경우에만 `bodytailor-log-patch-YYYYMMDD.zip`(node_modules·dist·.git 제외)으로 전달.
+**모아 둔 커밋은 `wip` 브랜치에 보관한다.** vercel.json `git.deploymentEnabled.wip = false`라 `wip`에 올려도 배포가 생기지 않는다. 클라우드 세션은 끝나면 사라지고 PC `.git`은 원격 도구로 쓸 수 없어서, GitHub의 `wip`이 "아직 배포 안 한 커밋"을 잃지 않는 유일한 자리다.
+- 커밋할 때마다: 커밋 → `git push origin HEAD:wip`(배포 없음, 필요하면 `--force-with-lease`로 wip만 맞춤).
+- "푸시해": `git fetch origin main` → main이 wip의 조상인지 확인 → `git push origin HEAD:main` → `git ls-remote origin main`으로 확인 → 배포 1회. `wip`은 main과 같아진 채로 둔다.
+- 작업 끝 보고: 배포 대기 커밋 수 = `git rev-list --count origin/main..HEAD`.
+
+**세션 시작 판별**
+1. `ToolSearch`로 `device_bash`를 찾는다.
+   - **있으면 (A) PC 셸**: PC 폴더에서 작업·커밋(인증 `.git/push-auth`). 시작할 때 `git fetch origin main wip` → PC가 깨끗하면 `origin/wip`(없으면 `origin/main`)까지 `git merge --ff-only`로 맞춘다. PC에 wip에 없는 커밋이 있으면 `git push origin HEAD:wip`. 안 커밋된 변경이 있으면 먼저 알린다. 2026-11-02 세션이 남긴 미추적 `tools/pc-sync.sh`가 보이면 지운다.
+   - **없고 `device_list_dir`·`device_stage_files`·`device_commit_files`만 있으면 (B) 클라우드**: `add_repo`(newhead84/bodytailor-log, access **push**) → 안내대로 `git clone --depth 1 https://github.com/newhead84/bodytailor-log /home/claude/bodytailor-log`(타임아웃 넉넉히) → `register_repo_root` → `git fetch --depth=50 origin main wip` → `origin/wip`이 main보다 앞서 있으면 `git checkout -B main origin/wip`. 커밋은 `git -c user.name=Claude -c user.email=noreply@anthropic.com commit --author="MOON <ikjoomoon84@gmail.com>"`(작성자 MOON, 커미터 Claude noreply - 클라우드 세션의 커밋 검사가 커미터 이메일을 확인함). **PC 폴더는 건드리지 않는다**(`.git`에 못 써서 작업 파일만 덮으면 PC 저장소가 꼬임, 2026-11-02 겪음) - 다음 (A) 세션에서 맞춘다.
+     - PC에 wip에도 없는 옛 미푸시 커밋이 있으면(PC `.git/refs/heads/main`·`packed-refs`를 `device_stage_files`로 읽어 비교, `push-auth`는 절대 가져오지 않음): `.git/objects` loose 객체를 가져와 클론에 복사하면 같은 SHA로 올릴 수 있다(2026-11-02 성공). pack에 들어가 있으면 안 되니 다음 (A) 세션으로 미룬다.
+   - **둘 다 없으면**(폴더 연결 안 됨): 클라우드 방식만 쓴다(PC 상태 확인 생략).
+2. `add_repo`가 권한 오류면 그 안내 문구(claude.ai 설정의 GitHub 연결)를 그대로 전한다. 명령 블록 안내는 이것까지 안 될 때 마지막 수단.
+
+- **전달 방식**((A) PC 셸일 때. (B)는 PC 폴더를 건드리지 않음): 수정 파일을 연결된 로컬 폴더에 저장소 상대 경로 그대로 **덮어쓰기(overlay)** 한다(폴더 삭제 금지). 폴더 연결이 안 된 경우에만 `bodytailor-log-patch-YYYYMMDD.zip`(node_modules·dist·.git 제외)으로 전달.
 - 변경 파일 목록과 파일별 변경 요약을 대화창에 함께 안내한다.
 - **커밋/푸시 기준**:
-  - 수정 완료 후 Claude가 연결된 로컬 폴더에서 직접 `git add`/`commit`까지 한다(작성자 MOON, 여러 `-m`). **푸시는 바로 하지 않는다.**
-  - 푸시할 때마다 Vercel 배포가 1회 생기므로(배포 한도) 커밋을 모아 두었다가 사용자가 "푸시해"라고 할 때만 `git push`한다. 작업 끝에 아직 푸시 안 된 커밋 수를 알려준다.
+  - 수정 완료 후 Claude가 직접 커밋한다(작성자 MOON, 여러 `-m`). main 푸시는 바로 하지 않고 `wip`에만 올린다(2-0).
+  - main에 푸시할 때마다 Vercel 배포가 1회 생기므로(배포 한도) 커밋을 모아 두었다가 사용자가 "푸시해"라고 할 때만 main에 올린다. 작업 끝에 배포 대기 커밋 수를 알려준다.
   - 인증은 `.git/push-auth`(fine-grained 토큰, Contents 쓰기) + `credential.helper store --file=.git/push-auth`. 토큰 값은 출력·로그에 절대 노출하지 않는다.
-  - (A)·(B) 모두 안 되거나 푸시가 실패하면 PowerShell 블록(`cd` 줄 없음, 여러 `-m`, heredoc 금지)으로 안내한다.
+  - 2-0의 모든 방법이 막혔을 때만 PowerShell 블록(`cd` 줄 없음, 여러 `-m`, heredoc 금지)으로 안내한다.
   - git이 잠금 파일을 지워야 하므로 세션마다 폴더 삭제 권한 승인이 필요할 수 있다.
   - 커밋 뒤 `unable to unlink ... .lock` 경고가 나오면 `.git/HEAD.lock`·`.git/objects/maintenance.lock`·`tmp_obj_*`가 남은 것 - 삭제 권한(device_request_delete_permission)을 한 번 받아 지운 뒤 `git status`로 확인(2026-10-30).
 - push 거부 시 `git pull --rebase` 후 재푸시. `--force`는 최후의 수단.
@@ -265,7 +266,7 @@ connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, member
 - Phase3(후보): 기존 운동기록 일괄 업로드 / 알림 세분화.
 
 ### 7.8 다음 작업 인계 (2026-11-02 기준 - 다음 채팅은 여기부터)
-- **2026-11-02 인계(다음 채팅은 여기부터)**: 먼저 2-0으로 환경 판별. 푸시 대기 커밋은 작업 끝 보고 참고.
+- **2026-11-02 인계(다음 채팅은 여기부터)**: 먼저 2-0(세션 판별 → `origin/wip` 확인). PC 폴더는 2026-11-02 기준 d352ec6에 머물러 있음(다음 (A) 세션에서 ff로 맞춤).
   - 착수 확인 대기(정리안 제시함, 사용자 '진행' 전): ① 대시보드 PT 횟수 등록 찾기 쉽게 - 회원 상세 PT 줄에 'PT 등록' 버튼, 회원 표 버튼 이름 '회원권·PT 등록', PT 관리 탭에 'PT 등록' 진입점(모두 기존 MembershipEditor 열기). 원인: 버튼이 표 맨 오른쪽 '회원권·PT'·상세 '수정·연장' 안에 있어 안 보임 ② **관리자 겸 트레이너**(대표가 관리자이자 트레이너 - 사용자 요청): 역할은 '관리자' 유지 + 관리자만 바꾸는 `users.trainerEnabled`. 켜면 연결 탭 담당 트레이너 후보·MY '내 회원'·트레이너 HOME·프로필 연결. rules `isTrainerOf`·트레이너 adminLogs 조건에 "관리자 && trainerEnabled" 추가(푸시 후 콘솔 게시). 가정: 본인을 자기 회원으로 연결 허용(한 계정으로 양쪽 테스트), 관리자는 담당 회원 기록만 봄. 영향: firestore.rules, App.jsx, MyPageTab, HomeTab, AdminDashboard, TrainerProfilesTab, utils/member.js 등 '트레이너' 판정 약 24곳.
 - **다음 채팅 시작 순서(2026-11-01 오전, 1·2차 점검 푸시 직후)**:
   1. 사용자에게 Firebase 콘솔 규칙 게시를 했는지 먼저 확인한다(1·2차 점검 규칙이 이번 푸시에 처음 배포됨 - 안 했으면 PT 일정 등록·차감·탈퇴·인기 운동·gymStats가 거부됨). 게시 후 플레이그라운드로 미결제 완료·일정 시간 바꾸기·회원 연결 해제 확인 권장.
