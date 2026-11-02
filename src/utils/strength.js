@@ -52,9 +52,23 @@ export function setCoachIntensity(id) {
 export function getCoachIntensity() {
   return coachIntensity
 }
+// [2026-11-03] 강도는 MY 설정 하나로 전체 적용(종목별 강도는 번거로워 없앰 - 사용자 결정). 예전에 저장한 종목별 intensity는 무시.
+// eslint-disable-next-line no-unused-vars
 export function intensityOf(setting) {
-  return INTENSITY_BY_ID[normalizeIntensity(setting?.intensity || coachIntensity)]
+  return INTENSITY_BY_ID[coachIntensity]
 }
+// [2026-11-03 최근 연구] 목표에 맞춘 강도 안내: 근육 성장은 한계에 가까울수록 커지지만 근력은 거의 차이가 없다(2024 종합 분석).
+export function intensityGoalHint(primary, id = coachIntensity) {
+  if (primary === 'muscle') {
+    if (id === 'easy2' || id === 'easy') return '근육을 키우려면 보통~세게가 효율적이에요(한계에 가까울수록 근육이 더 자라요).'
+    if (id === 'max') return '근육엔 효과적이지만 피로가 커요. 힘(근력)만 보면 한계까지 갈 필요는 적어요.'
+    return '근육 키우기에 맞는 강도예요. 힘(근력)은 한계까지 가지 않아도 비슷하게 늘어요.'
+  }
+  if (id === 'hard' || id === 'max') return '지금 목표에는 보통 이하로도 충분해요. 한계까지 가면 피로만 커질 수 있어요.'
+  return '지금 목표에 맞는 강도예요.'
+}
+// [2026-11-03 최근 연구] 한 부위를 한 번 운동에 약 11세트(보조 0.5세트로 계산) 넘게 하면 그 이상은 근육 성장 효과가 거의 없다(2025 사전공개 연구)
+export const SESSION_SET_CAP = 11
 // 오늘 권장 세트 수(본세트): 부위당 주 10세트 이상이 근비대에 유리(Schoenfeld 외 2017)하고 주 2회로 나누면 한 번에 3–5세트.
 // 근육·뼈 목표는 다관절 4·고립 3, 그 밖의 목표는 3·2, 처음 8주(초보 1–3세트, ACSM 2009)는 최대 3·2.
 export function recommendedSetCount(name) {
@@ -547,7 +561,7 @@ export function adviseAfterSet(name, set, setting, ctx = {}) {
     return {
       ...(down ? { weight: nw } : {}),
       kind: down ? 'down' : 'info',
-      reason: `한계(실패)까지 갔어요 → 다음 세트는 한 개 남기고 끝내요(RIR 1)${down ? `, 무게는 ${loadWith(name, nw)}` : ''} · 휴식은 30초 더 쉬어요`,
+      reason: `한계(실패)까지 갔어요 → 다음 세트는 한 개 남기고 끝내요(RIR 1)${down ? `, 무게는 ${loadWith(name, nw)}` : ''} · 휴식은 30초 더 쉬어요${down ? '' : ' · 마지막 세트라면 내려간 자리에서 반만 2~4개 더 해도 좋아요(최근 연구)'}`,
     }
   }
   if (reps >= repMax + it.upOver && !failure) {
@@ -591,9 +605,16 @@ const SRC = {
   plotkin: '2022년 무게·횟수 늘리기 비교 연구',
   grgic: '2022년 한계까지 하는 훈련 연구 종합 분석',
   loads: '2017년 무게별 근육 성장 연구 종합 분석',
-  volume: '2017년 운동량별 근육 성장 연구 종합 분석',
   comeback: '2013년 운동 쉬었다 다시 하기 연구',
-  proximity: '2023년 한계 근접도 연구 종합 분석',
+  proximity: '2023·2024년 한계 근접도 연구 종합 분석',
+  rest: '2024년 휴식 시간 연구 종합 분석',
+}
+// 최근 연구(학술지 심사 전 사전공개·소규모) - 화면에 '최근 연구(검증 중)'으로 따로 표시. 1년에 한 번 다시 점검(CLAUDE.md)
+// 원문: Pelland 외 2024(운동량·빈도), Remmert 외 2025(한 번 운동량), Wolf 외 2024(늘어난 구간 부분 반복)
+const RECENT = {
+  volume: '2024년 운동량·빈도 연구 종합 분석',
+  session: '2025년 한 번 운동량 연구',
+  partials: '2024년 늘어난 구간 부분 반복 연구',
 }
 export const COACH_EVIDENCE = {
   increase: { text: '지난번에 목표보다 1~2개 더 했다면 무게를 조금(2~10%) 올리는 게 표준이에요. 무게를 올리든 횟수를 늘리든 근육은 비슷하게 자라서, 횟수를 먼저 채우고 무게를 올려요.', src: [SRC.acsm, SRC.plotkin] },
@@ -601,8 +622,15 @@ export const COACH_EVIDENCE = {
   hold: { text: '한계까지 갔거나 컨디션이 나빴던 날은, 무게를 올리기 전에 같은 무게로 한 번 더 확인해요. 매번 한계까지 하는 게 더 효과적이지는 않아요.', src: [SRC.grgic] },
   decrease: { text: '두 번 연속 목표보다 많이 모자라면 무게를 10%쯤 낮춰 다시 쌓아요. 가벼운 무게라도 한계 가까이 하면 근육은 비슷하게 자라요.', src: [SRC.loads] },
   comeback: { text: '2주 넘게 쉬었다면 10%쯤 가볍게 다시 시작해요. 쉬는 동안 줄어든 힘은 다시 운동하면 금방 돌아와요.', src: [SRC.comeback] },
-  sets: { text: '한 부위를 일주일에 10세트 이상 하면 근육이 더 잘 자라요. 처음 두 달은 종목당 1~3세트로 시작하는 게 권장이에요.', src: [SRC.volume, SRC.acsm] },
+  sets: {
+    text: '근육은 한 부위를 일주일에 4세트만 해도 자라기 시작하고, 더 할수록 조금씩 더 자라요(늘어나는 폭은 점점 작아져요). 힘(근력)은 한 번에 많이 하기보다 일주일에 2~3번 나눠 할 때 더 늘어요. 처음 두 달은 종목당 1~3세트로 시작해요.',
+    src: [SRC.acsm],
+    recent: [RECENT.volume],
+  },
   intensity: { text: '한계에 가까이 할수록 근육은 더 자라지만 피로도 커져요. 그래서 강도는 세트마다 몇 개를 남길지로 정해요.', src: [SRC.proximity] },
+  rest: { text: '세트 사이에 1분보다 길게 쉬면 근육 성장에 조금 더 유리하고, 1분 30초를 넘으면 차이가 거의 없어요. 자동 휴식은 이 범위에 맞춰져 있어요.', src: [SRC.rest] },
+  session: { text: '한 부위를 한 번에 11세트쯤(다른 종목에서 함께 쓰인 건 반 세트로 계산) 넘게 하면, 그 이상은 근육 성장에 거의 보탬이 안 돼요. 남은 힘은 다음 운동에 쓰는 게 나아요.', recent: [RECENT.session] },
+  partials: { text: '더 이상 안 될 때 근육이 늘어난 쪽(내려간 자리)에서 반만 몇 개 더 하는 방법도 전체 동작과 비슷하게 근육을 키웠다는 연구가 있어요. 아직 초기 연구라 선택 사항이에요.', recent: [RECENT.partials] },
 }
 
 // 종목별 추천 이력: 최근 기록마다 "그 전 기록으로 계산한 추천 → 실제로 한 것"(현재 종목 설정 기준으로 다시 계산)

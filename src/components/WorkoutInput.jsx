@@ -5,6 +5,7 @@ import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure, PartBadge } fro
 import { ExerciseName } from '../utils/exerciseName'
 import { CountUp } from '../hooks/useCountUp'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
+import { getTrainingProfile } from '../utils/goals'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
 import WorkoutGuide, { WORKOUT_GUIDE_VERSION } from './WorkoutGuide'
@@ -25,6 +26,11 @@ import {
   dropSetWeight,
   intensityOf,
   COACH_EVIDENCE,
+  intensityGoalHint,
+  SESSION_SET_CAP,
+  fractionalSetsByAtom,
+  LEG_FRONT,
+  LEG_BACK,
   SET_TYPE_LABEL,
   SET_TYPE_DESC,
 } from '../utils/strength'
@@ -533,6 +539,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setSetTips({})
     setCoachPlans({}) // [2026-11-02 로그 코치] 세션이 끝나면 오늘 플랜·증량 제안 횟수도 초기화
     setTipUps({})
+    setCapWarned({})
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -847,6 +854,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setSetTips({})
     setCoachPlans({}) // [2026-11-02 로그 코치] 세션이 끝나면 오늘 플랜·증량 제안 횟수도 초기화
     setTipUps({})
+    setCapWarned({})
     setCompletedExercises({})
     setHiddenToday([])
     setFreeExercises([])
@@ -1079,6 +1087,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // [2026-11-02 로그 코치] '플랜대로 하기'로 정한 오늘 세트 수(applied) - 코치 한마디 줄의 기준. 운동 중 증량 제안 횟수(강도별 제한)
   const [coachPlans, setCoachPlans] = useState({})
   const [tipUps, setTipUps] = useState({})
+  // [2026-11-03 최근 연구] 한 부위 오늘 세트가 SESSION_SET_CAP을 넘었다고 이미 안내한 부위(세션당 한 번)
+  const [capWarned, setCapWarned] = useState({})
   function plannedCountFor(key) {
     return coachPlans[key]?.count || suggestionFor(key)?.lastSetCount || 0
   }
@@ -1222,7 +1232,6 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       restSec: setting?.restSec || null,
       defaultRestSec: getDefaultRestSec(name),
       showWarmupRamp: hasWarmupRamp(name),
-      intensity: setting?.intensity ?? null,
       coachPlan: coachPlans[key] || null,
       plannedCount: plannedCountFor(key),
       planTargets: planSetTargets(suggestionFor(key), name),
@@ -1314,7 +1323,24 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     {
       // [2026-11-02 로그 코치] 이 세트 전에 저장한 본세트(웜업·드롭 제외)·오늘 목표 세트 수·이미 한 증량 제안 수를 함께 넘긴다
       const prevWorking = (records[name] || []).filter((st, i) => i !== idx && st.saved && st.type !== 'warmup' && st.type !== 'drop')
-      const tip = savedSet ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
+      let tip = savedSet ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
+      // [2026-11-03 최근 연구] 오늘 이 부위 세트(보조 0.5세트로 계산)가 한 번 운동 상한(약 11세트)을 넘으면 한 번 안내(무게 제안이 있으면 그게 먼저)
+      if (savedSet && savedSet.type !== 'warmup' && (!tip || tip.weight == null)) {
+        const exs = Object.entries(records).map(([k, sets]) => {
+          const nm = parseExerciseKey(k).name
+          return { name: nm, sets: (sets || []).filter((st, i) => (k === name && i === idx) || st.saved) }
+        })
+        const counts = fractionalSetsByAtom([{ exercises: exs }])
+        const atom = getExerciseAtom(parseExerciseKey(name).name)
+        const keys = atom === '하체' ? [LEG_FRONT, LEG_BACK] : atom ? [atom] : []
+        const over = keys.find((a) => (counts[a] || 0) > SESSION_SET_CAP && !capWarned[a])
+        if (over) {
+          setCapWarned((w) => ({ ...w, [over]: true }))
+          const last = over.charCodeAt(over.length - 1)
+          const topic = last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 ? '은' : '는'
+          tip = { kind: 'info', recent: true, reason: `오늘 ${over}${topic} 벌써 ${Math.round(counts[over])}세트쯤 했어요. 한 부위를 한 번에 11세트 넘게 하면 더 해도 효과가 거의 없어요 → 남은 힘은 다른 부위나 다음 운동에 써요` }
+        }
+      }
       if (tip?.kind === 'up') setTipUps((u) => ({ ...u, [name]: (u[name] || 0) + 1 }))
       setSetTips((t) => {
         if (tip) return { ...t, [name]: tip }
@@ -1700,6 +1726,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setSetTips({})
     setCoachPlans({}) // [2026-11-02 로그 코치] 세션이 끝나면 오늘 플랜·증량 제안 횟수도 초기화
     setTipUps({})
+    setCapWarned({})
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -2718,7 +2745,7 @@ export function ExerciseCard({
                 <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                   로그 코치 · 오늘의 플랜
                 </span>
-                <span style={{ flexShrink: 0, fontSize: 11.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>강도 {intensityOf({ intensity: ext.intensity }).label}</span>
+                <span style={{ flexShrink: 0, fontSize: 11.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>강도 {intensityOf().label}</span>
                 <button
                   type="button"
                   onClick={ext.onDismissSuggestion}
@@ -2774,21 +2801,25 @@ export function ExerciseCard({
               )}
               {/* [2026-11-02 로그 코치] 이렇게 정한 이유 - 쉬운 설명 + 출처 한 줄(우리말 이름·연도) + 건강 안내 */}
               {(() => {
-                const it = intensityOf({ intensity: ext.intensity })
+                const it = intensityOf()
                 const why = COACH_EVIDENCE[suggestion.comeback ? 'comeback' : suggestion.kind]
                 const parts = [
                   why?.text,
                   `세트 수(지난번 ${suggestion.lastSetCount || 1}세트 → 오늘 ${ext.planTargets?.length || 1}세트): ${COACH_EVIDENCE.sets.text}`,
-                  `강도 '${it.label}'(${it.rirText} 정도): ${COACH_EVIDENCE.intensity.text}`,
+                  `강도 '${it.label}'(${it.rirText} 정도): ${COACH_EVIDENCE.intensity.text} ${intensityGoalHint(getTrainingProfile().primary)}`,
+                  `휴식: ${COACH_EVIDENCE.rest.text}`,
                 ].filter(Boolean)
-                const src = [...new Set([...(why?.src || []), ...COACH_EVIDENCE.sets.src, ...COACH_EVIDENCE.intensity.src])]
+                const all = [why, COACH_EVIDENCE.sets, COACH_EVIDENCE.intensity, COACH_EVIDENCE.rest]
+                const src = [...new Set(all.flatMap((e) => e?.src || []))]
+                const recent = [...new Set(all.flatMap((e) => e?.recent || []))]
                 return (
                   <Disclosure label="이렇게 정한 이유" style={{ marginTop: 2 }}>
                     <span style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {parts.map((t, i) => (
                         <span key={i} className="text-keep-all">{t}</span>
                       ))}
-                      <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>출처: {src.join(', ')}</span>
+                      <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>검증된 근거: {src.join(', ')}</span>
+                      {recent.length > 0 && <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>최근 연구(검증 중): {recent.join(', ')}</span>}
                       <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>{HEALTH_NOTE}</span>
                     </span>
                   </Disclosure>
@@ -2824,7 +2855,12 @@ export function ExerciseCard({
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}
             >
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>로그 코치 · 코치 한마디</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>
+                  로그 코치 · 코치 한마디
+                  {ext.setTip.recent && (
+                    <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', fontWeight: 600 }}>최근 연구</span>
+                  )}
+                </span>
                 {ext.setTip.weight != null && (
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
                     {ext.setTip.kind === 'up' ? '올리기 · ' : '내리기 · '}다음 세트{' '}
@@ -2900,8 +2936,6 @@ export function ExerciseCard({
               repRange={repRange}
               restSec={restSec ?? null}
               defaultRestSec={defaultRestSec || 90}
-              intensity={ext.intensity ?? null}
-              globalIntensityLabel={intensityOf(null).label}
               history={ext.recHistory || []}
               onChange={ext.onSettingChange}
               onClose={() => setShowSetting(false)}

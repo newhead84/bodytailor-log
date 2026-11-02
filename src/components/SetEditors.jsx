@@ -6,7 +6,7 @@
 //  - PlatePanel: 바벨 원판 계산(한쪽 기준, 20kg 봉).
 //  - ExerciseSettingEditor: 종목별 목표 반복 범위·휴식 시간 설정.
 import React, { useRef } from 'react'
-import { SET_TYPES, SET_TYPE_LABEL, SET_TYPE_SHORT, SET_TYPE_DESC, platesPerSide, COACH_INTENSITIES } from '../utils/strength'
+import { SET_TYPES, SET_TYPE_LABEL, SET_TYPE_SHORT, SET_TYPE_DESC, platesPerSide } from '../utils/strength'
 
 const TYPE_COLOR = {
   warmup: 'var(--color-primary-normal)',
@@ -411,11 +411,11 @@ const REST_CHOICES = [
   { label: '3:00', value: 180 },
 ]
 
-// [2026-11-02 로그 코치] 증량 단위 칸은 없앴다(기구별 자동). 대신 종목별 강도(null = 전체 설정, MY › 설정).
-// 예전에 저장한 step 값은 다음 저장 때 지운다(null).
-export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, intensity = null, globalIntensityLabel = '보통', history = [], onChange, onClose }) {
+// [2026-11-02 로그 코치] 증량 단위 칸은 없앴다(기구별 자동). 예전에 저장한 step 값은 다음 저장 때 지운다(null).
+// [2026-11-03] 종목별 강도도 없앴다(번거로움 - 사용자 결정). 강도는 MY › 설정 하나로 전체 적용.
+export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, history = [], onChange, onClose }) {
   const [min, max] = repRange
-  const set = (patch) => onChange({ repMin: min, repMax: max, restSec, intensity: intensity ?? null, step: null, ...patch })
+  const set = (patch) => onChange({ repMin: min, repMax: max, restSec, step: null, ...patch })
   const stepBtn = (label, onClick, aria) => (
     <button
       type="button"
@@ -477,40 +477,9 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, inten
           })}
         </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>로그 코치 강도 (기본 = 전체 설정 '{globalIntensityLabel}')</span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
-          {[{ id: null, label: '기본' }, ...COACH_INTENSITIES].map((c) => {
-            const on = (intensity ?? null) === c.id
-            return (
-              <button
-                key={String(c.id)}
-                type="button"
-                onClick={() => set({ intensity: c.id })}
-                style={{
-                  height: 34,
-                  padding: '0 6px',
-                  minWidth: 0,
-                  borderRadius: 'var(--radius-pill)',
-                  border: on ? '1px solid var(--color-label-strong)' : '1px solid var(--color-line)',
-                  background: on ? 'var(--color-label-strong)' : 'transparent',
-                  color: on ? 'var(--color-bg)' : 'var(--color-label-strong)',
-                  fontSize: 12.5,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {c.label}
-              </button>
-            )
-          })}
-        </div>
-        <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-          {(() => {
-            const it = COACH_INTENSITIES.find((x) => x.id === intensity)
-            return it ? `${it.label}: ${it.rirText} 정도예요.` : '전체 강도를 따라요. 증량 폭은 기구에 맞춰 자동으로 정해져요(덤벨 2kg·머신 5kg·바벨 2.5kg).'
-          })()}
-        </span>
-      </div>
+      <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+        증량 폭은 기구에 맞춰 자동으로 정해져요(덤벨 2kg·머신 5kg·바벨 2.5kg). 로그 코치 강도는 MY › 설정에서 한 번에 바꿔요.
+      </span>
       <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
         보통 강도에서는 첫 세트가 상한을, 나머지 세트가 하한 이상을 채우거나 총 반복이 상한×세트 수의 90% 이상이면 다음 운동에서 올리기를 추천해요. 그 전까지는 최근 평균보다 세트마다 1회씩 늘리는 목표를 보여줘요. 기본값은 MY 프로필의 운동 목표에 맞춰져요.
       </span>

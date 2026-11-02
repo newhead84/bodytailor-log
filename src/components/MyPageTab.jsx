@@ -7,7 +7,7 @@ import { getMyTrainerConnection, memberEndConnection, listTrainerProfiles, getAl
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerAvatar } from './TrainerProfileView'
 import { membershipState, fmtYmd, isTrainerAccount } from '../utils/member'
-import { COACH_INTENSITIES, normalizeIntensity } from '../utils/strength'
+import { COACH_INTENSITIES, normalizeIntensity, intensityGoalHint } from '../utils/strength'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import AccountLegalSection from './AccountLegalSection'
@@ -458,6 +458,12 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             {logMode === 'focus' ? '한 번에 한 세트만 크게 보여주고, 큰 버튼으로 입력해요.' : '모든 세트를 표로 한눈에 보며 입력해요.'} 운동 중에는 맨 위 초록 바 왼쪽 버튼으로도 바꿀 수 있어요.
           </span>
         </div>
+        </>)}
+      </Card>
+
+      {/* [2026-11-03] 로그 코치 설정을 디자인 밖으로 꺼냄(강도는 여기 한 곳에서 전체 적용 - 사용자 요청) */}
+      <SectionTitle>로그 코치</SectionTitle>
+      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>RIR(남은 여력) 기록</span>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -473,7 +479,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>로그 코치 강도</span>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>강도 (모든 운동에 적용)</span>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
             {COACH_INTENSITIES.map((c) => (
               <Chip key={c.id} active={coachIntensity === c.id} onClick={() => selectCoachIntensity(c.id)} style={{ justifyContent: 'center', minWidth: 0, whiteSpace: 'nowrap' }}>
@@ -484,11 +490,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
             {(() => {
               const c = COACH_INTENSITIES.find((x) => x.id === coachIntensity)
-              return `${c.label}: ${c.rirText} 정도로 플랜을 짜요. 한계에 가까울수록 근육은 더 자라지만 피로도 커져요. 종목마다 따로 바꾸려면 기록 화면의 '목표' 버튼에서 바꿔요.`
+              return `${c.label}: ${c.rirText} 정도로 모든 운동의 플랜을 짜요. ${intensityGoalHint(getTrainingProfile().primary, c.id)}`
             })()}
           </span>
         </div>
-        </>)}
       </Card>
 
       <SectionTitle>알림</SectionTitle>
