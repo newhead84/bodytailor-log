@@ -47,7 +47,7 @@ function setTypeLegend(log) {
 }
 
 // [2026-11-02] 회원 화면 요약: 정체 종목(최근 3회 추정 1RM이 그 전보다 높지 않음)·최근 2주 신기록 - 이미 읽은 8주 기록·회원 문서만 사용
-function MemberProgressCard({ logs, member }) {
+function MemberProgressCard({ logs, member, flushTop = false }) {
   const plateaus = useMemo(() => detectPlateaus([...(logs || [])].reverse()).slice(0, 3), [logs])
   const prs = useMemo(() => {
     const since = (() => {
@@ -60,7 +60,7 @@ function MemberProgressCard({ logs, member }) {
   if (!logs || logs.length === 0) return null
   const row = { display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13.5 }
   return (
-    <Card style={{ marginTop: 12 }}>
+    <Card style={{ marginTop: flushTop ? 0 : 12 }}>
       <p style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700 }}>진행 요약</p>
       <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: 'var(--color-label-neutral)' }}>정체 종목 {plateaus.length}개</p>
       {plateaus.length === 0 ? (
@@ -92,7 +92,38 @@ function MemberProgressCard({ logs, member }) {
   )
 }
 
+// [2026-11-02] 트레이너는 태블릿을 자주 써서, 넓은 화면(768px 이상)에서는 두 칸으로 나눠 PT 일정·회원 정보와 기록을 함께 본다
+const WIDE_QUERY = '(min-width: 768px)'
+function useWide() {
+  const [wide, setWide] = useState(() => {
+    try {
+      return window.matchMedia(WIDE_QUERY).matches
+    } catch (e) {
+      return false
+    }
+  })
+  useEffect(() => {
+    let mq
+    try {
+      mq = window.matchMedia(WIDE_QUERY)
+    } catch (e) {
+      return undefined
+    }
+    const on = () => setWide(mq.matches)
+    on()
+    if (mq.addEventListener) mq.addEventListener('change', on)
+    else mq.addListener?.(on)
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', on)
+      else mq.removeListener?.(on)
+    }
+  }, [])
+  return wide
+}
+const wideGrid = (left, right) => ({ display: 'grid', gridTemplateColumns: `minmax(0, ${left}fr) minmax(0, ${right}fr)`, gap: 20, alignItems: 'start', maxWidth: 1200, margin: '0 auto' })
+
 export default function TraineesScreen({ uid, trainerName = '', customExercises = {}, onClose }) {
+  const wide = useWide()
   const [list, setList] = useState(null)
   const [sel, setSel] = useState(null)
   const [weekItems, setWeekItems] = useState([]) // 이번 주 일정(회원 카드의 '다음 PT'에 재사용)
@@ -119,19 +150,19 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
       })
   }, [uid])
 
-  if (sel) return <MemberLogs conn={sel} uid={uid} trainerName={trainerName || sel.trainerName} customExercises={customExercises} onBack={closeSel} />
-  return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '0 20px 80px', boxSizing: 'border-box' }}>
-      <ScreenHeader title="내 회원" onBack={onClose} />
-      <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>관리자가 연결한 담당 회원이에요. 운동 계획을 만들어 보내고, 회원이 남긴 기록을 볼 수 있어요(기록 수정은 회원만).</p>
-      {list && list.length > 0 && <OverdueSchedules uid={uid} list={list} onOpen={setSel} />}
-      {list && list.length > 0 && <WeekSchedules uid={uid} list={list} onOpen={setSel} onItems={setWeekItems} />}
-      {list === null ? (
+  if (sel) return <MemberLogs conn={sel} uid={uid} trainerName={trainerName || sel.trainerName} customExercises={customExercises} onBack={closeSel} wide={wide} />
+  const schedules = list && list.length > 0 && (
+    <>
+      <OverdueSchedules uid={uid} list={list} onOpen={setSel} />
+      <WeekSchedules uid={uid} list={list} onOpen={setSel} onItems={setWeekItems} />
+    </>
+  )
+  const members = list === null ? (
         <p style={{ color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
       ) : list.length === 0 ? (
         <Card><p style={{ margin: 0, fontSize: 14, color: 'var(--color-label-neutral)' }}>아직 연결된 회원이 없어요. 관리자에게 연결을 요청해 주세요.</p></Card>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={wide ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 } : { display: 'flex', flexDirection: 'column', gap: 10 }}>
           {list.map((c) => (
             <Card key={c.id} onClick={() => setSel(c)}>
               <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{c.memberName}{c.memberNickname ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}> · {c.memberNickname}</span> : null}</p>
@@ -150,6 +181,21 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
             </Card>
           ))}
         </div>
+      )
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', padding: wide ? '0 28px 80px' : '0 20px 80px', boxSizing: 'border-box' }}>
+      <ScreenHeader title="내 회원" onBack={onClose} bleed={wide ? 28 : 20} />
+      <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px', ...(wide ? { maxWidth: 1200, marginLeft: 'auto', marginRight: 'auto' } : {}) }}>관리자가 연결한 담당 회원이에요. 운동 계획을 만들어 보내고, 회원이 남긴 기록을 볼 수 있어요(기록 수정은 회원만).</p>
+      {wide && schedules ? (
+        <div style={wideGrid(5, 6)}>
+          <div>{schedules}</div>
+          <div>{members}</div>
+        </div>
+      ) : (
+        <>
+          {schedules}
+          {members}
+        </>
       )}
     </div>
   )
@@ -280,7 +326,7 @@ function WeekSchedules({ uid, list, onOpen, onItems }) {
   )
 }
 
-function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
+function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = false }) {
   const [logs, setLogs] = useState(null)
   const [open, setOpen] = useState({})
   const [editing, setEditing] = useState(null) // null | 'new' | template
@@ -338,15 +384,18 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
     )
   }
 
-  return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '0 20px 80px', boxSizing: 'border-box' }}>
-      <ScreenHeader title={conn.memberName} onBack={onBack} backLabel="회원 목록" />
-      <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px' }}>최근 8주 운동 기록 · 이번 주 <span className="bt-num">{thisWeekDays}</span>일 운동</p>
+  // [2026-11-02] 태블릿(넓은 화면): 왼쪽 회원 정보·PT·메모·계획, 오른쪽 진행 요약·기록(기록은 펼친 채로 시작)
+  const info = (
+    <>
       <MemberBody member={member} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} memberName={conn.memberName} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
       <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={() => { invalidateTraineeSummary(conn.memberUid); loadMember() }} />
       <TrainerNoteCard uid={uid} memberUid={conn.memberUid} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} />
-      <MemberProgressCard logs={logs} member={member || null} />
+    </>
+  )
+  const records = (
+    <>
+      <MemberProgressCard logs={logs} member={member || null} flushTop={wide} />
       <h2 style={{ fontSize: 16, margin: '22px 0 10px' }}>운동 기록</h2>
       {logs === null ? (
         <p style={{ color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
@@ -356,10 +405,10 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {logs.map((l) => {
             const key = l.id || l.date
-            const isOpen = !!open[key]
+            const isOpen = open[key] ?? wide
             const vol = Math.round(logVolumeKg(l))
             return (
-              <Card key={key} onClick={() => setOpen((o) => ({ ...o, [key]: !o[key] }))}>
+              <Card key={key} onClick={() => setOpen((o) => ({ ...o, [key]: !(o[key] ?? wide) }))}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
                   <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
                     {fmtDay(l.date)} {l.partName ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {l.partName}</span> : null}
@@ -388,6 +437,23 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
             )
           })}
         </div>
+      )}
+    </>
+  )
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', padding: wide ? '0 28px 80px' : '0 20px 80px', boxSizing: 'border-box' }}>
+      <ScreenHeader title={conn.memberName} onBack={onBack} backLabel="회원 목록" bleed={wide ? 28 : 20} />
+      <p style={{ fontSize: 13, color: 'var(--color-label-neutral)', margin: '0 0 16px', ...(wide ? { maxWidth: 1200, marginLeft: 'auto', marginRight: 'auto' } : {}) }}>최근 8주 운동 기록 · 이번 주 <span className="bt-num">{thisWeekDays}</span>일 운동</p>
+      {wide ? (
+        <div style={wideGrid(5, 7)}>
+          <div>{info}</div>
+          <div>{records}</div>
+        </div>
+      ) : (
+        <>
+          {info}
+          {records}
+        </>
       )}
     </div>
   )

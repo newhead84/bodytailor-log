@@ -8,7 +8,7 @@ import { ACTION, Badge, Bars, LogRow, isGymMember, muted, sectionTitle, selectSt
 import { adminGetGymStats, adminListLogs, adminPtRange, adminSaveNote, logAdmin } from '../storage'
 import { UserPlus, Clock, Dumbbell, Moon, CalendarDays, MessageSquare, Receipt, Handshake } from 'lucide-react'
 import { dashSetting } from './AdminTools'
-import { daysBetween, fmtYmd, memberName, membershipState, MEMBER_STATUS } from '../utils/member'
+import { daysBetween, fmtYmd, memberName, membershipState, MEMBER_STATUS, isTrainerAccount } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
 import { downloadText } from '../utils/exportCsv'
 
@@ -88,7 +88,7 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings
   const weeks = Array.from({ length: 8 }, (_, i) => weekStartStr(new Date(), i - 7))
   const weekBars = weeks.map((w, i) => ({ label: `${Number(w.slice(5, 7))}/${Number(w.slice(8, 10))}`, value: members.filter((u) => (u.activity?.weeks?.[w] || 0) > 0).length, highlight: i === 7 }))
   // 트레이너 이번 달
-  const trainers = users.filter((u) => u.role === '트레이너')
+  const trainers = users.filter(isTrainerAccount)
   const tRows = trainers
     .map((t) => ({
       t,

@@ -14,6 +14,12 @@ export function isApprovedMember(userDoc) {
   return !userDoc.memberStatus || userDoc.memberStatus === 'approved'
 }
 
+// [2026-11-02] 트레이너 일을 하는 계정: 트레이너, 또는 관리자가 켜 둔 '관리자 겸 트레이너'(users.trainerEnabled, 관리자만 수정).
+// rules의 trainerRoleOk와 같은 기준. 회원권 면제·랭킹 제외 같은 '트레이너 전용' 판단은 role === '트레이너'를 그대로 쓴다.
+export function isTrainerAccount(u) {
+  return !!u && (u.role === '트레이너' || (u.role === '관리자' && u.trainerEnabled === true))
+}
+
 // 010-1234-5678 / +82 10 1234 5678 / 01012345678 → 01012345678
 export function normalizePhone(raw) {
   let d = String(raw || '').replace(/\D/g, '')

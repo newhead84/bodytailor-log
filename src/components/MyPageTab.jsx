@@ -6,7 +6,7 @@ import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAU
 import { getMyTrainerConnection, memberEndConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerAvatar } from './TrainerProfileView'
-import { membershipState, fmtYmd } from '../utils/member'
+import { membershipState, fmtYmd, isTrainerAccount } from '../utils/member'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import AccountLegalSection from './AccountLegalSection'
@@ -1007,7 +1007,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       {/* [2026-07-31 신규] MY탭 1:1 문의(⑩). role === '관리자'인 계정에서만 "문의 관리"
           진입점이 추가로 보인다. */}
       {/* [2026-10-31 Phase2 P2-2] 트레이너: 내 회원 / 회원: 담당 트레이너 */}
-      {userDoc?.role === '트레이너' && (
+      {isTrainerAccount(userDoc) && (
         <>
           <SectionTitle>트레이너</SectionTitle>
           <Card onClick={onShowTrainees} style={{ marginBottom: 20 }}>

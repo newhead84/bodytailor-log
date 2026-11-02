@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Card, useConfirm } from './ui'
 import { Badge, Bars, LogRow, fmtDate, fmtDateTime, muted, sectionTitle, selectStyle, statusOf } from './adminUi'
-import { adminListLogs, adminListMemberConnections, adminSaveNote, adminGetNote, adminSetPauses, adminEditSignupInfo, adminFindRosterByHash, adminTransferMembership, listPtSessions, listPtSchedules, logAdmin } from '../storage'
+import { adminListLogs, adminListMemberConnections, adminSaveNote, adminGetNote, adminSetPauses, adminEditSignupInfo, adminFindRosterByHash, adminTransferMembership, listPtSessions, listPtSchedules, logAdmin, adminUpdateMember } from '../storage'
 import { addDays, daysBetween, fmtYmd, memberName, membershipState, pausesOf, MEMBER_STATUS, isValidMobile, phoneHash, phoneLast4 } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
 
@@ -120,12 +120,17 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
           {u.createdAt && <span>가입 {fmtDate(u.createdAt)}</span>}
         </p>
         <SignupEditor key={u.signupInfo?.name || ''} u={u} admin={admin} confirm={confirm} onDone={() => onUserChanged?.(u.uid)} />
+        {u.role === '관리자' && <TrainerToggle u={u} admin={admin} confirm={confirm} activeConns={(conns || []).filter((c) => c.status === 'active' && c.trainerUid === u.uid).length} onDone={() => onUserChanged?.(u.uid)} />}
       </Card>
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <p style={{ ...sectionTitle, margin: 0 }}>회원권·PT</p>
-          <Button variant="ghost" onClick={onEditMembership} style={{ padding: '7px 12px', fontSize: 14.5 }}>수정·연장</Button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {/* [2026-11-02] PT 횟수 등록을 찾기 쉽게: 같은 입력창(회원권·PT)을 연다 */}
+            <Button variant="ghost" onClick={onEditMembership} style={{ padding: '7px 12px', fontSize: 14.5 }}>PT 등록</Button>
+            <Button variant="ghost" onClick={onEditMembership} style={{ padding: '7px 12px', fontSize: 14.5 }}>회원권 수정·연장</Button>
+          </div>
         </div>
         <p style={{ margin: '8px 0 0', fontSize: 15.5 }}>
           {u.membershipEnd ? <>회원권 {u.membershipStart ? fmtYmd(u.membershipStart) : ''} ~ {fmtYmd(u.membershipEnd)} {ms.kind === 'expired' ? <Badge tone="bad">만료</Badge> : ms.kind === 'soon' ? <Badge tone="warn">D-{ms.daysLeft}</Badge> : null}</> : '회원권 기간 미설정'}
@@ -216,6 +221,38 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
 }
 
 // [2026-11-01] B10: 승인 후 이름·휴대폰 정정(관리자). 번호는 바로 변환값(해시)으로 바꾸고 원문은 저장하지 않는다. 바뀐 번호로 명단을 찾아 다시 연결할 수 있다.
+// [2026-11-02] 관리자 겸 트레이너: 관리자 역할은 그대로 두고 트레이너 일(내 회원·PT 일정·계획·담당 연결)을 켜고 끈다
+function TrainerToggle({ u, admin, confirm, activeConns, onDone }) {
+  const [busy, setBusy] = useState(false)
+  const on = u.trainerEnabled === true
+  async function toggle() {
+    const msg = on
+      ? `${memberName(u)}님의 트레이너 일을 끌까요? 관리자 권한은 그대로예요.${activeConns ? `\n담당 회원 ${activeConns}명의 기록·PT 일정은 다시 켤 때까지 볼 수 없어요(연결은 남아 있어요). 담당을 옮기려면 '트레이너 연결' 탭을 써 주세요.` : ''}`
+      : `${memberName(u)}님에게 트레이너 일을 켤까요? 관리자 권한은 그대로이고, '트레이너 연결'에서 담당 트레이너로 고를 수 있고 MY '내 회원'에서 기록 확인·PT 일정·계획을 쓸 수 있어요.`
+    if (!(await confirm(msg, { okLabel: on ? '끄기' : '켜기', cancelLabel: '취소' }))) return
+    setBusy(true)
+    try {
+      await adminUpdateMember(u.uid, { trainerEnabled: !on }, admin?.uid)
+      await logAdmin(admin, { action: 'role', targetUid: u.uid, targetName: memberName(u), detail: on ? '관리자 겸 트레이너 끔' : '관리자 겸 트레이너 켬' })
+      await onDone?.()
+    } catch (err) {
+      console.error('트레이너 일 변경 실패:', err)
+      await confirm('저장하지 못했어요. 보안 규칙이 최신으로 게시됐는지 확인해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-line)' }}>
+      <div style={{ minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: 15.5, fontWeight: 700 }}>트레이너 일 {on ? <Badge tone="ok">켜짐</Badge> : <Badge tone="neutral">꺼짐</Badge>}</p>
+        <p className="text-keep-all" style={{ ...muted, margin: '4px 0 0' }}>관리자이면서 PT도 하는 계정이면 켜 주세요. 담당 회원 연결·기록 확인·PT 일정·운동 계획을 쓸 수 있어요.</p>
+      </div>
+      <button type="button" className="adm-act" disabled={busy} onClick={toggle} style={{ flexShrink: 0 }}>{on ? '끄기' : '켜기'}</button>
+    </div>
+  )
+}
+
 function SignupEditor({ u, admin, confirm, onDone }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(u.signupInfo?.name || '')

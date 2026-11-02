@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Card, Button, useConfirm } from './ui'
 import { getAppSettings, getUserDoc, listMyTrainees, listTrainerSchedulesByDates, trainerAddSchedule, trainerCompleteSchedule, trainerNoShowSchedule, logAction, invalidateTraineeSummary } from '../storage'
 import { todayStr } from '../utils/date'
-import { addDays } from '../utils/member'
+import { addDays, isTrainerAccount } from '../utils/member'
 
 const DAY = ['일', '월', '화', '수', '목', '금', '토']
 const fmtDay = (s) => {
@@ -17,6 +17,15 @@ const tsMs = (t) => (t?.toMillis ? t.toMillis() : typeof t?.seconds === 'number'
 export default function HomePtCards({ uid, userDoc }) {
   if (!uid || !userDoc) return null
   if (userDoc.role === '트레이너') return <TrainerTodayPt uid={uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} />
+  // [2026-11-02] 관리자 겸 트레이너: 오늘 PT(트레이너)와 내 PT 일정 알림(회원)을 함께
+  if (isTrainerAccount(userDoc)) {
+    return (
+      <>
+        <TrainerTodayPt uid={uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} />
+        <PtChangeNotice uid={uid} change={userDoc.ptLastChange} />
+      </>
+    )
+  }
   return <PtChangeNotice uid={uid} change={userDoc.ptLastChange} />
 }
 

@@ -1427,7 +1427,7 @@ export async function adminListFutureSchedulesOf(trainerUid, today) {
 }
 // [2026-11-01] 퇴사 처리 한 번에(A3·A8·A31): 담당 회원 이관/해제 + 예정 일정 이관/삭제 + 역할 정리 + 회원별 관리 이력.
 // conns: 퇴사자의 활성 연결, members: { [uid]: users 문서 }, target: 새 트레이너 users 문서 | null, schedules: 남은 예정 일정
-export async function adminTrainerLeave({ admin, leaverUid, leaverName, conns, members, target, schedules, demote }) {
+export async function adminTrainerLeave({ admin, leaverUid, leaverName, conns, members, target, schedules, demote, leaverIsAdmin = false }) {
   const ops = []
   // 새 트레이너와 예전에 끝난 연결이 있으면 덮어쓰기 전에 그 기간을 history에 이어 붙인다(adminConnect와 같은 방식)
   const prevHist = {}
@@ -1450,7 +1450,8 @@ export async function adminTrainerLeave({ admin, leaverUid, leaverName, conns, m
     if (target) ops.push((b) => b.update(doc(db, 'ptSchedules', s.id), { trainerUid: target.uid, trainerName: memberLabel(target) }))
     else ops.push((b) => b.delete(doc(db, 'ptSchedules', s.id)))
   })
-  if (demote && leaverUid) ops.push((b) => b.update(doc(db, 'users', leaverUid), { role: '일반회원', statusUpdatedAt: serverTimestamp() }))
+  // [2026-11-02] 관리자 겸 트레이너가 퇴사(트레이너 일 그만)하면 관리자 역할은 두고 트레이너 일만 끈다
+  if (demote && leaverUid) ops.push((b) => b.update(doc(db, 'users', leaverUid), leaverIsAdmin ? { trainerEnabled: false } : { role: '일반회원', statusUpdatedAt: serverTimestamp() }))
   // 한 배치 최대 500개 - 넘으면 나눠 저장(대부분 한 번)
   for (let i = 0; i < ops.length; i += 450) {
     const b = writeBatch(db)

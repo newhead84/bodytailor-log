@@ -4,9 +4,9 @@
 // [2026-11-01] 2차: 미결제 PT(남은 횟수 0회에 완료한 수업) 결제 후 차감(B4), 탈퇴 회원도 기록에 남은 이름 표시(B26)
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, useConfirm } from './ui'
-import { Badge, isGymMember, muted, sectionTitle, selectStyle, toCsv } from './adminUi'
+import { Badge, isGymMember, muted, sectionTitle, selectStyle, statusOf, toCsv } from './adminUi'
 import { adminPtRange, adminListOverdueSchedules, adminSetScheduleStatus, adminCancelPtSession, adminSettleUnpaid, logAdmin } from '../storage'
-import { addDays, fmtYmd, memberName } from '../utils/member'
+import { addDays, fmtYmd, memberName, isTrainerAccount } from '../utils/member'
 import { todayStr } from '../utils/date'
 import { downloadText } from '../utils/exportCsv'
 
@@ -25,7 +25,7 @@ const shiftMonth = (ym, n) => {
 
 const ST = { scheduled: '예정', done: '완료', noshow: '노쇼' }
 
-export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserChanged }) {
+export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserChanged, onEditMembership }) {
   const confirm = useConfirm()
   const today = todayStr()
   const [overdue, setOverdue] = useState(null) // 처리 안 된 지난 일정
@@ -59,7 +59,7 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
   }, [today])
 
   const byUid = useMemo(() => Object.fromEntries(users.map((u) => [u.uid, u])), [users])
-  const trainers = users.filter((u) => u.role === '트레이너')
+  const trainers = users.filter(isTrainerAccount)
   const color = Object.fromEntries(trainers.map((t, i) => [t.uid, COLORS[i % COLORS.length]]))
   const tName = (uid, fallback) => (byUid[uid] ? memberName(byUid[uid]) : fallback || '(퇴사·탈퇴)')
   // [2026-11-01] B26: 회원 이름 - 계정이 있으면 지금 이름, 없으면(탈퇴) 기록에 남긴 이름
@@ -215,6 +215,8 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
         {data && <Button variant="secondary" onClick={exportCsv} style={{ marginLeft: 'auto', padding: '8px 12px', fontSize: 14.5 }}>이 달 CSV</Button>}
       </div>
 
+      {onEditMembership && <PtRegisterCard users={users} onPick={onEditMembership} />}
+
       <Card>
         <p style={sectionTitle}>처리 안 된 지난 일정 <span style={{ ...muted, fontWeight: 500 }}>(날짜가 지났는데 아직 '예정')</span></p>
         {!overdue ? <p style={muted}>불러오는 중…</p> : !overdue.length ? <p style={muted}>없어요. 정산 누락이 없어요.</p> : overdue.slice(0, 50).map((s, i) => (
@@ -338,5 +340,27 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
       </Card>
       <p className="text-keep-all" style={{ ...muted, margin: 0 }}>완료 = 트레이너가 완료 처리한 일정 + 일정 없이 1회 완료. 노쇼는 설정·도구의 노쇼 처리 방식을 켜야 트레이너 화면에 버튼이 생겨요.</p>
     </div>
+  )
+}
+
+// [2026-11-02] PT 횟수 등록 진입점: 회원을 찾아 '회원권·PT' 입력창(회원 탭)을 연다
+function PtRegisterCard({ users, onPick }) {
+  const [q, setQ] = useState('')
+  const qs = q.replace(/\s/g, '')
+  const label = (u) => `${memberName(u)}${u.nickname ? ` · ${u.nickname}` : ''}${u.signupInfo?.phoneLast4 ? ` · ${u.signupInfo.phoneLast4}` : ''}`
+  const hits = qs ? users.filter((u) => u.role !== '트레이너' && (statusOf(u) !== 'pending' || u.role === '관리자') && label(u).replace(/\s/g, '').includes(qs)).slice(0, 6) : []
+  return (
+    <Card>
+      <p style={sectionTitle}>PT 등록</p>
+      <p className="text-keep-all" style={{ ...muted, margin: '-4px 0 10px' }}>회원 이름이나 휴대폰 끝 4자리로 찾아 PT 총 횟수·남은 횟수를 넣어요.</p>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="회원 이름 · 끝 4자리" aria-label="PT 등록할 회원 찾기" style={{ ...selectStyle, width: '100%', boxSizing: 'border-box', fontSize: 15.5 }} />
+      {qs && !hits.length && <p style={{ ...muted, margin: '8px 0 0' }}>찾는 회원이 없어요.</p>}
+      {hits.map((u, i) => (
+        <div key={u.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: i ? '1px solid var(--color-line)' : 'none', fontSize: 15.5 }}>
+          <span className="text-keep-all" style={{ minWidth: 0 }}>{label(u)} <span style={muted}>· {(u.ptTotal || 0) > 0 ? `PT ${u.ptRemaining ?? 0}/${u.ptTotal}회` : 'PT 없음'}</span></span>
+          <button type="button" className="adm-act" onClick={() => onPick(u)} style={{ flexShrink: 0 }}>PT 등록</button>
+        </div>
+      ))}
+    </Card>
   )
 }

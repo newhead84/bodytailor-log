@@ -1,6 +1,6 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-02] 회원·트레이너 점검 반영(HOME 추천 일치, 알림 누르면 기록 탭, 드롭·실패·RIR 표시, 트레이너 진행 요약, 세트 종류만 바꾸면 볼륨에 들어가던 문제). 같은 날: 운동 끝나면 휴식 알림 닫기, 포커스형 세트 칸 눌러 종류 변경. 같은 날: 상단 진행 바 '기록탭으로' 후 접기·유산소 타이머 표시. 같은 날: 스트레칭 기구 필터·9종, 포커스형 세트 종류 칩·기본값, 긴 이름 줄바꿈, 부위 배지, 완료 확인창. 같은 날: 알림 눌러 앱 열기(sw notificationclick). 같은 날: 커밋 보관 브랜치 wip(배포 안 함) + 작업 지침 2-0. 같은 날: 세션 환경 판별·클라우드 커밋·푸시 절차. 같은 날: 로그인·온보딩 화면 폰트를 페이퍼로지로.
+ * 최신 변경: [2026-11-02] 관리자 겸 트레이너(trainerEnabled), PT 등록 버튼, 트레이너 화면 태블릿 두 칸. 같은 날: 회원·트레이너 점검 반영(HOME 추천 일치, 알림 누르면 기록 탭, 드롭·실패·RIR 표시, 트레이너 진행 요약, 세트 종류만 바꾸면 볼륨에 들어가던 문제). 같은 날: 운동 끝나면 휴식 알림 닫기, 포커스형 세트 칸 눌러 종류 변경. 같은 날: 상단 진행 바 '기록탭으로' 후 접기·유산소 타이머 표시. 같은 날: 스트레칭 기구 필터·9종, 포커스형 세트 종류 칩·기본값, 긴 이름 줄바꿈, 부위 배지, 완료 확인창. 같은 날: 알림 눌러 앱 열기(sw notificationclick). 같은 날: 커밋 보관 브랜치 wip(배포 안 함) + 작업 지침 2-0. 같은 날: 세션 환경 판별·클라우드 커밋·푸시 절차. 같은 날: 로그인·온보딩 화면 폰트를 페이퍼로지로.
  *            직전: [2026-11-01] 2차 점검 반영(랭킹 시즌 평균, 미결제 PT, 트레이너 HOME PT 카드·메모, 전체 내보내기, memberPrivate 분리, App Check, 기록 트랜잭션).
  *            직전: [2026-11-01] 전체 점검 반영(앱 소개 공유, 저장 실패 처리, 입력값 확인, 관리자 정합성·PT 정정, 보안 규칙 강화).
  *            직전: 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
@@ -42,7 +42,7 @@ import MemberPendingScreen from './components/MemberPendingScreen'
 import ConsentScreen from './components/ConsentScreen'
 import { DeletedAccountScreen } from './components/AccountLegalSection'
 import { hasCurrentConsent } from './utils/legal'
-import { isApprovedMember, phoneHash, phoneLast4, isMembershipExpired } from './utils/member'
+import { isApprovedMember, phoneHash, phoneLast4, isMembershipExpired, isTrainerAccount } from './utils/member'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen, hasOpenScreens } from './hooks/useBackableScreen'
 import { showSystemNotification, closeSystemNotification } from './components/RestTimer'
@@ -660,7 +660,7 @@ export default function App() {
     return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TierInfoScreen uid={authUser.uid} xp={getEffectiveSeasonXp(userDoc)} onClose={closeTierInfo} /></Suspense>
   }
 
-  if (showTrainees && userDoc.role === '트레이너') {
+  if (showTrainees && isTrainerAccount(userDoc)) {
     return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><TraineesScreen uid={authUser.uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} customExercises={userDoc.customExercises || {}} onClose={closeTrainees} /></Suspense>
   }
 

@@ -15,7 +15,7 @@ import { Button, Card, Chip, useConfirm } from './ui'
 import { LayoutDashboard, UserPlus, Users, RefreshCw, CalendarDays, Link2, UserRound, BarChart3, History, FileUp, Settings, ArrowLeft, Menu, Search, MessageSquare } from 'lucide-react'
 import '../styles/admin.css'
 import { adminListUsers, adminGetUser, adminApproveMember, adminUpdateMember, adminGetRoster, adminSaveRoster, adminDeleteRoster, adminListConnections, adminListMemberConnections, adminConnect, adminEndTrainerAndSetRole, endConnection, adminSetMembership, getAppSettings, adminSaveSettings, adminListNotes, adminSaveNote, getAllInquiries, logAdmin, logAction, onLogFail, adminGetPrivates } from '../storage'
-import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId, membershipState, addMonths, addDays, fmtYmd, memberName } from '../utils/member'
+import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId, membershipState, addMonths, addDays, fmtYmd, memberName, isTrainerAccount } from '../utils/member'
 import AdminTools from './AdminTools'
 import TrainerProfilesTab from './TrainerProfilesTab'
 import AdminMemberDetail from './AdminMemberDetail'
@@ -420,7 +420,18 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
         ) : tab === 'renewal' ? (
           <RenewalTab users={users} notes={notes} admin={admin} onOpenMember={openMember} onSaved={patchNote} />
         ) : tab === 'pt' ? (
-          <AdminPtTab users={users} conns={conns} admin={admin} onOpenMember={openMember} onUserChanged={refreshUser} />
+          <AdminPtTab
+            users={users}
+            conns={conns}
+            admin={admin}
+            onOpenMember={openMember}
+            onUserChanged={refreshUser}
+            onEditMembership={(u) => {
+              setEditUid(u.uid)
+              setMemberQ(memberName(u))
+              go('members')
+            }}
+          />
         ) : tab === 'inquiries' ? (
           inquiries === null ? <p style={{ color: 'var(--color-label-neutral)', fontSize: 15.5 }}>불러오는 중…</p> : <InquiryAdminScreen embedded initial={inquiries} onListChange={setInquiries} />
         ) : tab === 'stats' ? (
@@ -923,7 +934,7 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
                       <td data-label="담당 트레이너">{trainerOf[u.uid] || '-'}</td>
                       <td style={{ whiteSpace: 'nowrap' }} data-label="마지막 운동">{u.activity?.lastDate ? fmtYmd(u.activity.lastDate) : '-'}</td>
                       <td onClick={stop} className="adm-cell-act" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        {canMs && <button type="button" className="adm-act" onClick={() => setEditing(editing === u.uid ? '' : u.uid)}>회원권·PT</button>}
+                        {canMs && <button type="button" className="adm-act" onClick={() => setEditing(editing === u.uid ? '' : u.uid)}>회원권·PT 등록</button>}
                       </td>
                     </tr>
                     {editing === u.uid && (
@@ -966,7 +977,7 @@ function BulkBar({ picked, users, conns, admin, confirm, onClear, onDone }) {
   const [trainerUid, setTrainerUid] = useState('')
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState('')
-  const trainers = users.filter((u) => u.role === '트레이너')
+  const trainers = users.filter(isTrainerAccount) // [2026-11-02] 관리자 겸 트레이너 포함
   const today = todayStr()
   const inputStyle = { ...selectStyle, fontSize: 15.5 }
   async function run() {
@@ -1053,7 +1064,7 @@ function BulkBar({ picked, users, conns, admin, confirm, onClear, onDone }) {
 
 function ConnectTab({ users, conns, onConnect, onEnd }) {
   const approved = users.filter((u) => statusOf(u) === 'approved' || u.role === '관리자') // 관리자는 승인 상태와 무관하게 사용
-  const trainers = approved.filter((u) => u.role === '트레이너')
+  const trainers = approved.filter(isTrainerAccount) // [2026-11-02] 관리자 겸 트레이너 포함(본인을 자기 회원으로 연결해 양쪽 화면 확인 가능)
   // [2026-10-31] 관리자도 트레이너와 연결할 수 있다(역할은 관리자 그대로 - adminConnect는 일반회원만 PT회원으로 바꿈)
   const members = approved.filter((u) => !u.role || u.role === '일반회원' || u.role === 'PT회원' || u.role === '관리자')
   const active = conns.filter((c) => c.status === 'active')

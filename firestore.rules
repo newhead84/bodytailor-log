@@ -15,7 +15,11 @@ service cloud.firestore {
       return request.auth != null &&
         exists(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)) &&
         get(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + memberUid)).data.status == 'active' &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == '트레이너';
+        trainerRoleOk(get(/databases/$(database)/documents/users/$(request.auth.uid)).data);
+    }
+    // [2026-11-02] 트레이너 역할 판정: 트레이너, 또는 트레이너 일을 켠 관리자(대표가 관리자이자 트레이너, users.trainerEnabled는 관리자만 수정)
+    function trainerRoleOk(d) {
+      return d.get('role', '') == '트레이너' || (d.get('role', '') == '관리자' && d.get('trainerEnabled', false) == true);
     }
 
     // [2026-10-31] 트레이너·관리자 판정([2026-11-01] 랭킹 읽기에서도 쓰려고 위로 옮김)
@@ -38,6 +42,8 @@ service cloud.firestore {
         'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt', 'pauseStart', 'pauseEnd',
         // [2026-11-01] 휴회 이력(pauses)·PT 차감 짝 기록(ptSessionRef)도 본인 수정 불가
         'pauses', 'ptSessionRef',
+        // [2026-11-02] 관리자 겸 트레이너 표시
+        'trainerEnabled',
         // [2026-11-01] B20: PT 일정 변경 알림 표시는 담당 트레이너만 쓴다
         'ptLastChange'];
     }
@@ -126,7 +132,9 @@ service cloud.firestore {
         // [2026-11-01] 휴회 이력, 재심사 요청 처리(해제)
         'pauses', 'reReviewRequested', 'reReviewAt',
         // [2026-11-01] B10: 승인 후 이름·휴대폰 뒤 4자리 정정(번호 변환값은 memberPrivate)
-        'signupInfo'];
+        'signupInfo',
+        // [2026-11-02] 관리자 겸 트레이너 표시(관리자 계정에만 의미)
+        'trainerEnabled'];
     }
     // [2026-10-31 Phase2 P2-1] 승인된 회원만 기록·루틴·랭킹을 쓸 수 있다.
     // memberStatus가 없는 기존 계정은 승인으로 간주, 관리자는 항상 허용.
@@ -188,7 +196,7 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'memberNo', 'rosterId', 'statusUpdatedAt',
           'membershipStart', 'membershipEnd', 'membershipEndAt', 'ptTotal', 'ptRemaining', 'ptUpdatedAt', 'pauseStart', 'pauseEnd',
           'pauses', 'ptSessionRef', 'xpAt', 'lastInquiryAt', 'reReviewRequested', 'reReviewAt', 'goalProposal', 'goalByTrainer',
-          'goalProposalResult', 'ptLastChange']) &&
+          'goalProposalResult', 'ptLastChange', 'trainerEnabled']) &&
         userFieldsOk(request.resource.data, request.resource.data.keys()) &&
         request.resource.data.get('seasonXp', 0) == 0 &&
         request.resource.data.get('lifetimeXp', 0) == 0 &&
@@ -588,7 +596,7 @@ service cloud.firestore {
             request.resource.data.targetName == get(/databases/$(database)/documents/connections/$(request.auth.uid + '_' + request.resource.data.targetUid)).data.memberName) ||
           // [2026-11-01] 트레이너의 운동 가이드 수정(guide) - 대상 회원 없음(targetName에는 종목명 40자 이하)
           (request.resource.data.action == 'guide' && request.resource.data.byUid == request.auth.uid &&
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == '트레이너' &&
+            trainerRoleOk(get(/databases/$(database)/documents/users/$(request.auth.uid)).data) &&
             request.resource.data.byName in [
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('signupInfo', {}).get('name', ''),
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('nickname', '')] &&

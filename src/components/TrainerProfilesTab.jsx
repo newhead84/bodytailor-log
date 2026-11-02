@@ -8,6 +8,7 @@ import TrainerProfileView, { TrainerAvatar, TrainerTags } from './TrainerProfile
 import { listTrainerProfiles, adminSaveTrainerProfile, adminDeleteTrainerProfile, adminTrainerLeave, adminListFutureSchedulesOf, adminUpdateMember, logAction } from '../storage'
 import { DEFAULT_TRAINER_PROFILES, resizePhoto, splitLines, splitTags, photoList, MAX_TRAINER_PHOTOS } from '../utils/trainerProfile'
 import { todayStr } from '../utils/date'
+import { isTrainerAccount } from '../utils/member'
 
 const field = { padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 15.5, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }
 const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }
@@ -35,7 +36,7 @@ export default function TrainerProfilesTab({ users, conns, adminUid, admin, onCh
     console.error(what, err)
     await confirm(`${what}에 실패했어요. ${err?.message?.includes('사진') ? err.message : '관리자 계정·Firebase 규칙 게시를 확인해 주세요.'}`, { okLabel: '확인', cancelLabel: '닫기' })
   }
-  const trainerAccounts = users.filter((u) => u.role === '트레이너')
+  const trainerAccounts = users.filter(isTrainerAccount)
   const active = (list || []).filter((p) => p.active !== false)
   const left = (list || []).filter((p) => p.active === false)
 
@@ -132,9 +133,9 @@ export default function TrainerProfilesTab({ users, conns, adminUid, admin, onCh
             const mine = leaving.linkedUid ? conns.filter((c) => c.status === 'active' && c.trainerUid === leaving.linkedUid) : []
             const target = (moveTo && users.find((u) => u.uid === moveTo)) || null
             const members = Object.fromEntries(users.map((u) => [u.uid, u]))
-            await adminTrainerLeave({ admin: admin || { uid: adminUid, name: '관리자' }, leaverUid: demote ? leaving.linkedUid : '', leaverName: leaving.name, conns: mine, members, target, schedules: schedules || [], demote })
+            await adminTrainerLeave({ admin: admin || { uid: adminUid, name: '관리자' }, leaverUid: demote ? leaving.linkedUid : '', leaverName: leaving.name, conns: mine, members, target, schedules: schedules || [], demote, leaverIsAdmin: members[leaving.linkedUid]?.role === '관리자' })
             await adminSaveTrainerProfile({ id: leaving.id, active: false, leftAt: todayStr() })
-            await logAction({ action: 'profile', targetUid: leaving.linkedUid || '', targetName: leaving.name, detail: `퇴사 처리 · 담당 회원 ${mine.length}명 ${target ? `${leaving.name} → ${target.signupInfo?.name || target.nickname} 이관` : '연결 해제'}${schedules?.length ? ` · 예정 일정 ${schedules.length}건 ${target ? '이관' : '삭제'}` : ''}${demote ? ' · 역할 일반회원' : ''}` })
+            await logAction({ action: 'profile', targetUid: leaving.linkedUid || '', targetName: leaving.name, detail: `퇴사 처리 · 담당 회원 ${mine.length}명 ${target ? `${leaving.name} → ${target.signupInfo?.name || target.nickname} 이관` : '연결 해제'}${schedules?.length ? ` · 예정 일정 ${schedules.length}건 ${target ? '이관' : '삭제'}` : ''}${demote ? (members[leaving.linkedUid]?.role === '관리자' ? ' · 트레이너 일 끔' : ' · 역할 일반회원') : ''}` })
             setLeaving(null)
             await load()
             await onChanged?.([leaving.linkedUid, ...mine.map((c) => c.memberUid)].filter(Boolean))
@@ -302,7 +303,7 @@ function ProfileForm({ p, trainerAccounts, usedUids, onCancel, onSave }) {
                 <option key={u.uid} value={u.uid} disabled={usedUids.includes(u.uid)}>{nameOf(u)}{u.signupInfo?.phoneLast4 ? ` · ${u.signupInfo.phoneLast4}` : ''}{usedUids.includes(u.uid) ? ' (다른 프로필에 연결됨)' : ''}</option>
               ))}
             </select>
-            <span style={{ fontSize: 13.5 }}>목록에 없으면 '회원' 탭에서 그 계정 역할을 '트레이너'로 바꿔 주세요.</span>
+            <span style={{ fontSize: 13.5 }}>목록에 없으면 '회원' 탭에서 그 계정 역할을 '트레이너'로 바꿔 주세요. 관리자 계정은 회원 상세에서 '트레이너 일'을 켜면 나와요.</span>
           </label>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
@@ -329,7 +330,7 @@ function ProfileForm({ p, trainerAccounts, usedUids, onCancel, onSave }) {
 
 function LeavePanel({ p, users, conns, profiles, onCancel, onDone }) {
   const mine = p.linkedUid ? conns.filter((c) => c.status === 'active' && c.trainerUid === p.linkedUid) : []
-  const others = profiles.filter((x) => x.id !== p.id && x.linkedUid && users.some((u) => u.uid === x.linkedUid && u.role === '트레이너'))
+  const others = profiles.filter((x) => x.id !== p.id && x.linkedUid && users.some((u) => u.uid === x.linkedUid && isTrainerAccount(u)))
   const [moveTo, setMoveTo] = useState('')
   const [demote, setDemote] = useState(!!p.linkedUid)
   const [saving, setSaving] = useState(false)
@@ -371,7 +372,9 @@ function LeavePanel({ p, users, conns, profiles, onCancel, onDone }) {
       {p.linkedUid && (
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 14, fontSize: 15.5 }}>
           <input type="checkbox" checked={demote} onChange={(e) => setDemote(e.target.checked)} />
-          앱 계정 역할을 '일반회원'으로 바꾸기 (회원 기록 열람·계획 보내기 권한 해제)
+          {users.find((u) => u.uid === p.linkedUid)?.role === '관리자'
+            ? "앱 계정의 '트레이너 일'을 끄기 (관리자 권한은 그대로, 회원 기록 열람·계획 보내기 권한 해제)"
+            : "앱 계정 역할을 '일반회원'으로 바꾸기 (회원 기록 열람·계획 보내기 권한 해제)"}
         </label>
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
