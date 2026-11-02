@@ -255,7 +255,7 @@ export default function HomeTab({
         </p>
         {suggested && !doneToday && increaseList.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, margin: '-4px 0 14px' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)' }}>증량 추천</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)' }}>로그 코치 · 오늘 올리기</span>
             {increaseList.slice(0, showAllIncrease ? increaseList.length : 3).map((x) => (
               <span key={x.key} className="text-keep-all" style={{ fontSize: 12, padding: '4px 9px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', color: 'var(--color-label-normal)' }}>
                 {x.name} {isAssistedExercise(x.name) ? '보조 ' : isBodyweightLoaded(x.name) ? '+' : ''}<span className="bt-num">{x.weight}</span>kg

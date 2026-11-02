@@ -135,7 +135,7 @@ export function TrainingPlanSummary({ goals, beginner = false, profile: given = 
         ))}
       </div>
       <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', lineHeight: 1.5 }}>
-        다음 무게 추천과 휴식 타이머(자동), 리포트의 주간 세트·유산소 목표가 이 기준을 따라요. 종목 설정에서 직접 바꾼 값이 있으면 그 값이 먼저예요. MY 프로필에서 목표를 바꾸면 바로 다시 맞춰져요.
+        로그 코치의 오늘 플랜(목표 횟수·세트 수)과 휴식 타이머(자동), 리포트의 주간 세트·유산소 목표가 이 기준을 따라요. 종목 설정에서 직접 바꾼 값이 있으면 그 값이 먼저예요. MY 프로필에서 목표를 바꾸면 바로 다시 맞춰져요.
       </span>
     </div>
   )

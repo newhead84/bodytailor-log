@@ -7,6 +7,7 @@ import { getMyTrainerConnection, memberEndConnection, listTrainerProfiles, getAl
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerAvatar } from './TrainerProfileView'
 import { membershipState, fmtYmd, isTrainerAccount } from '../utils/member'
+import { COACH_INTENSITIES, normalizeIntensity } from '../utils/strength'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import AccountLegalSection from './AccountLegalSection'
@@ -298,6 +299,14 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   async function selectRirEnabled(on) {
     await saveSetting(setRirEnabledState, rirEnabled, on, { rirEnabled: on })
   }
+  // [2026-11-02] 로그 코치 전체 강도(종목마다 따로 바꿀 수도 있음)
+  const [coachIntensity, setCoachIntensityState] = useState(normalizeIntensity(userDoc?.coachIntensity))
+  useEffect(() => {
+    setCoachIntensityState(normalizeIntensity(userDoc?.coachIntensity))
+  }, [userDoc?.coachIntensity])
+  async function selectCoachIntensity(id) {
+    await saveSetting(setCoachIntensityState, coachIntensity, id, { coachIntensity: id })
+  }
   async function selectLogMode(mode) {
     await saveSetting(setLogModeState, logMode, mode, { logMode: mode })
   }
@@ -461,6 +470,22 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </div>
           <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
             세트마다 몇 개 더 할 수 있었는지(0 = 한계) 적는 칸이에요. 적으면 다음 무게 추천에 반영돼요. 끄면 세트 줄에서 칸이 사라지고, 이미 적은 기록은 그대로 남아요.
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>로그 코치 강도</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {COACH_INTENSITIES.map((c) => (
+              <Chip key={c.id} active={coachIntensity === c.id} onClick={() => selectCoachIntensity(c.id)} style={{ justifyContent: 'center', flex: '1 0 auto', whiteSpace: 'nowrap' }}>
+                {c.label}
+              </Chip>
+            ))}
+          </div>
+          <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            {(() => {
+              const c = COACH_INTENSITIES.find((x) => x.id === coachIntensity)
+              return `${c.label}: 세트마다 ${c.rir}개 남기는 정도로 플랜을 짜요. 한계에 가까울수록 근육 성장이 커지지만 피로도 커져요(Refalo 외 2023). 종목마다 따로 바꾸려면 기록 화면의 '목표' 버튼에서 바꿔요.`
+            })()}
           </span>
         </div>
         </>)}

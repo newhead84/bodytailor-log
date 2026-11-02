@@ -4,6 +4,7 @@ import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure, PartBadge } from './ui'
 import { ExerciseName } from '../utils/exerciseName'
 import { CountUp } from '../hooks/useCountUp'
+import { HEALTH_DISCLAIMER } from '../utils/legal'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
 import WorkoutGuide, { WORKOUT_GUIDE_VERSION } from './WorkoutGuide'
@@ -19,7 +20,11 @@ import {
   prE1rm,
   bestE1rmOfSets,
   hasWarmupRamp,
-  getProgressionIncrement,
+  planSetTargets,
+  recommendedSetCount,
+  dropSetWeight,
+  intensityOf,
+  COACH_EVIDENCE,
   SET_TYPE_LABEL,
   SET_TYPE_DESC,
 } from '../utils/strength'
@@ -65,6 +70,13 @@ import { pickSetEncouragement } from '../utils/setEncouragements'
 import { DEFAULT_LOG_MODE } from '../utils/fonts'
 
 // [2026-10-29] '자동' = 종목별 권장 휴식(다관절 2분30초 / 고립 1분30초). 새 기본값.
+// [2026-11-02 로그 코치] 판단 이름(올리기·한 개 더·그대로·내리기·다시 시작)과 건강 안내
+function coachKindLabel(sug) {
+  if (sug?.comeback) return '다시 시작'
+  return { increase: '올리기', reps: '한 개 더', hold: '그대로', decrease: '내리기' }[sug?.kind] || '오늘'
+}
+const HEALTH_NOTE = HEALTH_DISCLAIMER
+
 const REST_AUTO = 0
 const REST_OPTIONS = [
   { label: '자동', value: REST_AUTO },
@@ -519,6 +531,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRecords({})
     setDismissedSuggestions({})
     setSetTips({})
+    setCoachPlans({}) // [2026-11-02 로그 코치] 세션이 끝나면 오늘 플랜·증량 제안 횟수도 초기화
+    setTipUps({})
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -831,6 +845,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRecords({})
     setDismissedSuggestions({})
     setSetTips({})
+    setCoachPlans({}) // [2026-11-02 로그 코치] 세션이 끝나면 오늘 플랜·증량 제안 횟수도 초기화
+    setTipUps({})
     setCompletedExercises({})
     setHiddenToday([])
     setFreeExercises([])
@@ -1060,6 +1076,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }
   // [2026-10-30 추천 고도화] 운동 중 세트 단위 조정 제안(방금 저장한 본세트가 목표 범위를 크게 벗어났을 때) - { [key]: { weight, kind, reason } }
   const [setTips, setSetTips] = useState({})
+  // [2026-11-02 로그 코치] '플랜대로 하기'로 정한 오늘 세트 수(applied) - 코치 한마디 줄의 기준. 운동 중 증량 제안 횟수(강도별 제한)
+  const [coachPlans, setCoachPlans] = useState({})
+  const [tipUps, setTipUps] = useState({})
+  function plannedCountFor(key) {
+    return coachPlans[key]?.count || suggestionFor(key)?.lastSetCount || 0
+  }
   function clearSetTip(key) {
     setSetTips((t) => (t[key] ? (({ [key]: _, ...rest }) => rest)(t) : t))
   }
@@ -1094,6 +1116,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function cycleSetType(key, idx) {
     const cur = records[key]?.[idx]
     const next = nextSetType(cur?.type)
+    const exName = parseExerciseKey(key).name
+    // [2026-11-02 로그 코치] 아직 안 한 세트를 드롭으로 바꾸면 직전 본세트의 75–80%(20–25% 감량)로 무게를 맞춘다(Sødal 외 2023에서 흔한 감량 폭)
+    if (next === 'drop' && cur && !cur.saved && getExerciseInputType(exName) === 'sets') {
+      const prevSaved = (records[key] || []).slice(0, idx).filter((st) => st.saved && st.type !== 'warmup').pop()
+      const dw = prevSaved ? dropSetWeight(exName, prevSaved.weight) : null
+      if (dw != null) {
+        patchSet(key, idx, { type: next, weight: String(dw) }, { keepAuto: true })
+        showToast(`드롭 세트: 직전보다 20–25% 가볍게 ${Math.round(dw * 100) / 100}kg로 맞췄어요 · 쉬지 말고 한계까지`, 2600)
+        return
+      }
+    }
     patchSet(key, idx, { type: next }, { keepAuto: true })
     // [2026-10-29] W·D·F가 무엇인지 바꿀 때 한 줄로 안내
     showToast(next === 'working' ? '본세트로 바꿨어요' : `${SET_TYPE_LABEL[next]} 세트로 바꿨어요 · ${SET_TYPE_DESC[next]}`, 1800)
@@ -1107,7 +1140,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function applySuggestion(key) {
     const sug = suggestionFor(key)
     if (!sug) return
-    const targets = sug.setTargets?.length ? sug.setTargets : [sug.reps]
+    // [2026-11-02 로그 코치] 플랜대로 하면 권장 세트 수(목표·초보 기준)로 맞춘다. 적용하지 않으면 지난번 세트 수가 기준.
+    const targets = planSetTargets(sug, parseExerciseKey(key).name)
+    setCoachPlans((p) => ({ ...p, [key]: { count: targets.length, applied: true } }))
     autoResumeIfPaused()
     setRecords((r) => {
       const sets = [...(r[key] || [])]
@@ -1181,8 +1216,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       restSec: setting?.restSec || null,
       defaultRestSec: getDefaultRestSec(name),
       showWarmupRamp: hasWarmupRamp(name),
-      step: setting?.step ?? null,
-      defaultStep: getProgressionIncrement(name),
+      intensity: setting?.intensity ?? null,
+      coachPlan: coachPlans[key] || null,
+      plannedCount: plannedCountFor(key),
+      planTargets: planSetTargets(suggestionFor(key), name),
+      recommendedSets: recommendedSetCount(name),
       onCycleType: (idx) => cycleSetType(key, idx),
       onCycleRir: (idx) => cycleSetRir(key, idx),
       onApplySuggestion: () => applySuggestion(key),
@@ -1268,7 +1306,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     }
     // [2026-10-30 추천 고도화] 방금 저장한 본세트가 목표 범위를 크게 벗어나면 다음 세트 무게 제안(아니면 이전 제안 지움)
     {
-      const tip = savedSet ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name)) : null
+      // [2026-11-02 로그 코치] 이 세트 전에 저장한 본세트(웜업·드롭 제외)·오늘 목표 세트 수·이미 한 증량 제안 수를 함께 넘긴다
+      const prevWorking = (records[name] || []).filter((st, i) => i !== idx && st.saved && st.type !== 'warmup' && st.type !== 'drop')
+      const tip = savedSet ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
+      if (tip?.kind === 'up') setTipUps((u) => ({ ...u, [name]: (u[name] || 0) + 1 }))
       setSetTips((t) => {
         if (tip) return { ...t, [name]: tip }
         if (!t[name]) return t
@@ -1651,6 +1692,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setRecords({})
     setDismissedSuggestions({})
     setSetTips({})
+    setCoachPlans({}) // [2026-11-02 로그 코치] 세션이 끝나면 오늘 플랜·증량 제안 횟수도 초기화
+    setTipUps({})
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -2549,7 +2592,7 @@ export function ExerciseCard({
                 </span>
               )}
               {suggestion?.kind === 'increase' && !isDone && (
-                <span style={{ color: 'var(--color-primary-normal)', fontWeight: 700, whiteSpace: 'nowrap' }}>▲ 증량 추천</span>
+                <span style={{ color: 'var(--color-primary-normal)', fontWeight: 700, whiteSpace: 'nowrap' }}>▲ 오늘 올리기</span>
               )}
             </span>
           )}
@@ -2664,41 +2707,45 @@ export function ExerciseCard({
                 background: 'var(--color-primary-bg)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-                    {suggestion.kind === 'increase' ? '▲ ' : suggestion.kind === 'decrease' ? '▼ ' : ''}추천{' '}
-                    {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(suggestion.weight) === 0 ? (
-                      '맨몸'
-                    ) : (
-                      <>
-                        {isAssistedExercise(exName) ? '보조 ' : allowsZeroWeight(exName) ? '추가 ' : ''}
-                        <span className="bt-num">{fmtKg(suggestion.weight)}</span>kg
-                      </>
-                    )}{' '}
-                    × <span className="bt-num">{suggestion.setTargets?.length > 1 && new Set(suggestion.setTargets).size > 1 ? suggestion.setTargets.join('·') : suggestion.reps}</span>회
-                  </span>
-                  <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
-                    {suggestion.reason}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={ext.onApplySuggestion}
-                  style={{ flexShrink: 0, height: 34, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line-strong)', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-strong)' }}
-                >
-                  적용
-                </button>
+              {/* [2026-11-02 로그 코치] 오늘의 플랜: 머리줄(이름·강도·닫기) → 판단 + 무게 × 세트별 횟수(권장 세트 수) → 근거 → 플랜대로 하기 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                  로그 코치 · 오늘의 플랜
+                </span>
+                <span style={{ flexShrink: 0, fontSize: 11.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>강도 {intensityOf({ intensity: ext.intensity }).label}</span>
                 <button
                   type="button"
                   onClick={ext.onDismissSuggestion}
-                  aria-label="추천 닫기"
-                  title="추천 닫기"
-                  style={{ flexShrink: 0, width: 30, height: 34, marginRight: -4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)' }}
+                  aria-label="플랜 닫기"
+                  title="플랜 닫기"
+                  style={{ flexShrink: 0, width: 30, height: 28, marginRight: -6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)' }}
                 >
                   <X size={16} strokeWidth={2} />
                 </button>
               </div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+                {coachKindLabel(suggestion)}{' '}
+                {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(suggestion.weight) === 0 ? (
+                  '맨몸'
+                ) : (
+                  <>
+                    {isAssistedExercise(exName) ? '보조 ' : allowsZeroWeight(exName) ? '추가 ' : ''}
+                    <span className="bt-num">{fmtKg(suggestion.weight)}</span>kg
+                  </>
+                )}{' '}
+                × <span className="bt-num">{(ext.planTargets?.length ? ext.planTargets : [suggestion.reps]).join('·')}</span>회{' '}
+                <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>(<span className="bt-num">{ext.planTargets?.length || 1}</span>세트)</span>
+              </span>
+              <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
+                내 기록 보면 · {suggestion.reason}
+              </span>
+              <button
+                type="button"
+                onClick={ext.onApplySuggestion}
+                style={{ alignSelf: 'stretch', height: 38, marginTop: 2, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line-strong)', fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}
+              >
+                플랜대로 하기
+              </button>
               {/* [2026-10-30 추천 고도화] 증량까지 남은 거리 */}
               {suggestion.progress && suggestion.progress.need > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
@@ -2709,7 +2756,7 @@ export function ExerciseCard({
                     />
                   </div>
                   <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>
-                    증량까지 총 <span className="bt-num">{Math.max(0, suggestion.progress.need - suggestion.progress.total)}</span>회
+                    올리기까지 총 <span className="bt-num">{Math.max(0, suggestion.progress.need - suggestion.progress.total)}</span>회
                   </span>
                 </div>
               )}
@@ -2719,8 +2766,40 @@ export function ExerciseCard({
                   <span style={{ whiteSpace: 'pre-line' }}>{suggestion.stall.options.map((o) => `· ${o}`).join('\n')}</span>
                 </Disclosure>
               )}
+              {/* [2026-11-02 로그 코치] 왜 이렇게? - 판단·세트 수·강도의 근거(저자·연도) */}
+              <Disclosure label="왜 이렇게?" style={{ marginTop: 2 }}>
+                <span style={{ whiteSpace: 'pre-line' }}>
+                  {[
+                    COACH_EVIDENCE[suggestion.comeback ? 'comeback' : suggestion.kind] || '',
+                    `세트 수: 지난번 ${suggestion.lastSetCount || 1}세트 → 플랜 ${ext.planTargets?.length || 1}세트. ${COACH_EVIDENCE.sets}`,
+                    `강도 ${intensityOf({ intensity: ext.intensity }).label}(남길 반복 ${intensityOf({ intensity: ext.intensity }).rir}): ${COACH_EVIDENCE.intensity}`,
+                    HEALTH_NOTE,
+                  ]
+                    .filter(Boolean)
+                    .join('\n\n')}
+                </span>
+              </Disclosure>
             </div>
           )}
+
+          {/* [2026-11-02 로그 코치] 플랜 카드를 닫은 뒤에도 코치 한마디 줄이 남는다(몇 세트째·다음 목표) */}
+          {isStrength && suggestion && !isDone && ext.suggestionOpen === false && !ext.setTip && (() => {
+            const working = (sets || []).filter((st) => st.type !== 'warmup' && st.type !== 'drop')
+            const doneN = working.filter((st) => st.saved).length
+            const total = ext.plannedCount || 0
+            const nextRow = working.find((st) => !st.saved)
+            if (!total) return null
+            const text =
+              doneN >= total
+                ? `오늘 플랜 ${total}세트 끝! 여기서 마무리해도 충분해요`
+                : `${doneN + 1}세트째(총 ${total}${ext.coachPlan?.applied ? '' : ', 지난번과 같게'})${nextRow && nextRow.weight !== '' && nextRow.reps !== '' ? ` · 이번엔 ${formatLoad(exName, nextRow.weight)} × ${nextRow.reps}회` : ''}${doneN + 1 === total ? ' · 마지막 세트는 무게 그대로' : ''}`
+            return (
+              <div className="bt-enter" role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', flexShrink: 0 }}>코치 한마디</span>
+                <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', minWidth: 0 }}>{text}</span>
+              </div>
+            )
+          })()}
 
           {/* [2026-10-30 추천 고도화] 운동 중 세트 단위 조정 제안 */}
           {isStrength && !isDone && ext.setTip && (
@@ -2730,28 +2809,33 @@ export function ExerciseCard({
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}
             >
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-                  {ext.setTip.kind === 'up' ? '▲ ' : '▼ '}다음 세트{' '}
-                  {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(ext.setTip.weight) === 0 ? (
-                    '맨몸'
-                  ) : (
-                    <>
-                      {isAssistedExercise(exName) ? '보조 ' : allowsZeroWeight(exName) ? '추가 ' : ''}
-                      <span className="bt-num">{fmtKg(ext.setTip.weight)}</span>kg
-                    </>
-                  )}
-                </span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>로그 코치 · 코치 한마디</span>
+                {ext.setTip.weight != null && (
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+                    {ext.setTip.kind === 'up' ? '올리기 · ' : '내리기 · '}다음 세트{' '}
+                    {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(ext.setTip.weight) === 0 ? (
+                      '맨몸'
+                    ) : (
+                      <>
+                        {isAssistedExercise(exName) ? '보조 ' : allowsZeroWeight(exName) ? '추가 ' : ''}
+                        <span className="bt-num">{fmtKg(ext.setTip.weight)}</span>kg
+                      </>
+                    )}
+                  </span>
+                )}
                 <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
                   {ext.setTip.reason}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={ext.onApplySetTip}
-                style={{ flexShrink: 0, height: 34, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line-strong)', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-strong)' }}
-              >
-                적용
-              </button>
+              {ext.setTip.weight != null && (
+                <button
+                  type="button"
+                  onClick={ext.onApplySetTip}
+                  style={{ flexShrink: 0, height: 34, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line-strong)', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-strong)' }}
+                >
+                  적용
+                </button>
+              )}
               <button
                 type="button"
                 onClick={ext.onDismissSetTip}
@@ -2801,8 +2885,8 @@ export function ExerciseCard({
               repRange={repRange}
               restSec={restSec ?? null}
               defaultRestSec={defaultRestSec || 90}
-              step={ext.step ?? null}
-              defaultStep={ext.defaultStep ?? null}
+              intensity={ext.intensity ?? null}
+              globalIntensityLabel={intensityOf(null).label}
               history={ext.recHistory || []}
               onChange={ext.onSettingChange}
               onClose={() => setShowSetting(false)}

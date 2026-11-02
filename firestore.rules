@@ -121,6 +121,8 @@ service cloud.firestore {
             d.activity.get('weeks', {}) is map && d.activity.get('weeks', {}).size() <= 12)) &&
         (!keys.hasAny(['prs']) || (d.prs is map && d.prs.size() <= 400)) &&
         (!keys.hasAny(['exerciseSettings']) || (d.exerciseSettings is map && d.exerciseSettings.size() <= 400)) &&
+        // [2026-11-02] 로그 코치 전체 강도
+        (!keys.hasAny(['coachIntensity']) || d.coachIntensity in ['easy2', 'easy', 'normal', 'hard', 'max']) &&
         (!keys.hasAny(['customExercises']) || (d.customExercises is map && d.customExercises.size() <= 12)) &&
         // S3: 문의 간격 기록은 서버 시각으로만
         (!keys.hasAny(['lastInquiryAt']) || d.lastInquiryAt == request.time);
