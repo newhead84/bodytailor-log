@@ -73,3 +73,18 @@ self.addEventListener('fetch', (event) => {
   }
   // 그 밖의 같은 도메인 파일(아이콘·manifest 등)은 네트워크 그대로
 })
+
+// [2026-11-02] 알림(운동 진행 중·휴식 종료)을 눌러도 앱이 안 열리던 문제: 눌렀을 때 처리가 없었다.
+// 열려 있는 앱 창이 있으면 그 창으로 돌아가고, 없으면 앱을 연다.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const mine = list.filter((c) => c.url.startsWith(self.location.origin) && !/\/(intro|privacy|admin)(\/|$)/.test(new URL(c.url).pathname))
+      const win = mine.find((c) => c.focused) || mine[0]
+      if (win) return win.focus().catch(() => self.clients.openWindow(target))
+      return self.clients.openWindow(target)
+    })
+  )
+})

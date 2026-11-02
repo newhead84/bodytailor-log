@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-02] 알림(운동 진행 중·휴식 종료)을 눌러도 앱이 안 열리던 문제: 서비스워커에 notificationclick 처리 추가(열린 앱 창으로 돌아가고 없으면 앱 열기) | public/sw.js
+
 [2026-11-02] 커밋 보관 브랜치 wip(배포 안 함): 커밋마다 wip에 올리고 "푸시해"에 main으로 배포, 세션·PC가 바뀌어도 모아 둔 커밋 유지. 작업 지침 2-0 정리 | vercel.json(git.deploymentEnabled.wip=false), CLAUDE.md
 
 [2026-11-02] 작업 지침: 세션 시작 환경 판별(PC 셸 유무), PC 셸 없는 세션의 클라우드 커밋·푸시 절차(PC .git은 원격 도구로 쓸 수 없어 PC 폴더는 PC 셸 세션에서 Claude가 pull), 로컬 경로 갱신, 다음 작업 인계(PT 등록 버튼·관리자 겸 트레이너) | CLAUDE.md
