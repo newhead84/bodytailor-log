@@ -83,7 +83,7 @@
 
 ## 5. 디자인 기준 (v10)
 - **스타일: C 택타일 웜 고정**(둥근 타일·따뜻한 무채색·Outfit 숫자, 2026-10-28 확정 - A/B 삭제, 선택 UI 없음). `html[data-style='c']`는 App.jsx가 항상 세팅, `users.stylePreference`는 무시.
-- **디자인 기본값(2026-10-29 사용자 지정): 베이지 · 볼트 라임 · 페이퍼로지 · 리스트형** - `utils/fonts.js DEFAULT_*`. `users.designDefaultsVersion`이 `DESIGN_DEFAULTS_VERSION`과 다르면 App이 로그인 시 한 번 기본값으로 덮어씀(기존 계정 포함, 이후 사용자 변경은 유지). 로그인·온보딩 화면은 다크·브라스·프리텐다드 고정.
+- **디자인 기본값(2026-10-29 사용자 지정): 베이지 · 볼트 라임 · 페이퍼로지 · 리스트형** - `utils/fonts.js DEFAULT_*`. `users.designDefaultsVersion`이 `DESIGN_DEFAULTS_VERSION`과 다르면 App이 로그인 시 한 번 기본값으로 덮어씀(기존 계정 포함, 이후 사용자 변경은 유지). 로그인·온보딩 화면은 다크·브라스·페이퍼로지 고정(2026-11-02 프리텐다드에서 변경).
 - MY "디자인"은 기본 접힘(현재 조합 한 줄 + "설정 바꾸기"를 눌러야 테마·강조색·폰트·기록 방식·미리보기가 열림).
 - **테마 다크/베이지/라이트 3종**(사용자 선택 유지) - `src/styles/designStyles.css`, `html[data-theme]`, `users.themePreference`. MY "디자인"에서 전환.
 - 본문 폰트 3종(프리텐다드/페이퍼로지(기본)/나눔스퀘어 네오, 원티드 산스·SUIT 2026-10-28 삭제) - `html[data-font]` → `--font-body`, `users.fontPreference`. 없는 값은 `normalizeFontId()`가 페이퍼로지로. MY "기록 화면 미리보기"(DesignPreviewScreen)에서 테마·강조색·폰트·기록 방식 비교. 숫자는 `.bt-num` / `.record-notation`(Outfit).

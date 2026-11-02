@@ -1,6 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-01] 2차 점검 반영(랭킹 시즌 평균, 미결제 PT, 트레이너 HOME PT 카드·메모, 전체 내보내기, memberPrivate 분리, App Check, 기록 트랜잭션).
+ * 최신 변경: [2026-11-02] 로그인·온보딩 화면 폰트를 페이퍼로지로(기존 프리텐다드 고정).
+ *            직전: [2026-11-01] 2차 점검 반영(랭킹 시즌 평균, 미결제 PT, 트레이너 HOME PT 카드·메모, 전체 내보내기, memberPrivate 분리, App Check, 기록 트랜잭션).
  *            직전: [2026-11-01] 전체 점검 반영(앱 소개 공유, 저장 실패 처리, 입력값 확인, 관리자 정합성·PT 정정, 보안 규칙 강화).
  *            직전: 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
  *            PT 일정 모아보기·기구 필터·스트레칭 검색, 홍보 페이지 줄바꿈. 직전: 홈 화면 설치 안내. 이전 변경은 CHANGELOG.md 참고.
@@ -263,8 +264,8 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme)
     // [2026-10-28] 디자인 스타일은 C 택타일 웜으로 고정(A/B 삭제, 선택 없음). 저장된 stylePreference는 무시.
     document.documentElement.setAttribute('data-style', 'c')
-    // [2026-10-28 신규] 본문 폰트 3종(designStyles.css html[data-font]). 미선택·로그인/온보딩은 프리텐다드.
-    document.documentElement.setAttribute('data-font', userDoc?.onboardingCompleted ? normalizeFontId(userDoc.fontPreference) : 'pretendard')
+    // [2026-10-28 신규] 본문 폰트 3종(designStyles.css html[data-font]). [2026-11-02] 로그인/온보딩도 기본 폰트(페이퍼로지).
+    document.documentElement.setAttribute('data-font', userDoc?.onboardingCompleted ? normalizeFontId(userDoc.fontPreference) : DEFAULT_FONT)
     // [2026-10-28 신규] 강조색 팔레트 3종. 미선택·로그인/온보딩은 브라스.
     document.documentElement.setAttribute('data-accent', userDoc?.onboardingCompleted ? normalizeAccentId(userDoc.accentPreference) : 'brass')
     // [2026-07-30] 노티바(브라우저 주소창 틴트/상태표시줄) 색상이 테마와 무관하게 골드로
