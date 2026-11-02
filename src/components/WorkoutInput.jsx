@@ -796,10 +796,19 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 전달한다. App.jsx는 이 값으로 자체 tick을 돌려 4탭 공통 상단 바에 경과시간을 표시한다.
   // (기록탭이 화면에 없어도 이 컴포넌트 자체는 계속 마운트돼 있으므로 이 값들은 실시간으로
   // 갱신된다 - App.jsx 287행 주석 참고.)
+  // [2026-11-02] 진행 중인 유산소 타이머(아직 저장 안 한 세트의 cardioTimer)도 함께 올려 상단 바에 "(유산소 12:03)"으로 표시
+  const activeCardioTimer = useMemo(() => {
+    for (const sets of Object.values(records || {})) {
+      const st = (sets || []).find((x) => !x?.saved && x?.cardioTimer?.startAt)
+      if (st) return st.cardioTimer
+    }
+    return null
+  }, [records])
+  const cardioTimerSig = activeCardioTimer ? `${activeCardioTimer.startAt}|${activeCardioTimer.pausedAt || ''}|${activeCardioTimer.pausedMs || 0}` : ''
   useEffect(() => {
-    onSessionTimingChange?.({ sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs })
+    onSessionTimingChange?.({ sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs, cardioTimer: activeCardioTimer })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs])
+  }, [sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs, cardioTimerSig])
   // [2026-10-29] 진행 중(본운동) 세션에서 체크(V)한 세트를 위로 알린다 - 근육별 주간 세트가 오늘 운동을 아직 저장 전이라 0으로 보이던 문제
   useEffect(() => {
     if (!onLiveExercisesChange) return

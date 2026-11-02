@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { List, RectangleVertical } from 'lucide-react'
+import { cardioTimerMs } from '../utils/cardioFields'
 
 // [2026-08-04 신규]
 // 지난 세션(7/30)에서는 "운동중" 여부만 홈탭 카드로 정적 표시했을 뿐, 실시간 타이머 숫자는
@@ -26,7 +27,7 @@ function formatElapsed(totalSeconds) {
 }
 
 export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset, onAdjust, expanded, onToggleExpanded, logMode, onToggleLogMode }) {
-  const { sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs } = timing || {}
+  const { sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs, cardioTimer } = timing || {}
   const isActive = sessionPhase === 'warmup' || sessionPhase === 'main'
   const isPaused = !!pauseStartedAt
   const [nowTick, setNowTick] = useState(Date.now())
@@ -89,7 +90,12 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           <>
             <span>{isPaused ? '일시정지됨' : sessionPhase === 'warmup' ? '웜업 중' : '운동 진행중'}</span>
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatElapsed(elapsedSec)}</span>
-            <span style={{ opacity: 0.75, fontWeight: 500 }}>{expanded ? '· 접기' : '· 조작하기'}</span>
+            {/* [2026-11-02] 유산소 타이머가 돌고 있으면 옆에 괄호로(좁은 바라 이때는 '조작하기' 글자를 뺀다) */}
+            {cardioTimer?.startAt ? (
+              <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>(유산소 {formatElapsed(cardioTimerMs(cardioTimer, nowTick) / 1000)})</span>
+            ) : (
+              <span style={{ opacity: 0.75, fontWeight: 500 }}>{expanded ? '· 접기' : '· 조작하기'}</span>
+            )}
           </>
         )}
       </button>

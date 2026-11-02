@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-02] 상단 운동 진행 바: '기록탭으로'를 누르면 기록 탭으로 가며 조작 패널 접기, 유산소 타이머가 돌면 '운동 진행중 25:51 (유산소 12:03)'으로 표시 | App.jsx, GlobalTimerBar.jsx, WorkoutInput.jsx(onSessionTimingChange에 cardioTimer)
+
 [2026-11-02] 운동 중 요청 묶음 1차: 스트레칭 기구 필터(맨몸·벽·기둥·수건·밴드·폼롤러·마사지볼)·새 스트레칭 9종(폼롤러 4·마사지볼 1·밴드 4), 포커스형 세트 종류 칩 4개, 긴 운동 이름 낱말 경계 줄바꿈, 종목 카드 부위 배지, 기록 방식 기본값 포커스형(기존 계정 1회 전환), 오늘 운동 완료 확인창 | utils/stretches.js, StretchGuide.jsx, SetEditors.jsx, WorkoutGuide.jsx, WorkoutInput.jsx, utils/exerciseName.jsx(신규), ui.jsx(PartBadge), utils/exerciseLibrary.js, HowToTab.jsx, InsightCards.jsx, ReportSections.jsx, utils/fonts.js, App.jsx, DesignPreviewScreen.jsx
 
 [2026-11-02] 알림(운동 진행 중·휴식 종료)을 눌러도 앱이 안 열리던 문제: 서비스워커에 notificationclick 처리 추가(열린 앱 창으로 돌아가고 없으면 앱 열기) | public/sw.js
