@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-02] 회원·트레이너 관점 점검 반영: HOME 증량 추천을 기록 화면과 같은 직전 기록(날짜·prev·history)으로 계산(쉰 종목이 HOME만 '증량'으로 보이던 문제), 운동 알림을 누르면 기록 탭으로(새로 열기 /?tab=log, 열린 창은 서비스워커 메시지), 캘린더·트레이너 회원 기록에 드롭(D)·실패(F) 표시, 트레이너 회원 기록에 RIR·'자동 저장' 표시·세트 종류 뜻 한 줄, 트레이너 회원 화면 '진행 요약'(정체 종목·최근 2주 신기록), 캘린더 상세·자동 저장 검토·트레이너 화면 운동 이름 낱말 경계 줄바꿈, 체크 안 한 세트의 종류·RIR만 바꾸면 오늘 볼륨에 들어가던 문제 | HomeTab.jsx increaseList, storage.js lastRecordFromLogs, App.jsx readInitialTab·서비스워커 메시지, public/sw.js notificationclick, RestTimer.jsx, utils/strength.js setTypeMark, CalendarView.jsx, TraineesScreen.jsx setsText·MemberProgressCard, AutoSavedReview.jsx, WorkoutInput.jsx patchSet(keepAuto)
+
 [2026-11-02] 포커스형 세트 종류 칩 줄 제거 → 위 세트 칸(입력 중인 칸)을 누를 때마다 종류 변경, 상단 바 유산소 표시 때도 '조작하기' 유지(360px 미만은 '진행중'으로 줄임), 운동이 끝나면 '휴식 끝!' 알림도 닫고 앱으로 돌아오면 휴식 알림 닫기 | SetEditors.jsx FocusSetPanel, WorkoutInput.jsx, WorkoutGuide.jsx, GlobalTimerBar.jsx, App.jsx
 
 [2026-11-02] 목업 QA 반영: 완료 확인창에서 유산소 타이머가 돌고 있으면 저장되지 않는다고 안내·타이머 도는 종목은 '시작 안 한 종목'에서 제외, 폼롤러 스트레칭 종류·기구 표시가 겹치던 문제 | WorkoutInput.jsx handleFinishWorkout, StretchGuide.jsx StretchCard

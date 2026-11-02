@@ -167,6 +167,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
         body: isFirst ? '다음 세트를 시작할 시간이에요.' : '다음 세트를 바로 시작해 주세요.',
         icon: '/icon-192.png',
         tag: 'bodytailor-rest',
+        data: { url: '/?tab=log', tab: 'log' }, // [2026-11-02] 눌러서 열면 기록 탭으로
       })
     }
   }

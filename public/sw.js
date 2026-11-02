@@ -83,6 +83,15 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       const mine = list.filter((c) => c.url.startsWith(self.location.origin) && !/\/(intro|privacy|admin)(\/|$)/.test(new URL(c.url).pathname))
       const win = mine.find((c) => c.focused) || mine[0]
+      // [2026-11-02] 운동 알림은 열린 창도 기록 탭으로 보낸다(App이 'bt-open-tab' 메시지를 받음)
+      const tab = event.notification.data && event.notification.data.tab
+      if (win && tab) {
+        try {
+          win.postMessage({ type: 'bt-open-tab', tab })
+        } catch (e) {
+          // 메시지를 못 보내도 창은 앞으로 띄운다
+        }
+      }
       if (win) return win.focus().catch(() => self.clients.openWindow(target))
       return self.clients.openWindow(target)
     })

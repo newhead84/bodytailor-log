@@ -7,7 +7,7 @@
 //  회원권 만료·휴회 표시와 만료 회원 일정 경고(A18), 미래 일정 완료 확인(A21), 일정 없이 완료 날짜 선택(A22), 계획 변경 이력(A33)
 // [2026-11-01] 2차: 목록에 남은 PT·마지막 운동(A19, 회원 문서 한 번 읽고 10분 보관), 주간 일정표 ‹ › 이동(B21), 트레이너 메모(B19),
 //  일정 시간 바꾸기·회원 알림(B20), 남은 PT 0회 '완료(미결제)'(B4), 일정·기록에 회원 이름 저장(B26), 새 일정 기본 시간 = 그 회원 마지막 일정 시간(B18)
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ScreenHeader, Button, Card, useConfirm } from './ui'
 import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
@@ -20,6 +20,9 @@ import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
 import { formatLoad, repsUnit, logVolumeKg } from '../utils/load'
 import { formatCardioSet } from '../utils/cardioFields'
+import { setTypeMark, detectPlateaus, recentPrList, SET_TYPE_LABEL } from '../utils/strength'
+import { exerciseKeyLabel } from '../utils/exerciseKey'
+import { ExerciseName } from '../utils/exerciseName'
 
 const DAY = ['일', '월', '화', '수', '목', '금', '토']
 function fmtDay(s) {
@@ -27,12 +30,66 @@ function fmtDay(s) {
   const dt = new Date(y, m - 1, d)
   return `${m}/${d}(${DAY[dt.getDay()]})`
 }
+// [2026-11-02] 트레이너가 강도를 판단할 수 있게 웜업(W)뿐 아니라 드롭(D)·실패(F)와 RIR도 표시
 function setsText(ex) {
   const type = getExerciseInputType(ex.name)
   const sets = ex.sets || []
+  const mark = (s) => (setTypeMark(s) ? `${setTypeMark(s)} ` : '')
+  const rir = (s) => (s.rir !== undefined && s.rir !== null && s.rir !== '' ? ` RIR${s.rir}` : '')
   if (type === 'cardio') return sets.map((s) => formatCardioSet(ex.name, s)).join(' / ')
-  if (type === 'reps') return sets.map((s) => `${s.type === 'warmup' ? 'W ' : ''}${s.reps}${repsUnit(ex.name)}`).join(' / ')
-  return sets.map((s) => `${s.type === 'warmup' ? 'W ' : ''}${formatLoad(ex.name, s.weight)}×${s.reps}`).join(' / ')
+  if (type === 'reps') return sets.map((s) => `${mark(s)}${s.reps}${repsUnit(ex.name)}${rir(s)}`).join(' / ')
+  return sets.map((s) => `${mark(s)}${formatLoad(ex.name, s.weight)}×${s.reps}${rir(s)}`).join(' / ')
+}
+// 이 기록에 있는 세트 종류만 뜻을 한 줄로(W 웜업 · D 드롭 · F 실패)
+function setTypeLegend(log) {
+  const present = ['warmup', 'drop', 'failure'].filter((t) => (log.exercises || []).some((ex) => (ex.sets || []).some((st) => st?.type === t)))
+  return present.map((t) => `${setTypeMark({ type: t })} ${SET_TYPE_LABEL[t]}`).join(' · ')
+}
+
+// [2026-11-02] 회원 화면 요약: 정체 종목(최근 3회 추정 1RM이 그 전보다 높지 않음)·최근 2주 신기록 - 이미 읽은 8주 기록·회원 문서만 사용
+function MemberProgressCard({ logs, member }) {
+  const plateaus = useMemo(() => detectPlateaus([...(logs || [])].reverse()).slice(0, 3), [logs])
+  const prs = useMemo(() => {
+    const since = (() => {
+      const d = new Date()
+      d.setDate(d.getDate() - 14)
+      return toLocalDateStr(d)
+    })()
+    return recentPrList(member?.prs, 5).filter((p) => p.date >= since).slice(0, 3)
+  }, [member?.prs])
+  if (!logs || logs.length === 0) return null
+  const row = { display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13.5 }
+  return (
+    <Card style={{ marginTop: 12 }}>
+      <p style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700 }}>진행 요약</p>
+      <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: 'var(--color-label-neutral)' }}>정체 종목 {plateaus.length}개</p>
+      {plateaus.length === 0 ? (
+        <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--color-label-neutral)' }}>최근 3회 추정 1RM이 멈춘 종목이 없어요.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+          {plateaus.map((p) => (
+            <div key={p.key} style={row}>
+              <span className="text-keep-all"><ExerciseName name={exerciseKeyLabel(p.key)} /></span>
+              <span className="bt-num" style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }}>{Math.round(p.bestBefore)} → {Math.round(p.bestRecent)}kg</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: 'var(--color-label-neutral)' }}>최근 2주 신기록 {prs.length}개</p>
+      {prs.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)' }}>최근 2주에 세운 신기록이 없어요.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {prs.map((p) => (
+            <div key={p.key} style={row}>
+              <span className="text-keep-all"><ExerciseName name={exerciseKeyLabel(p.key)} /></span>
+              <span className="bt-num" style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }}>추정 1RM {Math.round(p.e1rm)}kg · {fmtDay(p.date)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
 }
 
 export default function TraineesScreen({ uid, trainerName = '', customExercises = {}, onClose }) {
@@ -289,6 +346,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
       <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={() => { invalidateTraineeSummary(conn.memberUid); loadMember() }} />
       <TrainerNoteCard uid={uid} memberUid={conn.memberUid} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} />
+      <MemberProgressCard logs={logs} member={member || null} />
       <h2 style={{ fontSize: 16, margin: '22px 0 10px' }}>운동 기록</h2>
       {logs === null ? (
         <p style={{ color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
@@ -303,7 +361,11 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
             return (
               <Card key={key} onClick={() => setOpen((o) => ({ ...o, [key]: !o[key] }))}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{fmtDay(l.date)} {l.partName ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {l.partName}</span> : null}</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                    {fmtDay(l.date)} {l.partName ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {l.partName}</span> : null}
+                    {/* [2026-11-02] 3시간 방치로 자동 저장된 기록은 운동 시간이 실제와 다를 수 있어 표시 */}
+                    {l.autoFinalized ? <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 600, padding: '1px 6px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', color: 'var(--color-label-neutral)', verticalAlign: 'middle' }}>자동 저장</span> : null}
+                  </p>
                   <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>
                     {l.durationMin ? <><span className="bt-num">{l.durationMin}</span>분 · </> : null}
                     {vol > 0 ? <><span className="bt-num">{vol.toLocaleString()}</span>kg</> : `${(l.exercises || []).length}종목`}
@@ -313,10 +375,11 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack }) {
                   <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {(l.exercises || []).map((ex, i) => (
                       <div key={i}>
-                        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700 }}>{ex.grip ? `${ex.name} (${ex.grip})` : ex.name}</p>
+                        <p className="text-keep-all" style={{ margin: 0, fontSize: 13.5, fontWeight: 700 }}><ExerciseName name={ex.name} />{ex.grip ? ` (${ex.grip})` : ''}</p>
                         <p className="record-notation" style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--color-label-normal)', wordBreak: 'break-all' }}>{setsText(ex)}</p>
                       </div>
                     ))}
+                    {setTypeLegend(l) && <p style={{ margin: 0, fontSize: 12, color: 'var(--color-label-neutral)' }}>{setTypeLegend(l)}</p>}
                   </div>
                 ) : (
                   <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>{(l.exercises || []).map((e) => e.name).join(', ')}</p>

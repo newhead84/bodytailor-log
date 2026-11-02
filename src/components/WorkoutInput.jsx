@@ -1082,23 +1082,25 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   function suggestionFor(key) {
     return suggestNextSet(parseExerciseKey(key).name, lastRecords[key], settingFor(key))
   }
-  function patchSet(key, idx, patch) {
+  // [2026-11-02] 세트 종류·RIR만 바꿀 때(keepAuto)는 프리필·미리 만든 행 표시를 유지한다 - 체크하지 않은 행이
+  // 종류만 바꿔도 '한 세트'로 세어져 오늘 볼륨에 들어가던 문제. 무게·횟수를 고치면 지금처럼 기록 대상이 된다.
+  function patchSet(key, idx, patch, { keepAuto = false } = {}) {
     autoResumeIfPaused()
     setRecords((r) => ({
       ...r,
-      [key]: (r[key] || []).map((st, i) => (i === idx ? { ...st, ...patch, auto: false, planned: false } : st)),
+      [key]: (r[key] || []).map((st, i) => (i === idx ? (keepAuto ? { ...st, ...patch } : { ...st, ...patch, auto: false, planned: false }) : st)),
     }))
   }
   function cycleSetType(key, idx) {
     const cur = records[key]?.[idx]
     const next = nextSetType(cur?.type)
-    patchSet(key, idx, { type: next })
+    patchSet(key, idx, { type: next }, { keepAuto: true })
     // [2026-10-29] W·D·F가 무엇인지 바꿀 때 한 줄로 안내
     showToast(next === 'working' ? '본세트로 바꿨어요' : `${SET_TYPE_LABEL[next]} 세트로 바꿨어요 · ${SET_TYPE_DESC[next]}`, 1800)
   }
   function cycleSetRir(key, idx) {
     const cur = records[key]?.[idx]
-    patchSet(key, idx, { rir: nextRir(cur?.rir) })
+    patchSet(key, idx, { rir: nextRir(cur?.rir) }, { keepAuto: true })
   }
   // 추천 무게·횟수를 아직 저장 안 한 본세트 행에 적용
   // [2026-10-30 추천 고도화] 세트별 목표(setTargets)를 순서대로 채우고, 행이 모자라면 미리 만든 행(planned)으로 추가

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Card, Button, Chip, EmptyState, useConfirm } from './ui'
+import { ExerciseName } from '../utils/exerciseName'
+import { setTypeMark } from '../utils/strength'
 import { getWorkoutLogsInRange, updateWorkoutLog, deleteWorkoutLog, addWorkoutLog } from '../storage'
 import { Plus, X, Copy, Pencil, Trash2, ClipboardPaste } from 'lucide-react'
 import {
@@ -151,11 +153,11 @@ function makeEmptySet(inputType, exerciseName) {
 function formatExerciseSets(ex) {
   if (ex.inputType === 'cardio') return ex.sets.map((s) => formatCardioSet(ex.name, s)).join(' / ')
   if (ex.inputType === 'reps') {
-    return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${s.reps}${repsUnit(ex.name)}`).join('/')
+    return ex.sets.map((s) => `${setTypeMark(s)}${s.reps}${repsUnit(ex.name)}`).join('/')
   }
   // [2026-10-29] 보조·맨몸+추가 종목은 "보조 20kg×8" / "맨몸×8"처럼 의미가 보이게
-  if (allowsZeroWeight(ex.name)) return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${formatLoad(ex.name, s.weight)}×${s.reps}`).join('/')
-  return ex.sets.map((s) => `${s.type === 'warmup' ? 'W' : ''}${s.weight}x${s.reps}`).join('/')
+  if (allowsZeroWeight(ex.name)) return ex.sets.map((s) => `${setTypeMark(s)}${formatLoad(ex.name, s.weight)}×${s.reps}`).join('/')
+  return ex.sets.map((s) => `${setTypeMark(s)}${s.weight}x${s.reps}`).join('/')
 }
 
 // [2026-07-31 신규] 날짜 상세 카드의 "복붙" 버튼용: 날짜 + 종목별 기록 + 하단 요약(웜업/본운동
@@ -284,7 +286,7 @@ function EditLogForm({
       </div>
       {editDraft?.exercises.map((ex, exIdx) => (
         <div key={`${ex.name}::${ex.grip || ''}::${exIdx}`} style={{ marginBottom: 14 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{ex.name}</div>
+          <div className="text-keep-all" style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}><ExerciseName name={ex.name} /></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {ex.sets.map((s, setIdx) => (
               <React.Fragment key={setIdx}>
@@ -1452,7 +1454,7 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
                   // 이름을 윗줄로 분리하고 기록 텍스트는 카드 전체 너비(100%)를 온전히 차지하는
                   // 독립된 가로 스크롤 박스로 바꿨다.
                   <div key={`${ex.name}::${ex.grip || ''}::${exIdx}`} style={{ fontSize: 13, marginBottom: 6 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 2 }}>{ex.name}</div>
+                    <div className="text-keep-all" style={{ fontWeight: 600, marginBottom: 2 }}><ExerciseName name={ex.name} /></div>
                     <div
                       className="record-notation h-scroll"
                       style={{ color: 'var(--color-label-normal)', width: '100%' }}

@@ -24,6 +24,10 @@ export const SET_TYPE_LABEL = { working: '본세트', warmup: '웜업', drop: '�
 export const SET_TYPE_SHORT = { warmup: 'W', drop: 'D', failure: 'F' }
 // [2026-10-29] W·D·F 뜻 안내(세트 목록 아래 한 줄·종류 변경 안내)
 export const SET_TYPE_DESC = { warmup: '몸 푸는 세트, 볼륨·추천 제외', drop: '무게 낮춰 바로 이어서', failure: '한계까지' }
+// [2026-11-02] 기록 표기 앞 글자(W·D·F, 본세트는 없음) - 캘린더·트레이너 화면이 웜업만 표시하던 것을 드롭·실패까지
+export function setTypeMark(s) {
+  return SET_TYPE_SHORT[s?.type] || ''
+}
 
 export function isWarmupSet(s) {
   return s?.type === 'warmup'

@@ -1,6 +1,6 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-02] 운동 끝나면 휴식 알림 닫기, 포커스형 세트 칸 눌러 종류 변경. 같은 날: 상단 진행 바 '기록탭으로' 후 접기·유산소 타이머 표시. 같은 날: 스트레칭 기구 필터·9종, 포커스형 세트 종류 칩·기본값, 긴 이름 줄바꿈, 부위 배지, 완료 확인창. 같은 날: 알림 눌러 앱 열기(sw notificationclick). 같은 날: 커밋 보관 브랜치 wip(배포 안 함) + 작업 지침 2-0. 같은 날: 세션 환경 판별·클라우드 커밋·푸시 절차. 같은 날: 로그인·온보딩 화면 폰트를 페이퍼로지로.
+ * 최신 변경: [2026-11-02] 회원·트레이너 점검 반영(HOME 추천 일치, 알림 누르면 기록 탭, 드롭·실패·RIR 표시, 트레이너 진행 요약, 세트 종류만 바꾸면 볼륨에 들어가던 문제). 같은 날: 운동 끝나면 휴식 알림 닫기, 포커스형 세트 칸 눌러 종류 변경. 같은 날: 상단 진행 바 '기록탭으로' 후 접기·유산소 타이머 표시. 같은 날: 스트레칭 기구 필터·9종, 포커스형 세트 종류 칩·기본값, 긴 이름 줄바꿈, 부위 배지, 완료 확인창. 같은 날: 알림 눌러 앱 열기(sw notificationclick). 같은 날: 커밋 보관 브랜치 wip(배포 안 함) + 작업 지침 2-0. 같은 날: 세션 환경 판별·클라우드 커밋·푸시 절차. 같은 날: 로그인·온보딩 화면 폰트를 페이퍼로지로.
  *            직전: [2026-11-01] 2차 점검 반영(랭킹 시즌 평균, 미결제 PT, 트레이너 HOME PT 카드·메모, 전체 내보내기, memberPrivate 분리, App Check, 기록 트랜잭션).
  *            직전: [2026-11-01] 전체 점검 반영(앱 소개 공유, 저장 실패 처리, 입력값 확인, 관리자 정합성·PT 정정, 보안 규칙 강화).
  *            직전: 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
@@ -54,13 +54,44 @@ const MIN_SPLASH_MS = 700
 const SESSION_NOTIFICATION_TAG = 'bodytailor-session'
 const REST_NOTIFICATION_TAG = 'bodytailor-rest' // RestTimer.jsx 휴식 종료 알림과 같은 tag
 
+// [2026-11-02] 알림으로 연 주소(/?tab=log)를 한 번만 읽는다. StrictMode에서 useState 초기화가 두 번 불려도
+// 첫 결과를 기억해 두어야 주소를 지운 뒤 두 번째 호출이 'home'을 돌려주지 않는다.
+let initialTabCache = null
+function readInitialTab() {
+  if (initialTabCache) return initialTabCache
+  initialTabCache = 'home'
+  try {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('tab') === 'log') {
+      params.delete('tab')
+      const q = params.toString()
+      window.history.replaceState(window.history.state, '', window.location.pathname + (q ? `?${q}` : '') + window.location.hash)
+      initialTabCache = 'log'
+    }
+  } catch (e) {
+    // 주소를 읽지 못하면 기본 HOME
+  }
+  return initialTabCache
+}
+
 export default function App() {
   const [authUser, setAuthUser] = useState(undefined) // undefined: 로딩중, null: 비로그인
   const [userDoc, setUserDoc] = useState(null)
   const [routineTemplates, setRoutineTemplates] = useState(undefined) // undefined: 로딩중, []: 없음
-  const [activeTab, setActiveTab] = useState('home')
+  // [2026-11-02] 운동 알림을 눌러 앱을 새로 열면(/?tab=log) 기록 탭으로 시작(readInitialTab - 한 번만 읽고 주소의 ?tab은 지움)
+  const [activeTab, setActiveTab] = useState(readInitialTab)
+  // 이미 열린 창에서 알림을 누르면 서비스워커가 메시지로 기록 탭을 연다
+  useEffect(() => {
+    const sw = navigator.serviceWorker
+    if (!sw?.addEventListener) return undefined
+    const onMsg = (e) => {
+      if (e.data?.type === 'bt-open-tab' && e.data.tab === 'log') setActiveTab('log')
+    }
+    sw.addEventListener('message', onMsg)
+    return () => sw.removeEventListener('message', onMsg)
+  }, [])
   // [2026-10-27 리뉴얼 모션] 처음 열어본 탭에만 섹션 순차 등장 효과(.bt-reveal)를 한 번 준다.
-  const [revealedTabs, setRevealedTabs] = useState(() => new Set(['home']))
+  const [revealedTabs, setRevealedTabs] = useState(() => new Set([activeTab]))
   useEffect(() => {
     setRevealedTabs((prev) => (prev.has(activeTab) ? prev : new Set([...prev, activeTab])))
   }, [activeTab])
@@ -164,7 +195,7 @@ export default function App() {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
 
     const body = workoutPhase === 'warmup' ? '웜업 진행 중이에요' : '운동 진행 중이에요'
-    showSystemNotification('BodyTailor Log', { tag: SESSION_NOTIFICATION_TAG, icon: '/icon-192.png', body, silent: true })
+    showSystemNotification('BodyTailor Log', { tag: SESSION_NOTIFICATION_TAG, icon: '/icon-192.png', body, silent: true, data: { url: '/?tab=log', tab: 'log' } })
   }, [workoutPhase, userDoc?.restTimerNotificationPermission])
 
   // [2026-11-02] 앱 화면으로 돌아오면 '휴식 끝!' 알림은 할 일을 다 했으니 닫는다(알림창에 쌓이지 않게)

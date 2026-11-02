@@ -4,13 +4,13 @@ import { Card, Button, useConfirm } from './ui'
 import MembershipNotice from './MembershipNotice'
 import { TrainerGoalNotice } from './TrainerGoal'
 import HomePtCards from './HomePtCards'
-import { getRecentWorkoutLogs, getWorkoutLogsInRange, listPtSchedules, listPtSessions } from '../storage'
+import { getRecentWorkoutLogs, getWorkoutLogsInRange, listPtSchedules, listPtSessions, lastRecordFromLogs } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
 import { suggestNextSet, workingSetsOf } from '../utils/strength'
 import { isAssistedExercise, isBodyweightLoaded, logVolumeKg } from '../utils/load'
 import { cardioStats } from '../utils/cardioFields'
 import { getTrainingProfile } from '../utils/goals'
-import { makeExerciseKey, parseExerciseKey } from '../utils/exerciseKey'
+import { parseExerciseKey } from '../utils/exerciseKey'
 import { CountUp } from '../hooks/useCountUp'
 import CalendarView from './CalendarView'
 import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
@@ -174,9 +174,9 @@ export default function HomeTab({
     const out = []
     suggested.part.exercises.forEach((key) => {
       const { name, grip } = parseExerciseKey(key)
-      const log = recentLogs.find((l) => (l.exercises || []).some((e) => makeExerciseKey(e.name, e.grip) === makeExerciseKey(name, grip)))
-      const ex = log?.exercises.find((e) => makeExerciseKey(e.name, e.grip) === makeExerciseKey(name, grip))
-      const sug = ex ? suggestNextSet(name, ex, userDoc?.exerciseSettings?.[key]) : null
+      // [2026-11-02] 기록 화면과 같은 직전 기록(날짜·prev·history)으로 계산 - 쉰 지 14일 넘은 종목을 HOME만 '증량'으로 보이던 문제
+      const last = lastRecordFromLogs(recentLogs, name, grip)
+      const sug = last ? suggestNextSet(name, last, userDoc?.exerciseSettings?.[key]) : null
       if (sug?.kind === 'increase') out.push({ key, name, weight: sug.weight })
     })
     return out

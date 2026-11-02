@@ -13,6 +13,7 @@ import { getCardioFieldsForSet, toSavedCardioSet } from '../utils/cardioFields'
 import { logVolumeKg, getBodyweightKg, weightUnitShort, repsUnit } from '../utils/load'
 import { estimateCaloriesV2 } from '../utils/calories'
 import { confirmSetValues, prevTopWeight } from '../utils/inputCheck'
+import { ExerciseName } from '../utils/exerciseName'
 
 const inputStyle = {
   width: '100%',
@@ -189,7 +190,7 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved,
               return (
                 <div key={`${ex.name}-${ei}`} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span className="text-keep-all" style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--color-label-strong)' }}>
-                    {ex.name}
+                    <ExerciseName name={ex.name} />
                     {ex.grip ? ` (${ex.grip})` : ''}
                   </span>
                   {ex.sets.length === 0 && <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>남은 세트 없음. 저장하면 이 종목은 빠져요</span>}
