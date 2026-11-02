@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-03] 로그 코치 '왜 이렇게?' → '이렇게 정한 이유', 근거를 쉬운 우리말 설명 + 출처 한 줄(우리말 이름·연도)로(영어 저자명 제거), 강도 선택 칩 3칸씩 배치(한계까지가 한 줄을 차지하던 문제), 드롭 안내 문구 짧게 | utils/strength.js COACH_EVIDENCE, WorkoutInput.jsx, SetEditors.jsx, MyPageTab.jsx, WorkoutGuide.jsx
+
 [2026-11-02] 로그 코치 별도 점검 반영: 드롭을 거쳐 다른 종류로 바꾸면 원래 무게로 되돌림, 0kg가 안 되는 종목의 드롭 무게 0kg 방지, 세션이 끝나면 플랜·증량 제안 횟수 초기화, 최근 평균 목표가 지난번 횟수 아래로 내려가지 않게, 강도별 '올리기까지' 횟수·이유 문구 수정, 살살도 세트마다 +1, 마지막 플랜 세트를 실패로 끝내면 마무리 안내 우선, 세게·한계까지는 RIR 0을 실패 안내에서 제외, 보조 종목 드롭 안내 문구 | utils/strength.js, WorkoutInput.jsx, MyPageTab.jsx, SetEditors.jsx
 
 [2026-11-02] 로그 코치(다음 무게 추천 개편, 연구 근거 기준): 오늘의 플랜 카드(판단 올리기·한 개 더·그대로·내리기·다시 시작 + 무게 × 세트별 횟수 + 권장 세트 수, '플랜대로 하기', '왜 이렇게?' 근거), 강도 5단계(살살·가볍게·보통·세게·한계까지 = 목표 RIR, MY 설정 전체 + 종목별), 같은 무게 최근 3회 평균 기준(나쁜 날 제외), 권장 세트 수(근육·뼈 목표 다관절 4·고립 3, 그 밖 3·2, 처음 8주 최대 3·2), 운동 중 코치 한마디(몇 세트째, 증량 제안 강도별 1–2회, 마지막 세트 유지, 30% 넘게 줄면 피로 안내, 실패 뒤 RIR 1·휴식 30초 더 안내, 드롭 뒤 마무리), 드롭 세트로 바꾸면 직전의 75–80% 무게, 증량 단위 설정 없앰(기구별 자동), 사용법 가이드 버전 올림 | utils/strength.js, WorkoutInput.jsx, SetEditors.jsx ExerciseSettingEditor, MyPageTab.jsx, App.jsx, WorkoutGuide.jsx, GoalPicker.jsx, HomeTab.jsx, firestore.rules coachIntensity

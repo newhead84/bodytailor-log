@@ -2772,19 +2772,28 @@ export function ExerciseCard({
                   <span style={{ whiteSpace: 'pre-line' }}>{suggestion.stall.options.map((o) => `· ${o}`).join('\n')}</span>
                 </Disclosure>
               )}
-              {/* [2026-11-02 로그 코치] 왜 이렇게? - 판단·세트 수·강도의 근거(저자·연도) */}
-              <Disclosure label="왜 이렇게?" style={{ marginTop: 2 }}>
-                <span style={{ whiteSpace: 'pre-line' }}>
-                  {[
-                    COACH_EVIDENCE[suggestion.comeback ? 'comeback' : suggestion.kind] || '',
-                    `세트 수: 지난번 ${suggestion.lastSetCount || 1}세트 → 플랜 ${ext.planTargets?.length || 1}세트. ${COACH_EVIDENCE.sets}`,
-                    `강도 ${intensityOf({ intensity: ext.intensity }).label}(남길 반복 ${intensityOf({ intensity: ext.intensity }).rir}): ${COACH_EVIDENCE.intensity}`,
-                    HEALTH_NOTE,
-                  ]
-                    .filter(Boolean)
-                    .join('\n\n')}
-                </span>
-              </Disclosure>
+              {/* [2026-11-02 로그 코치] 이렇게 정한 이유 - 쉬운 설명 + 출처 한 줄(우리말 이름·연도) + 건강 안내 */}
+              {(() => {
+                const it = intensityOf({ intensity: ext.intensity })
+                const why = COACH_EVIDENCE[suggestion.comeback ? 'comeback' : suggestion.kind]
+                const parts = [
+                  why?.text,
+                  `세트 수(지난번 ${suggestion.lastSetCount || 1}세트 → 오늘 ${ext.planTargets?.length || 1}세트): ${COACH_EVIDENCE.sets.text}`,
+                  `강도 '${it.label}'(${it.rirText} 정도): ${COACH_EVIDENCE.intensity.text}`,
+                ].filter(Boolean)
+                const src = [...new Set([...(why?.src || []), ...COACH_EVIDENCE.sets.src, ...COACH_EVIDENCE.intensity.src])]
+                return (
+                  <Disclosure label="이렇게 정한 이유" style={{ marginTop: 2 }}>
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {parts.map((t, i) => (
+                        <span key={i} className="text-keep-all">{t}</span>
+                      ))}
+                      <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>출처: {src.join(', ')}</span>
+                      <span className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>{HEALTH_NOTE}</span>
+                    </span>
+                  </Disclosure>
+                )
+              })()}
             </div>
           )}
 

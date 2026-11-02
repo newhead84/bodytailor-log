@@ -474,9 +474,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>로그 코치 강도</span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
             {COACH_INTENSITIES.map((c) => (
-              <Chip key={c.id} active={coachIntensity === c.id} onClick={() => selectCoachIntensity(c.id)} style={{ justifyContent: 'center', flex: '1 0 auto', whiteSpace: 'nowrap' }}>
+              <Chip key={c.id} active={coachIntensity === c.id} onClick={() => selectCoachIntensity(c.id)} style={{ justifyContent: 'center', minWidth: 0, whiteSpace: 'nowrap' }}>
                 {c.label}
               </Chip>
             ))}
@@ -484,7 +484,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
             {(() => {
               const c = COACH_INTENSITIES.find((x) => x.id === coachIntensity)
-              return `${c.label}: ${c.rirText} 정도로 플랜을 짜요. 한계에 가까울수록 근육 성장이 커지지만 피로도 커져요(Refalo 외 2023). 종목마다 따로 바꾸려면 기록 화면의 '목표' 버튼에서 바꿔요.`
+              return `${c.label}: ${c.rirText} 정도로 플랜을 짜요. 한계에 가까울수록 근육은 더 자라지만 피로도 커져요. 종목마다 따로 바꾸려면 기록 화면의 '목표' 버튼에서 바꿔요.`
             })()}
           </span>
         </div>

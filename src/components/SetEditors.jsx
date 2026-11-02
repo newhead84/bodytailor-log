@@ -479,7 +479,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, inten
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>로그 코치 강도 (기본 = 전체 설정 '{globalIntensityLabel}')</span>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
           {[{ id: null, label: '기본' }, ...COACH_INTENSITIES].map((c) => {
             const on = (intensity ?? null) === c.id
             return (
@@ -489,8 +489,8 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, inten
                 onClick={() => set({ intensity: c.id })}
                 style={{
                   height: 34,
-                  padding: '0 10px',
-                  flex: '1 0 auto',
+                  padding: '0 6px',
+                  minWidth: 0,
                   borderRadius: 'var(--radius-pill)',
                   border: on ? '1px solid var(--color-label-strong)' : '1px solid var(--color-line)',
                   background: on ? 'var(--color-label-strong)' : 'transparent',
