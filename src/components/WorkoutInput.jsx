@@ -1558,9 +1558,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     } else if (checkedCount > 0) {
       // [2026-11-02] 세트 입력 중 잘못 눌러 바로 끝나지 않게 확인(사용자 요청). 위 두 질문이 나온 경우는 이미 확인한 셈이라 생략
       const doneEx = buildExercisesFromRecords(records).length
-      const notStarted = (visibleExercises || []).filter((k) => !(records[k] || []).some((st) => st.saved)).length
+      // 시작 안 한 종목: 저장한 세트도, 돌고 있는 유산소 타이머도 없는 종목
+      const notStarted = (visibleExercises || []).filter((k) => !(records[k] || []).some((st) => st.saved || st.cardioTimer?.startAt)).length
+      const runningCardio = Object.entries(records || {}).find(([, sets]) => (sets || []).some((st) => !st.saved && st.cardioTimer?.startAt))
       const ok = await confirm(
-        `오늘 운동을 마칠까요?\n${doneEx}종목 · ${checkedCount}세트를 저장해요.${notStarted > 0 ? `\n아직 시작 안 한 종목이 ${notStarted}개 있어요.` : ''}`,
+        `오늘 운동을 마칠까요?\n${doneEx}종목 · ${checkedCount}세트를 저장해요.${notStarted > 0 ? `\n아직 시작 안 한 종목이 ${notStarted}개 있어요.` : ''}${runningCardio ? `\n${parseExerciseKey(runningCardio[0]).name} 타이머가 아직 돌고 있어요. 지금 마치면 이 유산소는 저장되지 않아요.` : ''}`,
         { okLabel: '운동 완료', cancelLabel: '계속 운동', dismissValue: false }
       )
       if (!ok) return

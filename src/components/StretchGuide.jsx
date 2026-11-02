@@ -26,11 +26,12 @@ export function StretchCard({ s, defaultOpen = false, compact = false }) {
           <span className="text-keep-all" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 14.5, fontWeight: 800, color: 'var(--color-label-strong)' }}>
             {s.name}
             <span style={{ padding: '1px 7px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-normal)' }}>
-              {STRETCH_TYPE_LABEL[s.type]}
+              {/* [2026-11-02] 폼롤러 종류는 기구 이름(폼롤러·마사지볼)을 종류 자리에 쓰고, 기구 표시를 따로 겹쳐 달지 않는다 */}
+              {s.type === 'foam' ? STRETCH_EQUIP_LABEL[(s.equip || []).includes('ball') ? 'ball' : 'roller'] : STRETCH_TYPE_LABEL[s.type]}
             </span>
-            {(s.equip || []).filter((e) => e !== 'none').length > 0 && (
+            {(s.equip || []).filter((e) => e !== 'none' && e !== 'roller' && e !== 'ball').length > 0 && (
               <span style={{ padding: '1px 7px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-normal)' }}>
-                {s.equip.filter((e) => e !== 'none').map((e) => STRETCH_EQUIP_LABEL[e]).join('·')}
+                {s.equip.filter((e) => e !== 'none' && e !== 'roller' && e !== 'ball').map((e) => STRETCH_EQUIP_LABEL[e]).join('·')}
               </span>
             )}
             <span className="bt-num" style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)' }}>
