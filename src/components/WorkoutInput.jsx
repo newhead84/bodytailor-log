@@ -1125,7 +1125,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         // 드롭에서 다른 종류로 넘어가면 원래 무게로 되돌리도록 기억해 둔다(preDropWeight)
         patchSet(key, idx, { type: next, weight: String(dw), preDropWeight: cur.weight ?? '' }, { keepAuto: true })
         const shown = Math.round(dw * 100) / 100
-        showToast(isAssistedExercise(exName) ? `드롭 세트: 보조를 ${shown}kg로 늘려 20–25% 가볍게 맞췄어요 · 쉬지 말고 한계까지` : `드롭 세트: 직전보다 20–25% 가볍게 ${shown}kg로 맞췄어요 · 쉬지 말고 한계까지`, 2600)
+        showToast(isAssistedExercise(exName) ? `드롭: 보조 ${shown}kg로 늘렸어요 · 쉬지 말고 한계까지` : `드롭: ${shown}kg로 낮췄어요 · 쉬지 말고 한계까지`, 2600)
         return
       }
     }
