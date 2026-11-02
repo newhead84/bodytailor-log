@@ -93,14 +93,14 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           <span>{modeNotice}</span>
         ) : (
           <>
-            <span>{isPaused ? '일시정지됨' : sessionPhase === 'warmup' ? '웜업 중' : '운동 진행중'}</span>
+            {/* [2026-11-02] 유산소 표시가 붙으면 좁은 화면(360px 미만)에서는 '운동'을 빼서 '조작하기'까지 한 줄에 */}
+            <span>{isPaused ? '일시정지됨' : sessionPhase === 'warmup' ? '웜업 중' : cardioTimer?.startAt && typeof window !== 'undefined' && window.innerWidth < 360 ? '진행중' : '운동 진행중'}</span>
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatElapsed(elapsedSec)}</span>
             {/* [2026-11-02] 유산소 타이머가 돌고 있으면 옆에 괄호로(좁은 바라 이때는 '조작하기' 글자를 뺀다) */}
-            {cardioTimer?.startAt ? (
+            {cardioTimer?.startAt && (
               <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontSize: 12.5 }}>(유산소 {formatElapsed(cardioTimerMs(cardioTimer, nowTick) / 1000)})</span>
-            ) : (
-              <span style={{ opacity: 0.75, fontWeight: 500 }}>{expanded ? '· 접기' : '· 조작하기'}</span>
             )}
+            <span style={{ opacity: 0.75, fontWeight: 500 }}>{expanded ? '· 접기' : '· 조작하기'}</span>
           </>
         )}
       </button>

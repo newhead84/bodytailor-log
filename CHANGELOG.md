@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-02] 포커스형 세트 종류 칩 줄 제거 → 위 세트 칸(입력 중인 칸)을 누를 때마다 종류 변경, 상단 바 유산소 표시 때도 '조작하기' 유지(360px 미만은 '진행중'으로 줄임), 운동이 끝나면 '휴식 끝!' 알림도 닫고 앱으로 돌아오면 휴식 알림 닫기 | SetEditors.jsx FocusSetPanel, WorkoutInput.jsx, WorkoutGuide.jsx, GlobalTimerBar.jsx, App.jsx
+
 [2026-11-02] 목업 QA 반영: 완료 확인창에서 유산소 타이머가 돌고 있으면 저장되지 않는다고 안내·타이머 도는 종목은 '시작 안 한 종목'에서 제외, 폼롤러 스트레칭 종류·기구 표시가 겹치던 문제 | WorkoutInput.jsx handleFinishWorkout, StretchGuide.jsx StretchCard
 
 [2026-11-02] 상단 운동 진행 바: '기록탭으로'를 누르면 기록 탭으로 가며 조작 패널 접기, 유산소 타이머가 돌면 '운동 진행중 25:51 (유산소 12:03)'으로 표시 | App.jsx, GlobalTimerBar.jsx, WorkoutInput.jsx(onSessionTimingChange에 cardioTimer)

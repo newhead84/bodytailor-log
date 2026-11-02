@@ -1096,11 +1096,6 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // [2026-10-29] W·D·F가 무엇인지 바꿀 때 한 줄로 안내
     showToast(next === 'working' ? '본세트로 바꿨어요' : `${SET_TYPE_LABEL[next]} 세트로 바꿨어요 · ${SET_TYPE_DESC[next]}`, 1800)
   }
-  // [2026-11-02] 포커스형 세트 종류 칩: 순환 대신 바로 지정
-  function setSetType(key, idx, type) {
-    patchSet(key, idx, { type })
-    showToast(type === 'working' ? '본세트로 바꿨어요' : `${SET_TYPE_LABEL[type]} 세트로 바꿨어요 · ${SET_TYPE_DESC[type]}`, 1800)
-  }
   function cycleSetRir(key, idx) {
     const cur = records[key]?.[idx]
     patchSet(key, idx, { rir: nextRir(cur?.rir) })
@@ -1187,7 +1182,6 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       step: setting?.step ?? null,
       defaultStep: getProgressionIncrement(name),
       onCycleType: (idx) => cycleSetType(key, idx),
-      onSetType: (idx, type) => setSetType(key, idx, type),
       onCycleRir: (idx) => cycleSetRir(key, idx),
       onApplySuggestion: () => applySuggestion(key),
       onAddWarmups: () => toggleWarmups(key),
@@ -2831,7 +2825,6 @@ export function ExerciseCard({
                 onSaveSet(i)
               }}
               onCycleType={ext.onCycleType}
-              onSetType={ext.onSetType}
               onAddSet={() => onCopySet(sets.length - 1)}
               onRemoveSet={(i) => {
                 setFocusIdx(null)

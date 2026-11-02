@@ -1,6 +1,6 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-02] 상단 진행 바 '기록탭으로' 후 접기·유산소 타이머 표시. 같은 날: 스트레칭 기구 필터·9종, 포커스형 세트 종류 칩·기본값, 긴 이름 줄바꿈, 부위 배지, 완료 확인창. 같은 날: 알림 눌러 앱 열기(sw notificationclick). 같은 날: 커밋 보관 브랜치 wip(배포 안 함) + 작업 지침 2-0. 같은 날: 세션 환경 판별·클라우드 커밋·푸시 절차. 같은 날: 로그인·온보딩 화면 폰트를 페이퍼로지로.
+ * 최신 변경: [2026-11-02] 운동 끝나면 휴식 알림 닫기, 포커스형 세트 칸 눌러 종류 변경. 같은 날: 상단 진행 바 '기록탭으로' 후 접기·유산소 타이머 표시. 같은 날: 스트레칭 기구 필터·9종, 포커스형 세트 종류 칩·기본값, 긴 이름 줄바꿈, 부위 배지, 완료 확인창. 같은 날: 알림 눌러 앱 열기(sw notificationclick). 같은 날: 커밋 보관 브랜치 wip(배포 안 함) + 작업 지침 2-0. 같은 날: 세션 환경 판별·클라우드 커밋·푸시 절차. 같은 날: 로그인·온보딩 화면 폰트를 페이퍼로지로.
  *            직전: [2026-11-01] 2차 점검 반영(랭킹 시즌 평균, 미결제 PT, 트레이너 HOME PT 카드·메모, 전체 내보내기, memberPrivate 분리, App Check, 기록 트랜잭션).
  *            직전: [2026-11-01] 전체 점검 반영(앱 소개 공유, 저장 실패 처리, 입력값 확인, 관리자 정합성·PT 정정, 보안 규칙 강화).
  *            직전: 법적 정비(동의 화면·처리방침·탈퇴·라이선스), Spark 한도 절약 캐시, 가이드 지연 로드, 회원권 만료 저장 안내,
@@ -52,6 +52,7 @@ import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DE
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
 const MIN_SPLASH_MS = 700
 const SESSION_NOTIFICATION_TAG = 'bodytailor-session'
+const REST_NOTIFICATION_TAG = 'bodytailor-rest' // RestTimer.jsx 휴식 종료 알림과 같은 tag
 
 export default function App() {
   const [authUser, setAuthUser] = useState(undefined) // undefined: 로딩중, null: 비로그인
@@ -152,17 +153,29 @@ export default function App() {
   // [2026-11-01] 안드로이드 크롬·설치 PWA는 new Notification()을 막아(Illegal constructor) 알림이 안 떴다.
   // 휴식 알림과 같은 도우미(서비스워커 registration.showNotification 우선, 안 되면 생성자)로 띄우고 tag로 닫는다.
   useEffect(() => {
-    if (!userDoc?.restTimerNotificationPermission) return
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
-
+    // [2026-11-02] 운동이 끝나면(완료·취소) '운동 진행 중'과 남아 있는 '휴식 끝!' 알림을 모두 닫는다(권한 설정과 무관하게).
+    // 예전에는 진행 중 알림만 닫아 휴식 종료 알림이 알림창에 계속 남았다(사용자 제보).
     if (workoutPhase === 'idle') {
       closeSystemNotification(SESSION_NOTIFICATION_TAG)
+      closeSystemNotification(REST_NOTIFICATION_TAG)
       return
     }
+    if (!userDoc?.restTimerNotificationPermission) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
 
     const body = workoutPhase === 'warmup' ? '웜업 진행 중이에요' : '운동 진행 중이에요'
     showSystemNotification('BodyTailor Log', { tag: SESSION_NOTIFICATION_TAG, icon: '/icon-192.png', body, silent: true })
   }, [workoutPhase, userDoc?.restTimerNotificationPermission])
+
+  // [2026-11-02] 앱 화면으로 돌아오면 '휴식 끝!' 알림은 할 일을 다 했으니 닫는다(알림창에 쌓이지 않게)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') closeSystemNotification(REST_NOTIFICATION_TAG)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    onVisible()
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
 
   // [2026-11-01] 루트(열린 상세 화면 없음)에서 기기 뒤로가기: 첫 번째는 "한 번 더 누르면 앱을 닫아요" 안내만 하고
   // 가드를 풀어 둔다(그 사이 한 번 더 누르면 실제로 닫힘). 안내가 사라지면 가드를 다시 쌓는다.

@@ -198,7 +198,7 @@ function BigValue({ caption, value, onChange, children, integer = false }) {
 }
 
 // 포커스형: sets(중량형)·reps(횟수형) 종목에서 "지금 할 세트" 하나를 크게 보여준다.
-export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무게 kg', repsLabel = '횟수', repsUnitLabel = '회', rirEnabled = true, onField, onSave, onSelect, focusIdx, onCycleType, onSetType, onAddSet, onRemoveSet, workingIndexOf }) {
+export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무게 kg', repsLabel = '횟수', repsUnitLabel = '회', rirEnabled = true, onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, onRemoveSet, workingIndexOf }) {
   const saveLockRef = useRef(0)
   const idx = focusIdx != null && sets[focusIdx] ? focusIdx : Math.max(0, sets.findIndex((s) => !s.saved))
   const cur = sets[idx] || {}
@@ -227,7 +227,10 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
             <button
               key={i}
               type="button"
-              onClick={() => onSelect(i)}
+              // [2026-11-02] 지금 고른(입력 중인) 세트 칸을 한 번 더 누르면 종류가 바뀐다(본세트 → 웜업 → 드롭 → 실패, 사용자 요청 - 칩 줄 대신)
+              onClick={() => (active && !s.saved ? onCycleType(i) : onSelect(i))}
+              data-guide={active && !s.saved ? 'set-type' : undefined}
+              aria-label={active && !s.saved ? `세트 종류: ${t === 'working' ? '본세트' : SET_TYPE_LABEL[t]} (눌러서 변경)` : undefined}
               style={{
                 flexShrink: 0,
                 minWidth: 56,
@@ -278,34 +281,10 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
         // [2026-10-27 모션] 다음 세트로 넘어갈 때 입력 영역이 살짝 떠오르며 바뀜
         <div key={idx} className="bt-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            {/* [2026-11-02] 세트 종류를 작은 글씨 "종류 변경"(누를 때마다 순환) 대신 칩 4개로 바로 고른다(사용자 요청 - 있는지 몰랐음) */}
-            <div data-guide="set-type" role="radiogroup" aria-label="세트 종류" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
-              {SET_TYPES.map((t) => {
-                const on = (cur.type || 'working') === t
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => (on ? null : onSetType ? onSetType(idx, t) : onCycleType(idx))}
-                    style={{
-                      minHeight: 34,
-                      padding: '0 11px',
-                      borderRadius: 'var(--radius-pill)',
-                      border: on ? '1px solid var(--color-fill-strong)' : '1px solid var(--color-line-strong)',
-                      background: on ? 'var(--color-fill-strong)' : 'transparent',
-                      color: on ? 'var(--color-on-fill)' : TYPE_COLOR[t] || 'var(--color-label-normal)',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {t === 'working' ? `${workingIndexOf(idx)}세트` : SET_TYPE_LABEL[t]}
-                  </button>
-                )
-              })}
-            </div>
+            <span className="text-keep-all" style={{ fontSize: 13, fontWeight: 700, color: TYPE_COLOR[cur.type] || 'var(--color-label-strong)' }}>
+              {(cur.type || 'working') === 'working' ? `${workingIndexOf(idx)}세트` : SET_TYPE_LABEL[cur.type]}
+              <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)' }}> · 위 세트 칸을 누르면 종류 변경</span>
+            </span>
             {removeBtn}
           </div>
           <div data-guide="set-values" style={{ display: 'flex', gap: 10 }}>
