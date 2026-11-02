@@ -75,10 +75,15 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           width: '100%',
           height: `calc(var(--safe-top) + ${GLOBAL_TIMER_BAR_HEIGHT}px)`,
           paddingTop: 'var(--safe-top)',
+          // [2026-11-02] 왼쪽 기록 방식 버튼(8–42px)과 글자가 겹치지 않게 좌우 46px 비우고, 넘치면 간격·글자를 줄인다
+          paddingLeft: 46,
+          paddingRight: 46,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 8,
+          gap: cardioTimer?.startAt ? 6 : 8,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
           color: isPaused ? 'var(--color-label-neutral)' : 'var(--color-on-fill)',
           fontSize: 13,
           fontWeight: 700,
@@ -92,7 +97,7 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatElapsed(elapsedSec)}</span>
             {/* [2026-11-02] 유산소 타이머가 돌고 있으면 옆에 괄호로(좁은 바라 이때는 '조작하기' 글자를 뺀다) */}
             {cardioTimer?.startAt ? (
-              <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>(유산소 {formatElapsed(cardioTimerMs(cardioTimer, nowTick) / 1000)})</span>
+              <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontSize: 12.5 }}>(유산소 {formatElapsed(cardioTimerMs(cardioTimer, nowTick) / 1000)})</span>
             ) : (
               <span style={{ opacity: 0.75, fontWeight: 500 }}>{expanded ? '· 접기' : '· 조작하기'}</span>
             )}
