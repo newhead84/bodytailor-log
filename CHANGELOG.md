@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-03] 로그 코치 켜기·끄기 + 코치 강화: MY › 설정 '로그 코치' 켜기·끄기(users.coachEnabled, 끄면 플랜 카드·코치 한마디·HOME 오늘 올리기·추천 무게 미리 채우기 숨김), 이번 주 부위 세트가 목표보다 2세트 넘게 모자라면 오늘 1세트 더, 6주 넘게 고강도 + 정체/한계 근처 30% 이상이면 쉬어 가는 주(약 10% 가볍게·1세트 덜), 플랜·코치 한마디를 진행 세션 백업에 저장(앱을 다시 열어도 유지), 다관절보다 고립을 먼저 열면 순서 안내(세션당 1회), 유산소 종목에 이번 주 유산소 분/목표·오늘 권장 분 | utils/coach.js(신규), utils/strength.js deloadWeight, storage.js getRecentWorkoutLogsCached export, WorkoutInput.jsx coachPlanFor, LogTab.jsx, App.jsx, HomeTab.jsx, MyPageTab.jsx, firestore.rules coachEnabled
+
 [2026-11-03] 로그 코치 최근 연구 반영·강도 전체 설정: 종목별 강도 없애고 MY › 설정 '로그 코치' 칸(디자인 밖, RIR과 함께)에서 전체 적용 + 목표 맞춤 강도 안내, '이렇게 정한 이유' 출처를 검증된 근거/최근 연구(검증 중)로 나눔, 운동량·빈도·휴식 설명 갱신, 한 부위 한 번 11세트 넘으면 '최근 연구' 코치 한마디, 실패 세트 뒤 늘어난 구간 부분 반복 선택 안내 | utils/strength.js(intensityOf·intensityGoalHint·SESSION_SET_CAP·COACH_EVIDENCE), WorkoutInput.jsx, SetEditors.jsx, MyPageTab.jsx, WorkoutGuide.jsx
 
 [2026-11-03] 로그 코치 '왜 이렇게?' → '이렇게 정한 이유', 근거를 쉬운 우리말 설명 + 출처 한 줄(우리말 이름·연도)로(영어 저자명 제거), 강도 선택 칩 3칸씩 배치(한계까지가 한 줄을 차지하던 문제), 드롭 안내 문구 짧게 | utils/strength.js COACH_EVIDENCE, WorkoutInput.jsx, SetEditors.jsx, MyPageTab.jsx, WorkoutGuide.jsx

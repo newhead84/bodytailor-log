@@ -809,7 +809,7 @@ function invalidateRecentLogsCache() {
   recentLogsCache = null
   allLogsCache = null
 }
-function getRecentWorkoutLogsCached(uid, count) {
+export function getRecentWorkoutLogsCached(uid, count) {
   const now = Date.now()
   if (
     recentLogsCache &&

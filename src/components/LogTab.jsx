@@ -30,6 +30,7 @@ const LogTab = forwardRef(function LogTab(
     logMode,
     seasonXp,
     rirEnabled,
+    coachEnabled, // [2026-11-03] 로그 코치 켜기·끄기
     workoutGuideSeen,
     membershipEnd,
   },
@@ -59,6 +60,7 @@ const LogTab = forwardRef(function LogTab(
       logMode={logMode}
       seasonXp={seasonXp}
       rirEnabled={rirEnabled}
+      coachEnabled={coachEnabled !== false}
       workoutGuideSeen={workoutGuideSeen}
       membershipEnd={membershipEnd}
     />

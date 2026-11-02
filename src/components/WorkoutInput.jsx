@@ -6,6 +6,7 @@ import { ExerciseName } from '../utils/exerciseName'
 import { CountUp } from '../hooks/useCountUp'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { getTrainingProfile } from '../utils/goals'
+import { deloadSignal, weekAtomSets, weeklyShortfall, cardioCoach } from '../utils/coach'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
 import WorkoutGuide, { WORKOUT_GUIDE_VERSION } from './WorkoutGuide'
@@ -27,6 +28,8 @@ import {
   intensityOf,
   COACH_EVIDENCE,
   intensityGoalHint,
+  deloadWeight,
+  isCompoundExercise,
   SESSION_SET_CAP,
   fractionalSetsByAtom,
   LEG_FRONT,
@@ -54,7 +57,7 @@ import { estimateCaloriesV2 } from '../utils/calories'
 import { getSuggestedNext } from '../utils/routineSuggestion'
 import { membershipEndAt } from '../utils/member'
 import { confirmSetValues, roundReps } from '../utils/inputCheck'
-import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, updateRoutineTemplate, updateUserProfile, updateExerciseSetting, saveActiveSession, getActiveSession, clearActiveSession } from '../storage'
+import { addWorkoutLog, getLastRecordForExercise, getRecentWorkoutLogs, getRecentWorkoutLogsCached, updateRoutineTemplate, updateUserProfile, updateExerciseSetting, saveActiveSession, getActiveSession, clearActiveSession } from '../storage'
 import {
   buildExercisesFromRecords,
   computeVolumeFromRecords,
@@ -271,6 +274,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     rirEnabled = true, // [2026-10-29] MY에서 RIR 기록 끄기
     workoutGuideSeen = false, // [2026-10-29] 기록 화면 사용법 가이드를 본 계정
     membershipEnd = '', // [2026-10-31] 회원권 종료일(트레이너·관리자는 빈 값) - 만료 뒤 저장 실패 안내용
+    coachEnabled = true, // [2026-11-03] MY › 설정에서 로그 코치 끄기
   },
   ref
 ) {
@@ -530,6 +534,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setFreeExercises(draft.freeExercises || [])
     setFreeCategory(draft.freeCategory || EXTRA_CATEGORIES[0])
     setSupersets(draft.supersets || {})
+    setCoachPlans(draft.coachPlans || {})
+    setTipUps(draft.tipUps || {})
   }
 
   // 세션 상태를 초기(idle)로 되돌린다(운동 완료·취소·자동 저장 공통).
@@ -759,6 +765,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       freeExercises,
       freeCategory,
       supersets,
+      coachPlans, // [2026-11-03] 앱을 껐다 켜도 '플랜대로 하기'로 정한 세트 수·증량 제안 횟수를 기억
+      tipUps,
       updatedAt: Date.now(),
     }
     latestDraftRef.current = draft
@@ -968,6 +976,17 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     autoResumeIfPaused()
     setExpandedExercise(expandedExercise === key ? null : key)
     const name = parseExerciseKey(key).name // 라이브러리 조회·직전기록 조회는 실제 종목명 기준
+    // [2026-11-03 로그 코치] 운동 순서: 아직 안 한 다관절 종목이 남았는데 고립 종목을 먼저 열면 한 번 안내(세션당 1회)
+    if (coachEnabled && !orderTipRef.current && expandedExercise !== key && getExerciseInputType(name) === 'sets' && !isCompoundExercise(name)) {
+      const pending = visibleExercises.find((k) => {
+        const n = parseExerciseKey(k).name
+        return k !== key && getExerciseInputType(n) === 'sets' && isCompoundExercise(n) && !completedExercises[k] && !(records[k] || []).some((st) => st.saved)
+      })
+      if (pending) {
+        orderTipRef.current = true
+        showToast(`로그 코치: 다관절(${parseExerciseKey(pending).name})을 먼저 하면 더 무겁게 할 수 있어요`, 3000)
+      }
+    }
 
     let last = lastRecords[key]
     if (last === undefined) {
@@ -1014,8 +1033,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           // [2026-10-27 리뉴얼 W1] 이중 진행 추천이 있으면 추천 무게·횟수로, 없으면 직전 마지막 세트로 프리필
           [key]: [
             (() => {
-              const sug = suggestNextSet(name, last, settingFor(key))
-              if (sug) return { auto: true, weight: String(sug.weight), reps: String(sug.reps) }
+              const sug = coachEnabled ? suggestNextSet(name, last, settingFor(key)) : null
+              // [2026-11-03] 쉬어 가는 주면 프리필 무게도 10%쯤 가볍게(플랜 카드와 같게)
+              if (sug) return { auto: true, weight: String(deload ? deloadWeight(name, sug.weight, settingFor(key)) : sug.weight), reps: String(sug.reps) }
               return { auto: true, weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }
             })(),
           ],
@@ -1089,6 +1109,52 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const [tipUps, setTipUps] = useState({})
   // [2026-11-03 최근 연구] 한 부위 오늘 세트가 SESSION_SET_CAP을 넘었다고 이미 안내한 부위(세션당 한 번)
   const [capWarned, setCapWarned] = useState({})
+  // [2026-11-03 로그 코치 강화] 최근 기록(직전 기록 조회와 같은 캐시 30개 - 추가 읽기 없음): 주간 세트 채우기·쉬어 가는 주·유산소 코칭
+  const [coachLogs, setCoachLogs] = useState([])
+  const orderTipRef = useRef(false)
+  useEffect(() => {
+    if (!uid || !coachEnabled) return undefined
+    let alive = true
+    getRecentWorkoutLogsCached(uid, 30)
+      .then((l) => alive && setCoachLogs(l || []))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [uid, coachEnabled, sessionPhase === 'idle'])
+  const deload = useMemo(() => (coachEnabled ? deloadSignal(coachLogs) : null), [coachEnabled, coachLogs])
+  // 오늘 진행 중인 세션의 체크한 세트(주간 세트 계산용)
+  const liveExercises = useMemo(
+    () =>
+      Object.entries(records)
+        .map(([k, sets]) => ({ name: parseExerciseKey(k).name, sets: (sets || []).filter((st) => st.saved) }))
+        .filter((ex) => ex.sets.length),
+    [records]
+  )
+  const weekCounts = useMemo(() => (coachEnabled ? weekAtomSets(coachLogs, liveExercises) : {}), [coachEnabled, coachLogs, liveExercises])
+  // 오늘의 플랜 = 추천(suggestNextSet) + 권장 세트 수 + 쉬어 가는 주(무게 10%↓·세트 1개↓) 또는 주간 세트 채우기(+1세트)
+  function coachPlanFor(key) {
+    const sug = suggestionFor(key)
+    if (!sug) return null
+    const name = parseExerciseKey(key).name
+    let targets = planSetTargets(sug, name)
+    let weight = sug.weight
+    const notes = []
+    // 이미 내리기·다시 시작(복귀) 판단이면 무게가 가벼워졌으므로 쉬어 가는 주를 겹치지 않는다
+    if (deload && sug.kind !== 'decrease' && !sug.comeback) {
+      const w = deloadWeight(name, sug.weight, settingFor(key))
+      if (w !== sug.weight && (w > 0 || allowsZeroWeight(name) || isAssistedExercise(name))) weight = w
+      if (targets.length > 1) targets = targets.slice(0, targets.length - 1)
+      notes.push({ text: `${deload.hardWeeks}주 넘게 세게 이어 왔어요 → 이번 주는 무게 10%쯤·세트 1개 줄여 회복해요(쉬어 가는 주). 다음 주에 다시 올리면 더 잘 올라가요` })
+    } else {
+      const short = weeklyShortfall(name, weekCounts)
+      if (short && targets.length <= recommendedSetCount(name)) {
+        targets = [...targets, targets[targets.length - 1]]
+        notes.push({ text: `이번 주 ${short.atom} ${short.cur}세트 · 목표 ${short.min}세트까지 ${short.short}세트 남아서 오늘 1세트 더 넣었어요` })
+      }
+    }
+    return { ...sug, weight, targets, notes, deload: !!deload }
+  }
   function plannedCountFor(key) {
     return coachPlans[key]?.count || suggestionFor(key)?.lastSetCount || 0
   }
@@ -1128,7 +1194,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const next = nextSetType(cur?.type)
     const exName = parseExerciseKey(key).name
     // [2026-11-02 로그 코치] 아직 안 한 세트를 드롭으로 바꾸면 직전 본세트의 75–80%(20–25% 감량)로 무게를 맞춘다(Sødal 외 2023에서 흔한 감량 폭)
-    if (next === 'drop' && cur && !cur.saved && getExerciseInputType(exName) === 'sets') {
+    if (coachEnabled && next === 'drop' && cur && !cur.saved && getExerciseInputType(exName) === 'sets') {
       const prevSaved = (records[key] || []).slice(0, idx).filter((st) => st.saved && st.type !== 'warmup').pop()
       const dw = prevSaved ? dropSetWeight(exName, prevSaved.weight) : null
       if (dw != null) {
@@ -1154,10 +1220,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // 추천 무게·횟수를 아직 저장 안 한 본세트 행에 적용
   // [2026-10-30 추천 고도화] 세트별 목표(setTargets)를 순서대로 채우고, 행이 모자라면 미리 만든 행(planned)으로 추가
   function applySuggestion(key) {
-    const sug = suggestionFor(key)
+    const sug = coachPlanFor(key)
     if (!sug) return
     // [2026-11-02 로그 코치] 플랜대로 하면 권장 세트 수(목표·초보 기준)로 맞춘다. 적용하지 않으면 지난번 세트 수가 기준.
-    const targets = planSetTargets(sug, parseExerciseKey(key).name)
+    // [2026-11-03] 쉬어 가는 주(무게·세트↓)·주간 세트 채우기(+1세트)를 반영한 오늘의 플랜(coachPlanFor)
+    const targets = sug.targets
     setCoachPlans((p) => ({ ...p, [key]: { count: targets.length, applied: true } }))
     autoResumeIfPaused()
     setRecords((r) => {
@@ -1220,7 +1287,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const sessionBest = bestE1rmOfSets((records[key] || []).filter((st) => st.saved), name)
     return {
       logMode: logMode || DEFAULT_LOG_MODE,
-      suggestion: suggestionFor(key),
+      suggestion: coachEnabled ? suggestionFor(key) : null,
       suggestionOpen: !dismissedSuggestions[key] && !(records[key] || []).some((st) => st.saved && st.type !== 'warmup'),
       onDismissSuggestion: () => dismissSuggestion(key),
       setTip: setTips[key] || null,
@@ -1234,7 +1301,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       showWarmupRamp: hasWarmupRamp(name),
       coachPlan: coachPlans[key] || null,
       plannedCount: plannedCountFor(key),
-      planTargets: planSetTargets(suggestionFor(key), name),
+      planTargets: coachPlanFor(key)?.targets || [],
+      planWeight: coachPlanFor(key)?.weight,
+      planNotes: coachPlanFor(key)?.notes || [],
+      cardioCoach: coachEnabled && getExerciseInputType(name) === 'cardio' ? cardioCoach(coachLogs, liveExercises) : null,
       recommendedSets: recommendedSetCount(name),
       onCycleType: (idx) => cycleSetType(key, idx),
       onCycleRir: (idx) => cycleSetRir(key, idx),
@@ -1323,9 +1393,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     {
       // [2026-11-02 로그 코치] 이 세트 전에 저장한 본세트(웜업·드롭 제외)·오늘 목표 세트 수·이미 한 증량 제안 수를 함께 넘긴다
       const prevWorking = (records[name] || []).filter((st, i) => i !== idx && st.saved && st.type !== 'warmup' && st.type !== 'drop')
-      let tip = savedSet ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
+      let tip = savedSet && coachEnabled ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
       // [2026-11-03 최근 연구] 오늘 이 부위 세트(보조 0.5세트로 계산)가 한 번 운동 상한(약 11세트)을 넘으면 한 번 안내(무게 제안이 있으면 그게 먼저)
-      if (savedSet && savedSet.type !== 'warmup' && (!tip || tip.weight == null)) {
+      if (coachEnabled && savedSet && savedSet.type !== 'warmup' && (!tip || tip.weight == null)) {
         const exs = Object.entries(records).map(([k, sets]) => {
           const nm = parseExerciseKey(k).name
           return { name: nm, sets: (sets || []).filter((st, i) => (k === name && i === idx) || st.saved) }
@@ -2757,13 +2827,13 @@ export function ExerciseCard({
                 </button>
               </div>
               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-                {coachKindLabel(suggestion)}{' '}
-                {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(suggestion.weight) === 0 ? (
+                {ext.planWeight != null && ext.planWeight !== suggestion.weight ? '쉬어 가기' : coachKindLabel(suggestion)}{' '}
+                {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(ext.planWeight ?? suggestion.weight) === 0 ? (
                   '맨몸'
                 ) : (
                   <>
                     {isAssistedExercise(exName) ? '보조 ' : allowsZeroWeight(exName) ? '추가 ' : ''}
-                    <span className="bt-num">{fmtKg(suggestion.weight)}</span>kg
+                    <span className="bt-num">{fmtKg(ext.planWeight ?? suggestion.weight)}</span>kg
                   </>
                 )}{' '}
                 × <span className="bt-num">{(ext.planTargets?.length ? ext.planTargets : [suggestion.reps]).join('·')}</span>회{' '}
@@ -2772,6 +2842,12 @@ export function ExerciseCard({
               <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
                 내 기록 보면 · {suggestion.reason}
               </span>
+              {/* [2026-11-03 로그 코치 강화] 쉬어 가는 주·주간 세트 채우기 안내 */}
+              {(ext.planNotes || []).map((n, i) => (
+                <span key={i} className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', fontWeight: 600 }}>
+                  {n.text}
+                </span>
+              ))}
               <button
                 type="button"
                 onClick={ext.onApplySuggestion}
@@ -2942,6 +3018,13 @@ export function ExerciseCard({
             />
           )}
 
+          {/* [2026-11-03 로그 코치] 유산소: 이번 주 유산소 분 vs 목표 → 오늘 권장 분 */}
+          {inputType === 'cardio' && !isDone && ext.cardioCoach && (
+            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', flexShrink: 0 }}>로그 코치</span>
+              <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', minWidth: 0 }}>{ext.cardioCoach.text}</span>
+            </div>
+          )}
           {inputType === 'cardio' && !isDone && <CardioTimerPanel sets={sets} onFieldChange={onFieldChange} />}
           {useFocus ? (
             <FocusSetPanel

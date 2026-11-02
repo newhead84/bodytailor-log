@@ -123,6 +123,7 @@ service cloud.firestore {
         (!keys.hasAny(['exerciseSettings']) || (d.exerciseSettings is map && d.exerciseSettings.size() <= 400)) &&
         // [2026-11-02] 로그 코치 전체 강도
         (!keys.hasAny(['coachIntensity']) || d.coachIntensity in ['easy2', 'easy', 'normal', 'hard', 'max']) &&
+        (!keys.hasAny(['coachEnabled']) || d.coachEnabled is bool) &&
         (!keys.hasAny(['customExercises']) || (d.customExercises is map && d.customExercises.size() <= 12)) &&
         // S3: 문의 간격 기록은 서버 시각으로만
         (!keys.hasAny(['lastInquiryAt']) || d.lastInquiryAt == request.time);

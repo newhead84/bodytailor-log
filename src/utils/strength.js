@@ -409,6 +409,10 @@ function lighterWeight(name, w, setting) {
   const cut = Math.max(step, load ? roundTo(load * 0.1, step) : step)
   return isAssistedExercise(name) ? roundTo(w + cut, 0.25) : Math.max(0, roundTo(w - cut, 0.25))
 }
+// [2026-11-03 로그 코치] 쉬어 가는 주 무게(약 10% 가볍게, 기구 단위)
+export function deloadWeight(name, w, setting) {
+  return lighterWeight(name, w, setting)
+}
 function heavierWeight(name, w, setting) {
   const inc = getProgressionIncrement(name, setting)
   const unit = inc >= 1 ? 0.5 : 0.25

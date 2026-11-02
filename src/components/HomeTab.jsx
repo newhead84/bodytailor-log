@@ -170,7 +170,7 @@ export default function HomeTab({
   const suggested = useMemo(() => getSuggestedNext(routineTemplates, recentLogs), [routineTemplates, recentLogs])
   // 오늘 차례 파트의 종목 중 이중 진행 기준 "증량 추천" 종목
   const increaseList = useMemo(() => {
-    if (!suggested?.part?.exercises) return []
+    if (!suggested?.part?.exercises || userDoc?.coachEnabled === false) return [] // [2026-11-03] 로그 코치를 끄면 HOME '오늘 올리기'도 숨김
     const out = []
     suggested.part.exercises.forEach((key) => {
       const { name, grip } = parseExerciseKey(key)
@@ -180,7 +180,7 @@ export default function HomeTab({
       if (sug?.kind === 'increase') out.push({ key, name, weight: sug.weight })
     })
     return out
-  }, [suggested, recentLogs, userDoc?.exerciseSettings])
+  }, [suggested, recentLogs, userDoc?.exerciseSettings, userDoc?.coachEnabled])
 
   return (
     <div style={{ padding: '20px 20px 100px' }}>

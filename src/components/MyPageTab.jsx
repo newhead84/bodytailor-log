@@ -304,6 +304,14 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   useEffect(() => {
     setCoachIntensityState(normalizeIntensity(userDoc?.coachIntensity))
   }, [userDoc?.coachIntensity])
+  // [2026-11-03] 로그 코치 켜기·끄기(끄면 오늘의 플랜·코치 한마디·HOME 오늘 올리기를 숨기고 지난 기록만 미리 채움)
+  const [coachEnabled, setCoachEnabledState] = useState(userDoc?.coachEnabled !== false)
+  useEffect(() => {
+    setCoachEnabledState(userDoc?.coachEnabled !== false)
+  }, [userDoc?.coachEnabled])
+  async function selectCoachEnabled(on) {
+    await saveSetting(setCoachEnabledState, coachEnabled, on, { coachEnabled: on })
+  }
   async function selectCoachIntensity(id) {
     await saveSetting(setCoachIntensityState, coachIntensity, id, { coachIntensity: id })
   }
@@ -465,6 +473,22 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       <SectionTitle>로그 코치</SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>로그 코치</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Chip active={coachEnabled} onClick={() => selectCoachEnabled(true)} style={{ flex: 1, justifyContent: 'center' }}>
+              켜기
+            </Chip>
+            <Chip active={!coachEnabled} onClick={() => selectCoachEnabled(false)} style={{ flex: 1, justifyContent: 'center' }}>
+              끄기
+            </Chip>
+          </div>
+          <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
+            {coachEnabled
+              ? '내 기록을 보고 오늘의 플랜(무게·세트·횟수)과 운동 중 코치 한마디를 알려 줘요.'
+              : '꺼져 있어요. 플랜·코치 한마디 없이 지난번 기록만 미리 채워져요. 기록·리포트는 그대로예요.'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>RIR(남은 여력) 기록</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <Chip active={rirEnabled} onClick={() => selectRirEnabled(true)} style={{ flex: 1, justifyContent: 'center' }}>
@@ -478,6 +502,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             세트마다 몇 개 더 할 수 있었는지(0 = 한계) 적는 칸이에요. 적으면 다음 무게 추천에 반영돼요. 끄면 세트 줄에서 칸이 사라지고, 이미 적은 기록은 그대로 남아요.
           </span>
         </div>
+        {coachEnabled && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>강도 (모든 운동에 적용)</span>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
@@ -494,6 +519,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             })()}
           </span>
         </div>
+        )}
       </Card>
 
       <SectionTitle>알림</SectionTitle>
