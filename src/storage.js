@@ -1188,7 +1188,7 @@ export async function getTraineeSummaries(memberUids) {
   const snaps = await Promise.all(need.map((id) => getDoc(doc(db, 'users', id)).catch(() => null)))
   need.forEach((id, i) => {
     const d = snaps[i]?.exists?.() ? snaps[i].data() : null
-    traineeSummaryCache.set(id, { at: now, data: d ? { ptTotal: d.ptTotal ?? 0, ptRemaining: d.ptRemaining ?? 0, lastDate: d.activity?.lastDate || '', membershipEnd: d.membershipEnd || '' } : null })
+    traineeSummaryCache.set(id, { at: now, data: d ? { ptTotal: d.ptTotal ?? 0, ptRemaining: d.ptRemaining ?? 0, lastDate: d.activity?.lastDate || '', membershipEnd: d.membershipEnd || '', weekDays: d.activity?.weeks?.[weekStartStr(todayStr())] || 0 } : null })
   })
   return Object.fromEntries(memberUids.map((id) => [id, traineeSummaryCache.get(id)?.data || null]))
 }

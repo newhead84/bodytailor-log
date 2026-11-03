@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-03] 트레이너 태블릿 화면 개편: 내 회원 = PT 일정 월 캘린더(날짜 칸에 시간·회원 이름 2명, 누르면 그날 목록, 달 이동) + 회원 둥근 정사각형 타일(남은 PT·이번 주 운동 일수·마지막 운동·다음 PT), 세로 태블릿(1100px 미만)은 캘린더 위·타일 아래, 회원 기록 = 수기 운동일지처럼 종목별 날짜 비교 표(줄 = 세트, 웜업은 W 한 줄, 칸 = 날짜, 최근이 오른쪽, 추정 1RM 줄·늘면 ▲) + 날짜별 보기 전환, 휴대폰 화면은 그대로 / 작업 지침: 푸시 전에 확인 대기 작업 처리, 규칙이 바뀐 푸시는 rules 파일 전달 | TraineesScreen.jsx MemberTiles·MonthSchedules·ExerciseLogTables, storage.js getTraineeSummaries weekDays, CLAUDE.md 2-0
+
 [2026-11-03] 푸시 전 점검 반영: 쉬어 가는 주 미리 채우기 무게가 내리기·복귀 추천과 겹쳐 20% 가까이 내려가던 문제(플랜 카드와 같은 규칙, 0kg 방지), 쉬어 가는 주에는 주간 세트 +1 안 함, 코치를 끄면 코치 한마디도 숨김, 정체 안내의 강도 위치 문구(MY › 설정), 쉬어 가는 주 판단용 최근 기록 30 → 50개 | WorkoutInput.jsx, utils/strength.js stallOptions
 
 [2026-11-03] 로그 코치 켜기·끄기 + 코치 강화: MY › 설정 '로그 코치' 켜기·끄기(users.coachEnabled, 끄면 플랜 카드·코치 한마디·HOME 오늘 올리기·추천 무게 미리 채우기 숨김), 이번 주 부위 세트가 목표보다 2세트 넘게 모자라면 오늘 1세트 더, 6주 넘게 고강도 + 정체/한계 근처 30% 이상이면 쉬어 가는 주(약 10% 가볍게·1세트 덜), 플랜·코치 한마디를 진행 세션 백업에 저장(앱을 다시 열어도 유지), 다관절보다 고립을 먼저 열면 순서 안내(세션당 1회), 유산소 종목에 이번 주 유산소 분/목표·오늘 권장 분 | utils/coach.js(신규), utils/strength.js deloadWeight, storage.js getRecentWorkoutLogsCached export, WorkoutInput.jsx coachPlanFor, LogTab.jsx, App.jsx, HomeTab.jsx, MyPageTab.jsx, firestore.rules coachEnabled
