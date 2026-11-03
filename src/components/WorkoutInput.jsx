@@ -1035,7 +1035,14 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             (() => {
               const sug = coachEnabled ? suggestNextSet(name, last, settingFor(key)) : null
               // [2026-11-03] 쉬어 가는 주면 프리필 무게도 10%쯤 가볍게(플랜 카드와 같게)
-              if (sug) return { auto: true, weight: String(deload ? deloadWeight(name, sug.weight, settingFor(key)) : sug.weight), reps: String(sug.reps) }
+              if (sug) {
+                let w = sug.weight
+                if (deload && sug.kind !== 'decrease' && !sug.comeback) {
+                  const dw = deloadWeight(name, sug.weight, settingFor(key))
+                  if (dw > 0 || allowsZeroWeight(name) || isAssistedExercise(name)) w = dw
+                }
+                return { auto: true, weight: String(w), reps: String(sug.reps) }
+              }
               return { auto: true, weight: lastSet ? String(lastSet.weight) : '', reps: lastSet ? String(lastSet.reps) : '' }
             })(),
           ],
@@ -1115,7 +1122,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   useEffect(() => {
     if (!uid || !coachEnabled) return undefined
     let alive = true
-    getRecentWorkoutLogsCached(uid, 30)
+    getRecentWorkoutLogsCached(uid, 50)
       .then((l) => alive && setCoachLogs(l || []))
       .catch(() => {})
     return () => {
@@ -1146,7 +1153,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       if (w !== sug.weight && (w > 0 || allowsZeroWeight(name) || isAssistedExercise(name))) weight = w
       if (targets.length > 1) targets = targets.slice(0, targets.length - 1)
       notes.push({ text: `${deload.hardWeeks}주 넘게 세게 이어 왔어요 → 이번 주는 무게 10%쯤·세트 1개 줄여 회복해요(쉬어 가는 주). 다음 주에 다시 올리면 더 잘 올라가요` })
-    } else {
+    } else if (!deload) {
       const short = weeklyShortfall(name, weekCounts)
       if (short && targets.length <= recommendedSetCount(name)) {
         targets = [...targets, targets[targets.length - 1]]
@@ -1290,7 +1297,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       suggestion: coachEnabled ? suggestionFor(key) : null,
       suggestionOpen: !dismissedSuggestions[key] && !(records[key] || []).some((st) => st.saved && st.type !== 'warmup'),
       onDismissSuggestion: () => dismissSuggestion(key),
-      setTip: setTips[key] || null,
+      setTip: coachEnabled ? setTips[key] || null : null,
       onApplySetTip: () => applySetTip(key),
       onDismissSetTip: () => clearSetTip(key),
       recHistory: recommendationHistory(name, lastRecords[key], setting),
