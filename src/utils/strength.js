@@ -71,7 +71,26 @@ export function intensityGoalHint(primary, id = coachIntensity) {
 export const SESSION_SET_CAP = 11
 // 오늘 권장 세트 수(본세트): 부위당 주 10세트 이상이 근비대에 유리(Schoenfeld 외 2017)하고 주 2회로 나누면 한 번에 3–5세트.
 // 근육·뼈 목표는 다관절 4·고립 3, 그 밖의 목표는 3·2, 처음 8주(초보 1–3세트, ACSM 2009)는 최대 3·2.
+// [2026-11-07] 로그 코치 프로그램 처방(routineTemplates.coachRx: { 종목명: { sets, repMin, repMax, minutes?, note? } })
+// App이 내 코치 프로그램의 처방을 넣고(setProgramPrescription), 트레이너 계획으로 운동할 때는 WorkoutInput이 잠시 끈다(트레이너 계획 우선).
+// 종목 설정(exerciseSettings)에서 사용자가 직접 바꾼 목표 횟수는 처방보다 우선한다.
+let programRx = {}
+let programSuspended = false
+export function setProgramPrescription(map) {
+  programRx = map && typeof map === 'object' ? map : {}
+}
+export function setProgramSuspended(v) {
+  programSuspended = !!v
+}
+export function getProgramRx(name) {
+  if (programSuspended || !name) return null
+  const rx = programRx[name]
+  return rx && typeof rx === 'object' ? rx : null
+}
+
 export function recommendedSetCount(name) {
+  const rx = getProgramRx(name)
+  if (rx && Number(rx.sets) >= 1) return Math.min(8, Math.round(Number(rx.sets)))
   const pr = getTrainingProfile()
   const big = pr.primary === 'muscle' || pr.primary === 'bone'
   const comp = isCompoundExercise(name)
@@ -219,6 +238,8 @@ export function isCompoundExercise(name) {
 // [2026-10-30] 기본값은 운동 목표(우선순위)에 맞춘 기준(goals.js) - 예: 근력 1순위면 다관절 3–6회
 export function getRepRange(name, setting) {
   if (setting?.repMin && setting?.repMax) return [Number(setting.repMin), Number(setting.repMax)]
+  const rx = getProgramRx(name)
+  if (rx && Number(rx.repMin) > 0 && Number(rx.repMax) >= Number(rx.repMin)) return [Number(rx.repMin), Number(rx.repMax)]
   const pr = getTrainingProfile()
   return isCompoundExercise(name) ? [pr.compound.repMin, pr.compound.repMax] : [pr.iso.repMin, pr.iso.repMax]
 }

@@ -124,6 +124,9 @@ service cloud.firestore {
         // [2026-11-02] 로그 코치 전체 강도
         (!keys.hasAny(['coachIntensity']) || d.coachIntensity in ['easy2', 'easy', 'normal', 'hard', 'max']) &&
         (!keys.hasAny(['coachEnabled']) || d.coachEnabled is bool) &&
+        // [2026-11-07] 로그 코치 프로그램 답(질문 답 12개 이하)
+        (!keys.hasAny(['coachProgram']) || (d.coachProgram is map && d.coachProgram.keys().hasOnly(['v', 'answers', 'at']) &&
+          d.coachProgram.get('answers', {}) is map && d.coachProgram.get('answers', {}).size() <= 12)) &&
         (!keys.hasAny(['customExercises']) || (d.customExercises is map && d.customExercises.size() <= 12)) &&
         // S3: 문의 간격 기록은 서버 시각으로만
         (!keys.hasAny(['lastInquiryAt']) || d.lastInquiryAt == request.time);
@@ -312,7 +315,10 @@ service cloud.firestore {
     // [2026-11-01] S10: 본인 루틴 크기 제한(쓰는 필드만 검사) - 제목 60자, 파트 20개
     function ownRoutineOk(d, keys) {
       return (!keys.hasAny(['title']) || (d.title is string && d.title.size() <= 60)) &&
-        (!keys.hasAny(['parts']) || (d.parts is list && d.parts.size() <= 20));
+        (!keys.hasAny(['parts']) || (d.parts is list && d.parts.size() <= 20)) &&
+        // [2026-11-07] 로그 코치 프로그램 처방(종목 80개 이하)·표시
+        (!keys.hasAny(['coachRx']) || (d.coachRx is map && d.coachRx.size() <= 80)) &&
+        (!keys.hasAny(['byCoach']) || d.byCoach is map);
     }
     match /routineTemplates/{uid}/templates/{templateId} {
       allow read: if request.auth != null && (request.auth.uid == uid || isTrainerOf(uid));

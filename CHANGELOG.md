@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-07] 로그 코치 '내 프로그램 만들기': 질문 10개(목표·주당 일수·한 번 시간·경력·유산소 습관·나이 들어 하고 싶은 일·키우고 싶은 쪽·수면·강도·유산소 종목)에 답하면 주간 프로그램(분할·종목별 세트×목표 횟수·Zone 2 유산소 분·주 1회 인터벌·코어)을 짜서 보여 주고, '시작'하면 내 루틴 '코치 프로그램'(byCoach + coachRx)으로 저장(있으면 바꿈). 운동 중 로그 코치는 그 처방(권장 세트 수·목표 횟수·유산소 분)을 따름, 종목 설정에서 직접 바꾼 값이 우선, 트레이너 계획으로 운동할 때는 처방을 쓰지 않음. 진입: 첫 루틴 설정·내 루틴 화면 맨 위, MY 내 루틴 위, HOME(프로그램 없을 때, '나중에'로 숨김). 근거: 건강 수명 조사(부위당 주 2회, 근력 주 30–60분, 심폐 체력, 악력, 초보 1–3세트) '이렇게 정한 이유' + 건강 면책. rules: users.coachProgram·routineTemplates.coachRx 크기 검사(옛 규칙에서도 저장됨) | src/utils/programBuilder.js(신규), src/components/CoachProgramWizard.jsx·CoachProgramCard.jsx(신규), strength.js(setProgramPrescription·getProgramRx, getRepRange·recommendedSetCount), storage.js(saveCoachProgram), App.jsx, WorkoutInput.jsx, RoutineManager.jsx, MyPageTab.jsx, HomeTab.jsx, firestore.rules, CLAUDE.md
+
 [2026-11-03] 트레이너 태블릿 화면 개편: 내 회원 = PT 일정 월 캘린더(날짜 칸에 시간·회원 이름 2명, 누르면 그날 목록, 달 이동) + 회원 둥근 정사각형 타일(남은 PT·이번 주 운동 일수·마지막 운동·다음 PT), 세로 태블릿(1100px 미만)은 캘린더 위·타일 아래, 회원 기록 = 수기 운동일지처럼 종목별 날짜 비교 표(줄 = 세트, 웜업은 W 한 줄, 칸 = 날짜, 최근이 오른쪽, 추정 1RM 줄·늘면 ▲) + 날짜별 보기 전환, 휴대폰 화면은 그대로 / 작업 지침: 푸시 전에 확인 대기 작업 처리, 규칙이 바뀐 푸시는 rules 파일 전달 | TraineesScreen.jsx MemberTiles·MonthSchedules·ExerciseLogTables, storage.js getTraineeSummaries weekDays, CLAUDE.md 2-0
 
 [2026-11-03] 푸시 전 점검 반영: 쉬어 가는 주 미리 채우기 무게가 내리기·복귀 추천과 겹쳐 20% 가까이 내려가던 문제(플랜 카드와 같은 규칙, 0kg 방지), 쉬어 가는 주에는 주간 세트 +1 안 함, 코치를 끄면 코치 한마디도 숨김, 정체 안내의 강도 위치 문구(MY › 설정), 쉬어 가는 주 판단용 최근 기록 30 → 50개 | WorkoutInput.jsx, utils/strength.js stallOptions

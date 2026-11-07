@@ -6,13 +6,14 @@ import TrainerPlanBadge from './TrainerPlanBadge'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, recommendedSplitKey, perPartWeeklyFrequency } from '../utils/exerciseLibrary'
 import { useBackableScreen } from '../hooks/useBackableScreen'
 import { getTrainingProfile } from '../utils/goals'
+import { CoachProgramCard, CoachBadge } from './CoachProgramCard'
 
 const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 
 // [2026-07-28 신규] "내 루틴"을 최대 8개까지 만들고, 각각 이름을 붙여 관리하는 화면.
 // isFirstSetup === true면 아직 루틴이 하나도 없는 상태(온보딩 직후)로,
 // 최소 1개는 만들어야 메인 화면으로 넘어갈 수 있지만, "나중에"로 건너뛸 수도 있다.
-export default function RoutineManager({ uid, templates, customExercises, onChanged, onClose, onSkip, isFirstSetup, weeklyTargetDays = 3 }) {
+export default function RoutineManager({ uid, templates, customExercises, onChanged, onClose, onSkip, isFirstSetup, weeklyTargetDays = 3, onOpenCoachProgram = null }) {
   const confirm = useConfirm()
   // [2026-11-01] H3: 첫 설정은 빈 편집기 대신 분할 템플릿 목록(주 N일 추천이 맨 위)부터 보여준다. 직접 만들기·나중에도 그대로.
   const firstEmpty = isFirstSetup && templates.length === 0
@@ -113,6 +114,9 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
           : `루틴은 최대 ${MAX_ROUTINES}개까지 만들 수 있고, 기록 탭에서 그때그때 골라 사용할 수 있어요.`}
       </p>
 
+      {/* [2026-11-07] 로그 코치에게 프로그램 받기(첫 설정에서는 맨 위 추천) */}
+      {onOpenCoachProgram && <CoachProgramCard templates={templates} onOpen={onOpenCoachProgram} style={{ marginBottom: 16 }} />}
+
       {error && (
         <p className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-danger, #e5484d)', margin: '0 0 12px' }}>
           {error}
@@ -123,7 +127,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
         {templates.map((t) => (
           <Card key={t.id}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>{t.title}{t.byTrainer && <TrainerPlanBadge t={t} />}</div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{t.title}{t.byTrainer && <TrainerPlanBadge t={t} />}{t.byCoach && !t.byTrainer && <CoachBadge />}</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   onClick={() => {

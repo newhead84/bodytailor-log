@@ -21,6 +21,7 @@ import { useBackableScreen } from '../hooks/useBackableScreen'
 import { GoalPicker, TrainingPlanSummary } from './GoalPicker'
 import { TrainerGoalMark } from './TrainerGoal'
 import AchievementPager from './AchievementPager'
+import { CoachProgramCard, CoachBadge } from './CoachProgramCard'
 import { normalizeGoals, GOAL_LABELS, isBeginnerAccount, getTrainingProfile } from '../utils/goals'
 
 // [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
@@ -39,7 +40,7 @@ function isIosDevice() {
   return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
 }
 
-export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, onShowTrainerDirectory, isActive = true }) {
+export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onOpenCoachProgram = null, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, onShowTrainerDirectory, isActive = true }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -857,6 +858,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         )}
       </Card>
 
+      {/* [2026-11-07] 로그 코치 '내 프로그램 만들기' */}
+      {onOpenCoachProgram && <CoachProgramCard templates={routineTemplates} onOpen={onOpenCoachProgram} style={{ marginBottom: 20 }} />}
+
       <SectionTitle
         action={
           <Button variant="secondary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={onManageRoutines}>
@@ -879,7 +883,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                 borderTop: i === 0 ? 'none' : '1px solid var(--color-line)',
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>{t.title}{t.byTrainer && <TrainerPlanBadge t={t} />}</div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>{t.title}{t.byTrainer && <TrainerPlanBadge t={t} />}{t.byCoach && !t.byTrainer && <CoachBadge />}</div>
               <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
                 {t.parts?.map((p) => p.name).join(' · ')}
               </div>

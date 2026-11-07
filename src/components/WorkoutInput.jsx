@@ -24,6 +24,8 @@ import {
   hasWarmupRamp,
   planSetTargets,
   recommendedSetCount,
+  setProgramSuspended,
+  getProgramRx,
   dropSetWeight,
   intensityOf,
   COACH_EVIDENCE,
@@ -443,6 +445,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || null
   const selectedPart = selectedTemplate?.parts?.find((p) => p.name === selectedPartName) || null
+  // [2026-11-07] 트레이너 계획으로 운동할 때는 코치 프로그램 처방(세트 수·목표 횟수)을 쓰지 않는다(트레이너 계획 우선)
+  setProgramSuspended(sessionType === 'routine' && !!selectedTemplate?.byTrainer)
 
   // 세션이 진행 중일 때(웜업/본운동) 1초마다 경과시간 표시 갱신
   useEffect(() => {
@@ -1288,6 +1292,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     }
   }
 
+  // [2026-11-07] 코치 프로그램에 유산소 처방(분·강도)이 있으면 그 안내를 먼저
+  function programCardioCoach(name) {
+    const rx = getProgramRx(name)
+    if (!rx?.minutes) return null
+    return { today: rx.minutes, text: `내 프로그램 · 오늘 ${rx.minutes}분${rx.note ? ` · ${rx.note}` : ''}` }
+  }
+
   function cardExt(key) {
     const { name } = parseExerciseKey(key)
     const setting = settingFor(key)
@@ -1311,7 +1322,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       planTargets: coachPlanFor(key)?.targets || [],
       planWeight: coachPlanFor(key)?.weight,
       planNotes: coachPlanFor(key)?.notes || [],
-      cardioCoach: coachEnabled && getExerciseInputType(name) === 'cardio' ? cardioCoach(coachLogs, liveExercises) : null,
+      cardioCoach: coachEnabled && getExerciseInputType(name) === 'cardio' ? programCardioCoach(name) || cardioCoach(coachLogs, liveExercises) : null,
       recommendedSets: recommendedSetCount(name),
       onCycleType: (idx) => cycleSetType(key, idx),
       onCycleRir: (idx) => cycleSetRir(key, idx),

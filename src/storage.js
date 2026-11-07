@@ -492,6 +492,34 @@ export async function saveTrainerPlan(memberUid, trainer, plan) {
   return ref.id
 }
 
+// [2026-11-07] 로그 코치 프로그램 저장: 내 루틴 하나(byCoach + coachRx)로 저장하고, 이미 있으면 그 루틴을 통째로 바꾼다.
+// users에는 답(coachProgram)·주당 일수·강도·목표를 함께 저장(목표가 바뀌면 '트레이너 수정' 표시는 지운다 - MY 직접 수정과 같은 규칙).
+export async function saveCoachProgram(uid, { program, existingId, intensity, goalsChanged, clearGoalByTrainer }) {
+  const body = {
+    title: '코치 프로그램',
+    parts: program.parts,
+    coachRx: program.coachRx,
+    byCoach: { v: program.version, at: Date.now() },
+  }
+  let id = existingId || null
+  if (id) {
+    await settleOrTimeout(updateDoc(doc(db, 'routineTemplates', uid, 'templates', id), { ...body, updatedAt: serverTimestamp() }))
+  } else {
+    id = await saveRoutineTemplate(uid, body)
+    // saveRoutineTemplate 새로 만들기는 title·parts만 넣으므로 처방은 이어서 넣는다
+    await settleOrTimeout(updateDoc(doc(db, 'routineTemplates', uid, 'templates', id), { coachRx: body.coachRx, byCoach: body.byCoach }))
+  }
+  const userPatch = {
+    coachProgram: { v: program.version, answers: program.answers, at: Date.now() },
+    weeklyTargetDays: program.days,
+    ...(intensity ? { coachIntensity: intensity } : {}),
+    ...(goalsChanged ? { 'onboarding.goals': program.goals } : {}),
+    ...(goalsChanged && clearGoalByTrainer ? { goalByTrainer: null } : {}),
+  }
+  await updateUserProfile(uid, userPatch)
+  return id
+}
+
 export async function updateRoutineTemplate(uid, templateId, partial) {
   // [2026-11-01] 오프라인에서 운동 완료·종목 추가가 멈추지 않게(전체 점검 U1·U19)
   await settleOrTimeout(updateDoc(doc(db, 'routineTemplates', uid, 'templates', templateId), partial))

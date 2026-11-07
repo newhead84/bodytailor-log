@@ -4,6 +4,8 @@ import { Card, Button, useConfirm } from './ui'
 import MembershipNotice from './MembershipNotice'
 import { TrainerGoalNotice } from './TrainerGoal'
 import HomePtCards from './HomePtCards'
+import { CoachProgramCard } from './CoachProgramCard'
+import { findCoachProgramTemplate } from '../utils/programBuilder'
 import { getRecentWorkoutLogs, getWorkoutLogsInRange, listPtSchedules, listPtSessions, lastRecordFromLogs } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
 import { suggestNextSet, workingSetsOf } from '../utils/strength'
@@ -48,8 +50,25 @@ export default function HomeTab({
   onDismissAutoNotice,
   onUndoAutoNotice,
   onProfileUpdated,
+  onOpenCoachProgram = null,
 }) {
   const confirm = useConfirm()
+  // [2026-11-07] 코치 프로그램이 없으면 HOME에 한 번 권하고, '나중에'를 누르면 이 기기에서는 숨긴다
+  const [coachCardHidden, setCoachCardHidden] = useState(() => {
+    try {
+      return localStorage.getItem('bt-coach-program-card-hidden') === '1'
+    } catch (e) {
+      return false
+    }
+  })
+  function hideCoachCard() {
+    setCoachCardHidden(true)
+    try {
+      localStorage.setItem('bt-coach-program-card-hidden', '1')
+    } catch (e) {
+      /* 저장소를 못 쓰면 이번 화면에서만 숨김 */
+    }
+  }
   const [undoing, setUndoing] = useState(false)
   async function handleUndoAutoNotice() {
     if (!(await confirm('자동 저장된 이 운동 기록을 삭제할까요?', { okLabel: '삭제', cancelLabel: '유지' }))) return
@@ -241,6 +260,9 @@ export default function HomeTab({
       <TrainerGoalNotice uid={uid} userDoc={userDoc} onChanged={onProfileUpdated} />
       {/* [2026-11-01] PT 일정 변경 알림(회원)·오늘 PT(트레이너) */}
       <HomePtCards uid={uid} userDoc={userDoc} />
+      {onOpenCoachProgram && !coachCardHidden && !isWorkoutInProgress && !findCoachProgramTemplate(routineTemplates) && (
+        <CoachProgramCard templates={routineTemplates} onOpen={onOpenCoachProgram} onDismiss={hideCoachCard} style={{ marginBottom: 16 }} />
+      )}
 
       {/* [2026-10-28 리디자인] "오늘" 블록 - 카드 대신 큰 헤드라인(오늘 차례) + 보조 정보 + 버튼 */}
       <section style={{ marginBottom: 24 }}>
