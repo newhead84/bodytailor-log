@@ -8,7 +8,7 @@ import { CoachProgramCard } from './CoachProgramCard'
 import { findCoachProgramTemplate } from '../utils/programBuilder'
 import { getRecentWorkoutLogs, getWorkoutLogsInRange, listPtSchedules, listPtSessions, lastRecordFromLogs } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
-import { suggestNextSet, workingSetsOf } from '../utils/strength'
+import { suggestNextSet, workingSetsOf, cleanTrainerRx } from '../utils/strength'
 import { isAssistedExercise, isBodyweightLoaded, logVolumeKg } from '../utils/load'
 import { cardioStats } from '../utils/cardioFields'
 import { getTrainingProfile } from '../utils/goals'
@@ -192,11 +192,17 @@ export default function HomeTab({
   const increaseList = useMemo(() => {
     if (!suggested?.part?.exercises || userDoc?.coachEnabled === false) return [] // [2026-11-03] 로그 코치를 끄면 HOME '오늘 올리기'도 숨김
     const out = []
+    // [2026-11-07] 트레이너 계획 차례면 기록 화면과 같게: 코치 프로그램 처방 끄고 트레이너 처방 적용
+    const byTrainer = !!suggested.template?.byTrainer
+    const trx = byTrainer ? cleanTrainerRx(suggested.template.trainerRx) : {}
     suggested.part.exercises.forEach((key) => {
       const { name, grip } = parseExerciseKey(key)
       // [2026-11-02] 기록 화면과 같은 직전 기록(날짜·prev·history)으로 계산 - 쉰 지 14일 넘은 종목을 HOME만 '증량'으로 보이던 문제
       const last = lastRecordFromLogs(recentLogs, name, grip)
-      const sug = last ? suggestNextSet(name, last, userDoc?.exerciseSettings?.[key]) : null
+      const st = userDoc?.exerciseSettings?.[key] || null
+      const rx = trx[key] || trx[name]
+      const setting = byTrainer ? { ...(st || {}), noProgram: true, ...(rx ? { trainerRx: rx } : {}) } : st
+      const sug = last ? suggestNextSet(name, last, setting) : null
       if (sug?.kind === 'increase') out.push({ key, name, weight: sug.weight })
     })
     return out

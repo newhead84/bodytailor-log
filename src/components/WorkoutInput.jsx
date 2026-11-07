@@ -25,6 +25,9 @@ import {
   planSetTargets,
   recommendedSetCount,
   getProgramRx,
+  cleanTrainerRx,
+  trainerRxText,
+  intensityHowText,
   dropSetWeight,
   intensityOf,
   COACH_EVIDENCE,
@@ -447,6 +450,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const selectedPart = selectedTemplate?.parts?.find((p) => p.name === selectedPartName) || null
   // [2026-11-07] 트레이너 계획으로 운동할 때는 코치 프로그램 처방(세트 수·목표 횟수)을 쓰지 않는다(트레이너 계획 우선) - settingFor가 noProgram 표시
   const programOff = sessionType === 'routine' && !!selectedTemplate?.byTrainer
+  // [2026-11-07] 트레이너 처방(종목별 세트·횟수·강도): 트레이너 계획으로 운동할 때 로그 코치보다 먼저 따른다 - settingFor가 trainerRx로 넘김
+  const trainerRxMap = useMemo(() => (programOff ? cleanTrainerRx(selectedTemplate?.trainerRx) : {}), [programOff, selectedTemplate?.trainerRx])
 
   // 세션이 진행 중일 때(웜업/본운동) 1초마다 경과시간 표시 갱신
   useEffect(() => {
@@ -1151,6 +1156,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     let targets = planSetTargets(sug, name, settingFor(key))
     let weight = sug.weight
     const notes = []
+    // [2026-11-07] 트레이너 처방 종목은 세트 수를 코치가 바꾸지 않는다(쉬어 가는 주·주간 세트 채우기 없음) - 신호만 알림
+    if (settingFor(key)?.trainerRx) {
+      if (deload && sug.kind !== 'decrease' && !sug.comeback) notes.push({ text: `${deload.hardWeeks}주 넘게 세게 이어 왔어요. 처방대로 하되 몸이 무거우면 트레이너와 상의해요` })
+      return { ...sug, weight, targets, notes, deload: false }
+    }
     // 이미 내리기·다시 시작(복귀) 판단이면 무게가 가벼워졌으므로 쉬어 가는 주를 겹치지 않는다
     if (deload && sug.kind !== 'decrease' && !sug.comeback) {
       const w = deloadWeight(name, sug.weight, settingFor(key))
@@ -1188,7 +1198,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }
   function settingFor(key) {
     const st = settingsOverride[key] || exerciseSettings?.[key] || null
-    return programOff ? { ...(st || {}), noProgram: true } : st
+    if (!programOff) return st
+    const trx = trainerRxMap[key] || trainerRxMap[parseExerciseKey(key).name]
+    return { ...(st || {}), noProgram: true, ...(trx ? { trainerRx: trx } : {}) }
   }
   function suggestionFor(key) {
     return suggestNextSet(parseExerciseKey(key).name, lastRecords[key], settingFor(key))
@@ -1330,7 +1342,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       planNotes: coachPlanFor(key)?.notes || [],
       cardioCoach: coachEnabled && getExerciseInputType(name) === 'cardio' ? programCardioCoach(name) || cardioCoach(coachLogs, liveExercises) : null,
       recommendedSets: recommendedSetCount(name, setting),
-      programRx: coachEnabled && getExerciseInputType(name) !== 'cardio' ? getProgramRx(name, setting) : null,
+      // [2026-11-07] 트레이너 처방은 로그 코치를 꺼도 보인다(트레이너 지시)
+      programRx: getExerciseInputType(name) !== 'cardio' && (coachEnabled || setting?.trainerRx) ? getProgramRx(name, setting) : null,
+      intensity: intensityOf(setting),
+      ownRange: setting?.repMin && setting?.repMax ? [setting.repMin, setting.repMax] : null,
       hasHistory: !!lastRecords[key],
       onCycleType: (idx) => cycleSetType(key, idx),
       onCycleRir: (idx) => cycleSetRir(key, idx),
@@ -2822,6 +2837,21 @@ export function ExerciseCard({
             </span>
           )}
 
+          {/* [2026-11-07] 트레이너 처방은 코치 플랜 카드가 있어도 늘 한 줄로, 코치 플랜 카드 위에(트레이너 지시가 먼저 보이게) */}
+          {inputType !== 'cardio' && !isDone && ext.programRx?.source === 'trainer' && (
+            <div role="status" style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '2px 8px', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line-strong)', background: 'var(--color-bg-elevated)' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', flexShrink: 0 }}>트레이너 처방</span>
+              <span className="text-keep-all" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)', minWidth: 0 }}>
+                {trainerRxText(ext.programRx, repsUnit(exName))}
+              </span>
+              {ext.programRx.intensity && (
+                <span className="text-keep-all" style={{ flexBasis: '100%', fontSize: 12, color: 'var(--color-label-neutral)' }}>{intensityHowText(ext.programRx.intensity)}</span>
+              )}
+              {!suggestion && !ext.hasHistory && (
+                <span className="text-keep-all" style={{ flexBasis: '100%', fontSize: 12, color: 'var(--color-label-neutral)' }}>{isHoldExercise(exName) ? '처음이면 편하게 버틸 수 있는 만큼부터' : '처음이면 목표 횟수를 여유 있게 채울 무게로 시작해요'}</span>
+              )}
+            </div>
+          )}
           {/* [2026-10-27 리뉴얼 W1] 이중 진행 기반 다음 세트 추천 */}
           {isStrength && suggestion && !isDone && ext.suggestionOpen !== false && (
             <div
@@ -2842,7 +2872,7 @@ export function ExerciseCard({
                 <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                   로그 코치 · 오늘의 플랜
                 </span>
-                <span style={{ flexShrink: 0, fontSize: 11.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>강도 {intensityOf().label}</span>
+                <span style={{ flexShrink: 0, fontSize: 11.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>강도 {(ext.intensity || intensityOf()).label}</span>
                 <button
                   type="button"
                   onClick={ext.onDismissSuggestion}
@@ -2904,9 +2934,10 @@ export function ExerciseCard({
               )}
               {/* [2026-11-02 로그 코치] 이렇게 정한 이유 - 쉬운 설명 + 출처 한 줄(우리말 이름·연도) + 건강 안내 */}
               {(() => {
-                const it = intensityOf()
+                const it = ext.intensity || intensityOf()
                 const why = COACH_EVIDENCE[suggestion.comeback ? 'comeback' : suggestion.kind]
                 const parts = [
+                  ext.programRx?.source === 'trainer' ? '세트 수·목표 횟수·강도는 트레이너 처방을 따랐어요. 무게만 내 지난 기록으로 정했어요.' : null,
                   why?.text,
                   `세트 수(지난번 ${suggestion.lastSetCount || 1}세트 → 오늘 ${ext.planTargets?.length || 1}세트): ${COACH_EVIDENCE.sets.text}`,
                   `강도 '${it.label}'(${it.rirText} 정도): ${COACH_EVIDENCE.intensity.text} ${intensityGoalHint(getTrainingProfile().primary)}`,
@@ -3041,6 +3072,8 @@ export function ExerciseCard({
               restSec={restSec ?? null}
               defaultRestSec={defaultRestSec || 90}
               history={ext.recHistory || []}
+              rxLocked={ext.programRx?.source === 'trainer'}
+              ownRange={ext.ownRange}
               onChange={ext.onSettingChange}
               onClose={() => setShowSetting(false)}
             />
@@ -3054,7 +3087,7 @@ export function ExerciseCard({
             </div>
           )}
           {/* [2026-11-07 점검] 코치 플랜 카드가 없을 때(처음 하는 종목·버티기 종목) 내 프로그램 처방을 한 줄로 */}
-          {inputType !== 'cardio' && !isDone && ext.programRx?.sets && !suggestion && (
+          {inputType !== 'cardio' && !isDone && ext.programRx?.sets && ext.programRx.source !== 'trainer' && !suggestion && (
             <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', flexShrink: 0 }}>내 프로그램</span>
               <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', minWidth: 0 }}>

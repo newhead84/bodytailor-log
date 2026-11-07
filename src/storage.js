@@ -30,7 +30,7 @@ import {
   runTransaction,
 } from 'firebase/firestore'
 import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises } from './utils/exerciseLibrary'
-import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey } from './utils/strength'
+import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey, cleanTrainerRx } from './utils/strength'
 import { getSeasonPeriod } from './utils/season'
 import { weekStartStr, todayStr } from './utils/date'
 
@@ -478,9 +478,12 @@ export async function saveTrainerPlan(memberUid, trainer, plan) {
   const col = collection(db, 'routineTemplates', memberUid, 'templates')
   const byTrainer = { uid: trainer.uid, name: String(trainer.name || '').slice(0, 30) } // [2026-11-01] rules: 이름 30자 이하
   const note = String(plan.note || '').slice(0, 300)
+  // [2026-11-07] 트레이너 처방(종목별 세트·횟수·강도): 계획에 남은 종목만, 값은 cleanTrainerRx로 정리. 회원 화면에서 로그 코치보다 먼저 따른다.
+  const keys = new Set((plan.parts || []).flatMap((p) => p.exercises || []))
+  const trainerRx = Object.fromEntries(Object.entries(cleanTrainerRx(plan.trainerRx)).filter(([k]) => keys.has(k)))
   if (plan.id) {
     // 수정은 updateDoc - 회원이 그사이 지운 계획이면 실패(merge로 order 없는 문서가 되살아나 목록에서 안 보이는 문제 방지)
-    await updateDoc(doc(col, plan.id), { title: plan.title, parts: plan.parts, note, byTrainer, updatedAt: serverTimestamp() })
+    await updateDoc(doc(col, plan.id), { title: plan.title, parts: plan.parts, note, byTrainer, trainerRx, updatedAt: serverTimestamp() })
     return plan.id
   }
   const all = await getRoutineTemplates(memberUid)
@@ -488,7 +491,7 @@ export async function saveTrainerPlan(memberUid, trainer, plan) {
     throw new Error(`한 회원에게 계획은 최대 ${MAX_TRAINER_PLANS}개까지 만들 수 있어요.`)
   }
   const minOrder = all.reduce((m, t) => Math.min(m, Number(t.order) || 0), 0)
-  const ref = await addDoc(col, { title: plan.title, parts: plan.parts, note, byTrainer, order: minOrder - 1, createdAt: serverTimestamp() })
+  const ref = await addDoc(col, { title: plan.title, parts: plan.parts, note, byTrainer, trainerRx, order: minOrder - 1, createdAt: serverTimestamp() })
   return ref.id
 }
 

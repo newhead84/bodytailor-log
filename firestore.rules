@@ -295,7 +295,9 @@ service cloud.firestore {
     // routineTemplates/{uid}/templates/{templateId} - 본인 소유 서브컬렉션
     // [2026-10-31 P2-3] 담당 트레이너는 회원 루틴을 읽고, 자기 이름(byTrainer.uid)으로 만든 계획만 생성·수정·삭제한다.
     function trainerPlanOk() {
-      return request.resource.data.keys().hasOnly(['title', 'parts', 'note', 'byTrainer', 'order', 'createdAt', 'updatedAt']) &&
+      return request.resource.data.keys().hasOnly(['title', 'parts', 'note', 'byTrainer', 'trainerRx', 'order', 'createdAt', 'updatedAt']) &&
+        // [2026-11-07] 트레이너 처방(종목별 세트·횟수·강도, 종목 80개 이하 - 값은 앱이 읽을 때 정리)
+        (request.resource.data.get('trainerRx', {}) is map && request.resource.data.get('trainerRx', {}).size() <= 80) &&
         request.resource.data.byTrainer.keys().hasOnly(['uid', 'name']) &&
         request.resource.data.byTrainer.uid == request.auth.uid &&
         request.resource.data.title is string && request.resource.data.title.size() <= 40 &&
@@ -323,9 +325,10 @@ service cloud.firestore {
     match /routineTemplates/{uid}/templates/{templateId} {
       allow read: if request.auth != null && (request.auth.uid == uid || isTrainerOf(uid));
       // 본인은 byTrainer(트레이너 계획 표시)를 새로 넣거나 바꿀 수 없다(가짜 트레이너 배지 방지). 삭제·나머지 수정은 가능.
-      allow create: if isOwner(uid) && isApproved() && !('byTrainer' in request.resource.data) &&
+      // [2026-11-07] 트레이너 처방(trainerRx)도 회원이 넣거나 바꿀 수 없다(트레이너 처방 > 로그 코치)
+      allow create: if isOwner(uid) && isApproved() && !('byTrainer' in request.resource.data) && !('trainerRx' in request.resource.data) &&
         ownRoutineOk(request.resource.data, request.resource.data.keys());
-      allow update: if isOwner(uid) && isApproved() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['byTrainer']) &&
+      allow update: if isOwner(uid) && isApproved() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['byTrainer', 'trainerRx']) &&
         ownRoutineOk(request.resource.data, request.resource.data.diff(resource.data).affectedKeys());
       // [2026-10-31] 삭제는 승인 여부와 관계없이 본인 가능(탈퇴·대기·만료 계정 정리)
       allow delete: if isOwner(uid);

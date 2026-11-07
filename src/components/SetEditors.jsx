@@ -413,13 +413,14 @@ const REST_CHOICES = [
 
 // [2026-11-02 로그 코치] 증량 단위 칸은 없앴다(기구별 자동). 예전에 저장한 step 값은 다음 저장 때 지운다(null).
 // [2026-11-03] 종목별 강도도 없앴다(번거로움 - 사용자 결정). 강도는 MY › 설정 하나로 전체 적용.
-export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, history = [], onChange, onClose, unit = '회' }) {
+// [2026-11-07] rxLocked: 트레이너 처방 종목 - 목표 횟수는 처방을 따르므로 조절 버튼 대신 안내만, 휴식을 바꿀 때 내 목표 횟수(ownRange)는 그대로 둔다
+export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, history = [], onChange, onClose, unit = '회', rxLocked = false, ownRange = null }) {
   const [min, max] = repRange
   // [2026-11-07] 버티기(초) 종목은 5초 단위·최대 300초
   const sec = unit === '초'
   const d = sec ? 5 : 1
   const cap = sec ? 300 : 30
-  const set = (patch) => onChange({ repMin: min, repMax: max, restSec, step: null, ...patch })
+  const set = (patch) => onChange({ repMin: rxLocked ? ownRange?.[0] ?? null : min, repMax: rxLocked ? ownRange?.[1] ?? null : max, restSec, step: null, ...patch })
   const stepBtn = (label, onClick, aria) => (
     <button
       type="button"
@@ -440,6 +441,11 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, histo
       </div>
       {/* [2026-10-29] 좁은 화면·큰 글꼴에서 최대값 + 버튼이 다음 줄로 넘어가던 문제: 이름은 윗줄, 조절 버튼은 한 줄 고정 */}
       <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginBottom: -4 }}>{sec ? '목표 시간' : '목표 반복'}</span>
+      {rxLocked ? (
+        <span className="text-keep-all" style={{ fontSize: 13.5, color: 'var(--color-label-strong)' }}>
+          <span className="bt-num">{min}–{max}</span>{unit} · 트레이너 처방을 따라요(이 계획으로 운동할 때)
+        </span>
+      ) : (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
         {stepBtn('−', () => set({ repMin: Math.max(sec ? 5 : 1, min - d) }), '최소 반복 줄이기')}
         <span className="bt-num" style={{ fontSize: 16, minWidth: 24, textAlign: 'center', whiteSpace: 'nowrap' }}>{min}</span>
@@ -450,6 +456,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, histo
         {stepBtn('+', () => set({ repMax: Math.min(cap, max + d) }), '최대 반복 늘리기')}
         <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{unit}</span>
       </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
           휴식 (기본 = 상단 휴식 설정 · 자동이면 이 종목 권장 {Math.floor(defaultRestSec / 60)}:{String(defaultRestSec % 60).padStart(2, '0')})

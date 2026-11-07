@@ -22,7 +22,7 @@ import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
 import { formatLoad, repsUnit, logVolumeKg } from '../utils/load'
 import { formatCardioSet } from '../utils/cardioFields'
-import { setTypeMark, detectPlateaus, recentPrList, SET_TYPE_LABEL, bestE1rmOfSets } from '../utils/strength'
+import { setTypeMark, detectPlateaus, recentPrList, SET_TYPE_LABEL, bestE1rmOfSets, cleanTrainerRx, trainerRxText } from '../utils/strength'
 import { exerciseKeyLabel, makeExerciseKey } from '../utils/exerciseKey'
 import { ExerciseName } from '../utils/exerciseName'
 
@@ -373,6 +373,18 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = fa
   const closeEditing = useCallback(() => setEditing(null), [])
   useBackableScreen(!!editing, closeEditing)
   const [plansKey, setPlansKey] = useState(0)
+  // [2026-11-07] 이 트레이너가 보낸 계획의 처방(종목키 → { rx, planIds }) - 기록 표에서 처방대로 했는지 비교
+  const [myPlans, setMyPlans] = useState([])
+  const rxIndex = useMemo(() => {
+    const m = {}
+    myPlans.forEach((t) => {
+      Object.entries(cleanTrainerRx(t.trainerRx)).forEach(([k, rx]) => {
+        if (!m[k]) m[k] = { rx, planIds: new Set() }
+        m[k].planIds.add(t.id)
+      })
+    })
+    return m
+  }, [myPlans])
   const [recView, setRecView] = useState('ex') // [2026-11-03] 태블릿 기록 보기: 종목별(날짜 비교 표) | 날짜별
 
   if (editing) {
@@ -404,7 +416,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = fa
       <MemberBody member={member} memberUid={conn.memberUid} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} memberName={conn.memberName} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
       <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={() => { invalidateTraineeSummary(conn.memberUid); loadMember() }} />
       <TrainerNoteCard uid={uid} memberUid={conn.memberUid} />
-      <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} />
+      <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} onLoaded={setMyPlans} />
     </>
   )
   const records = (
@@ -421,7 +433,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = fa
         )}
       </div>
       {logs !== null && logs.length > 0 && wide && recView === 'ex' ? (
-        <ExerciseLogTables logs={logs} />
+        <ExerciseLogTables logs={logs} rxIndex={rxIndex} />
       ) : logs === null ? (
         <p style={{ color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
       ) : logs.length === 0 ? (
@@ -646,7 +658,13 @@ function setCell(name, type, st) {
   if (type === 'reps') return `${mark}${st.reps}${repsUnit(name)}`
   return `${mark}${formatLoad(name, st.weight)}×${st.reps}${repsUnit(name) === '초' ? '초' : ''}`
 }
-function ExerciseLogTables({ logs }) {
+// [2026-11-07] 처방대로 했는지: 그 계획으로 한 날만, 본세트 수 ≥ 처방 세트 + 처방 세트만큼 하한 이상
+function rxCheck(rx, sets) {
+  const work = (sets || []).filter((st) => st?.type !== 'warmup' && Number(st?.reps) > 0)
+  const okSets = work.filter((st) => Number(st.reps) >= rx.repMin).length
+  return work.length >= rx.sets && okSets >= rx.sets
+}
+function ExerciseLogTables({ logs, rxIndex = {} }) {
   const groups = useMemo(() => {
     const m = new Map()
     ;[...logs].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((l) => {
@@ -654,7 +672,7 @@ function ExerciseLogTables({ logs }) {
         if (!(ex.sets || []).length) return
         const key = makeExerciseKey(ex.name, ex.grip)
         if (!m.has(key)) m.set(key, { key, name: ex.name, grip: ex.grip, rows: [] })
-        m.get(key).rows.push({ id: `${l.id || l.date}-${m.get(key).rows.length}`, date: l.date, sets: ex.sets, auto: !!l.autoFinalized })
+        m.get(key).rows.push({ id: `${l.id || l.date}-${m.get(key).rows.length}`, date: l.date, sets: ex.sets, auto: !!l.autoFinalized, planId: l.routineTemplateId || null })
       })
     })
     return [...m.values()].sort((a, b) => (a.rows[a.rows.length - 1].date < b.rows[b.rows.length - 1].date ? 1 : a.rows[a.rows.length - 1].date > b.rows[b.rows.length - 1].date ? -1 : b.rows.length - a.rows.length))
@@ -671,12 +689,18 @@ function ExerciseLogTables({ logs }) {
         const e1 = type === 'sets' ? g.rows.map((r) => Math.round(bestE1rmOfSets(r.sets, g.name))) : null
         const showE1 = e1 && e1.some((v) => v > 0)
         const marks = new Set(g.rows.flatMap((r) => r.sets.map((st) => st?.type)).filter((t) => t === 'warmup' || t === 'drop' || t === 'failure'))
+        const rxe = rxIndex[g.key] || rxIndex[g.name] || null
         return (
           <Card key={g.key} style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '14px 16px 10px' }}>
               <p className="text-keep-all" style={{ margin: 0, fontSize: 15, fontWeight: 700, flex: 1 }}><ExerciseName name={g.name} />{g.grip ? ` (${g.grip})` : ''}</p>
               <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}><span className="bt-num">{g.rows.length}</span>회 기록</span>
             </div>
+            {rxe && (
+              <p className="text-keep-all" style={{ margin: '-4px 16px 8px', fontSize: 12.5, color: 'var(--color-label-normal)' }}>
+                내 처방 · {trainerRxText(rxe.rx, repsUnit(g.name))}
+              </p>
+            )}
             <ScrollEnd>
               <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: 13, minWidth: '100%' }}>
                 <thead>
@@ -686,6 +710,11 @@ function ExerciseLogTables({ logs }) {
                       <th key={r.id} style={thStyle}>
                         <span className="bt-num">{fmtDay(r.date)}</span>
                         {r.auto ? <span style={{ display: 'block', fontSize: 10.5, fontWeight: 500, color: 'var(--color-label-neutral)' }}>자동 저장</span> : null}
+                        {rxe && r.planId && rxe.planIds.has(r.planId) ? (
+                          rxCheck(rxe.rx, r.sets)
+                            ? <span style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: 'var(--color-primary-strong)' }}>처방대로</span>
+                            : <span style={{ display: 'block', fontSize: 10.5, fontWeight: 500, color: 'var(--color-label-neutral)' }}>처방보다 적게</span>
+                        ) : null}
                       </th>
                     ))}
                   </tr>
@@ -765,17 +794,20 @@ function ScrollEnd({ children }) {
 }
 
 // [2026-10-31 P2-3] 트레이너가 보낸 계획(수정·삭제 가능) + 회원이 직접 만든 루틴(보기만)
-function MemberPlans({ conn, uid, onNew, onEdit }) {
+function MemberPlans({ conn, uid, onNew, onEdit, onLoaded }) {
   const confirm = useConfirm()
   const [list, setList] = useState(null)
   const load = useCallback(() => {
     getRoutineTemplates(conn.memberUid)
-      .then(setList)
+      .then((l) => {
+        setList(l)
+        onLoaded?.((l || []).filter((t) => t.byTrainer?.uid === uid))
+      })
       .catch((err) => {
         console.error('회원 루틴 불러오기 실패:', err)
         setList([])
       })
-  }, [conn.memberUid])
+  }, [conn.memberUid, uid, onLoaded])
   useEffect(load, [load])
   if (list === null) return <p style={{ color: 'var(--color-label-neutral)', fontSize: 13 }}>계획 불러오는 중…</p>
   const mine = list.filter((t) => t.byTrainer?.uid === uid)
@@ -806,6 +838,10 @@ function MemberPlans({ conn, uid, onNew, onEdit }) {
               </div>
             </div>
             <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-normal)' }}>{partsLine(t)}</p>
+            {(() => {
+              const n = Object.keys(cleanTrainerRx(t.trainerRx)).length
+              return n > 0 ? <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>처방 <span className="bt-num">{n}</span>종목 · 회원 화면에서 로그 코치보다 먼저 따라요</p> : null
+            })()}
             {t.note && <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)', whiteSpace: 'pre-wrap' }}>{t.note}</p>}
           </Card>
         ))}

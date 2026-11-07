@@ -10,9 +10,12 @@ import {
   getAtomsForPart,
   getPartColor,
   getGripOptions,
+  getExerciseInputType,
 } from '../utils/exerciseLibrary'
 import { makeExerciseKey, parseExerciseKey } from '../utils/exerciseKey'
 import ExerciseGuideToggle from './ExerciseGuideToggle'
+import { isHoldExercise } from '../utils/load'
+import { COACH_INTENSITIES, cleanTrainerRx, isCompoundExercise } from '../utils/strength'
 
 // [2026-07-28 개편] 고정 5분할(무분할~5분할) 프리셋 선택 화면을 없애고,
 // 부위(BODY_PART_ATOMS)를 자유롭게 조합해 파트를 만드는 단일 루틴 편집기로 변경.
@@ -26,6 +29,8 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
   const isEditing = !!initialTemplate
   const [title, setTitle] = useState(initialTemplate?.title || '')
   const [note, setNote] = useState(initialTemplate?.note || '')
+  // [2026-11-07] 트레이너 처방: { 종목키: { sets, repMin, repMax, intensity? } } - 입력 중에는 문자열, 저장 때 정리
+  const [rx, setRx] = useState(() => (forTrainer ? cleanTrainerRx(initialTemplate?.trainerRx) : {}))
   const [parts, setParts] = useState(initialTemplate?.parts?.map((p) => ({ ...p, exercises: [...(p.exercises || [])] })) || [])
   // pickerMode: null(닫힘) | 'new'(새 파트 추가) | number(해당 인덱스 파트의 부위 수정)
   const [pickerMode, setPickerMode] = useState(null)
@@ -109,9 +114,14 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
   }
 
   const totalExercises = parts.reduce((sum, p) => sum + p.exercises.length, 0)
-  const canSave = title.trim().length > 0 && parts.length > 0 && totalExercises > 0
+  // [2026-11-07] 처방을 적은 종목 중 계획에 남아 있고 값이 맞지 않는 것(저장 막음)
+  const planKeys = [...new Set(parts.flatMap((p) => p.exercises))]
+  const rxBad = forTrainer ? planKeys.filter((k) => rx[k] && !cleanTrainerRx({ [k]: rx[k] })[k]) : []
+  const canSave = title.trim().length > 0 && parts.length > 0 && totalExercises > 0 && rxBad.length === 0
   // [2026-11-01] 저장 버튼이 꺼진 이유(전체 점검 U27)
-  const saveBlockedReason = !title.trim()
+  const saveBlockedReason = rxBad.length
+    ? `처방 숫자를 확인해 주세요: ${rxBad.map((k) => parseExerciseKey(k).name).slice(0, 2).join(', ')}${rxBad.length > 2 ? ` 외 ${rxBad.length - 2}개` : ''}`
+    : !title.trim()
     ? `${forTrainer ? '계획' : '루틴'} 이름을 입력해 주세요.`
     : parts.length === 0
     ? '파트를 하나 이상 추가해 주세요.'
@@ -119,8 +129,8 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
     ? '종목을 하나 이상 골라 주세요.'
     : ''
   // [2026-11-01] 고친 내용이 있으면 뒤로·나중에를 누를 때 확인(전체 점검 U11)
-  const [initialSig] = useState(() => JSON.stringify({ t: initialTemplate?.title || '', n: initialTemplate?.note || '', p: initialTemplate?.parts || [] }))
-  const dirty = JSON.stringify({ t: title, n: note, p: parts }) !== initialSig
+  const [initialSig] = useState(() => JSON.stringify({ t: initialTemplate?.title || '', n: initialTemplate?.note || '', p: initialTemplate?.parts || [], r: forTrainer ? cleanTrainerRx(initialTemplate?.trainerRx) : {} }))
+  const dirty = JSON.stringify({ t: title, n: note, p: parts, r: rx }) !== initialSig
   async function confirmLeave(action) {
     if (!action) return
     if (dirty && !(await confirm('저장하지 않은 변경 내용이 사라져요. 나갈까요?', { okLabel: '나가기', cancelLabel: '계속 편집' }))) return
@@ -136,7 +146,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
         ...(initialTemplate?.id ? { id: initialTemplate.id } : {}),
         title: title.trim(),
         parts,
-        ...(forTrainer ? { note: note.trim() } : {}),
+        ...(forTrainer ? { note: note.trim(), trainerRx: Object.fromEntries(Object.entries(rx).filter(([k]) => planKeys.includes(k))) } : {}),
       })
     } finally {
       setSaving(false)
@@ -159,7 +169,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
       />
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         {forTrainer
-          ? '저장하면 회원의 기록 화면 루틴 목록에 "트레이너 계획"으로 바로 나타나요. 세트·횟수·무게 같은 지시는 아래 메모에 적어 주세요.'
+          ? '저장하면 회원의 기록 화면 루틴 목록에 "트레이너 계획"으로 바로 나타나요. 종목을 고른 뒤 아래 "종목별 처방"에 세트·횟수·강도를 적으면 회원 화면에서 로그 코치보다 먼저 따라요.'
           : <>원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&이두&삼두, 하체&가슴){onSkip && ' 지금 정하기 어렵다면 오른쪽 위 "나중에"를 눌러 건너뛸 수 있어요.'}</>}
       </p>
 
@@ -179,7 +189,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
             value={note}
             onChange={(e) => setNote(e.target.value.slice(0, 300))}
             rows={3}
-            placeholder="예: 스쿼트 5×5, 마지막 세트 2개 여유 남기기. 무릎 통증 있으면 레그프레스로 대체."
+            placeholder="예: 무릎 통증 있으면 레그프레스로 대체. 마지막 세트는 자세가 무너지기 전에 멈추기."
             style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-md)', fontSize: 14, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
           />
         </div>
@@ -209,6 +219,8 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
           )}
         </React.Fragment>
       ))}
+
+      {forTrainer && planKeys.length > 0 && <TrainerRxEditor keys={planKeys} rx={rx} setRx={setRx} />}
 
       {forTrainer && parts.length >= 7 ? (
         <p style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', margin: '0 0 22px' }}>계획의 파트는 7개까지예요.</p>
@@ -449,6 +461,65 @@ function AtomPicker({ draftAtoms, onToggleAtom, onCancel, onConfirm, confirmLabe
         <Button style={{ flex: 1 }} disabled={draftAtoms.length === 0} onClick={onConfirm}>
           {confirmLabel} {draftAtoms.length > 0 && `(${buildPartName(draftAtoms)})`}
         </Button>
+      </div>
+    </Card>
+  )
+}
+
+// [2026-11-07] 트레이너 처방 입력: 계획에 담긴 종목마다 세트·횟수(버티기는 초)·강도. 비워 둔 종목은 회원의 로그 코치 기준.
+// 무게는 적지 않는다 - 회원의 지난 기록으로 로그 코치가 처방한 횟수 범위 안에서 정한다(사용자 결정 2026-11-07).
+function TrainerRxEditor({ keys, rx, setRx }) {
+  const rows = keys.filter((k) => getExerciseInputType(parseExerciseKey(k).name) !== 'cardio')
+  if (!rows.length) return null
+  const count = rows.filter((k) => rx[k]).length
+  const defaults = (name) => (isHoldExercise(name) ? { sets: 3, repMin: 30, repMax: 60 } : isCompoundExercise(name) ? { sets: 3, repMin: 6, repMax: 10 } : { sets: 3, repMin: 10, repMax: 15 })
+  const patch = (k, p) => setRx((r) => ({ ...r, [k]: { ...r[k], ...p } }))
+  const remove = (k) => setRx((r) => (({ [k]: _, ...rest }) => rest)(r))
+  const num = (v) => String(v ?? '').replace(/[^0-9]/g, '').slice(0, 3)
+  const inp = { width: 52, height: 36, padding: '0 6px', textAlign: 'center', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', background: 'transparent', color: 'var(--color-label-strong)', fontSize: 14, boxSizing: 'border-box' }
+  return (
+    <Card style={{ marginBottom: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>종목별 처방 <span style={{ fontWeight: 400, color: 'var(--color-label-neutral)' }}>(선택)</span></div>
+        <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}><span className="bt-num">{count}</span>/{rows.length}개</span>
+      </div>
+      <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+        적은 종목은 회원이 이 계획으로 운동할 때 세트·횟수·강도를 처방대로 맞춰요. 무게는 회원의 지난 기록으로 이 횟수 범위 안에서 정해져요. 비워 두면 로그 코치 기준이에요.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {rows.map((k, i) => {
+          const { name, grip } = parseExerciseKey(k)
+          const r = rx[k]
+          const unit = isHoldExercise(name) ? '초' : '회'
+          return (
+            <div key={k} style={{ padding: '10px 0', borderTop: i ? '1px solid var(--color-line)' : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="text-keep-all" style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600 }}>{name}{grip ? ` (${grip})` : ''}</span>
+                {r ? (
+                  <button type="button" onClick={() => remove(k)} style={{ flexShrink: 0, fontSize: 12.5, color: 'var(--color-label-neutral)', padding: '6px 4px' }}>지우기</button>
+                ) : (
+                  <button type="button" onClick={() => patch(k, defaults(name))} style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 700, color: 'var(--color-primary-strong)', padding: '6px 4px' }}>처방 적기</button>
+                )}
+              </div>
+              {r && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 10px', marginTop: 8, fontSize: 13, color: 'var(--color-label-normal)' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <input aria-label={`${name} 세트 수`} inputMode="numeric" value={r.sets ?? ''} onChange={(e) => patch(k, { sets: num(e.target.value) })} style={{ ...inp, width: 44 }} />세트
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    ×<input aria-label={`${name} 최소 ${unit}`} inputMode="numeric" value={r.repMin ?? ''} onChange={(e) => patch(k, { repMin: num(e.target.value) })} style={inp} />–<input aria-label={`${name} 최대 ${unit}`} inputMode="numeric" value={r.repMax ?? ''} onChange={(e) => patch(k, { repMax: num(e.target.value) })} style={inp} />{unit}
+                  </span>
+                  <select aria-label={`${name} 강도`} value={r.intensity || ''} onChange={(e) => patch(k, { intensity: e.target.value || undefined })} style={{ height: 36, padding: '0 8px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 13.5 }}>
+                    <option value="">강도: 회원 설정</option>
+                    {COACH_INTENSITIES.map((c) => (
+                      <option key={c.id} value={c.id}>강도: {c.label} ({c.id === 'max' ? '마지막 세트 한계' : `${c.rir}개 남김`})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </Card>
   )

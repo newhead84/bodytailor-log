@@ -54,8 +54,10 @@ export function getCoachIntensity() {
 }
 // [2026-11-03] 강도는 MY 설정 하나로 전체 적용(종목별 강도는 번거로워 없앰 - 사용자 결정). 예전에 저장한 종목별 intensity는 무시.
 // eslint-disable-next-line no-unused-vars
+// [2026-11-07] 트레이너 처방에 강도가 있으면 그 종목은 처방 강도(트레이너 처방 > 로그 코치)
 export function intensityOf(setting) {
-  return INTENSITY_BY_ID[coachIntensity]
+  const t = setting?.trainerRx?.intensity
+  return INTENSITY_BY_ID[t] || INTENSITY_BY_ID[coachIntensity]
 }
 // [2026-11-03 최근 연구] 목표에 맞춘 강도 안내: 근육 성장은 한계에 가까울수록 커지지만 근력은 거의 차이가 없다(2024 종합 분석).
 export function intensityGoalHint(primary, id = coachIntensity) {
@@ -79,10 +81,46 @@ let programRx = {}
 export function setProgramPrescription(map) {
   programRx = map && typeof map === 'object' ? map : {}
 }
+// [2026-11-07] 트레이너 처방(트레이너 계획 routineTemplates.trainerRx: { 종목키: { sets, repMin, repMax, intensity? } })
+// 우선순위: 트레이너 처방 → 코치 프로그램 처방 → 앱 기본값. 트레이너 계획으로 운동할 때만 WorkoutInput이 setting.trainerRx로 넘긴다.
+// 트레이너 처방은 회원 종목 설정(목표 횟수)보다도 먼저 따른다(getRepRange). 결과에 source: 'trainer'.
 export function getProgramRx(name, setting = null) {
-  if (!name || setting?.noProgram) return null
+  if (!name) return null
+  if (setting?.trainerRx) return { ...setting.trainerRx, source: 'trainer' }
+  if (setting?.noProgram) return null
   const rx = programRx[name]
   return rx && typeof rx === 'object' ? rx : null
+}
+
+// 트레이너 처방 정리(읽을 때 - 잘못된 값은 버림): 세트 1–8, 횟수 1–50(버티기 초 5–300), 강도는 5단계 id 또는 없음
+export const TRAINER_RX_MAX = 80
+export function cleanTrainerRx(raw) {
+  const out = {}
+  if (!raw || typeof raw !== 'object') return out
+  Object.entries(raw).slice(0, TRAINER_RX_MAX).forEach(([key, r]) => {
+    if (!key || !r || typeof r !== 'object') return
+    const name = key.split('::')[0]
+    const hold = isHoldExercise(name)
+    const lo = hold ? 5 : 1
+    const hi = hold ? 300 : 50
+    const sets = Math.round(Number(r.sets))
+    let a = Math.round(Number(r.repMin))
+    let b = Math.round(Number(r.repMax))
+    if (!(sets >= 1 && sets <= 8) || !(a >= lo && a <= hi) || !(b >= lo && b <= hi)) return
+    if (b < a) [a, b] = [b, a]
+    out[key] = { sets, repMin: a, repMax: b, ...(INTENSITY_BY_ID[r.intensity] ? { intensity: r.intensity } : {}) }
+  })
+  return out
+}
+// 처방 한 줄 문구: "4세트 × 8–10회 · 강도 보통" / 강도 설명: "세트마다 1–2개 남기기"
+export function trainerRxText(rx, unit = '회') {
+  if (!rx) return ''
+  const it = INTENSITY_BY_ID[rx.intensity]
+  return `${rx.sets}세트 × ${rx.repMin === rx.repMax ? rx.repMin : `${rx.repMin}–${rx.repMax}`}${unit}${it ? ` · 강도 ${it.label}` : ''}`
+}
+export function intensityHowText(id) {
+  const it = INTENSITY_BY_ID[id]
+  return it ? it.rirText.replace(/는$/, '기') : ''
 }
 
 export function recommendedSetCount(name, setting = null) {
@@ -236,6 +274,8 @@ export function isCompoundExercise(name) {
 // 기본 목표 반복 범위: 다관절 6–10회, 고립 10–15회 (사용자가 종목별로 바꿀 수 있음)
 // [2026-10-30] 기본값은 운동 목표(우선순위)에 맞춘 기준(goals.js) - 예: 근력 1순위면 다관절 3–6회
 export function getRepRange(name, setting) {
+  const trx = setting?.trainerRx
+  if (trx && Number(trx.repMin) > 0 && Number(trx.repMax) >= Number(trx.repMin)) return [Number(trx.repMin), Number(trx.repMax)]
   if (setting?.repMin && setting?.repMax) return [Number(setting.repMin), Number(setting.repMax)]
   const rx = getProgramRx(name, setting)
   if (rx && Number(rx.repMin) > 0 && Number(rx.repMax) >= Number(rx.repMin)) return [Number(rx.repMin), Number(rx.repMax)]
