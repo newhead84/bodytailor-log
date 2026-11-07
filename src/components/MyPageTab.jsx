@@ -22,6 +22,7 @@ import { GoalPicker, TrainingPlanSummary } from './GoalPicker'
 import { TrainerGoalMark } from './TrainerGoal'
 import AchievementPager from './AchievementPager'
 import { CoachProgramCard, CoachBadge } from './CoachProgramCard'
+import { findCoachProgramTemplate } from '../utils/programBuilder'
 import { normalizeGoals, GOAL_LABELS, isBeginnerAccount, getTrainingProfile } from '../utils/goals'
 
 // [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
@@ -215,6 +216,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     }
     setSaving(false)
     setEditingProfile(false)
+    // [2026-11-07] 목표·주당 일수를 바꿨는데 코치 프로그램이 있으면 다시 만들지 묻는다(자동으로 바꾸지 않음, 사용자 결정)
+    if (goalsChanged && onOpenCoachProgram && findCoachProgramTemplate(routineTemplates)) {
+      if (await confirm('목표나 주당 운동 일수가 바뀌었어요. 코치 프로그램도 새 기준으로 다시 만들까요?', { okLabel: '다시 만들기', cancelLabel: '나중에' })) onOpenCoachProgram()
+    }
   }
 
   // [2026-11-01] 설정 저장이 실패하면 화면 선택을 되돌리고 알린다(전체 점검 U25). 오프라인은 대기열에 넣고 진행(실패 아님)

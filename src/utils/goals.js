@@ -76,7 +76,7 @@ function blendRange(p, s) {
 }
 
 // 목표 배열 → 맞춤 기준. beginner(가입 8주 미만)면 주간 세트 기준을 낮춘다.
-export function buildTrainingProfile(goals, { beginner = false } = {}) {
+export function buildTrainingProfile(goals, { beginner = false, program = null } = {}) {
   const ids = rankedGoalIds(goals)
   const all = normalizeGoals(goals).map(goalId).filter(Boolean)
   const p = PROFILES[ids[0]] || BASE
@@ -96,7 +96,9 @@ export function buildTrainingProfile(goals, { beginner = false } = {}) {
     compound: { repMin: compound[0], repMax: compound[1], restSec: compound[2] },
     iso: { repMin: iso[0], repMax: iso[1], restSec: iso[2] },
     weeklySets: { min: sets[0], max: sets[1], minEffective: 4 },
-    cardioGoalMin: cardio,
+    // [2026-11-07] 코치 프로그램이 있으면 주간 유산소·부위별 세트 목표는 프로그램 숫자를 따른다(사용자 결정)
+    cardioGoalMin: program?.cardioMin > 0 ? program.cardioMin : cardio,
+    programSets: program?.sets || null,
     beginner,
     showBoneCard: all.includes('bone'),
     showPostureCard: all.includes('posture'),
@@ -128,8 +130,8 @@ export function describeTrainingProfile(profile) {
   const lines = [
     `다관절 목표 ${pr.compound.repMin}–${pr.compound.repMax}회 · 휴식 ${mmss(pr.compound.restSec)}`,
     `고립 목표 ${pr.iso.repMin}–${pr.iso.repMax}회 · 휴식 ${mmss(pr.iso.restSec)}`,
-    `부위별 주간 ${pr.weeklySets.min}–${pr.weeklySets.max}세트${pr.beginner ? ' (처음 8주는 낮게 시작)' : ''}`,
-    `주간 유산소 ${pr.cardioGoalMin}분`,
+    pr.programSets ? '부위별 주간 세트·유산소는 코치 프로그램 기준' : `부위별 주간 ${pr.weeklySets.min}–${pr.weeklySets.max}세트${pr.beginner ? ' (처음 8주는 낮게 시작)' : ''}`,
+    `주간 유산소 ${pr.cardioGoalMin}분${pr.programSets ? '(코치 프로그램)' : ''}`,
   ]
   if (pr.showBoneCard) lines.push('리포트에 골밀도 체크(하체·고중량 주 2회)')
   if (pr.showPostureCard) lines.push('리포트에 자세·코어 체크(코어·등 주간 세트, 밀기:당기기 균형)')

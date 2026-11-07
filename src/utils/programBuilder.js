@@ -9,6 +9,7 @@
 import { EXERCISE_LIBRARY, getExerciseAtom, buildPartName } from './exerciseLibrary'
 import { buildTrainingProfile, normalizeGoals } from './goals'
 import { isCompoundExercise } from './strength'
+import { isHoldExercise } from './load'
 
 export const COACH_PROGRAM_VERSION = 1
 export const COACH_PROGRAM_TITLE = '코치 프로그램'
@@ -177,8 +178,8 @@ function partSlots(split, a) {
     ]
   }
   return [
-    { name: '밀기', slots: ['pushH', 'pushV', 'pushI', 'lateral', 'triceps', up ? 'lateral' : null].filter(Boolean) },
-    { name: '당기기', slots: ['pullV', 'pullH', 'rear', carry ? 'grip' : 'biceps', 'coreR', carry ? 'hang' : null, carry ? 'biceps' : null].filter(Boolean) },
+    { name: '밀기', slots: ['pushH', 'pushV', 'triceps', 'lateral', 'pushI'] },
+    { name: '당기기', slots: ['pullV', 'pullH', 'biceps', 'rear', 'coreR', carry ? 'grip' : null, carry ? 'hang' : null].filter(Boolean) },
     { name: '하체', slots: ['squat', 'hinge', 'single', 'coreA', a.life === 'stairs' ? 'wallsit' : null, low ? 'glute' : 'hamcurl', 'quadiso'].filter(Boolean) },
   ]
 }
@@ -196,13 +197,24 @@ function cardioPlan(a, profile) {
   const target = profile.cardioGoalMin || 150
   const start = a.cardioHabit === 'none' ? Math.max(60, roundTo5(target * 0.6)) : a.cardioHabit === 'some' ? roundTo5(target * 0.8) : target
   const wantsInterval = a.cardioHabit !== 'none' && a.exp !== 'new' && a.minutes >= 45
-  const intervalMin = wantsInterval ? 20 : 0
+  const intervalMin = wantsInterval ? (a.minutes >= 60 ? 20 : 15) : 0
   // 인터벌은 고강도라 2배로 친다(주간 유산소 계산과 같은 기준 isVigorousCardio)
   const zone2Week = Math.max(0, start - intervalMin * 2)
   return { weekMin: start, zone2Week, intervalMin, target }
 }
 
-const SET_MIN = 2.7 // 세트 1개 + 휴식 평균 분(다관절 휴식이 길고 고립은 짧음)
+// [2026-11-07 점검] 종목별 세트당 분(세트 + 휴식): 다관절 3 · 고립 2.3 · 코어 2 · 버티기 1.5
+function setMinutes(n) {
+  if (isHoldExercise(n)) return 1.5
+  if (atomOf(n) === '코어') return 2
+  return isCompoundExercise(n) ? 3 : 2.3
+}
+// 부위별 주간 세트에서 버티기(데드행·월싯)는 0.5세트(strength.js fractionalSetsByAtom과 같은 기준)
+const setWeight = (n) => (isHoldExercise(n) && atomOf(n) !== '코어' ? 0.5 : 1)
+function intervalNote(min) {
+  const rounds = Math.max(1, Math.floor((min - 5) / 6))
+  return `가볍게 5분 → (숨차게 3분 + 가볍게 3분) × ${rounds}번. 숨차게는 말하기 힘든 정도예요. 인터벌은 주 1번만, 이미 했으면 이날은 대화되는 강도로 해요`
+}
 
 export function buildProgram(input) {
   const a = { ...DEFAULT_ANSWERS, ...input }
@@ -228,42 +240,47 @@ export function buildProgram(input) {
   // 부위별 주간 세트가 목표 상한(goals.js weeklySets.max)을 넘지 않게(코어 제외)
   const atomWeek = {}
   const weekMax = profile.weeklySets.max
-  const overWeek = (n, add) => atomOf(n) !== '코어' && (atomWeek[atomOf(n)] || 0) + add * sessionsPerPart > weekMax
+  // 하체는 앞(대퇴사두)·뒤(엉덩이·햄스트링) 두 묶음이라 상한을 1.7배로(리포트 근육별 세트도 앞·뒤를 따로 본다)
+  const capOf = (at) => (at === '하체' ? Math.round(weekMax * 1.7) : weekMax)
+  const overWeek = (n, add) => atomOf(n) !== '코어' && (atomWeek[atomOf(n)] || 0) + add * setWeight(n) * sessionsPerPart > capOf(atomOf(n))
+  const lifeMust = (slot) => LIFE_SLOTS.has(slot) || (slot === 'single' && (a.life === 'stairs' || a.life === 'balance'))
   const parts = partsDef.map((pd, idx) => {
     const isInterval = idx === intervalPart
     // 유산소는 한 번 운동 시간의 35%까지(짧은 날 근력 시간이 모자라지 않게)
     const cardioCap = Math.max(10, roundTo5(a.minutes * 0.35))
-    const cardioMin = Math.min(isInterval ? cardio.intervalMin : zone2PerSession, cardioCap)
-    // 근력에 쓸 수 있는 시간: 전체 - 웜업 5분 - 유산소
-    let budget = Math.max(12, a.minutes - 5 - cardioMin)
+    let cardioMin = Math.min(isInterval ? cardio.intervalMin : zone2PerSession, cardioCap)
+    // 근력에 쓸 수 있는 시간(분): 전체 - 웜업 5분 - 유산소
+    let budget = Math.max(10, a.minutes - 5 - cardioMin)
     if (a.sleep === 'low') budget *= 0.85
-    let setBudget = Math.floor(budget / SET_MIN)
-    // 꼭 넣을 동작(생활 체력 동작·코어 1개)은 시간을 먼저 떼어 둔다(2세트씩)
+    const baseSets = (n) => (atomOf(n) === '코어' || !isCompoundExercise(n) || a.exp === 'new' || a.minutes <= 30 ? 2 : 3)
+    // 꼭 넣을 동작(생활 체력 동작·고른 답의 한 다리 운동·코어 1개)은 시간을 먼저 떼어 둔다
     const firstCore = pd.slots.find((sl) => { const n = slotExercise(sl, a); return n && atomOf(n) === '코어' && !LIFE_SLOTS.has(sl) })
-    const reserved = pd.slots.filter((sl) => (LIFE_SLOTS.has(sl) || sl === firstCore) && slotExercise(sl, a)).length * 2
-    setBudget -= reserved
+    const isMust = (sl) => lifeMust(sl) || sl === firstCore
+    pd.slots.filter(isMust).forEach((sl) => {
+      const n = slotExercise(sl, a)
+      if (n) budget -= baseSets(n) * setMinutes(n)
+    })
     const exercises = []
     const setsOf = {}
+    const mustOf = {}
     const seen = new Set()
-    // 1단계: 종목마다 기본 세트(다관절 3·고립 2, 처음·30분이면 2)로 최대한 여러 동작을 넣는다(최소 3종목)
+    // 1단계: 종목마다 기본 세트(다관절 3·고립·코어 2, 처음·30분이면 2)로 최대한 여러 동작(최소 3종목)
     for (const slot of pd.slots) {
       const name = slotExercise(slot, a)
       if (!name || seen.has(name)) continue
-      const comp = isCompoundExercise(name)
-      const core = atomOf(name) === '코어'
-      const sets = core || !comp || a.exp === 'new' || a.minutes <= 30 ? 2 : 3
-      // 코어(안정성)는 시간이 모자라도 1종목은 넣는다
-      const hasCore = exercises.some((n) => getExerciseAtom(n) === '코어')
-      // 생활 체력 동작(들고 걷기·매달리기·벽 앉기)은 고른 답의 핵심이라 시간이 모자라도 넣는다
-      const must = LIFE_SLOTS.has(slot) || (core && !hasCore)
-      if (exercises.length >= 3 && setBudget - sets < 0 && !must) continue
-      if (exercises.length >= 3 && !must && overWeek(name, sets)) continue
-      atomWeek[atomOf(name)] = (atomWeek[atomOf(name)] || 0) + sets * sessionsPerPart
-      // 떼어 둔 시간에서 쓴 것은 다시 빼지 않는다
-      if (!(LIFE_SLOTS.has(slot) || slot === firstCore)) setBudget -= sets
+      const must = isMust(slot)
+      let sets = baseSets(name)
+      const cost = sets * setMinutes(name)
+      if (!must && exercises.length >= 3 && budget - cost < 0) continue
+      // 부위별 주간 상한: 넘으면 세트를 줄이고, 그래도 넘으면 3종목 이후는 뺀다
+      while (sets > 2 && overWeek(name, sets)) sets -= 1
+      if (!must && exercises.length >= 2 && overWeek(name, sets)) continue
+      atomWeek[atomOf(name)] = (atomWeek[atomOf(name)] || 0) + sets * setWeight(name) * sessionsPerPart
+      if (!must) budget -= sets * setMinutes(name)
       seen.add(name)
       exercises.push(name)
       setsOf[name] = sets
+      mustOf[name] = must
     }
     // 2단계: 남은 시간은 다관절에 1세트씩(키우고 싶은 쪽 먼저). 근육·뼈 1순위는 4세트까지, 그 밖·처음 6개월은 3세트까지
     const cap = beginner ? 3 : big ? 4 : 3
@@ -273,16 +290,40 @@ export function buildProgram(input) {
       return fx - fy
     })
     let grew = true
-    while (setBudget > 0 && grew) {
+    while (grew) {
       grew = false
       for (const n of focusFirst) {
-        if (setBudget <= 0) break
-        if (!isCompoundExercise(n) || atomOf(n) === '코어' || setsOf[n] >= cap || overWeek(n, 1)) continue
+        if (budget < setMinutes(n)) continue
+        if (!isCompoundExercise(n) || atomOf(n) === '코어' || isHoldExercise(n) || setsOf[n] >= cap || overWeek(n, 1)) continue
         atomWeek[atomOf(n)] = (atomWeek[atomOf(n)] || 0) + sessionsPerPart
         setsOf[n] += 1
-        setBudget -= 1
+        budget -= setMinutes(n)
         grew = true
       }
+    }
+    // 3단계: 그래도 고른 시간보다 길면 유산소 → 고립 종목 → 뒤쪽 종목 순서로 줄인다(최소 근력 2종목 + 꼭 넣을 동작)
+    const est = () => 5 + cardioMin + exercises.reduce((x, n) => x + setsOf[n] * setMinutes(n), 0)
+    for (let guard = 0; guard < 40 && est() > a.minutes + 3; guard++) {
+      if (cardioMin > 10) {
+        cardioMin -= 5
+        continue
+      }
+      const reducible = [...exercises].reverse().find((n) => !mustOf[n] && setsOf[n] > 2)
+      if (reducible) {
+        setsOf[reducible] -= 1
+        continue
+      }
+      const optional = exercises.filter((n) => !mustOf[n])
+      if (optional.length > 2) {
+        const drop = optional[optional.length - 1]
+        exercises.splice(exercises.indexOf(drop), 1)
+        continue
+      }
+      if (cardioMin > 0) {
+        cardioMin = 0
+        continue
+      }
+      break
     }
     exercises.forEach((name) => {
       const comp = isCompoundExercise(name)
@@ -291,13 +332,14 @@ export function buildProgram(input) {
       // 같은 종목이 두 파트에 있으면 처방은 하나(먼저 만든 값)로
       if (!coachRx[name]) coachRx[name] = { sets: setsOf[name], repMin: range[0], repMax: range[1] }
     })
+    const interval = isInterval && cardioMin >= 15
     if (cardioMin > 0) {
-      const cName = isInterval ? intervalName : zone2Name
+      const cName = interval ? intervalName : zone2Name
       if (cName && !seen.has(cName)) {
         exercises.push(cName)
         if (!coachRx[cName]) {
-          coachRx[cName] = isInterval
-            ? { kind: 'interval', minutes: cardioMin, note: '3분 가볍게 → 4분 숨차게(말하기 힘든 정도) · 3분 가볍게, 이걸 2–3번' }
+          coachRx[cName] = interval
+            ? { kind: 'interval', minutes: cardioMin, note: intervalNote(cardioMin) }
             : { kind: 'zone2', minutes: cardioMin, note: '대화는 되지만 노래는 어려운 강도로 꾸준히' }
         }
       }
@@ -318,21 +360,20 @@ export function buildProgram(input) {
       const rx = coachRx[n]
       if (!rx?.sets) return
       const at = atomOf(n)
-      const s = rx.sets * sessionsPerPart
-      weeklySets[at] = (weeklySets[at] || 0) + s
-      strengthSetsWeek += s
+      weeklySets[at] = (weeklySets[at] || 0) + rx.sets * setWeight(n) * sessionsPerPart
+      strengthSetsWeek += rx.sets * setMinutes(n) * sessionsPerPart
     })
   )
-  const strengthMinWeek = Math.round(strengthSetsWeek * SET_MIN)
+  const strengthMinWeek = Math.round(strengthSetsWeek)
   const cardioMinWeek = Math.round(
     parts.reduce((sum, p) => sum + p.exercises.reduce((x, n) => x + (coachRx[n]?.minutes || 0), 0), 0) * sessionsPerPart
   )
-  const sessionMin = parts.map((p) => Math.round(5 + p.exercises.reduce((x, n) => x + (coachRx[n]?.sets ? coachRx[n].sets * SET_MIN : coachRx[n]?.minutes || 0), 0)))
+  const sessionMin = parts.map((p) => Math.round(5 + p.exercises.reduce((x, n) => x + (coachRx[n]?.sets ? coachRx[n].sets * setMinutes(n) : coachRx[n]?.minutes || 0), 0)))
 
   const splitLabel = split === 'full' ? '전신 A/B 번갈아' : split === 'ul' ? '상체·하체 번갈아' : '밀기·당기기·하체 돌아가며'
   const reasons = [
     {
-      text: `주 ${a.days}일이라 ${splitLabel} 해요. 한 부위를 주 약 ${Math.round(sessionsPerPart * 10) / 10}회 하게 돼요. 근육은 부위당 주 2회 나눠 할 때 더 잘 자라요.`,
+      text: `주 ${a.days}일이라 ${splitLabel} 해요. ${split === 'full' ? `전신을 매번 하니 한 부위를 주 ${a.days}회` : `한 부위를 주 약 ${Math.round(sessionsPerPart * 10) / 10}회`} 하게 돼요. 근육은 부위당 주 2회 이상 나눠 할 때 더 잘 자라요.`,
       src: '근력 운동 빈도 종합 분석(2016)',
     },
     {
@@ -342,8 +383,8 @@ export function buildProgram(input) {
       src: '영국스포츠의학저널 종합 분석(2022) · 관찰 연구',
     },
     {
-      text: cardio.intervalMin
-        ? `유산소는 주 약 ${cardioMinWeek}분: 대화되는 강도로 꾸준히 + 숨찬 인터벌 주 1회예요. 심폐 체력이 높은 사람일수록 오래 건강하게 사는 경향이 뚜렷했어요.`
+      text: Object.values(coachRx).some((r) => r.kind === 'interval')
+        ? `유산소는 주 약 ${cardioMinWeek}분: 대화되는 강도로 꾸준히 + 숨찬 인터벌은 주 1번이에요(이미 한 주에는 그 날도 대화되는 강도로 안내해요). 심폐 체력이 높은 사람일수록 오래 건강하게 사는 경향이 뚜렷했어요.`
         : `유산소는 주 약 ${cardioMinWeek}분, 대화되는 강도로 시작해요. 익숙해지면 숨찬 인터벌을 주 1회 넣어요. 심폐 체력이 높은 사람일수록 오래 건강하게 사는 경향이 뚜렷했어요.`,
       src: '심폐 체력과 사망 위험 연구(2018, 12만 명) · 관찰 연구',
     },
@@ -351,9 +392,12 @@ export function buildProgram(input) {
   if (beginner) reasons.push({ text: '처음 몇 달은 종목당 2–3세트로 시작해 자세를 익혀요. 그것만으로도 힘이 충분히 늘어요.', src: '미국스포츠의학회 운동 지침(2009)' })
   if (a.life === 'carry') reasons.push({ text: '짐을 드는 힘은 엉덩이·등으로 들어 올리는 힘과 손아귀 힘이에요. 들어 올리기·당기기와 들고 걷기(파머스캐리)·매달리기(데드행)를 넣었어요. 손아귀 힘이 센 사람들이 더 건강한 경향이 있어요.', src: '17개국 악력 연구(2015) · 관찰 연구' })
   if (a.life === 'stairs') reasons.push({ text: '계단은 한 다리로 몸을 밀어 올리는 동작이라 스텝업 같은 한 다리 운동과 벽 앉기(월싯), 유산소를 넣었어요.', src: '' })
-  if (a.life === 'balance') reasons.push({ text: '균형은 한 다리 운동과 몸통을 버티는 코어 운동, 등 뒤쪽(페이스풀)으로 지켜요.', src: '' })
+  if (a.life === 'balance') reasons.push({ text: `균형은 한 다리 운동과 몸통을 버티는 코어 운동${parts.some((p) => p.exercises.includes('케이블페이스풀')) ? ', 등 뒤쪽(페이스풀)' : ''}으로 지켜요.`, src: '' })
   if (a.sleep === 'low') reasons.push({ text: '잠이 부족하면 회복이 늦어 세트를 조금 줄여 시작했어요. 몸이 버거우면 로그 코치가 쉬어 가는 주를 알려 줘요.', src: '' })
-  if (profile.cardioGoalMin && cardio.weekMin < profile.cardioGoalMin) reasons.push({ text: `유산소는 지금 습관에 맞춰 낮게 시작했어요. 목표는 주 ${profile.cardioGoalMin}분이에요.`, src: '' })
+  if (profile.cardioGoalMin && cardioMinWeek < profile.cardioGoalMin) {
+    const why = cardio.weekMin < profile.cardioGoalMin && cardioMinWeek >= cardio.weekMin - 10 ? '지금 유산소 습관에 맞춰 낮게 시작했어요' : `한 번 ${a.minutes}분 안에 근력과 함께 넣다 보니 주 ${cardioMinWeek}분이 들어갔어요`
+    reasons.push({ text: `${why}. 목표(주 ${profile.cardioGoalMin}분)까지는 운동하지 않는 날 빠르게 걷기로 채우거나, 운동 시간을 늘려 다시 만들어 보세요.`, src: '' })
+  }
 
   return {
     version: COACH_PROGRAM_VERSION,
@@ -376,3 +420,25 @@ export function buildProgram(input) {
 export function findCoachProgramTemplate(templates) {
   return (templates || []).find((t) => t.byCoach && !t.byTrainer) || null
 }
+
+// [2026-11-07 점검 M3] 저장된 코치 프로그램 → 주간 목표(부위별 세트·유산소 분). 프로그램이 있으면 HOME·REPORT·코치가 이 숫자를 기준으로 쓴다.
+export function programTargets(template, days) {
+  if (!template?.coachRx || !Array.isArray(template.parts) || !template.parts.length) return null
+  const per = (Number(days) || template.parts.length) / template.parts.length
+  const sets = {}
+  let cardioMin = 0
+  template.parts.forEach((p) =>
+    (p.exercises || []).forEach((key) => {
+      const n = String(key).split('::')[0]
+      const rx = template.coachRx[n]
+      if (!rx) return
+      if (rx.minutes) cardioMin += rx.minutes * per
+      else if (rx.sets) {
+        const at = atomOf(n)
+        if (at) sets[at] = (sets[at] || 0) + rx.sets * setWeight(n) * per
+      }
+    })
+  )
+  return { sets, cardioMin: Math.round(cardioMin) }
+}
+

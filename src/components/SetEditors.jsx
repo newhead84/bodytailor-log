@@ -198,7 +198,7 @@ function BigValue({ caption, value, onChange, children, integer = false }) {
 }
 
 // 포커스형: sets(중량형)·reps(횟수형) 종목에서 "지금 할 세트" 하나를 크게 보여준다.
-export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무게 kg', repsLabel = '횟수', repsUnitLabel = '회', rirEnabled = true, onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, onRemoveSet, workingIndexOf }) {
+export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무게 kg', repsLabel = '횟수', repsUnitLabel = '회', repsStep = 1, rirEnabled = true, onField, onSave, onSelect, focusIdx, onCycleType, onAddSet, onRemoveSet, workingIndexOf }) {
   const saveLockRef = useRef(0)
   const idx = focusIdx != null && sets[focusIdx] ? focusIdx : Math.max(0, sets.findIndex((s) => !s.saved))
   const cur = sets[idx] || {}
@@ -295,8 +295,8 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
               </BigValue>
             )}
             <BigValue caption={repsLabel} value={cur.reps ?? ''} onChange={(v) => onField(idx, 'reps', v)} integer>
-              <BigStep label="−1" onClick={() => onField(idx, 'reps', step(cur.reps, -1))} />
-              <BigStep label="+1" onClick={() => onField(idx, 'reps', step(cur.reps, 1))} />
+              <BigStep label={`−${repsStep}`} onClick={() => onField(idx, 'reps', step(cur.reps, -repsStep))} />
+              <BigStep label={`+${repsStep}`} onClick={() => onField(idx, 'reps', step(cur.reps, repsStep))} />
             </BigValue>
           </div>
           {rirEnabled && (
@@ -413,8 +413,12 @@ const REST_CHOICES = [
 
 // [2026-11-02 로그 코치] 증량 단위 칸은 없앴다(기구별 자동). 예전에 저장한 step 값은 다음 저장 때 지운다(null).
 // [2026-11-03] 종목별 강도도 없앴다(번거로움 - 사용자 결정). 강도는 MY › 설정 하나로 전체 적용.
-export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, history = [], onChange, onClose }) {
+export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, history = [], onChange, onClose, unit = '회' }) {
   const [min, max] = repRange
+  // [2026-11-07] 버티기(초) 종목은 5초 단위·최대 300초
+  const sec = unit === '초'
+  const d = sec ? 5 : 1
+  const cap = sec ? 300 : 30
   const set = (patch) => onChange({ repMin: min, repMax: max, restSec, step: null, ...patch })
   const stepBtn = (label, onClick, aria) => (
     <button
@@ -435,16 +439,16 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, histo
         </button>
       </div>
       {/* [2026-10-29] 좁은 화면·큰 글꼴에서 최대값 + 버튼이 다음 줄로 넘어가던 문제: 이름은 윗줄, 조절 버튼은 한 줄 고정 */}
-      <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginBottom: -4 }}>목표 반복</span>
+      <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginBottom: -4 }}>{sec ? '목표 시간' : '목표 반복'}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
-        {stepBtn('−', () => set({ repMin: Math.max(1, min - 1) }), '최소 반복 줄이기')}
+        {stepBtn('−', () => set({ repMin: Math.max(sec ? 5 : 1, min - d) }), '최소 반복 줄이기')}
         <span className="bt-num" style={{ fontSize: 16, minWidth: 24, textAlign: 'center', whiteSpace: 'nowrap' }}>{min}</span>
-        {stepBtn('+', () => set({ repMin: Math.min(max, min + 1) }), '최소 반복 늘리기')}
+        {stepBtn('+', () => set({ repMin: Math.min(max, min + d) }), '최소 반복 늘리기')}
         <span style={{ color: 'var(--color-label-neutral)' }}>–</span>
-        {stepBtn('−', () => set({ repMax: Math.max(min, max - 1) }), '최대 반복 줄이기')}
+        {stepBtn('−', () => set({ repMax: Math.max(min, max - d) }), '최대 반복 줄이기')}
         <span className="bt-num" style={{ fontSize: 16, minWidth: 24, textAlign: 'center', whiteSpace: 'nowrap' }}>{max}</span>
-        {stepBtn('+', () => set({ repMax: Math.min(30, max + 1) }), '최대 반복 늘리기')}
-        <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>회</span>
+        {stepBtn('+', () => set({ repMax: Math.min(cap, max + d) }), '최대 반복 늘리기')}
+        <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{unit}</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>

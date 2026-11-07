@@ -20,7 +20,7 @@ const inputStyle = {
   fontFamily: 'var(--font-num, inherit)',
 }
 
-export default function FitnessCheckScreen({ uid, weightKg, onClose }) {
+export default function FitnessCheckScreen({ uid, weightKg, onClose, backRef = null }) {
   const confirm = useConfirm()
   const [tests, setTests] = useState(null)
   const [adding, setAdding] = useState(false)
@@ -38,6 +38,8 @@ export default function FitnessCheckScreen({ uid, weightKg, onClose }) {
     }
   }, [uid])
 
+  // [2026-11-07] 기기 뒤로가기: 입력 중이면 입력만 닫는다(화면 위 ‹와 같게)
+  if (backRef) backRef.current = adding ? () => setAdding(false) : null
   const last = tests?.[0] || null
   const prev = tests?.[1] || null
 
@@ -104,7 +106,7 @@ export default function FitnessCheckScreen({ uid, weightKg, onClose }) {
               {last && (
                 <Card style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)', marginBottom: 10 }}>
-                    최근 점검 <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}>{last.date}{prev ? ` · 지난번 ${prev.date} 대비` : ''}</span>
+                    최근 점검 <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--color-label-neutral)' }}><span style={{ whiteSpace: 'nowrap' }}>{last.date}</span>{prev ? <> · 지난번 <span style={{ whiteSpace: 'nowrap' }}>{prev.date}</span> 대비</> : ''}</span>
                   </div>
                   <ResultRows test={last} prev={prev} weightKg={weightKg} />
                 </Card>
@@ -209,7 +211,7 @@ export function ResultRows({ test, prev = null, weightKg = 0, compact = false })
     <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 4 : 8 }}>
       {rows.map((r) => {
         const p = prevRows[r.id]
-        const d = p && p.value != null && r.value != null ? Math.round((r.value - p.value) * 10) / 10 : null
+        const d = p && p.value != null && r.value != null ? (r.pct ? (p.value > 0 ? Math.round(((r.value - p.value) / p.value) * 100) : null) : Math.round((r.value - p.value) * 10) / 10) : null
         return (
           <div key={r.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'baseline' }}>
             <span className="text-keep-all" style={{ fontSize: compact ? 12.5 : 14, color: 'var(--color-label-normal)', minWidth: 0 }}>
@@ -220,7 +222,7 @@ export function ResultRows({ test, prev = null, weightKg = 0, compact = false })
               {r.text}
               {d != null && d !== 0 && (
                 <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 700, color: d > 0 ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>
-                  {d > 0 ? '▲' : '▼'}{Math.abs(d)}
+                  {d > 0 ? '▲' : '▼'}{Math.abs(d)}{r.pct ? '%' : ''}
                 </span>
               )}
             </span>

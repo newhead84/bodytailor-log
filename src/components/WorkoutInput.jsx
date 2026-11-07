@@ -6,7 +6,7 @@ import { ExerciseName } from '../utils/exerciseName'
 import { CountUp } from '../hooks/useCountUp'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { getTrainingProfile } from '../utils/goals'
-import { deloadSignal, weekAtomSets, weeklyShortfall, cardioCoach } from '../utils/coach'
+import { deloadSignal, weekAtomSets, weeklyShortfall, cardioCoach, logsThisWeek } from '../utils/coach'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
 import WorkoutGuide, { WORKOUT_GUIDE_VERSION } from './WorkoutGuide'
@@ -24,7 +24,6 @@ import {
   hasWarmupRamp,
   planSetTargets,
   recommendedSetCount,
-  setProgramSuspended,
   getProgramRx,
   dropSetWeight,
   intensityOf,
@@ -39,14 +38,15 @@ import {
   SET_TYPE_LABEL,
   SET_TYPE_DESC,
 } from '../utils/strength'
-import { getCardioFields, formatCardioSet, makeCardioSet, autoFillCardio, cardioTimerMs, cardioTimerMinutes } from '../utils/cardioFields'
-import { allowsZeroWeight, isAssistedExercise, weightCaption, repsCaption, repsUnit, formatLoad, weightUnitShort, inputHint } from '../utils/load'
+import { getCardioFields, formatCardioSet, makeCardioSet, autoFillCardio, cardioTimerMs, cardioTimerMinutes, cardioStats } from '../utils/cardioFields'
+import { allowsZeroWeight, isAssistedExercise, weightCaption, repsCaption, repsUnit, formatLoad, weightUnitShort, inputHint, isHoldExercise } from '../utils/load'
 import { useExerciseGuidePress, ExerciseGuidePanel } from './ExerciseGuideToggle'
 import logoMarkTransparent from '../assets/logo-mark-transparent.png'
 import {
   getExercisesForPart,
   getCustomExercisesForPart,
   getAtomsForPartName,
+  getAtomsForPart,
   getExerciseColorWithCustom,
   getExerciseAtomWithCustom,
   getExerciseAtom,
@@ -445,8 +445,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || null
   const selectedPart = selectedTemplate?.parts?.find((p) => p.name === selectedPartName) || null
-  // [2026-11-07] 트레이너 계획으로 운동할 때는 코치 프로그램 처방(세트 수·목표 횟수)을 쓰지 않는다(트레이너 계획 우선)
-  setProgramSuspended(sessionType === 'routine' && !!selectedTemplate?.byTrainer)
+  // [2026-11-07] 트레이너 계획으로 운동할 때는 코치 프로그램 처방(세트 수·목표 횟수)을 쓰지 않는다(트레이너 계획 우선) - settingFor가 noProgram 표시
+  const programOff = sessionType === 'routine' && !!selectedTemplate?.byTrainer
 
   // 세션이 진행 중일 때(웜업/본운동) 1초마다 경과시간 표시 갱신
   useEffect(() => {
@@ -981,7 +981,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setExpandedExercise(expandedExercise === key ? null : key)
     const name = parseExerciseKey(key).name // 라이브러리 조회·직전기록 조회는 실제 종목명 기준
     // [2026-11-03 로그 코치] 운동 순서: 아직 안 한 다관절 종목이 남았는데 고립 종목을 먼저 열면 한 번 안내(세션당 1회)
-    if (coachEnabled && !orderTipRef.current && expandedExercise !== key && getExerciseInputType(name) === 'sets' && !isCompoundExercise(name)) {
+    if (coachEnabled && !orderTipRef.current && expandedExercise !== key && getExerciseInputType(name) === 'sets' && !isCompoundExercise(name) && !isHoldExercise(name) && getExerciseAtom(name) !== '코어') {
       const pending = visibleExercises.find((k) => {
         const n = parseExerciseKey(k).name
         return k !== key && getExerciseInputType(n) === 'sets' && isCompoundExercise(n) && !completedExercises[k] && !(records[k] || []).some((st) => st.saved)
@@ -1148,7 +1148,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const sug = suggestionFor(key)
     if (!sug) return null
     const name = parseExerciseKey(key).name
-    let targets = planSetTargets(sug, name)
+    let targets = planSetTargets(sug, name, settingFor(key))
     let weight = sug.weight
     const notes = []
     // 이미 내리기·다시 시작(복귀) 판단이면 무게가 가벼워졌으므로 쉬어 가는 주를 겹치지 않는다
@@ -1158,8 +1158,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       if (targets.length > 1) targets = targets.slice(0, targets.length - 1)
       notes.push({ text: `${deload.hardWeeks}주 넘게 세게 이어 왔어요 → 이번 주는 무게 10%쯤·세트 1개 줄여 회복해요(쉬어 가는 주). 다음 주에 다시 올리면 더 잘 올라가요` })
     } else if (!deload) {
-      const short = weeklyShortfall(name, weekCounts)
-      if (short && targets.length <= recommendedSetCount(name)) {
+      // [2026-11-07] 내리기·복귀 날이나 코치 프로그램이 세트를 정해 둔 종목에는 주간 세트 채우기(+1세트)를 넣지 않는다
+      const short = sug.kind !== 'decrease' && !sug.comeback && !getProgramRx(name, settingFor(key)) ? weeklyShortfall(name, weekCounts) : null
+      if (short && targets.length <= recommendedSetCount(name, settingFor(key))) {
         targets = [...targets, targets[targets.length - 1]]
         notes.push({ text: `이번 주 ${short.atom} ${short.cur}세트 · 목표 ${short.min}세트까지 ${short.short}세트 남아서 오늘 1세트 더 넣었어요` })
       }
@@ -1186,7 +1187,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     clearSetTip(key)
   }
   function settingFor(key) {
-    return settingsOverride[key] || exerciseSettings?.[key] || null
+    const st = settingsOverride[key] || exerciseSettings?.[key] || null
+    return programOff ? { ...(st || {}), noProgram: true } : st
   }
   function suggestionFor(key) {
     return suggestNextSet(parseExerciseKey(key).name, lastRecords[key], settingFor(key))
@@ -1294,8 +1296,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
 
   // [2026-11-07] 코치 프로그램에 유산소 처방(분·강도)이 있으면 그 안내를 먼저
   function programCardioCoach(name) {
-    const rx = getProgramRx(name)
+    const rx = getProgramRx(name, programOff ? { noProgram: true } : null)
     if (!rx?.minutes) return null
+    // 인터벌은 주 1번: 이번 주에 이미 숨찬 유산소를 했으면 이날은 대화되는 강도로
+    if (rx.kind === 'interval' && cardioStats(logsThisWeek(coachLogs)).vigorousMin > 0) {
+      return { today: rx.minutes, text: `내 프로그램 · 이번 주 인터벌은 이미 했어요 → 오늘은 대화되는 강도로 ${rx.minutes}분` }
+    }
     return { today: rx.minutes, text: `내 프로그램 · 오늘 ${rx.minutes}분${rx.note ? ` · ${rx.note}` : ''}` }
   }
 
@@ -1323,7 +1329,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       planWeight: coachPlanFor(key)?.weight,
       planNotes: coachPlanFor(key)?.notes || [],
       cardioCoach: coachEnabled && getExerciseInputType(name) === 'cardio' ? programCardioCoach(name) || cardioCoach(coachLogs, liveExercises) : null,
-      recommendedSets: recommendedSetCount(name),
+      recommendedSets: recommendedSetCount(name, setting),
+      programRx: coachEnabled && getExerciseInputType(name) !== 'cardio' ? getProgramRx(name, setting) : null,
+      hasHistory: !!lastRecords[key],
       onCycleType: (idx) => cycleSetType(key, idx),
       onCycleRir: (idx) => cycleSetRir(key, idx),
       onApplySuggestion: () => applySuggestion(key),
@@ -1835,7 +1843,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // 운동완료 시점에 진행 중이던 휴식타이머는 즉시 사라져야 한다.
     setRestActive(false)
     // [2026-10-29 등급 리뉴얼] 완료 요약 카드: 시간·볼륨·본세트·PR·XP + Lv 진행(레벨 업·단계 승급 연출)
-    const workingSetCount = exercises.reduce((n, ex) => n + (ex.sets || []).filter((st) => st.type !== 'warmup').length, 0)
+    // [2026-11-07] 본세트는 유산소를 빼고 센다(HOME·REPORT와 같은 기준)
+    const workingSetCount = exercises.reduce((n, ex) => n + ((ex.inputType || getExerciseInputType(ex.name)) === 'cardio' ? 0 : (ex.sets || []).filter((st) => st.type !== 'warmup').length), 0)
     setCelebration({
       xpEarned,
       pendingRoutineAdd,
@@ -1878,7 +1887,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const nextParts = template.parts.map((p) => ({ ...p, exercises: [...p.exercises] }))
     let addedCount = 0
     toAdd.forEach((e) => {
-      const targetPart = nextParts.find((p) => getAtomsForPartName(p.name).includes(e.atom))
+      const targetPart = nextParts.find((p) => getAtomsForPart(p).includes(e.atom))
       if (targetPart && !targetPart.exercises.includes(e.key)) {
         targetPart.exercises.push(e.key)
         addedCount++
@@ -1974,7 +1983,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             동작 가이드 보는 법
           </p>
           <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
-            종목 카드의 종목명을 길게 누르면 동작 이미지·설명을 볼 수 있어요. 다시 길게
+            종목 카드의 종목명을 길게 누르면 동작 설명(자세·핵심 포인트·흔한 실수)을 볼 수 있어요. 다시 길게
             누르거나, 짧게 탭하거나, 카드 밖을 눌러 닫을 수 있어요. 종목을 새로 고르는
             화면에서는 종목명 옆 ⓘ 버튼을 눌러 같은 가이드를 볼 수 있어요.
           </p>
@@ -2210,7 +2219,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 </p>
                 {/* [2026-08-02 변경] 복합 파트(예: "등&이두")를 고르면 그동안 두 부위 종목이 구분
                     없이 한 줄에 섞여 나와 헷갈렸다(⑩). 부위(atom)별로 소제목을 달아 묶어서 보여준다. */}
-                {getAtomsForPartName(selectedPart?.name).map((atom) => {
+                {getAtomsForPart(selectedPart).map((atom) => {
                   // [2026-08-05 수정] partOrder에 있어도 오늘 임시 숨김(hiddenToday) 상태인 종목은
                   // "이미 추가된 종목"이 아니라 "다시 꺼낼 수 있는 후보"로 노출해야 한다.
                   // [2026-08-10 변경] 그립옵션이 있는 종목은 그립별로 후보를 펼친다.
@@ -2790,18 +2799,18 @@ export function ExerciseCard({
         <div className="bt-enter" style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lastRecord && (
             <div
-              className="record-notation text-keep-all h-scroll"
-              style={{ fontSize: 12, color: 'var(--color-label-neutral)', display: 'flex', gap: 4 }}
+              className="record-notation"
+              style={{ fontSize: 12, color: 'var(--color-label-neutral)', display: 'flex', flexWrap: 'wrap', columnGap: 4, rowGap: 2 }}
             >
               <span style={{ flexShrink: 0 }}>직전({lastRecord.date}):</span>
-              <span>
+              <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                 {inputType === 'cardio'
-                  ? lastRecord.sets.map((st) => formatCardioSet(exName, st)).join(' / ')
+                  ? lastRecord.sets.map((st) => formatCardioSet(exName, st)).join(' /\u200b ')
                   : inputType === 'reps'
-                  ? lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.reps}${repsUnit(exName)}`).join('/')
+                  ? lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.reps}${repsUnit(exName)}`).join('/\u200b')
                   : allowsZeroWeight(exName)
-                  ? lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${formatLoad(exName, st.weight)}×${st.reps}`).join('/')
-                  : lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.weight}x${st.reps}`).join('/')}
+                  ? lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${formatLoad(exName, st.weight)}×${st.reps}`).join('/\u200b')
+                  : lastRecord.sets.map((st) => `${st.type === 'warmup' ? 'W ' : ''}${st.weight}x${st.reps}${isHoldExercise(exName) ? '초' : ''}`).join('/\u200b')}
               </span>
             </div>
           )}
@@ -3014,7 +3023,7 @@ export function ExerciseCard({
                 {/* [2026-10-29] 켜고 끄는 버튼이 아니라 설정 창을 여는 버튼임을 아이콘으로 표시 */}
                 <SlidersHorizontal size={13} strokeWidth={2} aria-hidden="true" style={{ flexShrink: 0 }} />
                 <span>
-                  목표 <span className="bt-num">{repRange?.[0]}–{repRange?.[1]}</span>회
+                  목표 <span className="bt-num">{repRange?.[0]}–{repRange?.[1]}</span>{repsUnit(exName)}
                   {restSec ? (
                     <>
                       {' '}· 휴식 <span className="bt-num">{Math.floor(restSec / 60)}:{String(restSec % 60).padStart(2, '0')}</span>
@@ -3028,6 +3037,7 @@ export function ExerciseCard({
           {showSetting && repRange && (
             <ExerciseSettingEditor
               repRange={repRange}
+              unit={repsUnit(exName)}
               restSec={restSec ?? null}
               defaultRestSec={defaultRestSec || 90}
               history={ext.recHistory || []}
@@ -3043,6 +3053,16 @@ export function ExerciseCard({
               <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', minWidth: 0 }}>{ext.cardioCoach.text}</span>
             </div>
           )}
+          {/* [2026-11-07 점검] 코치 플랜 카드가 없을 때(처음 하는 종목·버티기 종목) 내 프로그램 처방을 한 줄로 */}
+          {inputType !== 'cardio' && !isDone && ext.programRx?.sets && !suggestion && (
+            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', flexShrink: 0 }}>내 프로그램</span>
+              <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', minWidth: 0 }}>
+                {ext.programRx.sets}세트 × {ext.programRx.repMin}–{ext.programRx.repMax}{repsUnit(exName)}
+                {ext.hasHistory ? '' : isHoldExercise(exName) ? ' · 처음이면 편하게 버틸 수 있는 만큼부터' : ' · 처음이면 목표 횟수를 여유 있게 채울 무게로 시작해요'}
+              </span>
+            </div>
+          )}
           {inputType === 'cardio' && !isDone && <CardioTimerPanel sets={sets} onFieldChange={onFieldChange} />}
           {useFocus ? (
             <FocusSetPanel
@@ -3052,7 +3072,8 @@ export function ExerciseCard({
               weightLabel={weightCaption(exName)}
               repsLabel={repsCaption(exName)}
               repsUnitLabel={repsUnit(exName)}
-              rirEnabled={ext.rirEnabled !== false}
+              repsStep={isHoldExercise(exName) ? 5 : 1}
+              rirEnabled={ext.rirEnabled !== false && !isHoldExercise(exName)}
               focusIdx={focusIdx}
               onSelect={(i) => setFocusIdx(i)}
               onField={(i, field, v) => onFieldChange(i, field, v)}
@@ -3280,17 +3301,17 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
       {/* [2026-10-28] RIR 겹침 수정: 스테퍼 묶음이 남은 폭을 차지하고(flex 1) 스테퍼도 함께 줄어든다(최소 폭까지만). 무게 칸이 조금 더 넓게(grow 1.4) */}
       <div data-guide={guide ? 'set-values' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 3, flex: '1 1 0' }}>
         {inputType === 'reps' ? (
-          <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder={repsUnit(exName)} fluid minInput={28} integer />
+          <Stepper value={set.reps} onChange={onRepsChange} step={isHoldExercise(exName) ? 5 : 1} placeholder={repsUnit(exName)} fluid minInput={28} integer />
         ) : (
           <>
             <Stepper value={set.weight} onChange={onWeightChange} step={weightStep} placeholder={weightUnitShort(exName)} fluid grow={1.25} minInput={40} />
             <span style={{ color: 'var(--color-label-neutral)', flexShrink: 0 }}>×</span>
-            <Stepper value={set.reps} onChange={onRepsChange} step={1} placeholder="회" fluid minInput={24} integer />
+            <Stepper value={set.reps} onChange={onRepsChange} step={isHoldExercise(exName) ? 5 : 1} placeholder={repsUnit(exName)} fluid minInput={24} integer />
           </>
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 'auto', flexShrink: 0 }}>
-        {rirEnabled && <RirChip rir={set.rir} onClick={onCycleRir} guideKey={guide ? 'rir' : undefined} />}
+        {rirEnabled && !isHoldExercise(exName) && <RirChip rir={set.rir} onClick={onCycleRir} guideKey={guide ? 'rir' : undefined} />}
         <IconButton guideKey={guide ? 'set-save' : undefined} title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-check-pop' : ''}>
           <path d="M5 12l5 5L19 7" />
         </IconButton>

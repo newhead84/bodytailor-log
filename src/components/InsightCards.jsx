@@ -84,6 +84,10 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
           rows.map((atom) => {
             const v = sets[atom] || 0
             const pct = Math.min(100, (v / scaleMax) * 100)
+            // [2026-11-07] 코치 프로그램이 있으면 부위마다 프로그램 주간 세트 기준
+            const WEEKLY_SET_GUIDE = getWeeklySetGuide(atom)
+            const bandLeft = (WEEKLY_SET_GUIDE.min / scaleMax) * 100
+            const bandWidth = ((WEEKLY_SET_GUIDE.max - WEEKLY_SET_GUIDE.min) / scaleMax) * 100
             // [2026-10-29] 이번 주는 아직 진행 중이라 기준 미만이어도 '부족' 대신 '진행 중'으로(주중에 모두 '부족'으로 떠 위협적이던 문제)
             // [2026-10-29] 초보자는 주 4세트 이상이면 충분히 성장하므로 '부족'은 4세트 미만일 때만. 코어는 근비대
             // 연구의 권장 범위를 그대로 적용하기 어려워 범위·판정 없이 세트 수만 보여준다.
@@ -138,8 +142,8 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
         )}
         {/* [2026-10-28 리디자인] 기준 설명은 접어 두기 */}
         <Disclosure>
-          웜업 제외 본세트 기준 · 주동 부위 1세트, 함께 쓰인 보조 부위 0.5세트로 계산 · 점선 구간 = 주 {WEEKLY_SET_GUIDE.min}–
-          {WEEKLY_SET_GUIDE.max}세트(내 운동 목표 기준, MY 프로필에서 변경) · 초보자는 주 {WEEKLY_SET_GUIDE.minEffective}세트 이상이면 충분히 성장해요 · 하체 앞 =
+          웜업 제외 본세트 기준 · 주동 부위 1세트, 함께 쓰인 보조 부위 0.5세트로 계산 · 점선 구간 = {getTrainingProfile().programSets ? '내 코치 프로그램의 부위별 주간 세트 기준(프로그램에 없는 부위는 ' : '주 '}{WEEKLY_SET_GUIDE.min}–
+          {WEEKLY_SET_GUIDE.max}세트{getTrainingProfile().programSets ? ')' : '(내 운동 목표 기준, MY 프로필에서 변경)'} · 초보자는 주 {WEEKLY_SET_GUIDE.minEffective}세트 이상이면 충분히 성장해요 · 하체 앞 =
           허벅지 앞·안쪽, 하체 뒤 = 엉덩이·햄스트링·종아리 · 코어는 권장 범위 없이 세트 수만 표시
         </Disclosure>
       </Card>

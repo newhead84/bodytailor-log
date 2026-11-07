@@ -15,7 +15,7 @@ import { getTrainingProfile } from '../utils/goals'
 import { parseExerciseKey } from '../utils/exerciseKey'
 import { CountUp } from '../hooks/useCountUp'
 import CalendarView from './CalendarView'
-import { getExerciseDisplayAtom } from '../utils/exerciseLibrary'
+import { getExerciseDisplayAtom, getExerciseInputType } from '../utils/exerciseLibrary'
 
 // [2026-10-29] 'YYYY-MM-DD' → '10/26(월)' (HOME 최근 기록 표기)
 function formatShortDate(ds) {
@@ -179,7 +179,8 @@ export default function HomeTab({
   const weekStats = useMemo(() => {
     const sessions = new Set(weekWithLive.map((l) => l.date)).size
     let sets = 0
-    weekWithLive.forEach((l) => (l.exercises || []).forEach((e) => (sets += workingSetsOf(e).length)))
+    // [2026-11-07] 본세트는 유산소를 빼고 센다(REPORT와 같은 기준)
+    weekWithLive.forEach((l) => (l.exercises || []).forEach((e) => ((e.inputType || getExerciseInputType(e.name)) === 'cardio' ? null : (sets += workingSetsOf(e).length))))
     const volume = weekWithLive.reduce((v, l) => v + logVolumeKg(l), 0)
     return { sessions, sets, volume }
   }, [weekWithLive])

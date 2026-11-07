@@ -17,7 +17,7 @@ export const FITNESS_ITEMS = [
   {
     id: 'carry',
     label: '들고 걷기',
-    how: '양손에 같은 무게 덤벨을 들고 바른 자세로 걸은 시간.\n처음엔 양손 합쳐 체중의 절반 안쪽으로 가볍게 시작해요.',
+    how: '양손에 같은 무게 덤벨을 들고 바른 자세로 걸은 시간.\n처음엔 양손 합쳐 체중의 1/4–1/3 정도로 가볍게 시작해요.',
     fields: [
       { key: 'carryKg', label: '덤벨 1개(kg)', max: 200, step: 0.5 },
       { key: 'carrySec', label: '걸은 시간(초)', max: 1200, step: 1 },
@@ -59,7 +59,9 @@ export function fitnessDerived(t, weightKg = 0) {
     out.push({
       id: 'carry',
       label: '들고 걷기',
-      value: t.carrySec != null ? t.carrySec : null,
+      // 무게와 시간을 함께 비교(덤벨 무게 × 걸은 시간) - 무게를 올리고 시간이 조금 줄어도 ▼로 보이지 않게
+      value: t.carryKg != null && t.carrySec != null ? t.carryKg * t.carrySec : t.carrySec != null ? t.carrySec : null,
+      pct: true,
       text: `${t.carryKg != null ? `${t.carryKg}kg×2` : ''}${t.carryKg != null && t.carrySec != null ? ' · ' : ''}${t.carrySec != null ? sec(t.carrySec) : ''}`,
       sub: pct ? `양손 합계 체중의 ${pct}%` : '',
     })
@@ -69,7 +71,7 @@ export function fitnessDerived(t, weightKg = 0) {
   if (t.cooperM != null) {
     // 12분 거리로 최대 산소 섭취량 추정(쿠퍼 공식, ml/kg/분) - 대략적인 값
     const vo2 = Math.max(0, Math.round((t.cooperM - 504.9) / 44.73))
-    out.push({ id: 'cooper', label: '12분 걷기·달리기', value: t.cooperM, text: `${t.cooperM}m`, sub: vo2 ? `심폐 체력 추정 약 ${vo2}` : '' })
+    out.push({ id: 'cooper', label: '12분 걷기·달리기', value: t.cooperM, text: `${t.cooperM}m`, sub: vo2 ? `심폐 체력 추정 약 ${vo2}(최대 산소 섭취량, ml/kg/분)` : '' })
   }
   return out
 }

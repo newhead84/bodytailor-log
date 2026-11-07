@@ -72,24 +72,21 @@ export const SESSION_SET_CAP = 11
 // 오늘 권장 세트 수(본세트): 부위당 주 10세트 이상이 근비대에 유리(Schoenfeld 외 2017)하고 주 2회로 나누면 한 번에 3–5세트.
 // 근육·뼈 목표는 다관절 4·고립 3, 그 밖의 목표는 3·2, 처음 8주(초보 1–3세트, ACSM 2009)는 최대 3·2.
 // [2026-11-07] 로그 코치 프로그램 처방(routineTemplates.coachRx: { 종목명: { sets, repMin, repMax, minutes?, note? } })
-// App이 내 코치 프로그램의 처방을 넣고(setProgramPrescription), 트레이너 계획으로 운동할 때는 WorkoutInput이 잠시 끈다(트레이너 계획 우선).
+// App이 내 코치 프로그램의 처방을 넣는다(setProgramPrescription). 트레이너 계획으로 운동하는 날은 WorkoutInput이
+// 종목 설정에 noProgram 표시를 붙여 넘긴다(전역 상태 대신 - HOME이 기록 탭 상태에 따라 달라지던 점검 M5).
 // 종목 설정(exerciseSettings)에서 사용자가 직접 바꾼 목표 횟수는 처방보다 우선한다.
 let programRx = {}
-let programSuspended = false
 export function setProgramPrescription(map) {
   programRx = map && typeof map === 'object' ? map : {}
 }
-export function setProgramSuspended(v) {
-  programSuspended = !!v
-}
-export function getProgramRx(name) {
-  if (programSuspended || !name) return null
+export function getProgramRx(name, setting = null) {
+  if (!name || setting?.noProgram) return null
   const rx = programRx[name]
   return rx && typeof rx === 'object' ? rx : null
 }
 
-export function recommendedSetCount(name) {
-  const rx = getProgramRx(name)
+export function recommendedSetCount(name, setting = null) {
+  const rx = getProgramRx(name, setting)
   if (rx && Number(rx.sets) >= 1) return Math.min(8, Math.round(Number(rx.sets)))
   const pr = getTrainingProfile()
   const big = pr.primary === 'muscle' || pr.primary === 'bone'
@@ -240,7 +237,7 @@ export function isCompoundExercise(name) {
 // [2026-10-30] 기본값은 운동 목표(우선순위)에 맞춘 기준(goals.js) - 예: 근력 1순위면 다관절 3–6회
 export function getRepRange(name, setting) {
   if (setting?.repMin && setting?.repMax) return [Number(setting.repMin), Number(setting.repMax)]
-  const rx = getProgramRx(name)
+  const rx = getProgramRx(name, setting)
   if (rx && Number(rx.repMin) > 0 && Number(rx.repMax) >= Number(rx.repMin)) return [Number(rx.repMin), Number(rx.repMax)]
   // [2026-11-07] 무게를 드는 버티기(파머스캐리)는 초 단위 목표
   if (isHoldExercise(name)) return [30, 60]
@@ -345,6 +342,8 @@ function suggestByLastSession(name, lastRecord, setting) {
     )
     if (!ws.length) return false
     const tw = assisted ? Math.min(...ws.map((s2) => Number(s2.weight))) : Math.max(...ws.map((s2) => Number(s2.weight)))
+    // [2026-11-07] 앞선 기록이 다른 무게였으면 '두 번 연속'이 아니다(85kg → 87.5kg 첫 도전에서 감량하던 문제)
+    if (tw !== topW) return false
     const top = ws.filter((s2) => Number(s2.weight) === tw)
     const mr = Math.min(...top.map((s2) => Number(s2.reps)))
     const fail = top.some((s2) => s2.type === 'failure' || (s2.rir !== '' && s2.rir != null && Number(s2.rir) === 0))
@@ -453,7 +452,16 @@ function stallOptions(name, setting, repMin, repMax) {
   return opts
 }
 
+// [2026-11-07] 버티기(초) 종목은 안내 문구의 '회'를 '초'로(세션 수 '최근 N회'는 그대로)
+function holdUnitText(name, res) {
+  if (!res || !isHoldExercise(name)) return res
+  const fix = (t) => (typeof t === 'string' ? t.replace(/(\d+(?:\.\d+)?(?:–\d+)?)회(?! 평균)/g, '$1초') : t)
+  return { ...res, reason: fix(res.reason), ...(res.stall ? { stall: { ...res.stall, options: res.stall.options.map(fix) } } : {}) }
+}
 export function suggestNextSet(name, lastRecord, setting, opts = {}) {
+  return holdUnitText(name, suggestNextSetRaw(name, lastRecord, setting, opts))
+}
+function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
   const res = suggestByLastSession(name, lastRecord, setting)
   if (!res) return res
   const top = workingTop(name, lastRecord.sets)
@@ -479,7 +487,7 @@ export function suggestNextSet(name, lastRecord, setting, opts = {}) {
     const used = same.filter((t, i) => i === 0 || t.total >= best * 0.85)
     const avg = Array.from({ length: n }, (_, i) => used.reduce((a, t) => a + t.reps[i], 0) / used.length)
     // 평균이 지난번보다 낮아도 지난번 횟수 아래로는 목표를 내리지 않는다(추천대로 하면 목표가 내려가던 10-30 버그 재발 방지)
-    const targets = avg.map((v, i) => Math.min(repMax, Math.max(repMin, Math.round(v) + it.plus, top.reps[i])))
+    const targets = avg.map((v, i) => Math.min(repMax, Math.max(repMin, Math.round(v) + (isHoldExercise(name) ? 5 : it.plus), top.reps[i])))
     const avgPer = avg.reduce((a, b) => a + b, 0) / n
     const fmt1 = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1))
     out = {
@@ -489,8 +497,8 @@ export function suggestNextSet(name, lastRecord, setting, opts = {}) {
       baseline: { sessions: used.length, avgReps: Math.round(avgPer * 10) / 10 },
       reason:
         used.length > 1
-          ? `최근 ${used.length}회 평균 ${loadLabel(name, top.topW)} × ${fmt1(avgPer)}회 · 목표 ${repMin}–${repMax}회 · 평균보다 세트마다 1회씩 더(지난번 아래로는 안 내림) · 총 ${need}회면 다음엔 올리기`
-          : `지난번 ${loadLabel(name, top.topW)} ${top.reps.join('·')}회(총 ${top.total}) · 목표 ${repMin}–${repMax}회 · 세트마다 1회씩 더 · 총 ${need}회면 다음엔 올리기`,
+          ? `최근 ${used.length}회 평균 ${loadLabel(name, top.topW)} × ${fmt1(avgPer)}회 · 목표 ${repMin}–${repMax}회 · 평균보다 세트마다 ${isHoldExercise(name) ? 5 : 1}회씩 더(지난번 아래로는 안 내림) · 총 ${need}회면 다음엔 올리기`
+          : `지난번 ${loadLabel(name, top.topW)} ${top.reps.join('·')}회(총 ${top.total}) · 목표 ${repMin}–${repMax}회 · 세트마다 ${isHoldExercise(name) ? 5 : 1}회씩 더 · 총 ${need}회면 다음엔 올리기`,
     }
   }
   if (res.kind === 'reps') out.progress = { total: top.total, need }
@@ -537,10 +545,10 @@ export function suggestNextSet(name, lastRecord, setting, opts = {}) {
 
 // [2026-11-02 로그 코치] '플랜대로 하기'를 누르면 권장 세트 수(recommendedSetCount)에 맞춰 세트별 목표를 늘리거나 줄인다.
 // 늘릴 때는 마지막 목표를 이어 붙이고(피로로 뒤 세트가 줄어드는 게 정상이라 더 높이지 않음), 줄일 때는 앞에서부터 쓴다.
-export function planSetTargets(sug, name) {
+export function planSetTargets(sug, name, setting = null) {
   if (!sug) return []
   const base = sug.setTargets?.length ? sug.setTargets : [sug.reps]
-  const n = recommendedSetCount(name)
+  const n = recommendedSetCount(name, setting)
   if (base.length >= n) return base.slice(0, n)
   return [...base, ...Array(n - base.length).fill(base[base.length - 1])]
 }
@@ -553,6 +561,9 @@ export function planSetTargets(sug, name) {
 //  - 실패(F) 세트 뒤: 다음 세트는 RIR 1, 휴식 30초 더(실패까지 하는 것이 더 낫지 않음, Grgic 외 2022)
 //  - 드롭(D) 세트 뒤: 마무리 안내(드롭은 종목 마지막에, Sødal 외 2023)
 export function adviseAfterSet(name, set, setting, ctx = {}) {
+  return holdUnitText(name, adviseAfterSetRaw(name, set, setting, ctx))
+}
+function adviseAfterSetRaw(name, set, setting, ctx = {}) {
   if (getExerciseInputType(name) !== 'sets' || !set || isWarmupSet(set)) return null
   const w = Number(set.weight)
   const reps = Number(set.reps)
@@ -690,7 +701,7 @@ export function recommendationHistory(name, lastRecord, setting) {
 // [2026-10-29] 바벨 종목은 빈 봉 10회부터 시작하고, 100kg 이상이면 90%×1을 더해 마지막 점프를 줄인다.
 // 고립 종목은 50%×10 한 세트만. 어시스트·맨몸+추가·유산소/횟수 종목은 램프를 만들지 않는다.
 export function hasWarmupRamp(name) {
-  return getExerciseInputType(name) === 'sets' && !allowsZeroWeight(name)
+  return getExerciseInputType(name) === 'sets' && !allowsZeroWeight(name) && !isHoldExercise(name)
 }
 export function buildWarmupRamp(workingWeight, name) {
   const w = Number(workingWeight) || 0
@@ -765,7 +776,8 @@ export function fractionalSetsByAtom(logs) {
       if (inputType === 'cardio') return
       const atom = getExerciseAtom(ex.name) || ex.part
       if (!atom || atom === '유산소') return
-      const n = workingSetsOf(ex).length
+      // [2026-11-07] 버티기(데드행·월싯)는 짧은 자극이라 등·하체 세트는 0.5로 센다(코어는 그대로)
+      const n = workingSetsOf(ex).length * (isHoldExercise(ex.name) && atom !== '코어' ? 0.5 : 1)
       if (n === 0) return
       const legs = legShares(ex.name)
       if (atom === '하체') {
@@ -791,8 +803,15 @@ export function fractionalSetsByAtom(logs) {
 // 권장 주간 세트 범위(근육별): 일반 10–20, 초보·최소 유효 4세트 이상
 export const WEEKLY_SET_GUIDE = { min: 10, max: 20, minEffective: 4 }
 // [2026-10-30] 목표·가입 기간에 맞춘 주간 세트 기준(goals.js)
-export function getWeeklySetGuide() {
-  return getTrainingProfile().weeklySets || WEEKLY_SET_GUIDE
+export function getWeeklySetGuide(atom = null) {
+  const pr = getTrainingProfile()
+  const base = pr.weeklySets || WEEKLY_SET_GUIDE
+  // [2026-11-07] 코치 프로그램이 있으면 그 부위의 프로그램 주간 세트를 기준으로(하체 앞·뒤는 절반씩)
+  const ps = pr.programSets
+  if (!atom || !ps) return base
+  const t = atom === LEG_FRONT || atom === LEG_BACK ? (ps['하체'] || 0) / 2 : ps[atom] || 0
+  if (!(t > 0)) return base
+  return { ...base, min: Math.max(1, Math.round(t * 0.8)), max: Math.max(Math.round(t * 1.4), Math.round(t) + 4), program: Math.round(t * 10) / 10 }
 }
 
 // 유산소 총 분(주간 150분 목표 - WHO 신체활동 지침)

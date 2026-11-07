@@ -7,6 +7,7 @@ import {
   getExercisesForPart,
   getCustomExercisesForPart,
   getAtomsForPartName,
+  getAtomsForPart,
   getPartColor,
   getGripOptions,
 } from '../utils/exerciseLibrary'
@@ -274,7 +275,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
 // 부위별로 "고른 종목"만 먼저 보여주고 나머지는 "+ 종목 더 보기"로 접어 두며, 파트 상단에 검색칸을 둔다.
 // 검색어가 있으면 모든 부위에서 이름이 맞는 종목만 펼쳐 보여준다.
 function PartEditor({ part, customExercises, onToggle, onRemovePart, onEditAtoms }) {
-  const atoms = getAtomsForPartName(part.name)
+  const atoms = getAtomsForPart(part)
   const [openAtoms, setOpenAtoms] = useState({})
   const [query, setQuery] = useState('')
   const q = query.trim().replace(/\s+/g, '')

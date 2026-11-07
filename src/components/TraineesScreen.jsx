@@ -644,7 +644,7 @@ function setCell(name, type, st) {
   const mark = setTypeMark(st) ? `${setTypeMark(st)} ` : ''
   if (type === 'cardio') return formatCardioSet(name, st)
   if (type === 'reps') return `${mark}${st.reps}${repsUnit(name)}`
-  return `${mark}${formatLoad(name, st.weight)}×${st.reps}`
+  return `${mark}${formatLoad(name, st.weight)}×${st.reps}${repsUnit(name) === '초' ? '초' : ''}`
 }
 function ExerciseLogTables({ logs }) {
   const groups = useMemo(() => {
@@ -1010,7 +1010,7 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
   const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13.5, padding: '7px 0', borderTop: '1px solid var(--color-line)' }
   return (
     <Card style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)' }}>PT</p>
           <p style={{ margin: '2px 0 0', fontSize: 16, fontWeight: 800 }}>
@@ -1018,9 +1018,9 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
           </p>
         </div>
         {deduct && (
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-            <input type="date" value={useDate} max={today} onChange={(e) => setUseDate(e.target.value)} aria-label="PT 한 날짜" style={{ ...field, padding: '7px 8px', fontSize: 13 }} />
-            <Button variant="ghost" disabled={busy} onClick={use} style={{ fontSize: 13 }}>일정 없이 1회 완료</Button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' }}>
+            <input type="date" value={useDate} max={today} onChange={(e) => setUseDate(e.target.value)} aria-label="PT 한 날짜" style={{ ...field, padding: '7px 8px', fontSize: 13, minWidth: 0, maxWidth: '100%' }} />
+            <Button variant="ghost" disabled={busy} onClick={use} style={{ fontSize: 13, whiteSpace: 'nowrap' }}>일정 없이 1회 완료</Button>
           </div>
         )}
       </div>

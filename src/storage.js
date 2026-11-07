@@ -1589,7 +1589,12 @@ export async function deleteMyAccountData(uid, onProgress) {
   await deleteAllDocs(collection(db, 'workoutLogs', uid, 'logs'), onProgress, '운동 기록')
   onProgress?.('루틴을 지우는 중…')
   await deleteAllDocs(collection(db, 'routineTemplates', uid, 'templates'), onProgress, '루틴')
-  await deleteAllDocs(collection(db, 'fitnessTests', uid, 'tests'), onProgress, '체력 점검')
+  // [2026-11-07] 체력 점검 규칙을 게시하기 전(옛 규칙)에는 읽기가 거부된다 - 탈퇴가 멈추지 않게 건너뛴다
+  try {
+    await deleteAllDocs(collection(db, 'fitnessTests', uid, 'tests'), onProgress, '체력 점검')
+  } catch (e) {
+    console.warn('체력 점검 기록 삭제 건너뜀:', e?.code || e)
+  }
   onProgress?.('랭킹·문의를 지우는 중…')
   await Promise.all(recentSeasonKeys().map((p) => deleteDoc(doc(db, 'leaderboard', 'all', p, uid))))
   leaderboardCache.clear()

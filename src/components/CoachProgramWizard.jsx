@@ -27,7 +27,7 @@ const tileStyle = (active) => ({
   gap: 2,
 })
 
-export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, onClose }) {
+export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, onClose, workoutRunning = false, backRef = null }) {
   const existing = findCoachProgramTemplate(templates)
   const hasTrainerPlan = (templates || []).some((t) => t.byTrainer)
   const saved = userDoc?.coachProgram?.answers || {}
@@ -48,9 +48,15 @@ export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, o
   const set = (id, v) => setAnswers((a) => ({ ...a, [id]: v }))
   const canNext = !q || q.id !== 'goals' || rankedGoalIds(answers.goals).length > 0
   const back = () => (step === 0 ? onClose() : setStep((s) => s - 1))
+  // [2026-11-07] 기기 뒤로가기도 화면 위 ‹처럼 이전 질문으로(첫 질문이면 닫힘)
+  if (backRef) backRef.current = step > 0 ? () => setStep((s) => Math.max(0, s - 1)) : null
 
   async function handleSave() {
     if (!program) return
+    if (workoutRunning) {
+      setError('운동 중에는 프로그램을 바꿀 수 없어요. 오늘 운동을 마친 뒤 저장해 주세요(답한 내용은 그대로 둘게요).')
+      return
+    }
     if (!existing && (templates || []).filter(isOwnRoutine).length >= MAX_ROUTINE_TEMPLATES) {
       setError(`내 루틴이 ${MAX_ROUTINE_TEMPLATES}개라 더 만들 수 없어요. 내 루틴 하나를 지운 뒤 다시 눌러 주세요.`)
       return
@@ -169,7 +175,13 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
       </div>
 
       <p className="text-keep-all" style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--color-label-normal)' }}>
-        순서: {rotation.map((n, i) => `${i + 1}일차 ${n}`).join(' → ')}
+        순서:{' '}
+        {rotation.map((n, i) => (
+          <span key={i} style={{ whiteSpace: 'nowrap' }}>
+            {i > 0 ? ' → ' : ''}
+            {i + 1}일차 {n}
+          </span>
+        ))}
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
@@ -205,7 +217,7 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
       </div>
 
       <p className="text-keep-all" style={{ margin: '0 0 6px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
-        부위별 주간 세트: {ATOM_ORDER.filter((a) => program.weeklySets[a]).map((a) => `${a} ${Math.round(program.weeklySets[a])}`).join(' · ')}
+        부위별 주간 세트(주 평균): {ATOM_ORDER.filter((a) => program.weeklySets[a]).map((a) => `${a} ${Math.round(program.weeklySets[a])}`).join(' · ')}
       </p>
       <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
         무게는 내 기록을 보고 로그 코치가 그날그날 정해요. 기록이 없는 종목은 가볍게 시작해 목표 횟수를 채우면 올라가요.
@@ -237,7 +249,7 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
         다시 답하기
       </Button>
       <p className="text-keep-all" style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-        저장하면 내 루틴에 '코치 프로그램'이 생겨요{existing ? '(지금 코치 프로그램을 바꿔요)' : ''}. 종목은 내 루틴에서 언제든 바꿀 수 있어요.
+        저장하면 내 루틴에 '코치 프로그램'이 생겨요{existing ? '(지금 코치 프로그램을 바꿔요)' : ''}. 종목은 MY › 운동방식 변경에서 언제든 바꿀 수 있어요.
       </p>
     </>
   )

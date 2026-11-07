@@ -4,7 +4,7 @@ import { weekStartStr, toLocalDateStr } from './date'
 import { logVolumeKg } from './load'
 import { cardioStats } from './cardioFields'
 import { getTrainingProfile } from './goals'
-import { detectPlateaus, fractionalSetsByAtom, LEG_FRONT, LEG_BACK } from './strength'
+import { detectPlateaus, fractionalSetsByAtom, getWeeklySetGuide, LEG_FRONT, LEG_BACK } from './strength'
 import { getExerciseAtom } from './exerciseLibrary'
 
 export function logsThisWeek(logs, offsetWeeks = 0) {
@@ -80,10 +80,10 @@ export function atomKeysOf(name) {
 }
 // 주간 세트가 목표 하한보다 2세트 넘게 모자란 부위 → { atom, cur, min, short } | null
 export function weeklyShortfall(name, weekCounts) {
-  const min = getTrainingProfile().weeklySets?.min || 0
-  if (!min) return null
+  if (!getTrainingProfile().weeklySets?.min) return null
   let worst = null
   atomKeysOf(name).forEach((a) => {
+    const min = getWeeklySetGuide(a).min || 0
     const cur = weekCounts[a] || 0
     const short = min - cur
     if (short >= 2 && (!worst || short > worst.short)) worst = { atom: a, cur: Math.round(cur * 10) / 10, min, short: Math.round(short * 10) / 10 }

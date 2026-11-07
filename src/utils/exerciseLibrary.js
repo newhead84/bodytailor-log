@@ -2418,6 +2418,18 @@ export function getAtomsForPartName(partName) {
   return [...new Set(atoms)]
 }
 
+// [2026-11-07] 파트 객체 → 원자 부위. 저장된 atoms(코치 프로그램의 '전신 A'·'밀기'처럼 이름으로 알 수 없는 파트)와
+// 이름 해석, 담긴 종목의 부위를 합친다(코어·유산소·생활 체력 종목이 든 '하체' 파트에서도 그 부위 후보가 보이게).
+export function getAtomsForPart(part) {
+  if (!part) return []
+  const out = []
+  const add = (a) => a && !out.includes(a) && out.push(a)
+  ;(Array.isArray(part.atoms) ? part.atoms : []).forEach(add)
+  getAtomsForPartName(part.name).forEach(add)
+  ;(part.exercises || []).forEach((key) => add(getExerciseAtom(String(key).split('::')[0])))
+  return out
+}
+
 // 파트명(예: '등&이두&삼두', '가슴&하체' 등 '&'로 이어붙인 자유 조합명)을 받아 해당 파트에서
 // 골라야 할 운동명 목록을 반환한다. 매핑에 없는 이름은 안전하게 빈 배열을 반환한다.
 export function getExercisesForPart(partName) {
