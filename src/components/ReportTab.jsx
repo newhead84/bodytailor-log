@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState, Disclosure } from './ui'
-import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom, getEffectiveSeasonXp } from '../storage'
+import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom, getEffectiveSeasonXp, listFitnessTests } from '../storage'
 import { getTierByXp, getLevelInfo } from '../utils/tier'
 import { computeOverloadByOccurrenceForDisplay, computeSeasonScore, seasonScoreRangeStart, rankAt } from '../utils/scoring'
 import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, getBodyweightVolumeFactor, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
@@ -12,7 +12,7 @@ import { workingSetsOf, bestE1rmOfSets } from '../utils/strength'
 import { setsVolumeKg, isHoldExercise, logVolumeKg } from '../utils/load'
 import { CountUp } from '../hooks/useCountUp'
 import { MuscleSetsCard, CardioCard, RecoveryCard, PrCard, BoneHealthCard, BalanceCard, startOfWeekStr } from './InsightCards'
-import { WeekSummaryCard, WeeklySetsHeatmap, StrengthTrendCard, FrequentBySetsCard, RankingList, maskName } from './ReportSections'
+import { WeekSummaryCard, WeeklySetsHeatmap, StrengthTrendCard, FrequentBySetsCard, RankingList, maskName, HealthPillarsCard } from './ReportSections'
 import { getTrainingProfile } from '../utils/goals'
 
 // [2026-07-28 개편] 기존에 하단 네비게이션에 따로 있던 '랭킹' 탭과, 기록탭 안에 숨어 있어
@@ -35,7 +35,19 @@ function startOfWeek(d) {
   return date
 }
 
-export default function ReportTab({ liveExercises = null, uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true }) {
+export default function ReportTab({ liveExercises = null, uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true, onOpenFitness = null }) {
+  // [2026-11-07] 체력 점검 마지막 날짜(건강 체력 4가지 카드) - 탭을 처음 열 때 1회 읽기(세션 캐시)
+  const [lastFitnessDate, setLastFitnessDate] = useState(null)
+  useEffect(() => {
+    if (!isActive || !uid) return
+    let alive = true
+    listFitnessTests(uid)
+      .then((l) => alive && setLastFitnessDate(l[0]?.date || null))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [isActive, uid])
   // [2026-10-29] 출석 목표 일수 = 주당 목표 일수(온보딩·MY에서 설정, 없으면 루틴 파트 수), 2~6일로 제한.
   // 랭킹 출석 점수와 리포트 출석률이 같은 기준을 쓴다.
   const attendanceTargetDays = Math.min(6, Math.max(2, targetSessionsPerWeek || 3))
@@ -226,6 +238,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       ) : (
         <>
           <WeekSummaryCard logs={logs} targetDays={attendanceTargetDays} overload={overloadSummary} />
+          <HealthPillarsCard logs={logs} liveExercises={liveExercises} lastFitnessDate={lastFitnessDate} onOpenFitness={onOpenFitness} />
           <MuscleSetsCard logs={logs} liveExercises={liveExercises} />
           <StrengthTrendCard logs={logs} isActive={isActive} />
           <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} />

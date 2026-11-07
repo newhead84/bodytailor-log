@@ -10,6 +10,7 @@ import { COACH_INTENSITIES, normalizeIntensity, intensityGoalHint } from '../uti
 import { normalizeGoals, buildTrainingProfile, rankedGoalIds } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
+import { isHoldExercise } from '../utils/load'
 import { saveCoachProgram, MAX_ROUTINE_TEMPLATES, isOwnRoutine } from '../storage'
 import { ExerciseName } from '../utils/exerciseName'
 
@@ -182,7 +183,7 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
               {p.exercises.map((n) => {
                 const rx = program.coachRx[n] || {}
                 const cardio = getExerciseInputType(n) === 'cardio'
-                const hold = n === '플랭크' || n === '사이드플랭크'
+                const hold = isHoldExercise(n)
                 return (
                   <div key={n} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'center' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 14, color: 'var(--color-label-strong)' }}>

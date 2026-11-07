@@ -334,6 +334,23 @@ service cloud.firestore {
       allow delete: if isTrainerOf(uid) && resource.data.get('byTrainer', {}).get('uid', '') == request.auth.uid;
     }
 
+    // [2026-11-07] 체력 점검(선택): 본인 쓰기, 본인·담당 트레이너 읽기(신체 정보와 같은 범위)
+    function fitnessTestOk(d) {
+      return d.keys().hasOnly(['date', 'hangSec', 'wallSitSec', 'carryKg', 'carrySec', 'sitRise', 'gripKg', 'cooperM', 'createdAt']) &&
+        d.date is string && d.date.size() == 10 &&
+        numIn(d.get('hangSec', 0), 0, 1200) && numIn(d.get('wallSitSec', 0), 0, 1200) &&
+        numIn(d.get('carryKg', 0), 0, 200) && numIn(d.get('carrySec', 0), 0, 1200) &&
+        numIn(d.get('sitRise', 0), 0, 10) && numIn(d.get('gripKg', 0), 0, 150) && numIn(d.get('cooperM', 0), 0, 6000);
+    }
+    function numIn(v, lo, hi) {
+      return v == null || ((v is int || v is float) && v >= lo && v <= hi);
+    }
+    match /fitnessTests/{uid}/tests/{testId} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isTrainerOf(uid));
+      allow create, update: if isOwner(uid) && isApproved() && fitnessTestOk(request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
     // [2026-10-27 신규] activeSessions/{uid} - 진행 중 운동 세션 서버 백업(본인만, 크기 제한)
     match /activeSessions/{uid} {
       allow read, delete: if isOwner(uid);

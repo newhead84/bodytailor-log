@@ -14,7 +14,8 @@ import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerGoalEditor } from './TrainerGoal'
 import { useBackableScreen } from '../hooks/useBackableScreen'
-import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerMoveSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, trainerListOverdueSchedules, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS, getTraineeSummaries, invalidateTraineeSummary, getTrainerNote, saveTrainerNote } from '../storage'
+import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerMoveSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, trainerListOverdueSchedules, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS, getTraineeSummaries, invalidateTraineeSummary, getTrainerNote, saveTrainerNote, getLatestFitnessTests } from '../storage'
+import { fitnessDerived } from '../utils/fitnessCheck'
 import { toLocalDateStr, weekStartStr } from '../utils/date'
 import { membershipState, isPausedOn, pausesOf, addDays } from '../utils/member'
 import { normalizeGoals } from '../utils/goals'
@@ -400,7 +401,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = fa
   // [2026-11-02] 태블릿(넓은 화면): 왼쪽 회원 정보·PT·메모·계획, 오른쪽 진행 요약·기록(기록은 펼친 채로 시작)
   const info = (
     <>
-      <MemberBody member={member} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} memberName={conn.memberName} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
+      <MemberBody member={member} memberUid={conn.memberUid} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} memberName={conn.memberName} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
       <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={() => { invalidateTraineeSummary(conn.memberUid); loadMember() }} />
       <TrainerNoteCard uid={uid} memberUid={conn.memberUid} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} />
@@ -830,7 +831,19 @@ function MemberPlans({ conn, uid, onNew, onEdit }) {
 
 // [2026-10-31] 회원 신체정보·목표 - 온보딩/MY 프로필 값 그대로
 // [2026-10-31] goalEditor: 트레이너 목표 제안·바로 바꾸기(TrainerGoal.jsx)
-function MemberBody({ member, goalEditor }) {
+function MemberBody({ member, memberUid, goalEditor }) {
+  // [2026-11-07] 회원이 적은 체력 점검(최근 2개, 읽기 전용 - 신체 정보와 같은 공유 범위)
+  const [tests, setTests] = useState(null)
+  useEffect(() => {
+    if (!memberUid) return
+    let alive = true
+    getLatestFitnessTests(memberUid, 2)
+      .then((l) => alive && setTests(l))
+      .catch(() => alive && setTests([]))
+    return () => {
+      alive = false
+    }
+  }, [memberUid])
   if (member === null) return null
   if (member === false) return <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>회원 신체정보를 불러오지 못했어요.</p>
   const o = member.onboarding || {}
@@ -848,6 +861,13 @@ function MemberBody({ member, goalEditor }) {
         {row('신체정보', body.length ? body.join(' · ') : '입력 안 함')}
         {row('운동 목표', goals.length ? goals.map((g, i) => `${i + 1}. ${g}`).join('  ') : '입력 안 함')}
         {row('주간 목표', `주 ${member.weeklyTargetDays || 3}일`)}
+        {tests?.length > 0 &&
+          row(
+            '체력 점검',
+            `${tests[0].date} · ${fitnessDerived(tests[0], Number(o.weightKg) || 0)
+              .map((r) => `${r.label} ${r.text}`)
+              .join(' · ')}${tests[1] ? ` (이전 ${tests[1].date})` : ''}`
+          )}
       </div>
       {goalEditor}
     </Card>

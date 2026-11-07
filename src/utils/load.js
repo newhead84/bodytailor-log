@@ -20,7 +20,7 @@ export function getBodyweightKg() {
 }
 
 export const ASSISTED_EXERCISES = ['어시스트풀업', '어시스트친업']
-export const HOLD_EXERCISES = ['플랭크', '사이드플랭크', '백플랭크(리버스플랭크)']
+export const HOLD_EXERCISES = ['플랭크', '사이드플랭크', '백플랭크(리버스플랭크)', '파머스캐리', '데드행', '월싯']
 // 덤벨 1개를 양손으로 드는 종목(볼륨 ×2 제외)
 const SINGLE_DUMBBELL_EXERCISES = ['고블릿스쿼트']
 
@@ -92,6 +92,8 @@ export function volumeMultiplier(name) {
 
 // 중량형(sets) 세트 1개의 볼륨(kg). 웜업 여부는 호출부에서 거른다.
 export function setVolumeKg(name, set) {
+  // [2026-11-07] 무게를 드는 버티기(파머스캐리)는 횟수 칸이 초라 볼륨에서 뺀다(플랭크류와 같은 규칙)
+  if (isHoldExercise(name)) return 0
   const reps = Number(set?.reps) || 0
   if (reps <= 0) return 0
   const load = effectiveLoad(name, set?.weight)
@@ -106,7 +108,7 @@ export function setsVolumeKg(name, sets) {
 export function inputHint(name) {
   if (isAssistedExercise(name)) return '보조 무게를 입력하세요. 보조를 줄일수록 실력이 늘어난 것으로 계산해요.'
   if (isBodyweightLoaded(name)) return '추가로 단 무게를 입력하세요. 맨몸은 0kg이에요.'
-  if (isHoldExercise(name)) return '버틴 시간을 초로 입력하세요.'
+  if (isHoldExercise(name)) return EXERCISE_META[name]?.equipment === 'dumbbell' ? '무게는 덤벨 1개, 횟수 칸은 들고 걸은 시간(초)으로 입력하세요.' : '버틴 시간을 초로 입력하세요.'
   const parts = []
   if (EXERCISE_META[name]?.equipment === 'dumbbell' && !SINGLE_DUMBBELL_EXERCISES.includes(name)) parts.push('무게는 덤벨 1개 기준')
   if (isUnilateral(name)) parts.push('횟수는 한쪽 기준')

@@ -15,7 +15,7 @@ import {
   EXERCISE_META,
 } from './exerciseLibrary'
 import { makeExerciseKey } from './exerciseKey'
-import { effectiveLoad, isAssistedExercise, isBodyweightLoaded, allowsZeroWeight, getBodyweightKg } from './load'
+import { effectiveLoad, isAssistedExercise, isBodyweightLoaded, allowsZeroWeight, getBodyweightKg, isHoldExercise } from './load'
 import { getTrainingProfile } from './goals'
 import { todayStr } from './date'
 
@@ -118,6 +118,8 @@ export function e1rm(weight, reps) {
 // [2026-10-29] 종목명을 주면 실제 부하(어시스트 = 체중 − 보조, 맨몸+추가 = 체중 + 추가)로 계산
 export function setE1rm(name, s) {
   if (!s) return 0
+  // [2026-11-07] 버티기(초) 종목은 추정 1RM·신기록 계산에서 뺀다
+  if (name && isHoldExercise(name)) return 0
   const load = name ? effectiveLoad(name, s.weight) : Number(s.weight) || 0
   return load ? e1rm(load, s.reps) : 0
 }
@@ -240,6 +242,8 @@ export function getRepRange(name, setting) {
   if (setting?.repMin && setting?.repMax) return [Number(setting.repMin), Number(setting.repMax)]
   const rx = getProgramRx(name)
   if (rx && Number(rx.repMin) > 0 && Number(rx.repMax) >= Number(rx.repMin)) return [Number(rx.repMin), Number(rx.repMax)]
+  // [2026-11-07] 무게를 드는 버티기(파머스캐리)는 초 단위 목표
+  if (isHoldExercise(name)) return [30, 60]
   const pr = getTrainingProfile()
   return isCompoundExercise(name) ? [pr.compound.repMin, pr.compound.repMax] : [pr.iso.repMin, pr.iso.repMax]
 }

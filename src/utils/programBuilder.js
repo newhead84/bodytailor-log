@@ -136,7 +136,11 @@ function slotExercise(slot, a) {
     case 'triceps':
       return first('케이블푸시다운', '오버헤드케이블익스텐션')
     case 'grip':
-      return first('덤벨슈러그', '바벨슈러그')
+      return first('파머스캐리', '덤벨슈러그')
+    case 'hang':
+      return first('데드행')
+    case 'wallsit':
+      return first('월싯')
     case 'coreA':
       return newbie ? first('데드버그', '플랭크') : a.life === 'carry' && vet ? first('행잉레그레이즈', '앱롤아웃') : first('앱롤아웃', '플랭크')
     case 'coreR':
@@ -163,23 +167,26 @@ function partSlots(split, a) {
   if (split === 'full') {
     return [
       { name: '전신 A', slots: ['squat', 'pushH', 'pullV', a.life === 'stairs' || a.life === 'balance' ? 'single' : a.life === 'carry' ? 'hinge' : 'hamcurl', 'coreA', low ? 'glute' : up ? 'lateral' : 'rear', carry ? 'grip' : 'biceps'] },
-      { name: '전신 B', slots: ['hinge', 'pullH', 'pushV', 'single', 'coreR', up ? 'pushI' : low ? 'hamcurl' : 'rear', 'triceps'] },
+      { name: '전신 B', slots: ['hinge', 'pullH', 'pushV', 'single', 'coreR', a.life === 'stairs' ? 'wallsit' : carry ? 'hang' : up ? 'pushI' : low ? 'hamcurl' : 'rear', 'triceps'] },
     ]
   }
   if (split === 'ul') {
     return [
-      { name: '상체', slots: ['pushH', 'pullV', 'pullH', 'pushV', posture ? 'rear' : up ? 'pushI' : 'rear', 'coreR', carry ? 'grip' : 'lateral', 'biceps', 'triceps'] },
-      { name: '하체', slots: ['squat', 'hinge', 'single', 'coreA', low ? 'glute' : 'hamcurl', 'quadiso', low ? 'hamcurl' : null].filter(Boolean) },
+      { name: '상체', slots: ['pushH', 'pullV', 'pullH', 'pushV', posture ? 'rear' : up ? 'pushI' : 'rear', 'coreR', carry ? 'grip' : 'lateral', carry ? 'hang' : null, 'biceps', 'triceps'].filter(Boolean) },
+      { name: '하체', slots: ['squat', 'hinge', 'single', 'coreA', a.life === 'stairs' ? 'wallsit' : null, low ? 'glute' : 'hamcurl', 'quadiso', low ? 'hamcurl' : null].filter(Boolean) },
     ]
   }
   return [
     { name: '밀기', slots: ['pushH', 'pushV', 'pushI', 'lateral', 'triceps', up ? 'lateral' : null].filter(Boolean) },
-    { name: '당기기', slots: ['pullV', 'pullH', 'rear', carry ? 'grip' : 'biceps', 'coreR', carry ? 'biceps' : null].filter(Boolean) },
-    { name: '하체', slots: ['squat', 'hinge', 'single', 'coreA', low ? 'glute' : 'hamcurl', 'quadiso'] },
+    { name: '당기기', slots: ['pullV', 'pullH', 'rear', carry ? 'grip' : 'biceps', 'coreR', carry ? 'hang' : null, carry ? 'biceps' : null].filter(Boolean) },
+    { name: '하체', slots: ['squat', 'hinge', 'single', 'coreA', a.life === 'stairs' ? 'wallsit' : null, low ? 'glute' : 'hamcurl', 'quadiso'].filter(Boolean) },
   ]
 }
 
 const roundTo5 = (v) => Math.round(v / 5) * 5
+// 버티기 종목 목표(초) - 횟수 칸에 초를 적는다(load.js HOLD_EXERCISES)
+const LIFE_SLOTS = new Set(['grip', 'hang', 'wallsit'])
+const HOLD_RANGE = { 플랭크: [30, 45], 사이드플랭크: [20, 40], 파머스캐리: [30, 60], 데드행: [20, 45], 월싯: [30, 60] }
 // 힌지(데드리프트류)는 라이브러리에서 등에도 있지만 프로그램 합계는 하체로 본다
 const HINGE_AS_LEG = new Set(['루마니안데드리프트', '데드리프트', '스모데드리프트'])
 export const atomOf = (n) => (HINGE_AS_LEG.has(n) ? '하체' : getExerciseAtom(n))
@@ -231,6 +238,10 @@ export function buildProgram(input) {
     let budget = Math.max(12, a.minutes - 5 - cardioMin)
     if (a.sleep === 'low') budget *= 0.85
     let setBudget = Math.floor(budget / SET_MIN)
+    // 꼭 넣을 동작(생활 체력 동작·코어 1개)은 시간을 먼저 떼어 둔다(2세트씩)
+    const firstCore = pd.slots.find((sl) => { const n = slotExercise(sl, a); return n && atomOf(n) === '코어' && !LIFE_SLOTS.has(sl) })
+    const reserved = pd.slots.filter((sl) => (LIFE_SLOTS.has(sl) || sl === firstCore) && slotExercise(sl, a)).length * 2
+    setBudget -= reserved
     const exercises = []
     const setsOf = {}
     const seen = new Set()
@@ -243,10 +254,13 @@ export function buildProgram(input) {
       const sets = core || !comp || a.exp === 'new' || a.minutes <= 30 ? 2 : 3
       // 코어(안정성)는 시간이 모자라도 1종목은 넣는다
       const hasCore = exercises.some((n) => getExerciseAtom(n) === '코어')
-      if (exercises.length >= 3 && setBudget - sets < 0 && !(core && !hasCore)) continue
-      if (exercises.length >= 3 && overWeek(name, sets)) continue
+      // 생활 체력 동작(들고 걷기·매달리기·벽 앉기)은 고른 답의 핵심이라 시간이 모자라도 넣는다
+      const must = LIFE_SLOTS.has(slot) || (core && !hasCore)
+      if (exercises.length >= 3 && setBudget - sets < 0 && !must) continue
+      if (exercises.length >= 3 && !must && overWeek(name, sets)) continue
       atomWeek[atomOf(name)] = (atomWeek[atomOf(name)] || 0) + sets * sessionsPerPart
-      setBudget -= sets
+      // 떼어 둔 시간에서 쓴 것은 다시 빼지 않는다
+      if (!(LIFE_SLOTS.has(slot) || slot === firstCore)) setBudget -= sets
       seen.add(name)
       exercises.push(name)
       setsOf[name] = sets
@@ -273,7 +287,7 @@ export function buildProgram(input) {
     exercises.forEach((name) => {
       const comp = isCompoundExercise(name)
       const core = atomOf(name) === '코어'
-      const range = core ? (name === '플랭크' || name === '사이드플랭크' ? [30, 45] : [8, 12]) : comp ? [profile.compound.repMin, profile.compound.repMax] : [profile.iso.repMin, profile.iso.repMax]
+      const range = HOLD_RANGE[name] || (core ? [8, 12] : comp ? [profile.compound.repMin, profile.compound.repMax] : [profile.iso.repMin, profile.iso.repMax])
       // 같은 종목이 두 파트에 있으면 처방은 하나(먼저 만든 값)로
       if (!coachRx[name]) coachRx[name] = { sets: setsOf[name], repMin: range[0], repMax: range[1] }
     })
@@ -335,8 +349,8 @@ export function buildProgram(input) {
     },
   ]
   if (beginner) reasons.push({ text: '처음 몇 달은 종목당 2–3세트로 시작해 자세를 익혀요. 그것만으로도 힘이 충분히 늘어요.', src: '미국스포츠의학회 운동 지침(2009)' })
-  if (a.life === 'carry') reasons.push({ text: '짐을 드는 힘은 엉덩이·등으로 들어 올리는 힘과 손아귀 힘이에요. 들어 올리기·당기기·슈러그를 넣었어요. 손아귀 힘이 센 사람들이 더 건강한 경향이 있어요.', src: '17개국 악력 연구(2015) · 관찰 연구' })
-  if (a.life === 'stairs') reasons.push({ text: '계단은 한 다리로 몸을 밀어 올리는 동작이라 스텝업 같은 한 다리 운동과 유산소를 넣었어요.', src: '' })
+  if (a.life === 'carry') reasons.push({ text: '짐을 드는 힘은 엉덩이·등으로 들어 올리는 힘과 손아귀 힘이에요. 들어 올리기·당기기와 들고 걷기(파머스캐리)·매달리기(데드행)를 넣었어요. 손아귀 힘이 센 사람들이 더 건강한 경향이 있어요.', src: '17개국 악력 연구(2015) · 관찰 연구' })
+  if (a.life === 'stairs') reasons.push({ text: '계단은 한 다리로 몸을 밀어 올리는 동작이라 스텝업 같은 한 다리 운동과 벽 앉기(월싯), 유산소를 넣었어요.', src: '' })
   if (a.life === 'balance') reasons.push({ text: '균형은 한 다리 운동과 몸통을 버티는 코어 운동, 등 뒤쪽(페이스풀)으로 지켜요.', src: '' })
   if (a.sleep === 'low') reasons.push({ text: '잠이 부족하면 회복이 늦어 세트를 조금 줄여 시작했어요. 몸이 버거우면 로그 코치가 쉬어 가는 주를 알려 줘요.', src: '' })
   if (profile.cardioGoalMin && cardio.weekMin < profile.cardioGoalMin) reasons.push({ text: `유산소는 지금 습관에 맞춰 낮게 시작했어요. 목표는 주 ${profile.cardioGoalMin}분이에요.`, src: '' })

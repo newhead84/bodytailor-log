@@ -4,11 +4,16 @@
 //  - StrengthTrendCard: 종목별 추정 1RM 8주 변화(상승·정체·하락) - 회차별 향상/유지 나열 대체
 //  - FrequentBySetsCard: 최근 8주 본세트 기준 많이 한 운동
 //  - RankingCard: 상위 10명 + 내 순위, 다른 회원 닉네임은 첫 글자만(maskName)
+//  - HealthPillarsCard(2026-11-07): 건강 체력 4가지(근력·유산소·숨찬 운동·코어·균형) 이번 주 + 체력 점검 바로가기
 import React, { useMemo, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Card, SectionTitle, Disclosure } from './ui'
 import { CountUp } from '../hooks/useCountUp'
-import { BODY_PART_ATOMS, getExerciseAtom, getExerciseInputType, getPartColor } from '../utils/exerciseLibrary'
+import { BODY_PART_ATOMS, getExerciseAtom, getExerciseInputType, getPartColor, EXERCISE_META } from '../utils/exerciseLibrary'
+import { cardioStats } from '../utils/cardioFields'
+import { getTrainingProfile } from '../utils/goals'
+import { isHoldExercise } from '../utils/load'
+import { daysSince } from '../utils/fitnessCheck'
 import { makeExerciseKey, parseExerciseKey, exerciseKeyLabel } from '../utils/exerciseKey'
 import { workingSetsOf, bestE1rmOfSets, fractionalSetsByAtom, getWeeklySetGuide, LEG_FRONT, LEG_BACK } from '../utils/strength'
 import { logVolumeKg } from '../utils/load'
@@ -83,6 +88,75 @@ export function WeekSummaryCard({ logs, targetDays, overload }) {
         </div>
         <Disclosure style={{ marginTop: 10 }}>
           이번 주는 월요일부터 오늘까지예요. 운동한 날은 하루에 여러 번 해도 1일로 세고, 목표는 MY에서 정한 주당 운동 일수예요. 본세트·볼륨은 웜업 세트를 빼고 계산해요. 지난주와는 같은 요일까지 비교해요. 늘어난 운동은 이번 주에 한 운동 중 같은 운동의 직전 기록보다 무게·횟수(또는 시간)가 늘어난 비율이에요(직전 기록이 없는 첫 운동은 빼고 계산).
+        </Disclosure>
+      </Card>
+    </>
+  )
+}
+
+// ───────── [2026-11-07] 건강 체력 4가지(이번 주) ─────────
+// 근력 = 본세트 × 약 2.7분(세트+휴식) → 주 30–60분에서 건강 효과가 가장 컸던 연구(영국스포츠의학저널 2022)
+// 유산소 = 주간 유산소(고강도 ×2 환산) vs 목표(goals.js) / 숨찬 운동 = 고강도 유산소 주 1회 / 코어·균형 = 코어·한 다리·버티기 운동을 한 날 주 2일
+const SET_MIN = 2.7
+function isBalanceExercise(name) {
+  return getExerciseAtom(name) === '코어' || EXERCISE_META[name]?.pattern === 'lunge' || isHoldExercise(name)
+}
+export function HealthPillarsCard({ logs, liveExercises = null, lastFitnessDate = null, onOpenFitness = null }) {
+  const live = liveExercises?.length ? [{ date: toLocalDateStr(new Date()), exercises: liveExercises }] : []
+  const week = [...inWeek(logs, 0), ...live]
+  const strengthMin = Math.round((workingSetCount(week) * SET_MIN) / 5) * 5
+  const st = cardioStats(week)
+  const cardioGoal = getTrainingProfile().cardioGoalMin || 150
+  const cardioMin = Math.round(st.effectiveMin)
+  const vigorous = st.vigorousMin > 0
+  const balanceDays = new Set(
+    week
+      .filter((l) => (l.exercises || []).some((ex) => isBalanceExercise(ex.name) && workingSetsOf(ex).some((x) => Number(x.reps) > 0)))
+      .map((l) => l.date)
+  ).size
+  const rows = [
+    { k: '근력', v: `${strengthMin}분`, goal: '주 30–60분', ratio: strengthMin / 30, done: strengthMin >= 30 },
+    { k: '유산소', v: `${cardioMin}분`, goal: `주 ${cardioGoal}분`, ratio: cardioMin / cardioGoal, done: cardioMin >= cardioGoal },
+    { k: '숨찬 운동', v: vigorous ? `${Math.round(st.vigorousMin)}분` : '아직', goal: '주 1회', ratio: vigorous ? 1 : 0, done: vigorous },
+    { k: '코어·균형', v: `${balanceDays}일`, goal: '주 2일', ratio: balanceDays / 2, done: balanceDays >= 2 },
+  ]
+  const since = lastFitnessDate ? daysSince(lastFitnessDate) : null
+  return (
+    <>
+      <SectionTitle>건강 체력 4가지</SectionTitle>
+      <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {rows.map((r) => (
+            <div key={r.k}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>{r.k}</span>
+                <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>
+                  <span className="bt-num" style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>{r.v}</span> / {r.goal}
+                </span>
+              </div>
+              <div aria-hidden="true" style={{ height: 6, borderRadius: 3, background: 'var(--color-line)', overflow: 'hidden' }}>
+                <div className="bt-bar" style={{ height: '100%', width: `${Math.min(100, Math.round(r.ratio * 100))}%`, background: r.done ? 'var(--color-fill-strong)' : 'var(--color-label-neutral)' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        {onOpenFitness && (
+          <button
+            type="button"
+            onClick={onOpenFitness}
+            style={{ width: '100%', marginTop: 14, padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, textAlign: 'left' }}
+          >
+            <span className="text-keep-all" style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>체력 점검</span>
+              <span style={{ fontSize: 12.5, color: since == null || since >= 90 ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>
+                {since == null ? '석 달에 한 번, 매달리기·벽 앉기·들고 걷기를 재 봐요' : since >= 90 ? `마지막 점검 ${since}일 전 · 다시 잴 때가 됐어요` : since === 0 ? '오늘 점검했어요' : `마지막 점검 ${since}일 전`}
+              </span>
+            </span>
+            <span aria-hidden="true" style={{ color: 'var(--color-label-neutral)', fontSize: 18 }}>›</span>
+          </button>
+        )}
+        <Disclosure style={{ marginTop: 10 }}>
+          나이 들어서도 건강하게 지내는 데는 근력, 꾸준한 유산소, 가끔 숨찬 운동, 몸통·균형 네 가지가 고르게 필요해요. 근력 시간은 본세트 1개를 휴식 포함 약 2.7분으로 쳐서 계산해요. 근력 운동은 주 30–60분 하는 사람들에게서 건강 효과가 가장 컸어요(영국스포츠의학저널 종합 분석 2022, 관찰 연구). 유산소는 숨찬 운동(인터벌·에어바이크·빠른 달리기)을 2배로 쳐요. 코어·균형은 코어·한 다리·버티기 운동을 한 날 수예요.
         </Disclosure>
       </Card>
     </>

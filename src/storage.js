@@ -1529,6 +1529,32 @@ export async function getMyTrainerConnection(memberUid) {
   return d ? { id: d.id, ...d.data() } : null
 }
 
+// ───────────── [2026-11-07] 체력 점검(분기마다, 선택) fitnessTests/{uid}/tests/{id} ─────────────
+// { date, hangSec, wallSitSec, carryKg(덤벨 1개), carrySec, sitRise(0–10), gripKg?, cooperM?, createdAt }
+// 본인 쓰기·읽기, 담당 트레이너 읽기(신체 정보와 같은 범위). 등급은 매기지 않고 지난번과 비교만 한다.
+const fitnessCache = {}
+export async function listFitnessTests(uid, count = 12) {
+  if (fitnessCache[uid]) return fitnessCache[uid]
+  const snap = await getDocs(query(collection(db, 'fitnessTests', uid, 'tests'), orderBy('date', 'desc'), limit(count)))
+  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  fitnessCache[uid] = list
+  return list
+}
+export async function addFitnessTest(uid, data) {
+  delete fitnessCache[uid]
+  const ref = await addDoc(collection(db, 'fitnessTests', uid, 'tests'), { ...data, createdAt: serverTimestamp() })
+  return ref.id
+}
+export async function deleteFitnessTest(uid, id) {
+  delete fitnessCache[uid]
+  await deleteDoc(doc(db, 'fitnessTests', uid, 'tests', id))
+}
+// 트레이너가 담당 회원의 최근 점검을 볼 때(캐시 없이 1건)
+export async function getLatestFitnessTests(uid, count = 2) {
+  const snap = await getDocs(query(collection(db, 'fitnessTests', uid, 'tests'), orderBy('date', 'desc'), limit(count)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+
 // ───────────── [2026-10-31] 계정 삭제(탈퇴) - 본인 데이터 전부 삭제 ─────────────
 // 지우는 것: 운동 기록·루틴(트레이너 계획 포함)·진행 세션 백업·랭킹(최근 3년 시즌)·문의·사용자 문서. 트레이너 연결은 '종료'로 바꾼다.
 // 남는 것: 부위별 인기 운동 집계(개인 식별 없음), 헬스장이 관리하는 PT 이용 기록(ptSessions·ptSchedules - 날짜·횟수)과 출입 명단.
@@ -1563,6 +1589,7 @@ export async function deleteMyAccountData(uid, onProgress) {
   await deleteAllDocs(collection(db, 'workoutLogs', uid, 'logs'), onProgress, '운동 기록')
   onProgress?.('루틴을 지우는 중…')
   await deleteAllDocs(collection(db, 'routineTemplates', uid, 'templates'), onProgress, '루틴')
+  await deleteAllDocs(collection(db, 'fitnessTests', uid, 'tests'), onProgress, '체력 점검')
   onProgress?.('랭킹·문의를 지우는 중…')
   await Promise.all(recentSeasonKeys().map((p) => deleteDoc(doc(db, 'leaderboard', 'all', p, uid))))
   leaderboardCache.clear()

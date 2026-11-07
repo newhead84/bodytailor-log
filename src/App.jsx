@@ -1,6 +1,6 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-07] 로그 코치 '내 프로그램 만들기'(질문 10개 → 주간 프로그램 → 코치 프로그램 루틴, 운동 중 처방 따름, 트레이너 계획 우선).
+ * 최신 변경: [2026-11-07] 체력 점검·REPORT 건강 체력 4가지·생활 체력 종목(파머스캐리·데드행·월싯). 같은 날: 로그 코치 '내 프로그램 만들기'(질문 10개 → 주간 프로그램 → 코치 프로그램 루틴, 운동 중 처방 따름, 트레이너 계획 우선).
  *            직전: [2026-11-03] 트레이너 태블릿 화면 개편(월 캘린더·회원 타일·종목별 날짜 비교 표). 같은 날: 로그 코치 켜기·끄기, 주간 세트 채우기·쉬어 가는 주·플랜 유지·운동 순서·유산소 코칭. 같은 날: 로그 코치 최근 연구 반영·강도 전체 설정. 같은 날·전날: 로그 코치(오늘의 플랜·강도 5단계·최근 평균·권장 세트 수·코치 한마디·연구 근거). 같은 날: 관리자 겸 트레이너(trainerEnabled), PT 등록 버튼, 트레이너 화면 태블릿 두 칸. 같은 날: 회원·트레이너 점검 반영(HOME 추천 일치, 알림 누르면 기록 탭, 드롭·실패·RIR 표시, 트레이너 진행 요약, 세트 종류만 바꾸면 볼륨에 들어가던 문제). 같은 날: 운동 끝나면 휴식 알림 닫기, 포커스형 세트 칸 눌러 종류 변경. 같은 날: 상단 진행 바 '기록탭으로' 후 접기·유산소 타이머 표시. 같은 날: 스트레칭 기구 필터·9종, 포커스형 세트 종류 칩·기본값, 긴 이름 줄바꿈, 부위 배지, 완료 확인창. 같은 날: 알림 눌러 앱 열기(sw notificationclick). 같은 날: 커밋 보관 브랜치 wip(배포 안 함) + 작업 지침 2-0. 같은 날: 세션 환경 판별·클라우드 커밋·푸시 절차. 같은 날: 로그인·온보딩 화면 폰트를 페이퍼로지로.
  *            직전: [2026-11-01] 2차 점검 반영(랭킹 시즌 평균, 미결제 PT, 트레이너 HOME PT 카드·메모, 전체 내보내기, memberPrivate 분리, App Check, 기록 트랜잭션).
  *            직전: [2026-11-01] 전체 점검 반영(앱 소개 공유, 저장 실패 처리, 입력값 확인, 관리자 정합성·PT 정정, 보안 규칙 강화).
@@ -40,6 +40,7 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
 const TraineesScreen = lazy(() => import('./components/TraineesScreen'))
 const TrainerDirectory = lazy(() => import('./components/TrainerDirectory'))
 const CoachProgramWizard = lazy(() => import('./components/CoachProgramWizard'))
+const FitnessCheckScreen = lazy(() => import('./components/FitnessCheckScreen'))
 import MembershipNotice from './components/MembershipNotice'
 import MemberPendingScreen from './components/MemberPendingScreen'
 import ConsentScreen from './components/ConsentScreen'
@@ -124,6 +125,7 @@ export default function App() {
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
   const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동조합 변경" 진입 여부
   const [showCoachProgram, setShowCoachProgram] = useState(false) // [2026-11-07] 로그 코치 '내 프로그램 만들기'
+  const [showFitness, setShowFitness] = useState(false) // [2026-11-07] 체력 점검(REPORT '건강 체력 4가지'에서)
   const [showDesignPreview, setShowDesignPreview] = useState(false) // [2026-10-28] MY "디자인" → 기록 화면 미리보기
   const [showTierInfo, setShowTierInfo] = useState(false) // MY탭 "등급" 카드 탭 시 티어/XP 설명 전체화면 진입 여부
   // [2026-08-01 신규] MY탭 "온보딩 화면 미리보기"(관리자 전용 QA) 진입 여부. 실제 계정의
@@ -523,6 +525,8 @@ export default function App() {
   useBackableScreen(showOnboardingPreview, closeOnboardingPreview)
   const closeCoachProgram = useCallback(() => setShowCoachProgram(false), [])
   useBackableScreen(showCoachProgram, closeCoachProgram)
+  const closeFitness = useCallback(() => setShowFitness(false), [])
+  useBackableScreen(showFitness, closeFitness)
 
   async function handleOnboardingComplete(onboardingData) {
     // [2026-10-29] 닉네임·주당 목표 일수는 users 최상위 필드, 나머지는 onboarding 객체(기존 구조 유지)
@@ -682,6 +686,10 @@ export default function App() {
   // [2026-10-28] 기록 화면 미리보기(스타일·테마·폰트·기록 방식 비교). 적용 시 userDoc을 다시 불러온다.
   if (showDesignPreview) {
     return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><DesignPreviewScreen uid={authUser.uid} userDoc={userDoc} onClose={closeDesignPreview} onApplied={refreshUserDoc} /></Suspense>
+  }
+
+  if (showFitness) {
+    return <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}><FitnessCheckScreen uid={authUser.uid} weightKg={Number(userDoc.onboarding?.weightKg) || 0} onClose={closeFitness} /></Suspense>
   }
 
   // MY탭 등급 카드를 탭하면 티어 체계/XP 설명을 별도 전체 화면으로 보여준다.
@@ -856,6 +864,7 @@ export default function App() {
             targetSessionsPerWeek={targetSessionsPerWeek}
             logsVersion={logsVersion}
             onShowTierInfo={() => setShowTierInfo(true)}
+            onOpenFitness={() => setShowFitness(true)}
             isActive={activeTab === 'report'}
           />
         </Suspense>
