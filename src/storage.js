@@ -578,6 +578,34 @@ function computeSessionXp({ totalVolume, scoreWeight, totalDurationSec }, prCoun
   return Math.max(10, Math.round(base + volumeBonus + durationBonus + prBonus))
 }
 
+// [2026-11-07] 같은 세션 ID로 이미 저장된 기록이 있을 때(새로고침 중 저장·탭 2개·자동 저장 뒤 이어서 운동) 새 세트를 버리지 않고,
+// 새 쪽의 세트가 더 많으면(같으면 볼륨이 더 크면) 종목·볼륨·시간·칼로리만 덮어 합친다. XP·PR 집계는 이미 처음 저장에서
+// 끝났으므로 다시 주지 않는다(xpEarned 0). 호출한 쪽은 merged로 '더 저장했는지'를 알 수 있다.
+const countSets = (exs) => (Array.isArray(exs) ? exs.reduce((n, e) => n + (Array.isArray(e?.sets) ? e.sets.length : 0), 0) : 0)
+async function mergeDuplicateLog(uid, ref, logData, existingSnap = null) {
+  const result = { id: ref.id, xpEarned: 0, duplicate: true, merged: false }
+  try {
+    const snap = existingSnap || (await getDoc(ref))
+    const old = snap.exists() ? snap.data() : null
+    if (!old) return result
+    const newSets = countSets(logData.exercises)
+    const oldSets = countSets(old.exercises)
+    const more = newSets > oldSets || (newSets === oldSets && (Number(logData.totalVolume) || 0) > (Number(old.totalVolume) || 0))
+    if (!more) return result
+    const patch = {}
+    ;['exercises', 'totalVolume', 'totalDurationSec', 'caloriesKcal', 'warmupActualSec'].forEach((k) => {
+      if (logData[k] !== undefined) patch[k] = logData[k]
+    })
+    await updateWorkoutLog(uid, ref.id, patch)
+    result.merged = true
+  } catch (err) {
+    // 합치기에 실패하면 호출한 쪽이 '저장 실패'로 알리고 진행 세션(draft)을 남겨 다시 시도할 수 있게 한다.
+    console.error('중복 저장 세션 합치기 실패:', err)
+    throw err
+  }
+  return result
+}
+
 export async function addWorkoutLog(uid, logData, logId = null) {
   // logData: { date, exercises: [{name, part, sets:[{weight,reps}], grip?}], totalVolume,
   //            totalDurationSec, caloriesKcal, routineTemplateId, partName, sessionType, scoreWeight,
@@ -609,7 +637,7 @@ export async function addWorkoutLog(uid, logData, logId = null) {
         }),
         new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('tx-timeout'), { code: 'deadline-exceeded' })), 6000)),
       ])
-      if (!created) return { id: ref.id, xpEarned: 0, duplicate: true }
+      if (!created) return mergeDuplicateLog(uid, ref, logData)
       written = true
     } catch (err) {
       // 권한 거부(회원권 만료 등)는 그대로 알린다. 연결 문제는 아래 예전 방식으로.
@@ -621,7 +649,7 @@ export async function addWorkoutLog(uid, logData, logId = null) {
     try {
       const existing = await getDoc(ref)
       if (existing.exists() && existing.data()?.saveNonce === saveNonce) written = true
-      else if (existing.exists()) return { id: ref.id, xpEarned: 0, duplicate: true }
+      else if (existing.exists()) return mergeDuplicateLog(uid, ref, logData, existing)
     } catch (err) {
       // 오프라인이라 확인이 안 되면 그대로 진행(같은 ID라 문서가 중복 생성되지는 않음)
     }

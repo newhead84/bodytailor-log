@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState, Disclosure } from './ui'
-import { getLeaderboard, upsertLeaderboardEntry, getWorkoutLogsInRange, getExercisePopularityByAtom, getEffectiveSeasonXp, listFitnessTests } from '../storage'
+import { getLeaderboard, upsertLeaderboardEntry, getAllWorkoutLogs, getExercisePopularityByAtom, getEffectiveSeasonXp, listFitnessTests } from '../storage'
 import { getTierByXp, getLevelInfo } from '../utils/tier'
 import { computeOverloadByOccurrenceForDisplay, computeSeasonScore, seasonScoreRangeStart, rankAt } from '../utils/scoring'
 import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, getBodyweightVolumeFactor, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
@@ -36,6 +36,15 @@ function startOfWeek(d) {
 }
 
 export default function ReportTab({ liveExercises = null, uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true, onOpenFitness = null }) {
+  // [2026-11-07] 이 탭은 숨겨진 채 앱 시작과 함께 렌더되므로, 처음 열 때까지는 랭킹·인기 운동·통계 기록을 읽지 않는다
+  // (앱 열기마다 읽기 약 50~150 절약, Spark 한도). 한 번 열린 뒤에는 예전처럼 동작한다.
+  const [everActive, setEverActive] = useState(!!isActive)
+  useEffect(() => {
+    if (isActive) setEverActive(true)
+  }, [isActive])
+  const isActiveRef = useRef(!!isActive)
+  isActiveRef.current = !!isActive
+  const rankingDirtyRef = useRef(false) // 탭이 닫혀 있는 동안 점수만 갱신했으면 다시 열 때 랭킹 목록을 새로 읽는다
   // [2026-11-07] 체력 점검 마지막 날짜(건강 체력 4가지 카드) - 탭을 처음 열 때 1회 읽기(세션 캐시)
   const [lastFitnessDate, setLastFitnessDate] = useState(null)
   useEffect(() => {
@@ -69,6 +78,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   const [popularityLoading, setPopularityLoading] = useState(true)
   const [selectedPopAtom, setSelectedPopAtom] = useState(BODY_PART_ATOMS[0])
   useEffect(() => {
+    if (!everActive) return
     let cancelled = false
     getExercisePopularityByAtom(BODY_PART_ATOMS).then((result) => {
       if (cancelled) return
@@ -81,9 +91,10 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [everActive])
 
   async function loadRanking() {
+    rankingDirtyRef.current = false
     setRankingLoading(true)
     const list = await getLeaderboard('all', period, 100)
     setEntries(list)
@@ -91,11 +102,19 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   }
 
   useEffect(() => {
+    if (!everActive) return
     loadRanking()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid])
+  }, [uid, everActive])
+
+  // 탭이 닫힌 사이 운동 완료로 점수만 갱신됐다면, 다시 열 때 한 번만 랭킹 목록을 새로 읽는다
+  useEffect(() => {
+    if (isActive && everActive && rankingDirtyRef.current) loadRanking()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive])
 
   useEffect(() => {
+    if (!everActive) return
     let cancelled = false
     async function loadStats() {
       setStatsLoading(true)
@@ -103,7 +122,8 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       const fromDate = new Date()
       fromDate.setDate(fromDate.getDate() - STATS_RANGE_DAYS)
       const from = toLocalDateStr(fromDate)
-      const data = await getWorkoutLogsInRange(uid, from, to)
+      // [2026-11-07] 84일 범위를 따로 읽지 않고 전체 기록 세션 캐시(MY·PR·점수 갱신과 공유)에서 날짜로 거른다
+      const data = (await getAllWorkoutLogs(uid)).filter((l) => l.date >= from && l.date <= to)
       if (!cancelled) {
         setLogs(data)
         setStatsLoading(false)
@@ -116,7 +136,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
     // [2026-07-30 수정] logsVersion 의존성 추가: 기존에는 uid가 바뀔 때만 재조회해서,
     // 캘린더에서 추가/수정/삭제한 기록이나 기록탭에서 저장한 기록이 재진입 없이는 부위별
     // 추이·점진적 과부하 등 통계에 반영되지 않는 버그가 있었다(⑰).
-  }, [uid, logsVersion])
+  }, [uid, logsVersion, everActive])
 
   async function handleRefreshMyScore() {
     setRefreshing(true)
@@ -137,7 +157,10 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
     const seasonStart = getSeasonStartDate(today)
     // [2026-07-30 신규] 캘린더에서 추가한 과거 기록(isBackfilled)은 볼륨/캘린더/통계에는
     // 반영되지만, 랭킹 점수(출석/볼륨/과부하) 계산에서는 제외한다.
-    const rangeLogs = (await getWorkoutLogsInRange(uid, seasonScoreRangeStart(seasonStart), toLocalDateStr(today))).filter((l) => !l.isBackfilled)
+    // [2026-11-07] 시즌 범위를 따로 읽지 않고 전체 기록 세션 캐시를 공유한다(운동 완료 직후 같은 기록을 여러 번 읽던 것을 한 번으로)
+    const rangeFrom = seasonScoreRangeStart(seasonStart)
+    const rangeTo = toLocalDateStr(today)
+    const rangeLogs = (await getAllWorkoutLogs(uid)).filter((l) => l.date >= rangeFrom && l.date <= rangeTo && !l.isBackfilled)
     const { attendanceScore, volumeScore, overloadScore, streakBonus, finalScore } = computeSeasonScore({
       logs: rangeLogs,
       seasonStart,
@@ -154,7 +177,9 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       streakBonus,
       finalScore,
     })
-    await loadRanking()
+    // 탭이 닫혀 있으면 랭킹 100명을 다시 읽지 않는다(열 때 한 번)
+    if (isActiveRef.current) await loadRanking()
+    else rankingDirtyRef.current = true
   }
 
   // [2026-07-29 변경] 점수는 이제 운동완료와 함께 자동으로 갱신된다(App.jsx가 운동 저장 직후

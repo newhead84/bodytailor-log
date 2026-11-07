@@ -525,6 +525,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const latestDraftRef = useRef(null) // 가시성 복귀 시 방치 여부 판단용 최신 draft
   const remoteSyncTimerRef = useRef(null)
   const remoteHasSessionRef = useRef(false)
+  const activityRef = useRef({ sig: '', at: 0 }) // [2026-11-07] 세션 '활동' 서명과 마지막 활동 시각(방치 판단용)
   const remoteSigRef = useRef('') // [2026-10-31] 마지막으로 서버에 쓴 세션의 '중요 변화' 서명
 
   function applyDraft(draft) {
@@ -778,6 +779,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       tipUps,
       updatedAt: Date.now(),
     }
+    // [2026-11-07] 활동 시각: 세트 저장·단계 변경·일시정지/재개가 있을 때만 갱신(무게·횟수 입력만으로는 갱신 안 함).
+    // 방치 판단(isSessionStale)이 일시정지에서 돌아와 계속 입력하는 중에 세션을 자동 저장하지 않도록 한다.
+    const actSig = remoteMilestoneSig(draft)
+    if (activityRef.current.sig !== actSig) activityRef.current = { sig: actSig, at: Date.now() }
+    draft.activityAt = activityRef.current.at
     latestDraftRef.current = draft
     if (!draftLoadedRef.current) return
     try {

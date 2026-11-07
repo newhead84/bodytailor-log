@@ -107,9 +107,11 @@ export function computeVolumeFromRecords(records, { includeUnchecked = false } =
   return sum
 }
 
-// 세션의 마지막 활동 시각: 세트 저장 시각(savedAt) 중 최댓값 → 없으면 draft 갱신 시각 → 시작 시각.
+// 세션의 마지막 활동 시각: 세트 저장 시각(savedAt)·활동 시각(activityAt: 세트 저장·단계 변경·일시정지/재개) 중 최댓값
+// → 없으면 draft 갱신 시각 → 시작 시각.
+// [2026-11-07] 일시정지 후 재개해서 계속 입력하는 중에 3시간 기준으로 세션이 자동 저장·초기화되던 문제 보정(activityAt 추가).
 export function getLastActivityAt(draft) {
-  let last = 0
+  let last = Number(draft?.activityAt) || 0
   Object.values(draft?.records || {}).forEach((sets) => {
     ;(sets || []).forEach((s) => {
       if (s?.savedAt && s.savedAt > last) last = s.savedAt
