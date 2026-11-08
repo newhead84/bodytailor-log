@@ -202,26 +202,44 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
     const takenBy = m?.roster.linkedUid && m.roster.linkedUid !== u.uid ? (users || []).find((x) => x.uid === m.roster.linkedUid) : null
     if (!silent) {
       if (m && !m.nameOk) {
-        link = await confirm(`신청 이름(${u.signupInfo?.name})과 명단 이름(${m.roster.name})이 달라요. 명단과 연결해서 승인할까요? (취소하면 연결 없이 승인)`, { okLabel: '연결해서 승인', cancelLabel: '연결 없이 승인' })
+        link = await confirm(`신청 이름(${u.signupInfo?.name})과 명단 이름(${m.roster.name})이 달라요. 명단과 연결해서 승인할까요? (취소하면 연결 없이 승인)`, { okLabel: '연결해서 승인', cancelLabel: '연결 없이 승인', dismissValue: null })
+        if (link == null) return // [2026-11-08] A-1: 창을 닫기만 하면 승인하지 않는다(예전엔 '연결 없이 승인'으로 처리됨)
       } else if (!(await confirm(`${memberName(u)}님을 ${re ? `다시 승인할까요? (지금: ${MEMBER_STATUS[prevStatus]})` : '승인할까요?'}`, { okLabel: re ? '다시 승인' : '승인', cancelLabel: '취소' }))) return
       if (link && takenBy) {
-        link = await confirm(`이 명단은 이미 ${memberName(takenBy)}님 계정과 연결돼 있어요. ${memberName(u)}님 계정으로 연결을 옮길까요? (취소하면 연결 없이 승인)`, { okLabel: '연결 옮기기', cancelLabel: '연결 없이 승인' })
+        link = await confirm(`이 명단은 이미 ${memberName(takenBy)}님 계정과 연결돼 있어요. ${memberName(u)}님 계정으로 연결을 옮길까요? (취소하면 연결 없이 승인)`, { okLabel: '연결 옮기기', cancelLabel: '연결 없이 승인', dismissValue: null })
+        if (link == null) return
       }
     } else if (takenBy) link = false // 일괄 승인: 이미 연결된 명단은 건드리지 않는다
+    // [2026-11-08] A-2: 명단 만료일이 지금 종료일보다 늦으면 재승인 때도 반영(예전엔 종료일이 있으면 그대로 둠)
+    const setEnd = link && m.roster.expireDate && (!u.membershipEnd || m.roster.expireDate > u.membershipEnd)
+    // 승인 뒤에도 종료일이 지나 있으면 기록이 막힌다 - 알리고 원하면 회원권 편집기를 바로 연다(트레이너·관리자는 막히지 않음)
+    const endAfter = setEnd ? m.roster.expireDate : u.membershipEnd || ''
+    let extend = false
+    if (!silent && endAfter && endAfter < todayStr() && u.role !== '트레이너' && u.role !== '관리자') {
+      extend = await confirm(`회원권 종료일(${fmtYmd(endAfter)})이 지나서 승인해도 운동 기록이 막혀요. 승인하고 회원권도 연장할까요?`, { okLabel: '승인 후 연장하기', cancelLabel: '승인만', dismissValue: null })
+      if (extend == null) return
+    }
     if (!(await stillSame(u))) return
-    const setEnd = link && m.roster.expireDate && !u.membershipEnd
     setBusy(u.uid)
     try {
       await adminApproveMember(u.uid, uid, link ? { rosterId: m.roster.id, memberNo: m.roster.memberNo || '', expireDate: setEnd ? m.roster.expireDate : '', start: u.membershipStart || '' } : null)
       await log('approve', u, `${re ? '재승인' : '가입 승인'}${link ? ' · 명단 연결' : ''}${takenBy && link ? `(${memberName(takenBy)}에서 옮김)` : ''}${setEnd ? ` · 회원권 ~${fmtYmd(m.roster.expireDate)}` : ''}`)
       if (link) setRoster((list) => (list || []).map((r) => (r.id === m.roster.id ? { ...r, linkedUid: u.uid } : r)))
     } catch (err) {
+      extend = false
       if (!silent) await fail(err, '승인')
       else throw err
     } finally {
       setBusy('')
     }
     await refreshUser(u.uid)
+    if (extend) {
+      setDetailUid('')
+      setEditUid('')
+      setTimeout(() => setEditUid(u.uid), 0) // 회원 탭이 이미 열려 있어도 편집기가 열리게(아래 MembersTab 동기화)
+      setMemberQ(memberName(u))
+      go('members')
+    }
   }
   async function setStatus(u, memberStatus) {
     if (memberStatus === 'approved') return approve(u)
@@ -809,6 +827,10 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
   const confirm = useConfirm()
   const [filter, setFilter] = useState('all')
   const [editing, setEditing] = useState(initialEditing)
+  // [2026-11-08] A-2: 승인 후 '연장하기'처럼 회원 탭이 열린 채로 편집 대상이 바뀌면 따라 연다
+  useEffect(() => {
+    if (initialEditing) setEditing(initialEditing)
+  }, [initialEditing])
   const [csvPhone, setCsvPhone] = useState(false) // [2026-11-01] B32: 끝 4자리는 기본으로 빼고 내보낸다
   const [picked, setPicked] = useState(() => new Set()) // [2026-11-01] A39: 일괄 작업 대상
   const today = todayStr()

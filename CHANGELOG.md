@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-08] 관리자 오작동 수정(전체 재검토 묶음 3): A-1 '번호만 일치'·'연결 옮기기'·PT 정정 '차감도 취소'·가입 정보 정정 '명단 다시 연결' 확인 창을 닫기만 하면 아무것도 하지 않음(예전엔 '연결 없이 승인' 등 취소 버튼 동작으로 처리) / A-2 승인 후에도 회원권 종료일이 지나 있으면 '승인 후 연장하기'·'승인만'을 묻고, 연장하기면 회원 탭 회원권 편집기를 바로 엶, 명단 만료일이 지금 종료일보다 늦으면 재승인 때도 반영 | AdminDashboard.jsx(approve·MembersTab), AdminPtTab.jsx(fixStatus), AdminMemberDetail.jsx(SignupEditor)
+
 [2026-11-08] 신체 지표 개선(사용자 지적: BMI는 근육이 늘면 '과체중'으로 잘못 보임): MY 프로필 수정에 허리둘레·인바디(체지방률·골격근량·측정일) 선택 입력, 주 지표를 체지방률 → 허리/키 비율 → BMI 순으로 크게(막대·판정), BMI는 참고 한 줄·판정 이름 순화, FFMI, 주 목표는 목표 칩 줄로, ⓘ 기준 설명·건강 면책. 트레이너 회원 화면 '신체 지표' 줄. rules: onboarding 값 검사 bodyCompOk(콘솔 게시 필요). 처리방침·동의 문구 항목 추가(CONSENT_VERSION 그대로) | src/utils/bodyComp.js(신규), MyPageTab.jsx(ProfileNumbers·MetricGauge·프로필 수정), TraineesScreen.jsx, firestore.rules, public/privacy/index.html, ConsentScreen.jsx
 
 [2026-11-08] 근육 그림 정정(사용자 지적: 남성은 상체만·여성은 하체만 발달해 보임, 엉덩이가 사각형): 다리 굵기를 골반 폭에서 분리(다리 틀 legC·legW로 옮김, 남성 다리 탄탄하게·여성 골반만 조금 넓게), 엉덩이는 둥근 대둔근 + 위 바깥 중둔근(gmed, '엉덩이 옆')으로 나누고 폭은 다리를 따라감 | src/components/MuscleMap.jsx

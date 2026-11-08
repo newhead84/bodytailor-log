@@ -271,7 +271,12 @@ function SignupEditor({ u, admin, confirm, onDone }) {
       let link = null
       if (h) {
         const hits = (await adminFindRosterByHash(h).catch(() => [])).filter((r) => !r.linkedUid || r.linkedUid === u.uid)
-        if (hits[0] && hits[0].id !== u.rosterId && (await confirm(`바뀐 번호가 명단의 ${hits[0].name}(회원번호 ${hits[0].memberNo || '-'})과 같아요. 이 명단과 다시 연결할까요?`, { okLabel: '연결', cancelLabel: '연결 안 함' }))) link = { rosterId: hits[0].id, memberNo: hits[0].memberNo || '' }
+        if (hits[0] && hits[0].id !== u.rosterId) {
+          // [2026-11-08] A-1: 창을 닫기만 하면 저장하지 않는다
+          const ans = await confirm(`바뀐 번호가 명단의 ${hits[0].name}(회원번호 ${hits[0].memberNo || '-'})과 같아요. 이 명단과 다시 연결할까요?`, { okLabel: '연결', cancelLabel: '연결 안 함', dismissValue: null })
+          if (ans == null) return
+          if (ans) link = { rosterId: hits[0].id, memberNo: hits[0].memberNo || '' }
+        }
       }
       await adminEditSignupInfo(u, { name: name.trim(), phoneHash: h, phoneLast4: phone ? phoneLast4(phone) : '' }, link)
       await logAdmin(admin, { action: 'signup', targetUid: u.uid, targetName: name.trim().slice(0, 30), detail: `가입 정보 정정${name.trim() !== (u.signupInfo?.name || '') ? ' · 이름' : ''}${phone ? ` · 휴대폰(끝 ${phoneLast4(phone)})` : ''}${link ? ' · 명단 다시 연결' : ''}` })

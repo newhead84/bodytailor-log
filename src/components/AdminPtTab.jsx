@@ -130,7 +130,8 @@ export default function AdminPtTab({ users, conns, admin, onOpenMember, onUserCh
     const name = mName(s)
     let cancel = false
     if (ses && status === 'scheduled') {
-      cancel = await confirm(`${fmtYmd(s.date)} ${s.time} ${name}님 일정을 '예정'으로 되돌려요. 이 일정으로 뺀 PT 1회도 돌려줄까요?`, { okLabel: '차감도 취소', cancelLabel: '상태만 바꾸기' })
+      cancel = await confirm(`${fmtYmd(s.date)} ${s.time} ${name}님 일정을 '예정'으로 되돌려요. 이 일정으로 뺀 PT 1회도 돌려줄까요?`, { okLabel: '차감도 취소', cancelLabel: '상태만 바꾸기', dismissValue: null })
+      if (cancel == null) return // [2026-11-08] A-1: 닫기만 하면 아무것도 바꾸지 않는다
     } else if (!(await confirm(`${fmtYmd(s.date)} ${s.time} ${name}님 일정을 '${ST[status]}'(으)로 바꿀까요?${ses ? '' : ' 남은 PT 횟수는 바뀌지 않아요.'}`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
     setBusy(s.id)
     try {
