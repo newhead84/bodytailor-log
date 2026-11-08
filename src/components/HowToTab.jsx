@@ -22,6 +22,7 @@ import {
   getExerciseDescription,
   getComparisonGroupForExercise,
   getGripOptionNotes,
+  getExerciseMovementPattern,
 } from '../utils/exerciseLibrary'
 import { updateUserProfile, quickAddExerciseToRoutine } from '../storage'
 import ExerciseVideoLink from './ExerciseVideoLink'
@@ -139,7 +140,19 @@ function ComparisonTable({ group, currentName }) {
 }
 
 // [2026-11-08] 로그 코치 프로그램 화면에서도 운동명을 누르면 이 상세를 띄운다(CoachProgramWizard가 지연 로드)
-export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor, backLabel = '부위별 목록으로', gender = null }) {
+// [2026-11-08] 운동 중 '이 운동 대신 하기' 후보: 가이드의 대체 운동 → 같은 부위·같은 동작 → 같은 부위(오늘 목록에 있는 종목 제외, 8개까지)
+function swapCandidates(name, guide, exclude = []) {
+  const atom = getExerciseAtom(name)
+  const pat = getExerciseMovementPattern(name)
+  const ex = new Set([name, ...exclude])
+  const alts = (guide?.alternatives || []).filter((n) => ALL_EXERCISE_NAMES.includes(n))
+  const same = ALL_EXERCISE_NAMES.filter((n) => getExerciseAtom(n) === atom)
+  const samePat = pat ? same.filter((n) => getExerciseMovementPattern(n) === pat) : []
+  return [...new Set([...alts, ...samePat, ...same])].filter((n) => !ex.has(n)).slice(0, 8)
+}
+
+// swap: { from: 바꿀 종목명, exclude: 오늘 목록, onPick(name) } - 기록 중에 열었을 때만(운동명 누르기)
+export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor, backLabel = '부위별 목록으로', gender = null, swap = null }) {
   const atom = getExerciseAtom(name)
   // [2026-10-31] 구조화 가이드 + 트레이너 수정본 병합 + 기구 태그(전 종목)
   const overrides = useGuideOverrides()
@@ -202,6 +215,34 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
           </span>
         )}
       </div>
+
+      {swap && swap.from !== name && (
+        <Button full onClick={() => swap.onPick(name)} style={{ marginBottom: 14 }}>
+          {swap.from} 대신 이 운동 하기
+        </Button>
+      )}
+      {swap && swap.from === name && (() => {
+        const cands = swapCandidates(name, guide, swap.exclude)
+        if (!cands.length) return null
+        return (
+          <Card style={{ marginBottom: 14 }}>
+            <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 800, color: 'var(--color-label-strong)' }}>이 운동 대신 하기</p>
+            <p className="text-keep-all" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-label-neutral)' }}>기구가 없거나 몸에 안 맞을 때 · 이름을 누르면 가이드</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {cands.map((n) => (
+                <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button type="button" onClick={() => onOpenExercise?.(n)} className="text-keep-all" style={{ flex: 1, minWidth: 0, textAlign: 'left', minHeight: 40, padding: '6px 10px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-strong)', fontSize: 13.5, fontWeight: 600 }}>
+                    <ExerciseName name={n} /> <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--color-label-neutral)' }}>{getEquipment(n, getExerciseAtom(n))} ›</span>
+                  </button>
+                  <button type="button" onClick={() => swap.onPick(n)} style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 13, fontWeight: 700 }}>
+                    바꾸기
+                  </button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )
+      })()}
 
       {/* [2026-11-08] 근육 그림(프로필 성별 체형, 주로·같이 쓰는 근육 이름표) */}
       <MuscleMap name={name} gender={gender} style={{ marginBottom: 14 }} />

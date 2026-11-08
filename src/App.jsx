@@ -1,6 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-08] 로그 코치 기준 무게·세트 수·쉰 기간 단계.
+ * 최신 변경: [2026-11-08] 운동명 → HOWTO·대체 운동 바꾸기, 유산소 타이머 ±1분.
+ *            직전: [2026-11-08] 로그 코치 기준 무게·세트 수·쉰 기간 단계.
  *            직전: [2026-11-08] 운동 추천 문구·안전 수정(T-1·2·3·4·18).
  *            직전: [2026-11-08] 관리자 승인 창 닫기·만료 회원 승인 수정(A-1·A-2).
  *            직전: [2026-11-08] 신체 지표 개선(허리/키 비율·인바디 선택 입력, BMI는 참고). 자세한 내용은 CHANGELOG.md.
@@ -868,6 +869,7 @@ export default function App() {
           rirEnabled={userDoc.rirEnabled !== false}
           coachEnabled={userDoc.coachEnabled !== false}
           workoutGuideSeen={!!userDoc.workoutGuideSeen}
+          gender={userDoc.onboarding?.gender || null}
           membershipEnd={userDoc.role === '트레이너' || userDoc.role === '관리자' ? '' : userDoc.membershipEnd || ''}
         />
         )}

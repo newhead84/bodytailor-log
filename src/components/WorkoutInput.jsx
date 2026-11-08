@@ -1,5 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
-import { ChevronDown, Info, X, SlidersHorizontal, Play } from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, lazy, Suspense } from 'react'
+import { useBackableScreen } from '../hooks/useBackableScreen'
+// [2026-11-08] 운동명 누르기 → HOWTO 종목 상세(지연 로드, 코치 프로그램 결과 화면과 같은 방식)
+const ExerciseDetail = lazy(() => import('./HowToTab').then((m) => ({ default: m.ExerciseDetail })))
+import { ChevronDown, Info, X, SlidersHorizontal, Play, Minus, Plus } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure, PartBadge, Burst, Shine } from './ui'
 import CardioTimeline from './CardioTimeline'
@@ -386,6 +389,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     workoutGuideSeen = false, // [2026-10-29] 기록 화면 사용법 가이드를 본 계정
     membershipEnd = '', // [2026-10-31] 회원권 종료일(트레이너·관리자는 빈 값) - 만료 뒤 저장 실패 안내용
     coachEnabled = true, // [2026-11-03] MY › 설정에서 로그 코치 끄기
+    gender = null, // [2026-11-08] HOWTO 상세 근육 그림 체형
   },
   ref
 ) {
@@ -472,6 +476,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const [partOrder, setPartOrder] = useState([]) // string[]
   // 오늘 세션에서만 숨긴 종목 - 루틴 자체는 건드리지 않음, 오늘 임시저장에만 함께 저장
   const [hiddenToday, setHiddenToday] = useState([]) // string[]
+  // [2026-11-08] 오늘만 다른 운동으로 바꾼 종목 { 루틴 종목: 바꾼 종목 } - 루틴(partOrder)은 그대로 두고 화면·기록만 바꾼다
+  const [swapsToday, setSwapsToday] = useState({})
+  // 운동명을 눌러 연 HOWTO 상세 { from: 카드 키, name: 지금 보는 종목 }
+  const [howto, setHowto] = useState(null)
+  useBackableScreen(!!howto, () => setHowto(null))
   // 운동 단위 완료 표시. "세트완료" 버튼으로 켜지고, 이름 옆 체크를 다시 눌러 되돌릴 수 있음
   const [completedExercises, setCompletedExercises] = useState({}) // { [exerciseName]: true }
   // [2026-07-30 신규] "세트완료"를 누른 순서를 기록해 두었다가, 운동 완료 시 그 순서 그대로
@@ -640,6 +649,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     if (draft.selectedTemplateId) setSelectedTemplateId(draft.selectedTemplateId)
     if (draft.selectedPartName) setSelectedPartName(draft.selectedPartName)
     setHiddenToday(draft.hiddenToday || [])
+    setSwapsToday(draft.swapsToday || {})
     setCompletedExercises(draft.completedExercises || {})
     setSessionPhase(draft.sessionPhase || 'idle')
     setSessionStartAt(draft.sessionStartAt || null)
@@ -671,6 +681,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setPausedAccumMs(0)
     setFreeExercises([])
     setHiddenToday([])
+    setSwapsToday({})
+    setHowto(null)
     setLastRecords({}) // [2026-10-29] 다음 세션의 직전 기록·증량 추천이 오늘 기록 기준으로 다시 계산되게
     setAddingExercise(false)
     setAddingFreeExercise(false)
@@ -871,6 +883,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       selectedTemplateId,
       selectedPartName,
       hiddenToday,
+      swapsToday,
       completedExercises,
       sessionPhase,
       sessionStartAt,
@@ -922,6 +935,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     selectedTemplateId,
     selectedPartName,
     hiddenToday,
+    swapsToday,
     completedExercises,
     sessionPhase,
     sessionStartAt,
@@ -1442,6 +1456,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       suggestion: coachEnabled ? suggestionFor(key) : null,
       suggestionOpen: !dismissedSuggestions[key] && !(records[key] || []).some((st) => st.saved && st.type !== 'warmup'),
       onDismissSuggestion: () => dismissSuggestion(key),
+      onOpenHowto: () => setHowto({ from: key, name: parseExerciseKey(key).name }),
       setTip: coachEnabled ? setTips[key] || null : null,
       onApplySetTip: () => applySetTip(key),
       onDismissSetTip: () => clearSetTip(key),
@@ -1757,7 +1772,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     )
     if (!completedFixedOk) return
     let i = 0
-    const merged = partOrder.map((n) => (hiddenToday.includes(n) ? n : nextVisibleOrder[i++]))
+    // [2026-11-08] 오늘만 바꾼 종목은 루틴 이름으로 되돌려 순서에 넣는다(드래그 뒤 저장해도 루틴 종목은 그대로)
+    const back = Object.fromEntries(Object.entries(swapsToday).map(([a, b]) => [b, a]))
+    const merged = partOrder.map((n) => {
+      if (hiddenToday.includes(n)) return n
+      const v = nextVisibleOrder[i++]
+      return back[v] || v
+    })
     setPartOrder(merged)
   }
 
@@ -1786,6 +1807,57 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       return rest
     })
     if (expandedExercise === name) setExpandedExercise(null)
+  }
+
+  // [2026-11-08] 운동 중 다른 운동으로 바꾸기(운동명 → HOWTO 상세 '이 운동 대신 하기'). 오늘만 바꾸고, 내 루틴이면 루틴에도 바꿀지 묻는다
+  // (트레이너 계획은 오늘만). 저장한 세트가 있으면 숨기기와 같이 확인 후 기록에서 뺀다.
+  async function swapExercise(fromKey, toName) {
+    if (!fromKey || !toName || fromKey === toName) return
+    if (visibleExercises.includes(toName)) {
+      showToast('이미 오늘 목록에 있는 운동이에요.', 2200)
+      return
+    }
+    const savedCount = (records[fromKey] || []).filter((st) => st.saved).length
+    if (savedCount > 0 && !(await confirm(`"${exerciseKeyLabel(fromKey)}"에 저장한 세트 ${savedCount}개가 있어요. 바꾸면 이 세트들은 기록에서 빠져요. 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '그대로 두기' }))) return
+    setHowto(null)
+    unpairSuperset(fromKey)
+    setRecords((r) => {
+      const { [fromKey]: _omit, ...rest } = r
+      return rest
+    })
+    setCompletedExercises((c) => {
+      if (!c[fromKey]) return c
+      const { [fromKey]: _o, ...rest } = c
+      return rest
+    })
+    if (sessionType === 'extra') {
+      setFreeExercises((prev) => prev.map((n) => (n === fromKey ? toName : n)))
+    } else {
+      const orig = Object.keys(swapsToday).find((k) => swapsToday[k] === fromKey) || fromKey
+      setSwapsToday((m) => ({ ...m, [orig]: toName }))
+      if (partOrder.includes(orig) && !selectedTemplate?.byTrainer) {
+        const keep = await confirm(`다음에도 "${exerciseKeyLabel(orig)}" 대신 "${toName}"(으)로 할까요? 내 루틴에도 바꿔 둘게요.`, { okLabel: '루틴도 바꾸기', cancelLabel: '오늘만', dismissValue: false })
+        if (keep) {
+          const prevOrder = partOrder
+          const next = partOrder.map((n) => (n === orig ? toName : n))
+          setPartOrder(next)
+          setSwapsToday((m) => {
+            const { [orig]: _x, ...rest } = m
+            return rest
+          })
+          try {
+            await persistPartExercises(next)
+          } catch (err) {
+            console.error('루틴 종목 바꾸기 실패:', err)
+            setPartOrder(prevOrder)
+            setSwapsToday((m) => ({ ...m, [orig]: toName }))
+            showToast('루틴에는 바꾸지 못했어요. 오늘만 바꿨어요.', 2600)
+          }
+        }
+      }
+    }
+    if (expandedExercise === fromKey) setExpandedExercise(toName)
+    showToast(`${toName}(으)로 바꿨어요`, 1800)
   }
 
   // ── 세트완료(운동 단위 완료) ──
@@ -1823,7 +1895,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   })
 
   const visibleExercises =
-    sessionType === 'extra' ? freeExercises : partOrder.filter((name) => !hiddenToday.includes(name))
+    sessionType === 'extra' ? freeExercises : partOrder.filter((name) => !hiddenToday.includes(name)).map((name) => swapsToday[name] || name)
 
   // [2026-10-30] 오늘 할 운동 부위(웜업 스트레칭 추천용)
   const todayAtoms = [...new Set(visibleExercises.map((n) => getExerciseAtom(parseExerciseKey(n).name)).filter(Boolean))]
@@ -2515,6 +2587,24 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           </>
         )}
       </div>
+      {howto && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--color-bg)', overflowY: 'auto', padding: '0 16px 40px', paddingBottom: 'calc(40px + var(--safe-bottom, 0px))' }}>
+          <Suspense fallback={<p style={{ padding: 24, textAlign: 'center', color: 'var(--color-label-neutral)' }}>불러오는 중...</p>}>
+            <ExerciseDetail
+              key={howto.name}
+              uid={uid}
+              name={howto.name}
+              routineTemplates={templates}
+              onBack={() => (howto.name !== parseExerciseKey(howto.from).name ? setHowto((h) => ({ ...h, name: parseExerciseKey(h.from).name })) : setHowto(null))}
+              onOpenExercise={(n) => setHowto((h) => ({ ...h, name: n }))}
+              editor={null}
+              backLabel="기록으로"
+              gender={gender}
+              swap={sessionPhase === 'main' && !completedExercises[howto.from] ? { from: parseExerciseKey(howto.from).name, exclude: visibleExercises.map((k) => parseExerciseKey(k).name), onPick: (n) => swapExercise(howto.from, n) } : null}
+            />
+          </Suspense>
+        </div>
+      )}
     </div>
   )
 })
@@ -2849,10 +2939,21 @@ export function ExerciseCard({
           <span
             {...guideProps}
             className={['text-keep-all', guideProps.className].filter(Boolean).join(' ')}
+            // [2026-11-08] 짧게 누르면 HOWTO 종목 상세(대체 운동으로 바꾸기), 길게 누르면 예전처럼 카드 안 가이드
+            onClick={(e) => {
+              if (!ext.onOpenHowto) return
+              e.stopPropagation()
+              ext.onOpenHowto()
+            }}
+            role={ext.onOpenHowto ? 'button' : undefined}
             style={{
               fontWeight: 700,
               fontSize: 15,
               color: isDone ? 'var(--color-label-neutral)' : 'var(--color-label-strong)',
+              textDecoration: ext.onOpenHowto ? 'underline dotted' : undefined,
+              textDecorationColor: 'color-mix(in srgb, currentColor 40%, transparent)',
+              textUnderlineOffset: 4,
+              cursor: ext.onOpenHowto ? 'pointer' : undefined,
               ...guideProps.style,
             }}
           >
@@ -3312,11 +3413,49 @@ export function ExerciseCard({
 
 // [2026-10-29 신규, 유산소 기록 개선] "타이머로 기록": 체크하지 않은 첫 유산소 줄에 타이머를 붙여 큰 경과 시간으로 보여 주고,
 // 종료(또는 세트 저장)하면 시간(분) 칸을 채운다. 타이머 상태는 세트 행(cardioTimer)에 있어 새로고침해도 이어진다.
+// [2026-11-08] 누르고 있으면 반복(처음 0.45초 뒤부터 0.15초마다) - 유산소 타이머 ±1분
+function useRepeatPress(fn) {
+  const fnRef = useRef(fn)
+  fnRef.current = fn
+  const timers = useRef([])
+  const stop = () => {
+    timers.current.forEach((x) => clearTimeout(x) || clearInterval(x))
+    timers.current = []
+  }
+  useEffect(() => stop, [])
+  return {
+    onPointerDown: (e) => {
+      e.preventDefault()
+      stop()
+      fnRef.current()
+      timers.current.push(setTimeout(() => timers.current.push(setInterval(() => fnRef.current(), 150)), 450))
+    },
+    onPointerUp: stop,
+    onPointerLeave: stop,
+    onPointerCancel: stop,
+    onContextMenu: (e) => e.preventDefault(),
+  }
+}
+
 function CardioTimerPanel({ sets, onFieldChange }) {
   const idx = sets.findIndex((st) => !st.saved)
   const t = idx >= 0 ? sets[idx]?.cardioTimer : null
   const running = !!t?.startAt && !t?.pausedAt
   const [, setTick] = useState(0)
+  // [2026-11-08] 운동을 시작한 뒤에 타이머를 켰을 때 맞출 수 있게 ±1분(시작 시각을 옮긴다, 0분 아래로는 안 내려감)
+  const tRef = useRef(t)
+  tRef.current = t
+  const shift = (deltaMin) => {
+    const cur = tRef.current
+    if (!cur?.startAt) return
+    const elapsed = cardioTimerMs(cur)
+    const move = Math.max(-elapsed, deltaMin * 60000)
+    const next = { ...cur, startAt: cur.startAt - move }
+    tRef.current = next
+    onFieldChange(idx, 'cardioTimer', next)
+  }
+  const minusPress = useRepeatPress(() => shift(-1))
+  const plusPress = useRepeatPress(() => shift(1))
   useEffect(() => {
     if (!running) return undefined
     const id = setInterval(() => setTick((n) => n + 1), 1000)
@@ -3350,13 +3489,24 @@ function CardioTimerPanel({ sets, onFieldChange }) {
     onFieldChange(idx, 'cardioTimer', null)
   }
   const btn = { flex: 1, height: 44, borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 800 }
+  const adjBtn = { width: 48, height: 48, flexShrink: 0, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line-strong)', color: 'var(--color-label-strong)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0, touchAction: 'manipulation', userSelect: 'none', WebkitUserSelect: 'none' }
   return (
     <div className="bt-enter" style={{ padding: '14px 12px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-label-neutral)' }}>{running ? '유산소 진행 중' : '일시정지'}</span>
-      <span className="bt-num" aria-live="off" style={{ fontSize: 'calc(44px * var(--num-scale))', lineHeight: 1, color: 'var(--color-label-strong)', fontVariantNumeric: 'tabular-nums' }}>
-        {hh > 0 ? `${hh}:` : ''}
-        {mm}:{ss}
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, width: '100%' }}>
+        <button type="button" aria-label="1분 빼기" {...minusPress} style={adjBtn}>
+          <Minus size={18} strokeWidth={2.4} aria-hidden="true" />
+          <span style={{ fontSize: 11, fontWeight: 700 }}>1분</span>
+        </button>
+        <span className="bt-num" aria-live="off" style={{ fontSize: 'calc(44px * var(--num-scale))', lineHeight: 1, color: 'var(--color-label-strong)', fontVariantNumeric: 'tabular-nums', minWidth: '4.2ch', textAlign: 'center' }}>
+          {hh > 0 ? `${hh}:` : ''}
+          {mm}:{ss}
+        </span>
+        <button type="button" aria-label="1분 더하기" {...plusPress} style={adjBtn}>
+          <Plus size={18} strokeWidth={2.4} aria-hidden="true" />
+          <span style={{ fontSize: 11, fontWeight: 700 }}>1분</span>
+        </button>
+      </div>
       <div style={{ display: 'flex', gap: 8, width: '100%' }}>
         <button type="button" onClick={toggle} style={{ ...btn, border: '1px solid var(--color-line-strong)', color: 'var(--color-label-strong)' }}>
           {running ? '일시정지' : '재개'}

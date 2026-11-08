@@ -33,6 +33,7 @@ const LogTab = forwardRef(function LogTab(
     coachEnabled, // [2026-11-03] 로그 코치 켜기·끄기
     workoutGuideSeen,
     membershipEnd,
+    gender, // [2026-11-08] 운동명 → HOWTO 상세의 근육 그림 체형
   },
   ref
 ) {
@@ -63,6 +64,7 @@ const LogTab = forwardRef(function LogTab(
       coachEnabled={coachEnabled !== false}
       workoutGuideSeen={workoutGuideSeen}
       membershipEnd={membershipEnd}
+      gender={gender}
     />
   )
 })
