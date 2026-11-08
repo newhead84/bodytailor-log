@@ -104,11 +104,19 @@ service cloud.firestore {
       return d.ptLastChange is map && d.ptLastChange.keys().hasOnly(['at', 'kind']) &&
         d.ptLastChange.at == request.time && d.ptLastChange.kind in ['new', 'change', 'cancel'];
     }
+    // [2026-11-08] 신체 지표(선택): 허리둘레·체지방률·골격근량은 범위 안 숫자, 인바디 측정일은 'YYYY-MM-DD'
+    function optNumIn(o, k, lo, hi) {
+      return !(k in o) || o[k] == null || (o[k] is number && o[k] >= lo && o[k] <= hi);
+    }
+    function bodyCompOk(o) {
+      return optNumIn(o, 'waistCm', 40, 200) && optNumIn(o, 'bodyFatPct', 3, 60) && optNumIn(o, 'smmKg', 5, 80) &&
+        (!('inbodyAt' in o) || o.inbodyAt == null || (o.inbodyAt is string && o.inbodyAt.size() == 10));
+    }
     // [2026-11-01] S10·S21: 본인 users 쓰기 값 검사(keys = 쓰는 필드만 검사해 기존 문서는 그대로 통과)
     function userFieldsOk(d, keys) {
       return (!keys.hasAny(['nickname']) || nameOk(d.nickname)) &&
         (!keys.hasAny(['onboarding']) || d.onboarding == null ||
-          (d.onboarding is map && d.onboarding.keys().size() <= 20 && goalListOk(d.onboarding.get('goals', [])))) &&
+          (d.onboarding is map && d.onboarding.keys().size() <= 20 && goalListOk(d.onboarding.get('goals', [])) && bodyCompOk(d.onboarding))) &&
         (!keys.hasAny(['signupInfo']) ||
           (d.signupInfo is map && d.signupInfo.keys().hasOnly(['name', 'phoneHash', 'phoneLast4']) &&
             nameOk(d.signupInfo.get('name', '')) &&

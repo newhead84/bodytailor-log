@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronLeft, ExternalLink, Settings, Link2, Share2, Award } from 'lucide-react'
-import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches, ScreenHeader, Burst, Shine } from './ui'
+import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches, ScreenHeader, Burst, Shine, Disclosure } from './ui'
 import { useMoment } from '../hooks/useMoment'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
@@ -14,6 +14,7 @@ import { logout } from '../firebase'
 import AccountLegalSection from './AccountLegalSection'
 import { todayStr } from '../utils/date'
 import { BODY_RANGES, bodyRangeError } from '../utils/inputCheck'
+import { bodyMetrics, BODY_COMP_RANGES, bodyCompRangeError } from '../utils/bodyComp'
 import { getTierByXp, getNextTier, getLevelInfo, stageLevelRange } from '../utils/tier'
 import { computeAchievements } from '../utils/achievements'
 import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, BODY_PART_ATOMS, getExercisesForPart, recommendedSplitKey, perPartWeeklyFrequency } from '../utils/exerciseLibrary'
@@ -42,25 +43,52 @@ function isIosDevice() {
   return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
 }
 
-// [2026-11-08] 프로필 숫자 칸(체중·키·주 목표) + BMI(숫자·지금 판정 그대로·4구간 막대) + 운동 목표 순위 칩
-const BMI_BANDS = [
-  { to: 18.5, label: '~18.5', color: '#9fb6d3' },
-  { to: 23, label: '정상', color: '#9cc98a' },
-  { to: 25, label: '23~25', color: '#e3b55e' },
-  { to: 30, label: '25~', color: '#e08f78' },
-]
-function ProfileNumbers({ userDoc, bmi, bmiCategory }) {
+// [2026-11-08] 프로필 숫자 칸(체중·키·허리) + 주 지표 막대(체지방률 → 허리/키 비율 → BMI 순, utils/bodyComp) + 운동 목표 순위 칩
+// BMI는 근육이 많으면 높게 나와서 허리둘레·인바디를 넣으면 참고 한 줄로 내린다(사용자 결정).
+const TONE_COLOR = { ok: 'var(--color-success, #5d8f43)', low: 'var(--color-label-strong)', mid: 'var(--color-label-strong)', high: 'var(--color-danger)' }
+function MetricGauge({ m, sub }) {
+  const pos = Math.min(100, Math.max(0, ((m.value - m.lo) / (m.hi - m.lo)) * 100))
+  const span = (b, i) => Math.min(b.to, m.hi) - (i ? m.bands[i - 1].to : m.lo)
+  return (
+    <div style={{ marginTop: 8, background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: '9px 12px 8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-label-neutral)' }}>
+          {m.title}
+          {sub && <span style={{ fontWeight: 600, fontSize: 11 }}> · {sub}</span>}
+        </span>
+        <span style={{ whiteSpace: 'nowrap' }}>
+          <span className="bt-num" style={{ fontSize: 18 }}>{m.text}</span>
+          {m.unit && <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{m.unit}</span>}{' '}
+          <span style={{ fontSize: 12.5, fontWeight: 800, color: TONE_COLOR[m.band.tone] }}>{m.band.verdict}</span>
+        </span>
+      </div>
+      <div style={{ position: 'relative', margin: '9px 0 4px' }}>
+        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden' }}>
+          {m.bands.map((b, i) => (
+            <span key={b.label} style={{ flex: span(b, i), background: b.color, opacity: m.band === b ? 1 : 0.45 }} />
+          ))}
+        </div>
+        <span aria-hidden="true" style={{ position: 'absolute', top: -5, left: `calc(${pos}% - 2px)`, width: 4, height: 18, borderRadius: 2, background: 'var(--color-label-strong)', boxShadow: '0 0 0 2px var(--color-bg)' }} />
+      </div>
+      <div style={{ display: 'flex', fontSize: 10.5, color: 'var(--color-label-neutral)' }}>
+        {m.bands.map((b, i) => (
+          <span key={b.label} style={{ flex: span(b, i), textAlign: 'center', whiteSpace: 'nowrap' }}>{b.label}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+function ProfileNumbers({ userDoc, onEdit }) {
   const ob = userDoc?.onboarding || {}
   const goals = normalizeGoals(ob.goals)
+  const bm = bodyMetrics(ob)
   const tiles = [
     ['체중', ob.weightKg, 'kg'],
     ['키', ob.heightCm, 'cm'],
-    ['주 목표', userDoc?.weeklyTargetDays, '일'],
+    ['허리', ob.waistCm, 'cm'],
   ].filter(([, v]) => v != null && v !== '')
-  const lo = 15
-  const hi = 30
-  const pos = bmi != null ? Math.min(100, Math.max(0, ((bmi - lo) / (hi - lo)) * 100)) : null
-  const band = bmi != null ? BMI_BANDS.find((b) => bmi < b.to) || BMI_BANDS[BMI_BANDS.length - 1] : null
+  const mainNote =
+    bm.main?.key === 'whtr' ? '허리둘레가 키의 절반보다 작으면 좋아요' : bm.main?.key === 'bmi' ? '근육이 많으면 높게 나와요 · 허리둘레를 넣으면 더 정확해요' : ''
   return (
     <div style={{ marginTop: 12 }}>
       {tiles.length > 0 && (
@@ -74,32 +102,54 @@ function ProfileNumbers({ userDoc, bmi, bmiCategory }) {
           ))}
         </div>
       )}
-      {bmi != null && (
-        <div style={{ marginTop: 8, background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: '9px 12px 8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-label-neutral)' }}>BMI</span>
-            <span>
-              <span className="bt-num" style={{ fontSize: 18 }}>{bmi.toFixed(1)}</span>{' '}
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--color-label-strong)' }}>{bmiCategory}</span>
-            </span>
-          </div>
-          <div style={{ position: 'relative', margin: '9px 0 4px' }}>
-            <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden' }}>
-              {BMI_BANDS.map((b, i) => (
-                <span key={b.label} style={{ flex: b.to - (i ? BMI_BANDS[i - 1].to : lo), background: b.color, opacity: band === b ? 1 : 0.45 }} />
-              ))}
+      {bm.main && <MetricGauge m={bm.main} sub={bm.main.key === 'fat' && bm.inbodyAt ? `${bm.inbodyAt.slice(5).replace('-', '/')} 측정` : ''} />}
+      {mainNote && <div className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', marginTop: 5 }}>{mainNote}</div>}
+      {bm.fat && (bm.smm || bm.ffmi) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 8 }}>
+          {bm.smm && (
+            <div style={{ background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: '9px 10px', minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)', marginBottom: 2 }}>골격근량</span>
+              <span className="bt-num" style={{ fontSize: 18 }}>{bm.smm}</span>
+              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 2 }}>kg</span>
             </div>
-            <span aria-hidden="true" style={{ position: 'absolute', top: -5, left: `calc(${pos}% - 2px)`, width: 4, height: 18, borderRadius: 2, background: 'var(--color-label-strong)', boxShadow: '0 0 0 2px var(--color-bg)' }} />
-          </div>
-          <div style={{ display: 'flex', fontSize: 10.5, color: 'var(--color-label-neutral)' }}>
-            {BMI_BANDS.map((b, i) => (
-              <span key={b.label} style={{ flex: b.to - (i ? BMI_BANDS[i - 1].to : lo), textAlign: 'center' }}>{b.label}</span>
-            ))}
-          </div>
+          )}
+          {bm.ffmi && (
+            <div style={{ background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: '9px 10px', minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)', marginBottom: 2, whiteSpace: 'nowrap' }}>제지방 지수(FFMI)</span>
+              <span className="bt-num" style={{ fontSize: 18 }}>{bm.ffmi.text}</span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-label-strong)', marginLeft: 4 }}>{bm.ffmi.verdict}</span>
+            </div>
+          )}
         </div>
       )}
-      {goals.length > 0 && (
+      {bm.refs.length > 0 && (
+        <div className="text-keep-all" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '2px 10px', marginTop: 8, fontSize: 12, color: 'var(--color-label-neutral)' }}>
+          {bm.refs.map((r) => (
+            <span key={r.key}>
+              {r.title} {r.text} · {r.key === 'bmi' ? '참고용' : r.band.verdict}
+            </span>
+          ))}
+        </div>
+      )}
+      {bm.main && (
+        <Disclosure style={{ marginTop: 2 }}>
+          <span style={{ whiteSpace: 'pre-line' }}>{'체지방률(인바디)이 있으면 그걸, 없으면 허리/키 비율을, 둘 다 없으면 BMI를 크게 보여줘요.\n허리/키 비율은 0.5 미만이 권장 범위예요. BMI는 키와 몸무게만 보는 값이라 근육이 많으면 높게 나와요.\n체지방률 적정 범위는 남성 10~20%, 여성 18~28%를 대략 기준으로 썼어요. 제지방 지수(FFMI)는 지방을 뺀 몸무게를 키로 나눈 값이에요.\n운동 참고용 정보이며 의학적 진단이 아니에요.'}</span>
+        </Disclosure>
+      )}
+      {bm.main && !bm.fat && onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          style={{ width: '100%', marginTop: 6, minHeight: 40, borderRadius: 'var(--radius-md)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 13, fontWeight: 700 }}
+        >
+          {bm.whtr ? '인바디 결과 넣기 (선택)' : '허리둘레·인바디 넣기 (선택)'}
+        </button>
+      )}
+      {(goals.length > 0 || userDoc?.weeklyTargetDays) && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+          {userDoc?.weeklyTargetDays ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg)', color: 'var(--color-label-strong)' }}>주 {userDoc.weeklyTargetDays}일</span>
+          ) : null}
           {goals.map((g, i) => (
             <span key={g} className="text-keep-all" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg)', color: 'var(--color-label-strong)' }}>
               {i < 3 && GOAL_LABELS.includes(g) && (
@@ -165,6 +215,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     age: userDoc?.onboarding?.age ?? '',
     weightKg: userDoc?.onboarding?.weightKg ?? '',
     heightCm: userDoc?.onboarding?.heightCm ?? '',
+    waistCm: userDoc?.onboarding?.waistCm ?? '',
+    bodyFatPct: userDoc?.onboarding?.bodyFatPct ?? '',
+    smmKg: userDoc?.onboarding?.smmKg ?? '',
+    inbodyAt: userDoc?.onboarding?.inbodyAt || '',
     goals: normalizeGoals(userDoc?.onboarding?.goals),
     weeklyTargetDays: userDoc?.weeklyTargetDays || null,
   }))
@@ -230,34 +284,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     if (fresh.length) setNewAchievements(fresh)
   }, [isActive, uid, achievements])
 
-  // 키/몸무게가 모두 있으면 BMI를 자동 계산해 표시(체중(kg) / 키(m)^2).
-  // [2026-07-28] 판정 구간을 10단계로 세분화(사용자 제공 기준표 반영).
-  const heightCm = Number(userDoc?.onboarding?.heightCm)
-  const weightKg = Number(userDoc?.onboarding?.weightKg)
-  const bmi = heightCm > 0 && weightKg > 0 ? weightKg / (heightCm / 100) ** 2 : null
-  const bmiCategory =
-    bmi == null
-      ? null
-      : bmi < 16.0
-      ? '심한 저체중'
-      : bmi < 17.0
-      ? '중등도 저체중'
-      : bmi < 18.5
-      ? '경도 저체중'
-      : bmi < 21.0
-      ? '정상(낮은 편)'
-      : bmi < 23.0
-      ? '정상(높은 편)'
-      : bmi < 25.0
-      ? '과체중'
-      : bmi < 27.5
-      ? '비만 1단계(초기)'
-      : bmi < 30.0
-      ? '비만 1단계(고위험)'
-      : bmi < 35.0
-      ? '비만 2단계'
-      : '고도비만'
-
   function updateProfileForm(key, value) {
     setProfileForm((f) => ({ ...f, [key]: value }))
   }
@@ -269,6 +295,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       age: userDoc?.onboarding?.age ?? '',
       weightKg: userDoc?.onboarding?.weightKg ?? '',
       heightCm: userDoc?.onboarding?.heightCm ?? '',
+      waistCm: userDoc?.onboarding?.waistCm ?? '',
+      bodyFatPct: userDoc?.onboarding?.bodyFatPct ?? '',
+      smmKg: userDoc?.onboarding?.smmKg ?? '',
+      inbodyAt: userDoc?.onboarding?.inbodyAt || '',
       goals: normalizeGoals(userDoc?.onboarding?.goals),
       weeklyTargetDays: userDoc?.weeklyTargetDays || null,
     })
@@ -283,6 +313,9 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         ...['age', 'weightKg', 'heightCm'].map((k) =>
           profileForm[k] === '' || profileForm[k] == null ? `${BODY_RANGES[k].label}를 입력해 주세요.` : bodyRangeError(k, profileForm[k])
         ),
+        // [2026-11-08] 허리둘레·인바디는 선택 - 빈칸이면 저장하지 않고, 넣었으면 범위만 확인
+        ...Object.keys(BODY_COMP_RANGES).map((k) => bodyCompRangeError(k, profileForm[k])),
+        profileForm.inbodyAt && profileForm.inbodyAt > todayStr() ? '인바디 측정일은 오늘 이전으로 입력해 주세요.' : '',
       ].filter(Boolean)
     : []
   const [profileSaveError, setProfileSaveError] = useState('')
@@ -291,7 +324,13 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     if (profileErrors.length > 0) return
     setSaving(true)
     setProfileSaveError('')
-    const { nickname, weeklyTargetDays, ...onboardingForm } = profileForm
+    const { nickname, weeklyTargetDays, waistCm, bodyFatPct, smmKg, inbodyAt, ...onboardingForm } = profileForm
+    // [2026-11-08] 선택 항목은 값이 있을 때만 저장(비우면 지워짐 - onboarding 맵 전체를 다시 쓰기 때문). 체지방률·골격근량을 넣고 측정일이 없으면 오늘
+    const optNum = (v) => (v === '' || v == null ? null : Math.round(Number(v) * 10) / 10)
+    const bodyComp = Object.fromEntries(
+      Object.entries({ waistCm: optNum(waistCm), bodyFatPct: optNum(bodyFatPct), smmKg: optNum(smmKg) }).filter(([, v]) => v != null)
+    )
+    if (bodyComp.bodyFatPct != null || bodyComp.smmKg != null) bodyComp.inbodyAt = inbodyAt || todayStr()
     // [2026-10-31] 회원이 목표·주간 목표를 직접 바꾸면 '트레이너 수정' 표시를 지운다
     const goalsChanged = JSON.stringify(normalizeGoals(onboardingForm.goals)) !== JSON.stringify(normalizeGoals(userDoc?.onboarding?.goals)) ||
       (weeklyTargetDays && weeklyTargetDays !== userDoc?.weeklyTargetDays)
@@ -307,6 +346,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         age: Number(onboardingForm.age),
         weightKg: Number(onboardingForm.weightKg),
         heightCm: Number(onboardingForm.heightCm),
+        ...bodyComp,
       },
     })
     } catch (err) {
@@ -820,7 +860,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             </div>
           )}
         </div>
-        {!editingProfile && <ProfileNumbers userDoc={userDoc} bmi={bmi} bmiCategory={bmiCategory} />}
+        {!editingProfile && <ProfileNumbers userDoc={userDoc} onEdit={startEditProfile} />}
         {editingProfile ? (
           <div>
             <div style={{ marginBottom: 12 }}>
@@ -847,6 +887,30 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               <NumberField label="나이" unit="세" value={profileForm.age} onChange={(v) => updateProfileForm('age', v)} />
               <NumberField label="몸무게" unit="kg" value={profileForm.weightKg} onChange={(v) => updateProfileForm('weightKg', v)} />
               <NumberField label="키" unit="cm" value={profileForm.heightCm} onChange={(v) => updateProfileForm('heightCm', v)} />
+            </div>
+            {/* [2026-11-08] 선택: 허리둘레(허리/키 비율)·인바디(체지방률·골격근량) - 있으면 BMI 대신 주 지표로 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                허리둘레·인바디 <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)' }}>(선택)</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <NumberField label="허리둘레" unit="cm" value={profileForm.waistCm} onChange={(v) => updateProfileForm('waistCm', v)} />
+                <NumberField label="체지방률" unit="%" value={profileForm.bodyFatPct} onChange={(v) => updateProfileForm('bodyFatPct', v)} />
+                <NumberField label="골격근량" unit="kg" value={profileForm.smmKg} onChange={(v) => updateProfileForm('smmKg', v)} />
+              </div>
+              {(profileForm.bodyFatPct !== '' || profileForm.smmKg !== '') && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+                  인바디 측정일
+                  <input
+                    type="date"
+                    value={profileForm.inbodyAt || ''}
+                    max={todayStr()}
+                    onChange={(e) => updateProfileForm('inbodyAt', e.target.value)}
+                    style={{ flex: 1, minWidth: 0, padding: '7px 10px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', fontSize: 14, background: 'transparent', color: 'var(--color-label-strong)' }}
+                  />
+                </label>
+              )}
+              <div className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', marginTop: 6 }}>허리둘레는 갈비뼈 아래와 골반 뼈 위의 중간 높이에서, 숨을 편히 내쉰 뒤 재요.</div>
             </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>주당 운동 목표</div>

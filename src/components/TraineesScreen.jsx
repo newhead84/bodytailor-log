@@ -25,6 +25,7 @@ import { formatCardioSet } from '../utils/cardioFields'
 import { setTypeMark, detectPlateaus, recentPrList, SET_TYPE_LABEL, bestE1rmOfSets, cleanTrainerRx, trainerRxText } from '../utils/strength'
 import { exerciseKeyLabel, makeExerciseKey } from '../utils/exerciseKey'
 import { ExerciseName } from '../utils/exerciseName'
+import { bodyMetrics } from '../utils/bodyComp'
 
 const DAY = ['일', '월', '화', '수', '목', '금', '토']
 function fmtDay(s) {
@@ -884,6 +885,15 @@ function MemberBody({ member, memberUid, goalEditor }) {
   if (member === false) return <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>회원 신체정보를 불러오지 못했어요.</p>
   const o = member.onboarding || {}
   const body = [o.gender, o.age ? `${o.age}세` : '', o.heightCm ? `${o.heightCm}cm` : '', o.weightKg ? `${o.weightKg}kg` : ''].filter(Boolean)
+  // [2026-11-08] 신체 지표: 허리/키 비율·체지방률(인바디)·골격근량·FFMI가 있으면 한 줄, BMI는 참고
+  const bm = bodyMetrics(o)
+  const metric = [
+    bm.fat && `체지방 ${bm.fat.text}% ${bm.fat.band.verdict}`,
+    bm.smm && `골격근 ${bm.smm}kg`,
+    bm.ffmi && `FFMI ${bm.ffmi.text}`,
+    bm.whtr && `허리 ${o.waistCm}cm(허리/키 ${bm.whtr.text})`,
+    bm.bmi && `BMI ${bm.bmi.text}`,
+  ].filter(Boolean)
   const goals = normalizeGoals(o.goals)
   const row = (k, v) => (
     <div style={{ display: 'flex', gap: 12, fontSize: 13.5, lineHeight: 1.5 }}>
@@ -895,6 +905,7 @@ function MemberBody({ member, memberUid, goalEditor }) {
     <Card style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {row('신체정보', body.length ? body.join(' · ') : '입력 안 함')}
+        {metric.length > 0 && row('신체 지표', `${metric.join(' · ')}${bm.fat && bm.inbodyAt ? ` (인바디 ${bm.inbodyAt})` : ''}`)}
         {row('운동 목표', goals.length ? goals.map((g, i) => `${i + 1}. ${g}`).join('  ') : '입력 안 함')}
         {row('주간 목표', `주 ${member.weeklyTargetDays || 3}일`)}
         {tests?.length > 0 &&
