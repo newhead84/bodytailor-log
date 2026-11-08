@@ -132,6 +132,8 @@ service cloud.firestore {
         // [2026-11-02] 로그 코치 전체 강도
         (!keys.hasAny(['coachIntensity']) || d.coachIntensity in ['easy2', 'easy', 'normal', 'hard', 'max']) &&
         (!keys.hasAny(['coachEnabled']) || d.coachEnabled is bool) &&
+        // [2026-11-08] 완료 효과음 켜기·끄기
+        (!keys.hasAny(['sfxEnabled']) || d.sfxEnabled is bool) &&
         // [2026-11-07] 로그 코치 프로그램 답(질문 답 12개 이하)
         (!keys.hasAny(['coachProgram']) || (d.coachProgram is map && d.coachProgram.keys().hasOnly(['v', 'answers', 'at']) &&
           d.coachProgram.get('answers', {}) is map && d.coachProgram.get('answers', {}).size() <= 12)) &&

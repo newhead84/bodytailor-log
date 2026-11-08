@@ -542,13 +542,50 @@ export function Shine({ delay = 0.15 }) {
 
 // [2026-11-08] 순간 강조: 작은 불꽃이 퍼졌다 사라지는 장식(성취 순간에만). 부모는 position: relative.
 // 동작 줄이기 설정이면 designStyles.css 맨 아래 규칙으로 바로 끝나 보이지 않는다. 다시 재생하려면 key를 바꾼다.
-export function Burst({ radius = 26, count = 8, color, delay = 0, style }) {
+export function Burst({ radius = 26, count = 8, color, delay = 0, style, big = false }) {
   return (
-    <span aria-hidden="true" className="bt-burst" style={{ '--r': `${radius}px`, '--d': `${delay}s`, ...(color ? { '--burst-color': color } : null), ...style }}>
+    <span aria-hidden="true" className={big ? 'bt-burst bt-burst--big' : 'bt-burst'} style={{ '--r': `${radius}px`, '--d': `${delay}s`, ...(color ? { '--burst-color': color } : null), ...style }}>
       {Array.from({ length: count }, (_, i) => (
         <i key={i} style={{ '--a': `${(360 / count) * i}deg` }} />
       ))}
     </span>
+  )
+}
+
+// [2026-11-08] 완료 효과 강화(A '펀치'): 위로 떠오르며 사라지는 글자(+1세트·종목 완료!). 부모는 position: relative.
+export function FloatText({ text, delay = 0, style }) {
+  return (
+    <span aria-hidden="true" className="bt-float" style={{ '--d': `${delay}s`, ...style }}>
+      {text}
+    </span>
+  )
+}
+
+// 화면 가운데 큰 불꽃(두 겹 링) + 위에서 떨어지는 꽃가루(운동 완료·레벨 업). 다시 재생하려면 key를 바꾼다.
+const FX_COLORS = ['var(--color-fill-strong)', 'var(--color-primary-strong)', '#ff8a5c', '#5cb8ff', '#ffd24a']
+export function ScreenCelebration({ confetti = 40, radius = 110, delay = 0 }) {
+  const bits = React.useMemo(
+    () =>
+      Array.from({ length: confetti }, (_, i) => ({
+        left: Math.random() * 100,
+        x: Math.random() * 80 - 40,
+        y: 60 + Math.random() * 50,
+        rot: Math.random() * 900,
+        dur: 1.3 + Math.random() * 0.8,
+        d: delay + Math.random() * 0.4,
+        c: FX_COLORS[i % FX_COLORS.length],
+      })),
+    [confetti, delay]
+  )
+  return (
+    <div className="bt-screen-fx" aria-hidden="true">
+      <span style={{ position: 'absolute', left: '50%', top: '45%' }}>
+        <Burst big radius={radius} count={22} delay={delay} />
+      </span>
+      {bits.map((b, i) => (
+        <i key={i} style={{ left: `${b.left}vw`, background: b.c, '--x': `${b.x}px`, '--y': `${b.y}vh`, '--rot': `${b.rot}deg`, '--dur': `${b.dur}s`, '--d': `${b.d}s` }} />
+      ))}
+    </div>
   )
 }
 

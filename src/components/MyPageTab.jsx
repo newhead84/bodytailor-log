@@ -26,6 +26,7 @@ import AchievementPager from './AchievementPager'
 import { CoachProgramCard, CoachBadge } from './CoachProgramCard'
 import { findCoachProgramTemplate } from '../utils/programBuilder'
 import { normalizeGoals, GOAL_LABELS, isBeginnerAccount, getTrainingProfile } from '../utils/goals'
+import { setSfxEnabled, playSfx } from '../utils/sfx'
 
 // [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
 // "운동조합 변경"(RoutineManager) 화면이 같은 프리셋 정의를 공유하도록 정리했다.
@@ -464,6 +465,17 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   async function selectCoachEnabled(on) {
     await saveSetting(setCoachEnabledState, coachEnabled, on, { coachEnabled: on })
   }
+  // [2026-11-08] 완료 효과음(세트·종목·운동 완료·신기록·레벨 업, 기본 켜짐)
+  const [sfxOn, setSfxOnState] = useState(userDoc?.sfxEnabled !== false)
+  useEffect(() => {
+    setSfxOnState(userDoc?.sfxEnabled !== false)
+  }, [userDoc?.sfxEnabled])
+  async function selectSfx(on) {
+    const ok = await saveSetting(setSfxOnState, sfxOn, on, { sfxEnabled: on })
+    if (ok === false) return
+    setSfxEnabled(on)
+    if (on) playSfx('ex')
+  }
   async function selectCoachIntensity(id) {
     await saveSetting(setCoachIntensityState, coachIntensity, id, { coachIntensity: id })
   }
@@ -672,6 +684,19 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </span>
         </div>
         )}
+      </Card>
+
+      <SectionTitle>효과음</SectionTitle>
+      <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Chip active={sfxOn} onClick={() => selectSfx(true)} style={{ flex: 1, justifyContent: 'center' }}>
+            켜기
+          </Chip>
+          <Chip active={!sfxOn} onClick={() => selectSfx(false)} style={{ flex: 1, justifyContent: 'center' }}>
+            끄기
+          </Chip>
+        </div>
+        <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>세트 저장·종목 완료·운동 완료·신기록·레벨 업 때 짧은 게임 소리. 휴대폰이 무음이면 안 날 수 있어요.</span>
       </Card>
 
       <SectionTitle>알림</SectionTitle>

@@ -594,6 +594,76 @@ button:active:not(:disabled) {
 html[data-font='paperlogy'] { --font-body: 'Paperlogy', 'Pretendard', system-ui, sans-serif; }
 html[data-font='nanumsquareneo'] { --font-body: 'NanumSquare Neo', 'Pretendard', system-ui, sans-serif; }
 
+/* [2026-11-08] 완료 효과 강화(사용자 선택 A '펀치'): 큰 불꽃 두 겹 링·떠오르는 글자·버튼 튀기·화면 가운데 불꽃과 꽃가루(운동 완료·레벨 업).
+   모두 한 번만 재생하고 끝 상태가 투명이라 동작 줄이기에서는 아무것도 남지 않는다. */
+.bt-burst--big::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--r) * -1.6);
+  top: calc(var(--r) * -1.6);
+  width: calc(var(--r) * 3.2);
+  height: calc(var(--r) * 3.2);
+  border-radius: 50%;
+  border: 3px solid var(--burst-color, var(--burst-default));
+  opacity: 0;
+  animation: bt-burst-ring 0.75s var(--ease-out) calc(var(--d, 0s) + 0.12s) both;
+}
+.bt-burst--big::before {
+  border-width: 3px;
+}
+.bt-burst--big > i {
+  width: 4px;
+  left: -2px;
+  height: 16px;
+  top: -8px;
+}
+@keyframes bt-float-up {
+  0% { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
+  20% { opacity: 1; transform: translate(-50%, -6px) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -40px) scale(1); }
+}
+.bt-float {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  z-index: 6;
+  pointer-events: none;
+  white-space: nowrap;
+  font-weight: 900;
+  font-size: 15px;
+  color: var(--color-primary-strong);
+  animation: bt-float-up 0.95s var(--ease-out) var(--d, 0s) both;
+}
+@keyframes bt-punch {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.bt-punch {
+  animation: bt-punch 0.32s var(--ease-out);
+}
+.bt-screen-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  pointer-events: none;
+  overflow: hidden;
+}
+@keyframes bt-confetti-fall {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) rotate(var(--rot)); }
+}
+.bt-screen-fx > i {
+  position: absolute;
+  top: -14px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: bt-confetti-fall var(--dur, 1.6s) var(--ease-out) var(--d, 0s) both;
+}
+
 /* 접근성: "동작 줄이기" 설정 시 모든 애니메이션·전환 제거 (캐스케이드 우선순위를 위해 항상 최하단 유지) */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -1,6 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-08] 운동명 → HOWTO·대체 운동 바꾸기, 유산소 타이머 ±1분.
+ * 최신 변경: [2026-11-08] 완료 효과 강화·효과음(A 펀치·A 아케이드).
+ *            직전: [2026-11-08] 운동명 → HOWTO·대체 운동 바꾸기, 유산소 타이머 ±1분.
  *            직전: [2026-11-08] 로그 코치 기준 무게·세트 수·쉰 기간 단계.
  *            직전: [2026-11-08] 운동 추천 문구·안전 수정(T-1·2·3·4·18).
  *            직전: [2026-11-08] 관리자 승인 창 닫기·만료 회원 승인 수정(A-1·A-2).
@@ -60,6 +61,7 @@ import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIG
 import { useBackableScreen, hasOpenScreens } from './hooks/useBackableScreen'
 import { showSystemNotification, closeSystemNotification } from './components/RestTimer'
 import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DEFAULT_ACCENT, DEFAULT_FONT, DESIGN_DEFAULTS_VERSION, LOG_MODE_DEFAULT_VERSION } from './utils/fonts'
+import { setSfxEnabled } from './utils/sfx'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
@@ -403,6 +405,7 @@ export default function App() {
   // [2026-10-29] 어시스트·맨몸+추가 종목의 실제 부하(체중 ∓ 입력 무게) 계산용 체중. 렌더 중에 바로 반영해
   // 같은 렌더의 계산(볼륨·추정 1RM)부터 쓰이게 한다.
   setBodyweightKg(userDoc?.onboarding?.weightKg || 0)
+  setSfxEnabled(userDoc?.sfxEnabled !== false) // [2026-11-08] 완료 효과음(기본 켜짐)
   // [2026-10-30] 운동 목표(우선순위) → 목표 반복·휴식·주간 세트·유산소 기준(goals.js). 가입 8주 미만은 주간 세트를 낮게.
   // [2026-11-07] 코치 프로그램이 있으면 주간 유산소·부위별 세트 목표는 프로그램 숫자(점검 M3, 사용자 결정)
   setTrainingProfile(userDoc?.onboarding?.goals || [], {

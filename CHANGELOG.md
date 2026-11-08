@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-08] 완료 효과 강화·효과음(미리보기에서 사용자 선택 A 펀치 + A 아케이드): 세트 저장 체크 튀기·불꽃 크게·'+1세트' 글자, 종목 완료 순간 카드 빛·두 겹 불꽃·'종목 완료!', 운동 완료 팝업 화면 가운데 큰 불꽃 + 꽃가루(레벨 업이면 한 번 더), 효과음 세트 '띵'·종목 완료·신기록 팡파르·운동 완료·레벨 업(Web Audio로 직접 생성, 파일 없음), MY › 설정 '효과음' 켜기·끄기(users.sfxEnabled, 기본 켜짐, rules bool 검사) / 쉬었다 다시 시작해도 무게가 같으면 코치 카드가 빨강(내림)으로 보이지 않게 | utils/sfx.js(신규), ui.jsx(Burst big·FloatText·ScreenCelebration), designStyles.css, WorkoutInput.jsx, MyPageTab.jsx, App.jsx, firestore.rules
+
 [2026-11-08] 기록 중 운동명 누르기 → HOWTO 종목 상세(위에 겹쳐 열기, 기기 뒤로가기로 닫힘, 길게 누르기 가이드는 그대로) + '이 운동 대신 하기'(가이드 대체 운동 → 같은 부위·같은 동작 → 같은 부위 8개, 오늘 목록 제외): 오늘만 바꾸고(swapsToday, 루틴 순서는 그대로) 내 루틴이면 '루틴도 바꾸기' 질문, 트레이너 계획은 오늘만, 자유 운동은 목록에서 바로 교체, 저장한 세트가 있으면 확인 / 유산소 타이머 ±1분(누르고 있으면 반복, 0분 아래 금지) | WorkoutInput.jsx(swapExercise·howto 오버레이·CardioTimerPanel·useRepeatPress), HowToTab.jsx(ExerciseDetail swap·swapCandidates), LogTab.jsx·App.jsx(gender)
 
 [2026-11-08] 로그 코치 기준 바로잡기(사용자 지적: 낮게 잡음·1세트 하고 '마무리해도 돼요'·쉰 기간 반영): 기준 무게를 가장 무거운 1세트가 아닌 '가장 많은 세트를 한 무게'로(workingWeight), 더 무거운 무게로 하한 이상 해 본 세트가 있으면 증량을 그 무게부터, 오늘 세트 수는 지난번 본세트 수·권장 세트 수 중 많은 쪽(defaultPlannedCount, planSetTargets도 처방 없으면 지난번보다 안 줄임), 공백 단계화(7–13일 같은 무게·지난번 횟수 / 14–27일 + 세트 1개 덜 / 28–55일 약 10%↓ / 56일+ 약 20%↓·세트 1개 덜), 시작·웜업 화면 '다시 몸 만드는 날' 한 줄(comebackStatus) | utils/strength.js, utils/coach.js, WorkoutInput.jsx

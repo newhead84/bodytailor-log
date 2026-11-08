@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, lazy, Suspense } from 'react'
 import { useBackableScreen } from '../hooks/useBackableScreen'
+import { playSfx } from '../utils/sfx'
 // [2026-11-08] 운동명 누르기 → HOWTO 종목 상세(지연 로드, 코치 프로그램 결과 화면과 같은 방식)
 const ExerciseDetail = lazy(() => import('./HowToTab').then((m) => ({ default: m.ExerciseDetail })))
 import { ChevronDown, Info, X, SlidersHorizontal, Play, Minus, Plus } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure, PartBadge, Burst, Shine } from './ui'
+import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure, PartBadge, Burst, Shine, FloatText, ScreenCelebration } from './ui'
 import CardioTimeline from './CardioTimeline'
 import { ExerciseName } from '../utils/exerciseName'
 import { CountUp } from '../hooks/useCountUp'
@@ -107,7 +108,8 @@ function CoachPlanSummary({ exName, suggestion, label, weight, targets, unit }) 
   const lastW = suggestion.lastWeight
   const lastReps = Array.isArray(suggestion.lastReps) ? suggestion.lastReps : null
   const today = targets?.length ? targets : [suggestion.reps]
-  const kindTone = suggestion.kind === 'increase' ? 'up' : suggestion.kind === 'decrease' || suggestion.comeback || label === '쉬어 가기' ? 'down' : 'same'
+  // [2026-11-08] 쉬었다 다시 시작해도 무게가 같으면 '내림'(빨강)으로 보이지 않게 - 실제로 가벼워질 때만 down
+  const kindTone = suggestion.kind === 'increase' ? 'up' : suggestion.kind === 'decrease' || label === '쉬어 가기' ? 'down' : 'same'
   const toneColor = kindTone === 'up' ? 'var(--color-success)' : kindTone === 'down' ? 'var(--color-danger)' : 'var(--color-label-strong)'
   if (lastW == null || !lastReps) {
     return (
@@ -1548,6 +1550,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       setRecords((r) => ({ ...r, [name]: r[name].map((st, i) => (i === idx ? { ...st, savedAt: Date.now() } : st)) }))
       return
     }
+    // [2026-11-08] 효과음(A 아케이드): 세트 저장 '띵', 신기록이면 팡파르
+    let prSound = false
     if (savedSet && savedSet.type !== 'warmup' && getExerciseInputType(parseExerciseKey(name).name) === 'sets') {
       const exName = parseExerciseKey(name).name
       // [2026-10-29] 실제 부하 기준(어시스트 = 체중 − 보조, 맨몸+추가 = 체중 + 추가)
@@ -1558,9 +1562,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       const prevBest = Math.max(personalRecords?.[name]?.e1rm || 0, sessionBest)
       if (v > 0 && personalRecords?.[name]?.e1rm && v > prevBest) {
         showToast(`신기록! 추정 1RM ${v}kg (+${Math.round((v - prevBest) * 10) / 10})`, 2600)
+        prSound = true
       }
       if (v > (sessionBestRef.current[name] || 0)) sessionBestRef.current[name] = v
     }
+    if (savedSet) playSfx(prSound ? 'pr' : 'set')
     // [2026-10-30 추천 고도화] 방금 저장한 본세트가 목표 범위를 크게 벗어나면 다음 세트 무게 제안(아니면 이전 제안 지움)
     {
       // [2026-11-02 로그 코치] 이 세트 전에 저장한 본세트(웜업·드롭 제외)·오늘 목표 세트 수·이미 한 증량 제안 수를 함께 넘긴다
@@ -1864,6 +1870,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // [2026-08-02 수정] 응원 멘트 토스트(⑨)가 세트 하나 저장할 때마다 떠서 너무 잦다는
   // 피드백으로, 종목 하나를 통째로 "세트완료" 처리하는 이 시점으로 옮겼다.
   function completeExercise(name) {
+    playSfx('ex') // [2026-11-08] 종목 완료 효과음
     setCompletedExercises((c) => ({ ...c, [name]: true }))
     unpairSuperset(name)
     // [2026-10-27] 체크한 세트가 있는 종목을 "세트완료"하면, 그 뒤에 자동으로 생겨 있던 빈 다음 세트 행
@@ -2628,6 +2635,14 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
     const id = requestAnimationFrame(() => setBarPct(after.progress * 100))
     return () => cancelAnimationFrame(id)
   }, [after.progress])
+  // [2026-11-08] 완료 효과 강화 A: 운동 완료 팡파르, 레벨 업이면 이어서 레벨 업 소리(팝업이 뜰 때 한 번)
+  useEffect(() => {
+    playSfx('done')
+    if (!leveledUp && !stagedUp) return undefined
+    const id = setTimeout(() => playSfx('lv'), 1500)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const mins = Math.max(0, Math.round((summary?.durationSec || 0) / 60))
   const stats = summary
     ? [
@@ -2660,6 +2675,9 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
         padding: 24,
       }}
     >
+      {/* [2026-11-08] 완료 효과 강화 A: 화면 가운데 큰 불꽃 + 꽃가루, 레벨 업이면 한 번 더 */}
+      <ScreenCelebration confetti={40} />
+      {(leveledUp || stagedUp) && <ScreenCelebration key="lv" confetti={30} radius={140} delay={1.5} />}
       <div
         className="bt-celebrate-pop"
         style={{
@@ -2885,9 +2903,32 @@ export function ExerciseCard({
   const hasSavedWorking = sets.some((st) => st.saved && st.type !== 'warmup')
   const guideRow = Math.max(0, sets.findIndex((st) => !st.saved))
   const fmtKg = (n) => (Number.isInteger(n) ? n : Number(n).toFixed(1))
+  // [2026-11-08] 종목이 '완료'로 바뀐 순간에만 효과(처음 그릴 때·새로고침 복원 때는 없음)
+  const [doneFx, setDoneFx] = useState(0)
+  const wasDoneRef = useRef(isDone)
+  useEffect(() => {
+    if (isDone && !wasDoneRef.current) {
+      setDoneFx(Date.now())
+      const id = setTimeout(() => setDoneFx(0), 1400)
+      wasDoneRef.current = isDone
+      return () => clearTimeout(id)
+    }
+    wasDoneRef.current = isDone
+    return undefined
+  }, [isDone])
 
   return (
-    <Card ref={cardRef} style={{ padding: 0 }} data-guide-card={expanded && !isDone ? 'open' : undefined}>
+    <Card ref={cardRef} style={{ padding: 0, position: 'relative' }} data-guide-card={expanded && !isDone ? 'open' : undefined}>
+      {/* [2026-11-08] 완료 효과 강화 A: 종목 완료 순간 카드에 빛 + 두 겹 불꽃 + '종목 완료!' */}
+      {doneFx > 0 && (
+        <React.Fragment key={doneFx}>
+          <Shine delay={0} />
+          <span style={{ position: 'absolute', left: '50%', top: 28, width: 0, height: 0, zIndex: 4 }}>
+            <Burst big radius={54} count={16} color="var(--color-success)" />
+          </span>
+          <FloatText text="종목 완료!" style={{ top: 6, fontSize: 18, color: 'var(--color-success)', textShadow: '0 1px 0 var(--color-bg), 0 0 6px var(--color-bg)' }} />
+        </React.Fragment>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 10px 6px', gap: 6 }}>
         {draggable && (
           <div
@@ -3630,10 +3671,12 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
         {rirEnabled && !isHoldExercise(exName) && <RirChip rir={set.rir} onClick={onCycleRir} guideKey={guide ? 'rir' : undefined} />}
         {/* [2026-11-08 순간 강조] 세트를 저장한 순간 체크 둘레로 작은 불꽃 */}
         <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <IconButton guideKey={guide ? 'set-save' : undefined} title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-check-pop' : ''}>
+          <IconButton guideKey={guide ? 'set-save' : undefined} title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-punch' : ''}>
             <path d="M5 12l5 5L19 7" />
           </IconButton>
-          {justSaved && <Burst key={set.savedAt} radius={21} count={8} color="var(--color-success)" />}
+          {/* [2026-11-08] 완료 효과 강화 A: 불꽃 크게 + '+1세트' 글자(웜업은 글자 없이) */}
+          {justSaved && <Burst key={set.savedAt} radius={30} count={10} color="var(--color-success)" />}
+          {justSaved && set.type !== 'warmup' && <FloatText key={`f${set.savedAt}`} text="+1세트" style={{ top: -10 }} />}
         </span>
         {/* [2026-10-29] 세트 삭제(×)는 ± 버튼 자리를 넓히려고 빼고, 번호 칸 길게 누르기로 옮김 */}
       </div>
