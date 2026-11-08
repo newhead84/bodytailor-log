@@ -452,7 +452,7 @@ function suggestByLastSession(name, lastRecord, setting) {
 //     목표가 내려가던 문제(9·8·7 → 8회 → 7회 …)를 고쳐 지난번 세트마다 +1회(상한까지)로 제시한다.
 //  2) 증량까지 남은 거리(progress): 최고 무게 세트 총 반복 / 증량 기준(상한×세트 수×90%).
 //  3) 정체(stall): 같은 무게로 3회째 총 반복이 처음보다 늘지 않으면 대처 방법을 함께 보여준다.
-//  4) 공백 후 복귀(comeback): 마지막 기록이 7일 이상 전이면 쉰 기간에 맞춰 다시 시작(2026-11-08 단계화, 아래 참고).
+//  4) 공백 후 복귀(comeback): 그 종목 마지막 기록이 21일 이상 전이면 쉰 기간에 맞춰 다시 시작(2026-11-08 단계화, 아래 참고).
 // lastRecord: { date, sets, prev?, history?(최신 순, history[0] = lastRecord) }, opts.today: 'YYYY-MM-DD'(기본 오늘)
 function workingTop(name, sets) {
   const zeroOk = allowsZeroWeight(name)
@@ -572,13 +572,13 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
 
   // [2026-11-08] 공백 후 복귀를 쉰 기간에 따라 나눈다(사용자 지적: 14일만 지나도 10% 가볍게 + 최저 횟수라 너무 낮았다).
   // 근력은 3주 안팎까지 거의 유지되고 그 뒤로 서서히 줄어든다(탈훈련 연구 종합, Bosquet 외 2013 · Mujika·Padilla 2000).
-  //  7–13일: 같은 무게, 지난번 횟수까지(+1회 없이) / 14–27일: 같은 무게·지난번 횟수, 세트 1개 덜 /
+  //  20일까지: 평소대로(주 1회·격주 분할도 매번 '다시 시작'이 되지 않게) / 21–27일: 같은 무게, 지난번 횟수까지(+1회 없이) /
   //  28–55일: 약 10% 가볍게, 지난번 횟수 / 56일 이상: 약 20% 가볍게, 세트 1개 덜
   const gap = daysBetween(lastRecord.date, opts.today || todayStr())
-  if (Number.isFinite(gap) && gap >= 7) {
+  if (Number.isFinite(gap) && gap >= 21) {
     const validW = (w) => isAssistedExercise(name) || w > 0 || allowsZeroWeight(name)
     const lastTargets = top.reps.map((r) => Math.max(isHoldExercise(name) ? 0 : 1, Math.min(r, repMax)))
-    const setCut = gap >= 56 || (gap >= 14 && gap < 28) ? 1 : 0
+    const setCut = gap >= 56 ? 1 : 0
     let w = top.topW
     if (gap >= 28) {
       w = lighterWeight(name, w, setting)
@@ -601,10 +601,8 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
       comeback: gap,
       setCut,
       reason:
-        gap < 14
-          ? `${gap}일 쉬었어요 → ${loadWith(name, wFinal)} 지난번 횟수(${top.reps.join('·')}회)만 다시 채워요(힘은 그대로예요)`
-          : gap < 28
-          ? `${gap}일 쉬었어요 → ${loadWith(name, wFinal)} 지난번 횟수만, 세트는 하나 덜 해요(힘은 3주 안팎까지 거의 유지돼요)`
+        gap < 28
+          ? `${gap}일 만이에요 → ${loadWith(name, wFinal)} 지난번 횟수(${top.reps.join('·')}회)만 다시 채워요(힘은 3주 안팎까지 거의 유지돼요)`
           : lighter
           ? `${howLong} 쉬었어요 → ${loadWith(name, wFinal)} 조금 가볍게 시작해요${setCut ? '(세트도 하나 덜)' : ''} · 1–2주면 원래 무게로 돌아가요`
           : `${howLong} 쉬었어요 → 무게는 ${loadLabel(name, wFinal)} 그대로, ${repMin}회만 채우며 가볍게 시작해요${setCut ? '(세트도 하나 덜)' : ''}`,
@@ -748,7 +746,7 @@ export const COACH_EVIDENCE = {
   reps: { text: '같은 무게로 횟수를 늘리는 것도 무게를 올리는 것만큼 근육을 키워요. 하루 컨디션에 흔들리지 않게 최근 몇 번의 평균을 기준으로 목표를 잡았어요.', src: [SRC.plotkin] },
   hold: { text: '한계까지 갔거나 컨디션이 나빴던 날은, 무게를 올리기 전에 같은 무게로 한 번 더 확인해요. 매번 한계까지 하는 게 더 효과적이지는 않아요.', src: [SRC.grgic] },
   decrease: { text: '두 번 연속 목표보다 많이 모자라면 무게를 10%쯤 낮춰 다시 쌓아요. 가벼운 무게라도 한계 가까이 하면 근육은 비슷하게 자라요.', src: [SRC.loads] },
-  comeback: { text: '쉰 기간에 맞춰 다시 시작해요. 3주 안팎까지는 힘이 거의 그대로라 같은 무게로 지난번 횟수만 채우고(2주 넘으면 세트 하나 덜), 4주 넘게 쉬었으면 10%쯤, 8주 넘으면 20%쯤 가볍게 시작해요. 줄어든 힘은 다시 운동하면 금방 돌아와요.', src: [SRC.comeback] },
+  comeback: { text: '쉰 기간에 맞춰 다시 시작해요. 3주까지는 힘이 거의 그대로라 평소대로, 3–4주 만이면 같은 무게로 지난번 횟수만 채우고, 4주 넘게 쉬었으면 10%쯤, 8주 넘으면 20%쯤 가볍게 시작해요. 줄어든 힘은 다시 운동하면 금방 돌아와요.', src: [SRC.comeback] },
   sets: {
     text: '근육은 한 부위를 일주일에 4세트만 해도 자라기 시작하고, 더 할수록 조금씩 더 자라요(늘어나는 폭은 점점 작아져요). 힘(근력)은 한 번에 많이 하기보다 일주일에 2~3번 나눠 할 때 더 늘어요. 처음 두 달은 종목당 1~3세트로 시작해요.',
     src: [SRC.acsm],
