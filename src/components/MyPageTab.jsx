@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronLeft, ExternalLink, Settings, Link2, Share2 } from 'lucide-react'
-import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches, ScreenHeader } from './ui'
+import { ChevronDown, ChevronLeft, ExternalLink, Settings, Link2, Share2, Award } from 'lucide-react'
+import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches, ScreenHeader, Burst, Shine } from './ui'
+import { useMoment } from '../hooks/useMoment'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
 import { getMyTrainerConnection, memberEndConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
@@ -123,6 +124,39 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, isActive, lifetimeXpKey])
   const achievements = useMemo(() => (achievementLogs ? computeAchievements(achievementLogs, userDoc?.prs || {}, { bodyweightKg: userDoc?.onboarding?.weightKg, weeklyTargetDays: userDoc?.weeklyTargetDays }) : null), [achievementLogs, userDoc?.prs, userDoc?.onboarding?.weightKg, userDoc?.weeklyTargetDays])
+
+  // [2026-11-08 순간 강조] 등급 카드: MY를 처음 볼 때(세션당 한 번) 빛이 스침, 지난번 본 뒤 Lv이 올랐으면 엠블럼 둘레로 불꽃.
+  // 새로 딴 성취는 '새 성취' 줄(빛·불꽃) + 성취 칸이 뒤집히며 나타남. 지난번 본 값은 이 기기 localStorage(처음 보는 기기는 축하 없이 기록만).
+  const tierMoment = useMoment(uid ? `my-tier:${uid}` : null, isActive)
+  const [levelBurst, setLevelBurst] = useState(false)
+  useEffect(() => {
+    if (!isActive || !uid) return
+    const k = `bt-seen-level:${uid}`
+    let prev = null
+    try {
+      prev = Number(localStorage.getItem(k)) || null
+      localStorage.setItem(k, String(levelInfo.level))
+    } catch (_) {
+      return
+    }
+    if (prev && levelInfo.level > prev) setLevelBurst(true)
+  }, [isActive, uid, levelInfo.level])
+  const [newAchievements, setNewAchievements] = useState([])
+  useEffect(() => {
+    if (!isActive || !uid || !achievements) return
+    const k = `bt-seen-ach:${uid}`
+    const earned = achievements.filter((a) => a.earned).map((a) => a.id)
+    let seen = null
+    try {
+      seen = JSON.parse(localStorage.getItem(k) || 'null')
+      localStorage.setItem(k, JSON.stringify(earned))
+    } catch (_) {
+      return
+    }
+    if (!Array.isArray(seen)) return
+    const fresh = achievements.filter((a) => a.earned && !seen.includes(a.id))
+    if (fresh.length) setNewAchievements(fresh)
+  }, [isActive, uid, achievements])
 
   // 키/몸무게가 모두 있으면 BMI를 자동 계산해 표시(체중(kg) / 키(m)^2).
   // [2026-07-28] 판정 구간을 10단계로 세분화(사용자 제공 기준표 반영).
@@ -815,11 +849,15 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           카드를 탭하면 티어·XP 안내로 이동하는 동작(onShowTierInfo)은 그대로 유지된다. */}
       <SectionTitle>등급</SectionTitle>
       {/* [2026-10-29 등급 리뉴얼] 큰 Lv 숫자 + 단계명, 다음 Lv까지 진행 막대 */}
-      <Card onClick={onShowTierInfo} style={{ marginBottom: 20 }}>
+      <Card onClick={onShowTierInfo} style={{ marginBottom: 20, position: 'relative' }}>
+        {(tierMoment || levelBurst) && <Shine delay={0.35} />}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             {/* [2026-10-29] 등급 방패 엠블럼(단계별) */}
-            <TierEmblem tierKey={tier.key} size={52} />
+            <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+              <TierEmblem tierKey={tier.key} size={52} />
+              {levelBurst && <Burst radius={40} count={12} delay={0.5} />}
+            </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
               <span className="bt-num" style={{ fontSize: 'calc(34px * var(--num-scale))', lineHeight: 1, color: 'var(--color-label-strong)' }}>
                 Lv <CountUp value={levelInfo.level} />
@@ -858,7 +896,19 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <div style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>불러오는 중…</div>
         ) : (
           <>
-            <AchievementPager achievements={achievements} />
+            {newAchievements.length > 0 && (
+              <div className="bt-enter" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 10, borderRadius: 'var(--radius-md)', background: 'var(--color-primary-bg)', border: '1px solid var(--color-fill-strong)' }}>
+                <Shine delay={0.4} />
+                <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                  <Award size={16} strokeWidth={2.2} aria-hidden="true" style={{ color: 'var(--color-primary-strong)' }} />
+                  <Burst radius={18} count={8} delay={0.3} />
+                </span>
+                <span className="text-keep-all" style={{ minWidth: 0, fontSize: 13, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+                  새 성취 · {newAchievements.map((a) => a.title).join(', ')}
+                </span>
+              </div>
+            )}
+            <AchievementPager achievements={achievements} newIds={newAchievements.map((a) => a.id)} />
           </>
         )}
       </Card>

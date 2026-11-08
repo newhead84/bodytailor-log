@@ -262,7 +262,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
         <EmptyState title="아직 통계가 없어요" description="운동 기록을 입력하면 주간 요약·근육별 세트·근력 추이가 여기에 쌓여요." />
       ) : (
         <>
-          <WeekSummaryCard logs={logs} targetDays={attendanceTargetDays} overload={overloadSummary} />
+          <WeekSummaryCard logs={logs} targetDays={attendanceTargetDays} overload={overloadSummary} active={isActive} />
           <HealthPillarsCard logs={logs} liveExercises={liveExercises} lastFitnessDate={lastFitnessDate} onOpenFitness={onOpenFitness} />
           <MuscleSetsCard logs={logs} liveExercises={liveExercises} />
           <StrengthTrendCard logs={logs} isActive={isActive} />
@@ -359,7 +359,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
               </Card>
             )
           })()}
-          <RankingList entries={entries} uid={uid} myNickname={userDoc?.nickname} onOpenMine={onShowTierInfo} />
+          <RankingList entries={entries} uid={uid} myNickname={userDoc?.nickname} onOpenMine={onShowTierInfo} active={isActive} />
         </div>
       )}
 

@@ -2,7 +2,8 @@
 // 질문 10개(한 화면에 하나) → 결과(주간 계획·종목별 세트×횟수·유산소·이렇게 정한 이유) → '이 프로그램으로 시작'.
 // 저장하면 내 루틴 '코치 프로그램' 하나가 생기고(이미 있으면 바꿈), 운동 중 로그 코치가 그 처방(세트 수·목표 횟수·유산소 분)을 따른다.
 // 트레이너 계획이 있으면 그 계획이 우선(트레이너 계획으로 운동하는 날은 처방을 쓰지 않음).
-import React, { useMemo, useState } from 'react'
+import React, { Suspense, lazy, useMemo, useState } from 'react'
+import { CountUp } from '../hooks/useCountUp'
 import { Button, Card, Chip, Disclosure, ScreenHeader, PartBadge } from './ui'
 import { GoalPicker } from './GoalPicker'
 import { PROGRAM_QUESTIONS, DEFAULT_ANSWERS, buildProgram, findCoachProgramTemplate, atomOf } from '../utils/programBuilder'
@@ -13,6 +14,9 @@ import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { isHoldExercise } from '../utils/load'
 import { saveCoachProgram, MAX_ROUTINE_TEMPLATES, isOwnRoutine } from '../storage'
 import { ExerciseName } from '../utils/exerciseName'
+
+// [2026-11-08] 운동명을 누르면 HOWTO 종목 상세를 프로그램 화면 위에 띄운다(처음 보는 종목 이름 확인용)
+const ExerciseDetail = lazy(() => import('./HowToTab').then((m) => ({ default: m.ExerciseDetail })))
 
 const tileStyle = (active) => ({
   width: '100%',
@@ -41,6 +45,7 @@ export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, o
   const [step, setStep] = useState(0) // 0..질문 수-1, 질문 수 = 결과
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [guideName, setGuideName] = useState(null)
   const total = PROGRAM_QUESTIONS.length
   const q = PROGRAM_QUESTIONS[step]
   const program = useMemo(() => (step >= total ? buildProgram(answers) : null), [step, total, answers])
@@ -49,7 +54,8 @@ export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, o
   const canNext = !q || q.id !== 'goals' || rankedGoalIds(answers.goals).length > 0
   const back = () => (step === 0 ? onClose() : setStep((s) => s - 1))
   // [2026-11-07] 기기 뒤로가기도 화면 위 ‹처럼 이전 질문으로(첫 질문이면 닫힘)
-  if (backRef) backRef.current = step > 0 ? () => setStep((s) => Math.max(0, s - 1)) : null
+  // [2026-11-08] 운동 가이드가 떠 있으면 뒤로가기는 가이드만 닫는다
+  if (backRef) backRef.current = guideName ? () => setGuideName(null) : step > 0 ? () => setStep((s) => Math.max(0, s - 1)) : null
 
   async function handleSave() {
     if (!program) return
@@ -134,7 +140,14 @@ export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, o
           {!canNext && <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>목표를 하나 이상 골라 주세요.</p>}
         </>
       ) : (
-        program && <ProgramResult program={program} intensity={answers.intensity} existing={!!existing} hasTrainerPlan={hasTrainerPlan} coachOff={userDoc?.coachEnabled === false} saving={saving} error={error} onSave={handleSave} onRedo={() => setStep(0)} />
+        program && <ProgramResult program={program} intensity={answers.intensity} existing={!!existing} hasTrainerPlan={hasTrainerPlan} coachOff={userDoc?.coachEnabled === false} saving={saving} error={error} onSave={handleSave} onRedo={() => setStep(0)} onOpenGuide={setGuideName} />
+      )}
+      {guideName && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--color-bg)', overflowY: 'auto', padding: '0 16px 40px', paddingBottom: 'calc(40px + var(--safe-bottom, 0px))' }}>
+          <Suspense fallback={<p style={{ padding: 24, textAlign: 'center', color: 'var(--color-label-neutral)' }}>불러오는 중...</p>}>
+            <ExerciseDetail key={guideName} uid={uid} name={guideName} routineTemplates={templates || []} onBack={() => setGuideName(null)} onOpenExercise={setGuideName} editor={null} backLabel="프로그램으로" />
+          </Suspense>
+        </div>
       )}
     </div>
   )
@@ -142,7 +155,7 @@ export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, o
 
 const ATOM_ORDER = ['가슴', '등', '어깨', '하체', '이두', '삼두', '코어']
 
-function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff, saving, error, onSave, onRedo }) {
+function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff, saving, error, onSave, onRedo, onOpenGuide }) {
   const it = COACH_INTENSITIES.find((c) => c.id === intensity) || COACH_INTENSITIES[2]
   const rotation = Array.from({ length: program.days }, (_, i) => program.parts[i % program.parts.length].name)
   const avgMin = Math.round(program.sessionMin.reduce((x, y) => x + y, 0) / program.sessionMin.length)
@@ -161,15 +174,18 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
 
       {/* 주간 4기둥 요약 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 14 }}>
+        {/* [2026-11-08 모션] 숫자는 카운트업, 칸은 차례로 떠오름 */}
         {[
-          ['근력', `주 ${program.strengthMinWeek}분`],
-          ['유산소', `주 ${program.cardioMinWeek}분`],
-          ['인터벌', Object.values(program.coachRx).some((r) => r.kind === 'interval') ? '주 1회' : '익숙해지면'],
-          ['코어·균형', `주 ${Math.round(program.parts.filter((p) => p.exercises.some((n) => atomOf(n) === '코어')).length * program.sessionsPerPart)}회`],
-        ].map(([k, v]) => (
-          <div key={k} style={{ padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-card)', border: '1px solid var(--color-line)' }}>
+          ['근력', program.strengthMinWeek, '분'],
+          ['유산소', program.cardioMinWeek, '분'],
+          ['인터벌', Object.values(program.coachRx).some((r) => r.kind === 'interval') ? 1 : null, '회'],
+          ['코어·균형', Math.round(program.parts.filter((p) => p.exercises.some((n) => atomOf(n) === '코어')).length * program.sessionsPerPart), '회'],
+        ].map(([k, v, unit], i) => (
+          <div key={k} className="bt-enter" style={{ animationDelay: `${i * 0.06}s`, padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-card)', border: '1px solid var(--color-line)' }}>
             <div style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{k}</div>
-            <div className="bt-num" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>{v}</div>
+            <div className="bt-num" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+              {v == null ? '익숙해지면' : <>주 <CountUp value={v} />{unit}</>}
+            </div>
           </div>
         ))}
       </div>
@@ -184,29 +200,38 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
         ))}
       </p>
 
+      <p className="text-keep-all" style={{ margin: '0 0 8px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>운동 이름을 누르면 하는 방법을 볼 수 있어요.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
         {program.parts.map((p, i) => (
-          <Card key={p.name}>
+          <Card key={p.name} className="bt-enter" style={{ animationDelay: `${0.2 + i * 0.08}s` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>{p.name}</span>
               <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>약 <span className="bt-num">{program.sessionMin[i]}</span>분</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {p.exercises.map((n) => {
+              {p.exercises.map((n, j) => {
                 const rx = program.coachRx[n] || {}
                 const cardio = getExerciseInputType(n) === 'cardio'
                 const hold = isHoldExercise(n)
                 return (
-                  <div key={n} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 14, color: 'var(--color-label-strong)' }}>
-                      <PartBadge atom={atomOf(n)} />
-                      <span className="text-keep-all" style={{ minWidth: 0 }}><ExerciseName name={n} /></span>
-                    </span>
-                    <span className="bt-num" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-normal)', whiteSpace: 'nowrap' }}>
+                  // [2026-11-08] 부위 칸을 고정 폭 열로(가장 긴 '유산소' 기준) - 운동명이 같은 세로선에서 시작
+                  // 운동명은 누르면 HOWTO 종목 상세(점선 밑줄로 누를 수 있음을 표시, 320px에서 이름 칸을 넓히려고 배지를 줄임)
+                  <div key={n} className="bt-row-in" style={{ animationDelay: `${0.3 + i * 0.08 + j * 0.035}s`, display: 'grid', gridTemplateColumns: '52px minmax(0, 1fr) auto', columnGap: 8, rowGap: 2, alignItems: 'center' }}>
+                    <span style={{ display: 'flex' }}><PartBadge atom={atomOf(n)} style={{ padding: '1px 5px', gap: 3, fontSize: 11 }} /></span>
+                    <button
+                      type="button"
+                      onClick={() => onOpenGuide?.(n)}
+                      aria-label={`${n} 운동 방법 보기`}
+                      className="text-keep-all"
+                      style={{ display: 'block', minWidth: 0, minHeight: 32, padding: '4px 0', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', font: 'inherit', fontSize: 14, lineHeight: 1.35, color: 'var(--color-label-strong)', textDecoration: 'underline dotted', textDecorationColor: 'var(--color-label-neutral)', textUnderlineOffset: 4 }}
+                    >
+                      <ExerciseName name={n} />
+                    </button>
+                    <span className="bt-num" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-normal)', whiteSpace: 'nowrap' }}>
                       {cardio ? `${rx.minutes}분` : `${rx.sets}세트 × ${rx.repMin}–${rx.repMax}${hold ? '초' : '회'}`}
                     </span>
                     {cardio && rx.note && (
-                      <span className="text-keep-all" style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--color-label-neutral)' }}>{rx.note}</span>
+                      <span className="text-keep-all" style={{ gridColumn: '2 / -1', fontSize: 12, color: 'var(--color-label-neutral)' }}>{rx.note}</span>
                     )}
                   </div>
                 )

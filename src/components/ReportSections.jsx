@@ -7,7 +7,8 @@
 //  - HealthPillarsCard(2026-11-07): 건강 체력 4가지(근력·유산소·숨찬 운동·코어·균형) 이번 주 + 체력 점검 바로가기
 import React, { useMemo, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Card, SectionTitle, Disclosure } from './ui'
+import { Card, SectionTitle, Disclosure, Burst, Shine } from './ui'
+import { useMoment } from '../hooks/useMoment'
 import { CountUp } from '../hooks/useCountUp'
 import { BODY_PART_ATOMS, getExerciseAtom, getExerciseInputType, getPartColor, EXERCISE_META } from '../utils/exerciseLibrary'
 import { cardioStats } from '../utils/cardioFields'
@@ -59,8 +60,11 @@ function Delta({ now, prev, unit = '', pct = false }) {
 }
 
 // ───────── 이번 주 요약 ─────────
-export function WeekSummaryCard({ logs, targetDays, overload }) {
+export function WeekSummaryCard({ logs, targetDays, overload, active = true }) {
   const thisW = inWeek(logs, 0)
+  // [2026-11-08 순간 강조] 운동한 날이 주간 목표에 닿으면 REPORT를 볼 때 주마다 한 번 빛·불꽃 + '목표 달성' 표시
+  const goalMet = targetDays > 0 && new Set(thisW.map((l) => l.date)).size >= targetDays
+  const moment = useMoment(goalMet ? `report-week-goal:${startOfWeekStr()}` : null, active && goalMet)
   const lastW = lastWeekSoFar(logs)
   const days = (arr) => new Set(arr.map((l) => l.date)).size
   const vol = (arr) => Math.round(arr.reduce((s, l) => s + logVolumeKg(l), 0))
@@ -73,14 +77,23 @@ export function WeekSummaryCard({ logs, targetDays, overload }) {
   return (
     <>
       <SectionTitle>이번 주</SectionTitle>
-      <Card style={{ marginBottom: 20 }}>
+      <Card style={{ marginBottom: 20, position: 'relative' }}>
+        {moment && <Shine delay={0.35} />}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px 12px' }}>
-          {tiles.map((t) => (
+          {tiles.map((t, ti) => (
             <div key={t.label} style={{ minWidth: 0 }}>
               <div className="text-keep-all" style={{ ...muted, marginBottom: 4 }}>{t.label}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
-                <span className="bt-num" style={{ fontSize: 'calc(26px * var(--num-scale, 1))', lineHeight: 1.1 }}><CountUp value={t.v} /></span>
+                <span className="bt-num" style={{ position: 'relative', fontSize: 'calc(26px * var(--num-scale, 1))', lineHeight: 1.1 }}>
+                  {ti === 0 && moment && <Burst radius={24} count={10} delay={0.6} />}
+                  <CountUp value={t.v} />
+                </span>
                 <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>{t.suffix}</span>
+                {ti === 0 && goalMet && (
+                  <span className={moment ? 'bt-badge-in' : undefined} style={{ padding: '1px 7px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                    목표 달성
+                  </span>
+                )}
               </div>
               <div style={{ marginTop: 2 }}>{t.delta} <span style={{ ...muted, fontSize: 12 }}>{t.label === '지난번보다 늘어난 운동' ? '' : '지난주 같은 요일까지 대비'}</span></div>
             </div>
@@ -380,8 +393,10 @@ export function FrequentBySetsCard({ logs }) {
 }
 
 // ───────── 랭킹(상위 10명 + 나) ─────────
-export function RankingList({ entries, uid, myNickname, onOpenMine }) {
+export function RankingList({ entries, uid, myNickname, onOpenMine, active = true }) {
   const myIdx = entries.findIndex((e) => e.uid === uid)
+  // [2026-11-08 순간 강조] 내 줄은 REPORT를 처음 볼 때(세션당 한 번) 빛이 한 번 스쳐 지나감
+  const myMoment = useMoment(myIdx >= 0 ? 'report-my-rank' : null, active && myIdx >= 0)
   const rows = entries.slice(0, 10).map((e, i) => ({ e, rank: rankAt(entries, i), first: i === 0 }))
   if (myIdx >= 10) rows.push({ e: entries[myIdx], rank: rankAt(entries, myIdx), gap: true })
   return (
@@ -395,7 +410,7 @@ export function RankingList({ entries, uid, myNickname, onOpenMine }) {
               type="button"
               onClick={me ? onOpenMine : undefined}
               disabled={!me}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 0', borderTop: !first && !gap ? '1px solid var(--color-line)' : 'none', textAlign: 'left', color: 'var(--color-label-strong)', cursor: me ? 'pointer' : 'default', opacity: 1 }}
+              style={{ position: me ? 'relative' : undefined, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 0', borderTop: !first && !gap ? '1px solid var(--color-line)' : 'none', textAlign: 'left', color: 'var(--color-label-strong)', cursor: me ? 'pointer' : 'default', opacity: 1 }}
             >
               <span className="bt-num" style={{ width: 28, fontSize: rank <= 3 ? 20 : 16, fontWeight: 800, color: rank <= 3 ? 'var(--color-label-strong)' : 'var(--color-label-neutral)' }}>{rank}</span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: me ? 800 : 600 }}>
@@ -406,6 +421,7 @@ export function RankingList({ entries, uid, myNickname, onOpenMine }) {
                 <span style={{ ...muted, fontSize: 12, marginLeft: 2 }}>점</span>
               </span>
               {me && <span style={{ ...muted, fontSize: 12 }}>›</span>}
+              {me && myMoment && <Shine delay={0.5} />}
             </button>
           </React.Fragment>
         )

@@ -512,3 +512,20 @@ export function PartBadge({ atom, color, style }) {
     </span>
   )
 }
+
+// [2026-11-08] 순간 강조: 빛이 한 번 스쳐 지나가는 층. 부모는 position: relative(모서리는 부모를 따름).
+export function Shine({ delay = 0.15 }) {
+  return <span aria-hidden="true" className="bt-shine bt-shine-layer" style={{ '--shine-delay': `${delay}s` }} />
+}
+
+// [2026-11-08] 순간 강조: 작은 불꽃이 퍼졌다 사라지는 장식(성취 순간에만). 부모는 position: relative.
+// 동작 줄이기 설정이면 designStyles.css 맨 아래 규칙으로 바로 끝나 보이지 않는다. 다시 재생하려면 key를 바꾼다.
+export function Burst({ radius = 26, count = 8, color, delay = 0, style }) {
+  return (
+    <span aria-hidden="true" className="bt-burst" style={{ '--r': `${radius}px`, '--d': `${delay}s`, ...(color ? { '--burst-color': color } : null), ...style }}>
+      {Array.from({ length: count }, (_, i) => (
+        <i key={i} style={{ '--a': `${(360 / count) * i}deg` }} />
+      ))}
+    </span>
+  )
+}

@@ -6,10 +6,11 @@ import { Award, Lock } from 'lucide-react'
 
 const PER_PAGE = 6
 
-function AchievementTile({ a }) {
+function AchievementTile({ a, isNew = false }) {
   return (
     <div
-      className="text-keep-all"
+      // [2026-11-08 순간 강조] 새로 딴 성취는 카드가 뒤집히며 나타남
+      className={isNew ? 'text-keep-all bt-flip-in' : 'text-keep-all'}
       style={{
         padding: '10px 10px 9px',
         borderRadius: 'var(--radius-md)',
@@ -44,7 +45,7 @@ function AchievementTile({ a }) {
   )
 }
 
-export default function AchievementPager({ achievements }) {
+export default function AchievementPager({ achievements, newIds = [] }) {
   const scrollerRef = useRef(null)
   const [page, setPage] = useState(0)
   const pages = useMemo(() => {
@@ -90,7 +91,7 @@ export default function AchievementPager({ achievements }) {
             style={{ flex: '0 0 100%', minWidth: 0, scrollSnapAlign: 'start', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridAutoRows: 'minmax(96px, auto)', gap: 8, alignContent: 'start' }}
           >
             {pg.items.map((a) => (
-              <AchievementTile key={a.id} a={a} />
+              <AchievementTile key={a.id} a={a} isNew={newIds.includes(a.id)} />
             ))}
           </div>
         ))}

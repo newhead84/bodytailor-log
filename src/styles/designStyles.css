@@ -424,6 +424,111 @@ button:active:not(:disabled) {
 .bt-reveal > div > *:nth-child(7) { animation-delay: 0.24s; }
 .bt-reveal > div > *:nth-child(n + 8) { animation-delay: 0.28s; }
 
+/* ───────── [2026-11-08] 순간 강조 모션(사용자 선택 B: 평소는 차분, 성취 순간에만 0.6~1.2초) ─────────
+   .bt-shine : 한 번 빛이 스쳐 지나감(등급 카드·주간 목표 달성·레벨 업·신기록 알림). 부모에 position·overflow를 건다.
+   .bt-burst : 작은 불꽃이 퍼졌다 사라짐(ui.jsx <Burst/>). 끝 상태가 투명이라 동작 줄이기에서도 남지 않는다.
+   .bt-glow-once : 진행 막대·칸이 한 번 은은하게 빛남. 반복(infinite) 애니메이션은 쓰지 않는다. */
+@keyframes bt-shine-sweep {
+  0% { transform: translateX(-130%) skewX(-18deg); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateX(260%) skewX(-18deg); opacity: 0; }
+}
+.bt-shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.bt-shine::after {
+  content: '';
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  width: 42%;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-fill-strong) 30%, rgba(255, 255, 255, 0.5)), transparent);
+  animation: bt-shine-sweep 1.1s var(--ease-out) var(--shine-delay, 0.15s) both;
+}
+.bt-shine-layer {
+  /* 불꽃(Burst)이 잘리지 않게 빛만 따로 겹친 층에서 자른다(ui.jsx <Shine/>) */
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+}
+@keyframes bt-spark {
+  0% { transform: rotate(var(--a)) translateY(calc(var(--r) * -0.35)) scaleY(0.3); opacity: 0; }
+  18% { opacity: 1; }
+  100% { transform: rotate(var(--a)) translateY(calc(var(--r) * -1)) scaleY(1); opacity: 0; }
+}
+@keyframes bt-burst-ring {
+  0% { transform: scale(0.25); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 0; }
+}
+.bt-burst {
+  /* 밝은 강조색(라임)은 베이지·라이트 바탕에서 잘 안 보여 글자용 강조색을 섞는다 */
+  --burst-default: color-mix(in srgb, var(--color-fill-strong) 55%, var(--color-primary-strong));
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.bt-burst::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--r) * -1);
+  top: calc(var(--r) * -1);
+  width: calc(var(--r) * 2);
+  height: calc(var(--r) * 2);
+  border-radius: 50%;
+  border: 2px solid var(--burst-color, var(--burst-default));
+  opacity: 0;
+  animation: bt-burst-ring 0.7s var(--ease-out) var(--d, 0s) both;
+}
+.bt-burst > i {
+  position: absolute;
+  left: -1.5px;
+  top: -5px;
+  width: 3.5px;
+  height: 11px;
+  border-radius: 2px;
+  background: var(--burst-color, var(--burst-default));
+  opacity: 0;
+  animation: bt-spark 0.8s var(--ease-out) var(--d, 0s) both;
+}
+.bt-burst > i:nth-child(even) {
+  height: 7px;
+  animation-duration: 0.95s;
+}
+@keyframes bt-glow-once {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-fill-strong) 0%, transparent); }
+  35% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-fill-strong) 35%, transparent); }
+  100% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--color-fill-strong) 0%, transparent); }
+}
+.bt-glow-once {
+  animation: bt-glow-once 1.1s var(--ease-out) var(--glow-delay, 0.3s) both;
+}
+@keyframes bt-badge-in {
+  0% { transform: translateY(4px) scale(0.85); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes bt-flip-in {
+  0% { transform: perspective(500px) rotateY(-90deg); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+.bt-flip-in {
+  animation: bt-flip-in 0.7s var(--ease-out) 0.3s both;
+}
+.bt-badge-in {
+  animation: bt-badge-in 0.35s var(--ease-out) var(--d, 0.5s) both;
+}
+
 /* ───────── [2026-10-28 신규] 본문 폰트 3종(html[data-font], 원티드 산스·SUIT 2026-10-28 삭제) ─────────
    @font-face는 선언만으로는 내려받지 않고, 해당 폰트가 실제로 쓰일 때(data-font 선택 시)만 파일을 받는다.
    프리텐다드는 index.html에서 기본 로드. 폰트 확정 후 나머지 블록은 제거 예정.

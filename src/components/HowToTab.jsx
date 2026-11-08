@@ -137,7 +137,8 @@ function ComparisonTable({ group, currentName }) {
   )
 }
 
-function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor }) {
+// [2026-11-08] 로그 코치 프로그램 화면에서도 운동명을 누르면 이 상세를 띄운다(CoachProgramWizard가 지연 로드)
+export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor, backLabel = '부위별 목록으로' }) {
   const atom = getExerciseAtom(name)
   // [2026-10-31] 구조화 가이드 + 트레이너 수정본 병합 + 기구 태그(전 종목)
   const overrides = useGuideOverrides()
@@ -172,7 +173,7 @@ function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenEx
 
   return (
     <div>
-      <ScreenHeader title="운동 가이드" onBack={onBack} backLabel="부위별 목록으로" bleed={16} />
+      <ScreenHeader title="운동 가이드" onBack={onBack} backLabel={backLabel} bleed={16} />
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
         <h2 className="text-keep-all" style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--color-label-strong)' }}>
@@ -483,7 +484,8 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
         <EmptyState title="검색 결과가 없어요" description="다른 이름이나 별칭으로 다시 검색해보세요." />
       ) : (
         // [2026-10-28 리디자인] 종목마다 카드 → 하나의 목록 + 헤어라인 구분
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
+        // [2026-11-08 모션] 부위·기구를 바꾸면 목록이 위에서부터 차례로 들어옴(key로 다시 재생, 검색 입력 중에는 재생 안 함)
+        <Card key={searchResults ? 'search' : `${selectedAtom}|${activeEquip}`} style={{ padding: 0, overflow: 'hidden' }}>
           {listNames.map((name, idx) => {
             const atom = getExerciseAtom(name)
             const alias = getExerciseAlias(name)
@@ -493,7 +495,8 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
                 key={name}
                 type="button"
                 onClick={() => setSelectedExercise(name)}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '14px 16px', borderTop: idx ? '1px solid var(--color-line)' : 'none' }}
+                className={searchResults ? undefined : 'bt-row-in'}
+                style={{ animationDelay: `${Math.min(idx, 10) * 0.03}s`, display: 'block', width: '100%', textAlign: 'left', padding: '14px 16px', borderTop: idx ? '1px solid var(--color-line)' : 'none' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <div>

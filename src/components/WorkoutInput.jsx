@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { ChevronDown, Info, X, SlidersHorizontal, Play } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure, PartBadge } from './ui'
+import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure, PartBadge, Burst, Shine } from './ui'
 import { ExerciseName } from '../utils/exerciseName'
 import { CountUp } from '../hooks/useCountUp'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
@@ -1956,7 +1956,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       {setToast && (
         <div
           key={setToast}
-          className="bt-set-toast"
+          // [2026-11-08 순간 강조] 신기록 알림은 빛이 한 번 스쳐 지나감(다른 알림은 그대로)
+          className={String(setToast).startsWith('신기록') ? 'bt-set-toast bt-shine' : 'bt-set-toast'}
           style={{
             position: 'fixed',
             top: 70,
@@ -2460,6 +2461,9 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+          {/* [2026-11-08 순간 강조] 운동 완료 체크 둘레로 불꽃 */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+          <Burst radius={36} count={12} delay={0.2} color="var(--color-success)" />
           <div
             className="bt-celebrate-check"
             style={{ width: 44, height: 44, flexShrink: 0, borderRadius: '50%', background: 'var(--color-success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -2467,6 +2471,7 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12l5 5L19 7" />
             </svg>
+          </div>
           </div>
           <div style={{ minWidth: 0 }}>
             <p className="text-keep-all" style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--color-label-strong)' }}>오늘 운동 완료</p>
@@ -2491,10 +2496,15 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
         )}
 
         {xpEarned > 0 && (
-          <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary-bg)', marginBottom: 16 }}>
+          // [2026-11-08 순간 강조] 레벨 업·단계 달성이면 막대가 찬 뒤 빛이 스치고 엠블럼 둘레로 불꽃
+          <div style={{ position: 'relative', padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary-bg)', marginBottom: 16 }}>
+            {(leveledUp || stagedUp) && <Shine delay={0.75} />}
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
               <span className="bt-num" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>
-                <TierEmblem tierKey={after.tierKey} size={22} />
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <TierEmblem tierKey={after.tierKey} size={22} />
+                  {(leveledUp || stagedUp) && <Burst radius={stagedUp ? 30 : 24} count={stagedUp ? 12 : 10} delay={0.7} />}
+                </span>
                 Lv {leveledUp ? `${before.level} → ${after.level}` : after.level}
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', marginLeft: 6 }}>{after.stage}</span>
               </span>
@@ -2502,7 +2512,7 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
                 +<CountUp value={xpEarned} /> XP
               </span>
             </div>
-            <div style={{ height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)', overflow: 'hidden' }}>
+            <div className={leveledUp || stagedUp ? 'bt-glow-once' : undefined} style={{ '--glow-delay': '0.6s', height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--color-line)', overflow: 'hidden' }}>
               <div style={{ width: `${barPct}%`, height: '100%', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', transition: 'width 0.6s var(--ease-out, ease-out)' }} />
             </div>
             {(leveledUp || stagedUp) && (
@@ -3351,9 +3361,13 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 'auto', flexShrink: 0 }}>
         {rirEnabled && !isHoldExercise(exName) && <RirChip rir={set.rir} onClick={onCycleRir} guideKey={guide ? 'rir' : undefined} />}
-        <IconButton guideKey={guide ? 'set-save' : undefined} title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-check-pop' : ''}>
-          <path d="M5 12l5 5L19 7" />
-        </IconButton>
+        {/* [2026-11-08 순간 강조] 세트를 저장한 순간 체크 둘레로 작은 불꽃 */}
+        <span style={{ position: 'relative', display: 'inline-flex' }}>
+          <IconButton guideKey={guide ? 'set-save' : undefined} title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-check-pop' : ''}>
+            <path d="M5 12l5 5L19 7" />
+          </IconButton>
+          {justSaved && <Burst key={set.savedAt} radius={21} count={8} color="var(--color-success)" />}
+        </span>
         {/* [2026-10-29] 세트 삭제(×)는 ± 버튼 자리를 넓히려고 빼고, 번호 칸 길게 누르기로 옮김 */}
       </div>
     </div>

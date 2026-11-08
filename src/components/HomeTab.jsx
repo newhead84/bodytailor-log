@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Dumbbell, Moon, ClipboardCheck, X } from 'lucide-react'
-import { Card, Button, useConfirm } from './ui'
+import { Card, Button, useConfirm, Burst, Shine } from './ui'
+import { useMoment } from '../hooks/useMoment'
 import MembershipNotice from './MembershipNotice'
 import { TrainerGoalNotice } from './TrainerGoal'
 import HomePtCards from './HomePtCards'
@@ -51,6 +52,8 @@ export default function HomeTab({
   onUndoAutoNotice,
   onProfileUpdated,
   onOpenCoachProgram = null,
+  isActive = true,
+  targetDays = 3,
 }) {
   const confirm = useConfirm()
   // [2026-11-07] 코치 프로그램이 없으면 HOME에 한 번 권하고, '나중에'를 누르면 이 기기에서는 숨긴다
@@ -184,6 +187,9 @@ export default function HomeTab({
     const volume = weekWithLive.reduce((v, l) => v + logVolumeKg(l), 0)
     return { sessions, sets, volume }
   }, [weekWithLive])
+  // [2026-11-08 순간 강조] 이번 주 운동 일수가 주간 목표에 닿으면 '목표 달성' 표시 + (HOME을 볼 때 주마다 한 번) 빛·불꽃
+  const weekGoalMet = targetDays > 0 && weekStats.sessions >= targetDays
+  const weekGoalMoment = useMoment(weekGoalMet ? `week-goal:${startOfWeekStr()}` : null, isActive && weekGoalMet)
 
   const todayLogs = useMemo(() => recentLogs.filter((l) => l.date === today), [recentLogs, today])
   const doneToday = todayLogs.length > 0
@@ -331,6 +337,7 @@ export default function HomeTab({
       {/* [2026-10-27 리뉴얼 W2] 이번 주 요약 + 근육별 세트(상위 5) + 최근 PR */}
       <div
         style={{
+          position: 'relative',
           display: 'grid',
           gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
           borderTop: '1px solid var(--color-line)',
@@ -339,6 +346,7 @@ export default function HomeTab({
           marginBottom: 20,
         }}
       >
+        {weekGoalMoment && <Shine delay={0.3} />}
         {[
           { v: weekStats.sessions, unit: '회', label: '이번 주 운동', d: 0 },
           { v: weekStats.sets, unit: '세트', label: '본세트', d: 0 },
@@ -347,11 +355,17 @@ export default function HomeTab({
         ].map((it, i) => (
           <div key={it.label} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: i ? 14 : 2, borderLeft: i ? '1px solid var(--color-line)' : 'none' }}>
             {/* [2026-10-28] 320px 화면에서 52,000kg가 칸을 넘던 문제 → 화면 폭에 비례해 상한(min)까지만 */}
-            <span className="bt-num" style={{ fontSize: `calc(min(${it.v >= 10000 ? 22 : 26}px, ${it.v >= 10000 ? 5 : 6.6}vw) * var(--num-scale))`, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+            <span className="bt-num" style={{ position: 'relative', alignSelf: 'flex-start', fontSize: `calc(min(${it.v >= 10000 ? 22 : 26}px, ${it.v >= 10000 ? 5 : 6.6}vw) * var(--num-scale))`, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+              {i === 0 && weekGoalMoment && <Burst radius={24} count={10} delay={0.55} />}
               <CountUp value={it.v} decimals={it.d} />
               <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{it.unit}</span>
             </span>
             <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{it.label}</span>
+            {i === 0 && weekGoalMet && (
+              <span className={weekGoalMoment ? 'bt-badge-in' : undefined} style={{ alignSelf: 'flex-start', marginTop: 2, padding: '1px 7px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                주간 목표 달성
+              </span>
+            )}
           </div>
         ))}
       </div>
