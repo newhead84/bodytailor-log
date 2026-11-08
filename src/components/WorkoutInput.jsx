@@ -7,7 +7,7 @@ import { ExerciseName } from '../utils/exerciseName'
 import { CountUp } from '../hooks/useCountUp'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { getTrainingProfile } from '../utils/goals'
-import { deloadSignal, weekAtomSets, weeklyShortfall, cardioCoach, logsThisWeek } from '../utils/coach'
+import { deloadSignal, weekAtomSets, weeklyShortfall, cardioCoach, logsThisWeek, comebackStatus } from '../utils/coach'
 import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
 import WorkoutGuide, { WORKOUT_GUIDE_VERSION } from './WorkoutGuide'
@@ -41,6 +41,7 @@ import {
   LEG_BACK,
   SET_TYPE_LABEL,
   SET_TYPE_DESC,
+  defaultPlannedCount,
 } from '../utils/strength'
 import { getCardioFields, formatCardioSet, makeCardioSet, autoFillCardio, cardioTimerMs, cardioTimerMinutes, cardioStats } from '../utils/cardioFields'
 import { allowsZeroWeight, isAssistedExercise, weightCaption, repsCaption, repsUnit, formatLoad, weightUnitShort, inputHint, isHoldExercise } from '../utils/load'
@@ -1239,6 +1240,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   // [2026-11-03 로그 코치 강화] 최근 기록(직전 기록 조회와 같은 캐시 30개 - 추가 읽기 없음): 주간 세트 채우기·쉬어 가는 주·유산소 코칭
   const [coachLogs, setCoachLogs] = useState([])
   const orderTipRef = useRef(false)
+  // [2026-11-08] 오래 쉬었거나 최근 4주 운동이 적으면 시작·웜업 화면에 '다시 몸 만드는 날' 한 줄
+  const comeback = useMemo(() => (coachEnabled ? comebackStatus(coachLogs) : null), [coachEnabled, coachLogs])
   useEffect(() => {
     if (!uid || !coachEnabled) return undefined
     let alive = true
@@ -1289,7 +1292,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     return { ...sug, weight, targets, notes, deload: !!deload }
   }
   function plannedCountFor(key) {
-    return coachPlans[key]?.count || suggestionFor(key)?.lastSetCount || 0
+    return coachPlans[key]?.count || defaultPlannedCount(suggestionFor(key), parseExerciseKey(key).name, settingFor(key))
   }
   function clearSetTip(key) {
     setSetTips((t) => (t[key] ? (({ [key]: _, ...rest }) => rest)(t) : t))
@@ -2206,6 +2209,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             <p className="text-keep-all" style={{ margin: 0, fontSize: 14, color: 'var(--color-label-normal)' }}>
               아래 버튼을 누르면 바로 웜업이 시작돼요. 준비가 되면 언제든 "본운동 시작"으로 넘어갈 수 있어요.
             </p>
+          {comeback && (
+            <p className="text-keep-all" role="status" style={{ margin: '12px 0 0', padding: '8px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg)', fontSize: 12.5, color: 'var(--color-label-strong)', textAlign: 'left' }}>
+              <b style={{ marginRight: 6 }}>로그 코치</b>
+              {comeback.text}
+            </p>
+          )}
           </Card>
           {/* [2026-07-30 신규] 운동 시작 전, 카드 아래 남는 빈 공간이 허전하다는 피드백으로
               기존 앱 로고를 회색톤·저투명도 워터마크로 채워넣었다(⑭). 클릭에 영향이 없도록
@@ -2246,6 +2255,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           <p className="text-keep-all" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>
             준비가 됐다면 시간에 상관없이 바로 본운동을 시작할 수 있어요.
           </p>
+          {comeback && (
+            <p className="text-keep-all" role="status" style={{ margin: '12px 0 0', padding: '8px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg)', fontSize: 12.5, color: 'var(--color-label-strong)', textAlign: 'left' }}>
+              <b style={{ marginRight: 6 }}>로그 코치</b>
+              {comeback.text}
+            </p>
+          )}
           {/* [2026-10-30] 오늘 운동 부위에 맞춘 동적 스트레칭 3개 */}
           <StretchSuggest atoms={todayAtoms} phase="before" style={{ marginTop: 16 }} />
         </Card>

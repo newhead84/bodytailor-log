@@ -106,3 +106,19 @@ export function cardioCoach(logs, liveExercises = []) {
   const today = Math.max(10, Math.min(40, perDay))
   return { done, goal, today, text: `이번 주 유산소 ${done}/${goal}분 · 오늘 ${today}분쯤 하면 목표에 맞춰 가요(빠르게 걷기 정도면 충분해요)` }
 }
+
+// [2026-11-08] 쉰 기간·최근 4주 운동 일수로 '다시 몸 만드는 날' 안내(사용자 요청: 최근 기록이 없고 쉰 날이 많으면 그에 맞게 코칭).
+// 종목별 무게·세트는 suggestNextSet의 공백 단계가 정하고, 여기서는 오늘 전체 운동 강도만 한 줄로 안내한다.
+// → { gap, days28, text } | null  (logs: 최근 기록 캐시, date 'YYYY-MM-DD')
+export function comebackStatus(logs, today = toLocalDateStr()) {
+  const dates = [...new Set((logs || []).map((l) => l?.date).filter(Boolean))].filter((d) => d < today).sort()
+  if (!dates.length) return null
+  const t = new Date(`${today}T00:00:00`).getTime()
+  const ago = (d) => Math.round((t - new Date(`${d}T00:00:00`).getTime()) / 86400000)
+  const gap = ago(dates[dates.length - 1])
+  const days28 = dates.filter((d) => ago(d) <= 28).length
+  if (gap >= 14)
+    return { gap, days28, text: `마지막 운동이 ${gap >= 56 ? `${Math.floor(gap / 7)}주` : `${gap}일`} 전이에요. 오늘은 다시 몸 만드는 날: 무게는 종목마다 쉰 기간에 맞춰 잡았어요. 한두 개 남기고 끝내요.` }
+  if (gap >= 7 && days28 <= 3) return { gap, days28, text: `최근 4주 ${days28}일 운동했어요. 오늘은 플랜대로만, 한두 개 남기고 끝내요. 꾸준히 오면 다시 올라가요.` }
+  return null
+}

@@ -316,6 +316,21 @@ function roundTo(v, step) {
 //  - 맨몸+추가 종목은 추가 0kg(맨몸) 세트도 기준으로 쓴다.
 //  - RIR을 기록했는데 상한 세트의 평균 RIR이 1 미만이면(한계까지 감) 바로 올리지 않고 한 번 더 같은 무게.
 //  - 목표 하한보다 3회 이상 모자라거나, 하한 미달 + 실패(F)/RIR 0 이면 5–10% 감량 제안.
+// [2026-11-08] 기준 무게 = 가장 많은 세트를 한 무게(같으면 더 힘든 쪽, 드롭 세트 제외). 예전에는 가장 무거운 무게만 봐서
+// 60kg 3세트 뒤 65kg를 1세트 해 본 날은 '65kg 1세트'가 기준이 되어 오늘 플랜이 1세트·낮은 목표로 나왔다(사용자 지적).
+function workingWeight(name, ws) {
+  const assisted = isAssistedExercise(name)
+  const pool = ws.filter((s) => s.type !== 'drop')
+  const cnt = new Map()
+  ;(pool.length ? pool : ws).forEach((s) => {
+    const w = Number(s.weight)
+    cnt.set(w, (cnt.get(w) || 0) + 1)
+  })
+  let best = null
+  let bc = -1
+  for (const [w, c] of cnt) if (c > bc || (c === bc && (assisted ? w < best : w > best))) (best = w), (bc = c)
+  return best
+}
 function suggestByLastSession(name, lastRecord, setting) {
   if (getExerciseInputType(name) !== 'sets' || !lastRecord?.sets?.length) return null
   const assisted = isAssistedExercise(name)
@@ -325,9 +340,8 @@ function suggestByLastSession(name, lastRecord, setting) {
   )
   if (working.length === 0) return null
   const [repMin, repMax] = getRepRange(name, setting)
-  const weights = working.map((s) => Number(s.weight))
-  // 가장 힘든 세트의 무게: 어시스트는 보조가 가장 적은 세트
-  const topW = assisted ? Math.min(...weights) : Math.max(...weights)
+  // 기준 무게: 가장 많은 세트를 한 무게(workingWeight)
+  const topW = workingWeight(name, working)
   const atTop = working.filter((s) => Number(s.weight) === topW)
   const repsAtTop = atTop.map((s) => Number(s.reps))
   const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, ''))
@@ -360,12 +374,17 @@ function suggestByLastSession(name, lastRecord, setting) {
         reason: `상한 ${repMax}회는 달성했지만 한계(RIR 0)까지 갔어요 → 같은 무게로 한 번 더, 여유가 생기면 증량`,
       }
     }
-    const w = harder(topW)
+    let w = harder(topW)
+    // [2026-11-08] 지난번 더 무거운 무게로 하한 이상 해 본 세트가 있으면 그 무게부터(낮게 잡지 않게)
+    const tried = working.filter((s) => (assisted ? Number(s.weight) < topW : Number(s.weight) > topW) && Number(s.reps) >= repMin).map((s) => Number(s.weight))
+    if (tried.length) w = assisted ? Math.min(w, ...tried) : Math.max(w, ...tried)
     return {
       weight: w,
       reps: repMin,
       kind: 'increase',
-      reason: repsAtTop.every((r) => r >= repMax)
+      reason: tried.length && w !== harder(topW)
+        ? `지난번 ${ro(topW)} 목표를 채웠고 ${label(w)}도 ${repMin}회 이상 해 봤어요 → ${ro(w)} ${repMin}회부터`
+        : repsAtTop.every((r) => r >= repMax)
         ? `지난번 ${ro(topW)} 모든 세트 ${repMax}회 이상 → ${ro(w)} ${repMin}회부터`
         : repsAtTop[0] >= repMax && repsAtTop.every((r) => r >= repMin)
         ? `지난번 ${ro(topW)} 첫 세트 ${repsAtTop[0]}회 · 나머지도 ${repMin}회 이상 → ${ro(w)} ${repMin}회부터`
@@ -381,7 +400,7 @@ function suggestByLastSession(name, lastRecord, setting) {
       (s2) => !isWarmupSet(s2) && s2.weight !== '' && s2.weight != null && (zeroOk ? Number(s2.weight) >= 0 : Number(s2.weight) > 0) && Number(s2.reps) > 0
     )
     if (!ws.length) return false
-    const tw = assisted ? Math.min(...ws.map((s2) => Number(s2.weight))) : Math.max(...ws.map((s2) => Number(s2.weight)))
+    const tw = workingWeight(name, ws)
     // [2026-11-07] 앞선 기록이 다른 무게였으면 '두 번 연속'이 아니다(85kg → 87.5kg 첫 도전에서 감량하던 문제)
     if (tw !== topW) return false
     const top = ws.filter((s2) => Number(s2.weight) === tw)
@@ -433,20 +452,18 @@ function suggestByLastSession(name, lastRecord, setting) {
 //     목표가 내려가던 문제(9·8·7 → 8회 → 7회 …)를 고쳐 지난번 세트마다 +1회(상한까지)로 제시한다.
 //  2) 증량까지 남은 거리(progress): 최고 무게 세트 총 반복 / 증량 기준(상한×세트 수×90%).
 //  3) 정체(stall): 같은 무게로 3회째 총 반복이 처음보다 늘지 않으면 대처 방법을 함께 보여준다.
-//  4) 공백 후 복귀(comeback): 마지막 기록이 14일 이상 전이면 약 10% 가볍게 다시 시작.
+//  4) 공백 후 복귀(comeback): 마지막 기록이 7일 이상 전이면 쉰 기간에 맞춰 다시 시작(2026-11-08 단계화, 아래 참고).
 // lastRecord: { date, sets, prev?, history?(최신 순, history[0] = lastRecord) }, opts.today: 'YYYY-MM-DD'(기본 오늘)
-const COMEBACK_DAYS = 14
 function workingTop(name, sets) {
-  const assisted = isAssistedExercise(name)
   const zeroOk = allowsZeroWeight(name)
   const ws = (sets || []).filter(
     (s) => !isWarmupSet(s) && s.weight !== '' && s.weight != null && (zeroOk ? Number(s.weight) >= 0 : Number(s.weight) > 0) && Number(s.reps) > 0
   )
   if (!ws.length) return null
-  const weights = ws.map((s) => Number(s.weight))
-  const topW = assisted ? Math.min(...weights) : Math.max(...weights)
-  const reps = ws.filter((s) => Number(s.weight) === topW).map((s) => Number(s.reps))
-  return { topW, reps, total: reps.reduce((a, b) => a + b, 0) }
+  const topW = workingWeight(name, ws)
+  const reps = ws.filter((s) => Number(s.weight) === topW && s.type !== 'drop').map((s) => Number(s.reps))
+  // count: 그날 한 본세트 수(드롭 제외) - 오늘 세트 수의 기준
+  return { topW, reps, total: reps.reduce((a, b) => a + b, 0), count: ws.filter((s) => s.type !== 'drop').length || reps.length }
 }
 function fmtW(n) {
   return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
@@ -511,7 +528,7 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
   const n = top.reps.length
   const need = Math.ceil(it.incRatio * repMax * n)
   // [2026-11-08] lastWeight·lastReps: 코치 카드에 '지난번 → 오늘'을 세트별로 보여주려고(계산에는 안 씀)
-  let out = { ...res, setTargets: Array(n).fill(res.reps), intensity: it.id, lastSetCount: n, lastWeight: top.topW, lastReps: top.reps }
+  let out = { ...res, setTargets: Array(n).fill(res.reps), intensity: it.id, lastSetCount: Math.max(n, top.count || 0), lastWeight: top.topW, lastReps: top.reps }
 
   if (res.kind === 'reps') {
     // [2026-11-02 로그 코치] 기준 = 같은 무게로 한 최근 3회까지의 세트별 평균(자동 조절 원칙: 그날 하루 기록에 휘둘리지 않게).
@@ -553,33 +570,47 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
     }
   }
 
-  // 공백 후 복귀: 증량·유지 대신 약 10% 가볍게
+  // [2026-11-08] 공백 후 복귀를 쉰 기간에 따라 나눈다(사용자 지적: 14일만 지나도 10% 가볍게 + 최저 횟수라 너무 낮았다).
+  // 근력은 3주 안팎까지 거의 유지되고 그 뒤로 서서히 줄어든다(탈훈련 연구 종합, Bosquet 외 2013 · Mujika·Padilla 2000).
+  //  7–13일: 같은 무게, 지난번 횟수까지(+1회 없이) / 14–27일: 같은 무게·지난번 횟수, 세트 1개 덜 /
+  //  28–55일: 약 10% 가볍게, 지난번 횟수 / 56일 이상: 약 20% 가볍게, 세트 1개 덜
   const gap = daysBetween(lastRecord.date, opts.today || todayStr())
-  if (Number.isFinite(gap) && gap >= COMEBACK_DAYS) {
-    const w = lighterWeight(name, top.topW, setting)
-    const load = effectiveLoad(name, top.topW)
-    const tooBig = load > 0 && Math.abs(effectiveLoad(name, w) - load) > load * 0.2
-    const validW = isAssistedExercise(name) || w > 0 || allowsZeroWeight(name)
-    // 가벼운 무게라 한 칸만 내려도 20%를 넘으면(예: 머신 10kg → 5kg) 무게는 그대로 두고 횟수 목표를 낮춘다
-    if (w !== top.topW && (tooBig || !validW)) {
-      out = {
-        weight: top.topW,
-        reps: repMin,
-        kind: 'hold',
-        setTargets: Array(n).fill(repMin),
-        comeback: gap,
-        reason: `마지막 기록이 ${gap}일 전이에요 → 무게는 ${loadLabel(name, top.topW)} 그대로, ${repMin}회만 채우며 가볍게 시작해요(힘들면 세트를 하나 줄여도 좋아요)`,
-      }
-    } else if (w !== top.topW && validW) {
-      out = {
-        weight: w,
-        reps: repMin,
-        kind: 'decrease',
-        setTargets: Array(n).fill(repMin),
-        comeback: gap,
-        reason: `마지막 기록이 ${gap}일 전이에요 → 몸이 다시 적응하도록 ${loadWith(name, w)} ${repMin}회부터 조금 가볍게 시작해요`,
-      }
+  if (Number.isFinite(gap) && gap >= 7) {
+    const validW = (w) => isAssistedExercise(name) || w > 0 || allowsZeroWeight(name)
+    const lastTargets = top.reps.map((r) => Math.max(isHoldExercise(name) ? 0 : 1, Math.min(r, repMax)))
+    const setCut = gap >= 56 || (gap >= 14 && gap < 28) ? 1 : 0
+    let w = top.topW
+    if (gap >= 28) {
+      w = lighterWeight(name, w, setting)
+      if (gap >= 56) w = lighterWeight(name, w, setting)
+      const load = effectiveLoad(name, top.topW)
+      const limit = gap >= 56 ? 0.3 : 0.2
+      // 가벼운 무게라 한두 칸만 내려도 너무 크게 줄면(예: 머신 10kg → 5kg) 무게는 그대로 두고 하한 횟수로
+      if (!validW(w) || (load > 0 && Math.abs(effectiveLoad(name, w) - load) > load * limit)) w = null
     }
+    const targets = w == null ? Array(n).fill(repMin) : gap >= 28 ? lastTargets.map((r) => Math.max(repMin, r)) : lastTargets
+    const wFinal = w == null ? top.topW : w
+    const lighter = w != null && wFinal !== top.topW
+    const howLong = gap >= 56 ? `${Math.floor(gap / 7)}주` : `${gap}일`
+    out = {
+      ...out,
+      weight: wFinal,
+      reps: targets[0],
+      kind: lighter ? 'decrease' : 'hold',
+      setTargets: targets,
+      comeback: gap,
+      setCut,
+      reason:
+        gap < 14
+          ? `${gap}일 쉬었어요 → ${loadWith(name, wFinal)} 지난번 횟수(${top.reps.join('·')}회)만 다시 채워요(힘은 그대로예요)`
+          : gap < 28
+          ? `${gap}일 쉬었어요 → ${loadWith(name, wFinal)} 지난번 횟수만, 세트는 하나 덜 해요(힘은 3주 안팎까지 거의 유지돼요)`
+          : lighter
+          ? `${howLong} 쉬었어요 → ${loadWith(name, wFinal)} 조금 가볍게 시작해요${setCut ? '(세트도 하나 덜)' : ''} · 1–2주면 원래 무게로 돌아가요`
+          : `${howLong} 쉬었어요 → 무게는 ${loadLabel(name, wFinal)} 그대로, ${repMin}회만 채우며 가볍게 시작해요${setCut ? '(세트도 하나 덜)' : ''}`,
+    }
+    delete out.progress
+    delete out.stall
   }
   return out
 }
@@ -589,9 +620,18 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
 export function planSetTargets(sug, name, setting = null) {
   if (!sug) return []
   const base = sug.setTargets?.length ? sug.setTargets : [sug.reps]
-  const n = recommendedSetCount(name, setting)
+  // [2026-11-08] 쉬었다 다시 시작하는 날은 세트 하나 덜(sug.setCut). 처방(트레이너·코치 프로그램)이 없으면
+  // 지난번 본세트 수보다 줄이지 않는다(권장 세트 수가 더 적다고 지난번 5세트를 4세트로 깎던 '하향' 문제, 사용자 지적)
+  const n = getProgramRx(name, setting)?.sets ? Math.max(1, recommendedSetCount(name, setting) - (Number(sug.setCut) || 0)) : defaultPlannedCount(sug, name, setting)
   if (base.length >= n) return base.slice(0, n)
   return [...base, ...Array(n - base.length).fill(base[base.length - 1])]
+}
+
+// [2026-11-08] 플랜을 적용하지 않았을 때 오늘 세트 수: 지난번 본세트 수와 권장 세트 수 중 많은 쪽(쉬었다 다시 시작하면 하나 덜).
+// 예전엔 지난번 '가장 무거운 무게' 세트 수만 써서 1세트만 해도 '오늘 플랜 끝, 마무리해도 돼요'가 나왔다(사용자 지적).
+export function defaultPlannedCount(sug, name, setting = null) {
+  if (!sug) return 0
+  return Math.max(1, Math.max(Number(sug.lastSetCount) || 0, recommendedSetCount(name, setting)) - (Number(sug.setCut) || 0))
 }
 
 // 운동 중 세트 단위 조정: 방금 저장한 본세트가 목표 범위를 크게 벗어나면 다음 세트 무게를 제안
@@ -708,7 +748,7 @@ export const COACH_EVIDENCE = {
   reps: { text: '같은 무게로 횟수를 늘리는 것도 무게를 올리는 것만큼 근육을 키워요. 하루 컨디션에 흔들리지 않게 최근 몇 번의 평균을 기준으로 목표를 잡았어요.', src: [SRC.plotkin] },
   hold: { text: '한계까지 갔거나 컨디션이 나빴던 날은, 무게를 올리기 전에 같은 무게로 한 번 더 확인해요. 매번 한계까지 하는 게 더 효과적이지는 않아요.', src: [SRC.grgic] },
   decrease: { text: '두 번 연속 목표보다 많이 모자라면 무게를 10%쯤 낮춰 다시 쌓아요. 가벼운 무게라도 한계 가까이 하면 근육은 비슷하게 자라요.', src: [SRC.loads] },
-  comeback: { text: '2주 넘게 쉬었다면 10%쯤 가볍게 다시 시작해요. 쉬는 동안 줄어든 힘은 다시 운동하면 금방 돌아와요.', src: [SRC.comeback] },
+  comeback: { text: '쉰 기간에 맞춰 다시 시작해요. 3주 안팎까지는 힘이 거의 그대로라 같은 무게로 지난번 횟수만 채우고(2주 넘으면 세트 하나 덜), 4주 넘게 쉬었으면 10%쯤, 8주 넘으면 20%쯤 가볍게 시작해요. 줄어든 힘은 다시 운동하면 금방 돌아와요.', src: [SRC.comeback] },
   sets: {
     text: '근육은 한 부위를 일주일에 4세트만 해도 자라기 시작하고, 더 할수록 조금씩 더 자라요(늘어나는 폭은 점점 작아져요). 힘(근력)은 한 번에 많이 하기보다 일주일에 2~3번 나눠 할 때 더 늘어요. 처음 두 달은 종목당 1~3세트로 시작해요.',
     src: [SRC.acsm],
