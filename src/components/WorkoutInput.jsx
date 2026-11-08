@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeH
 import { ChevronDown, Info, X, SlidersHorizontal, Play } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Button, Chip, Card, useConfirm, TierEmblem, Disclosure, PartBadge, Burst, Shine } from './ui'
+import CardioTimeline from './CardioTimeline'
 import { ExerciseName } from '../utils/exerciseName'
 import { CountUp } from '../hooks/useCountUp'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
@@ -90,6 +91,110 @@ function coachKindLabel(sug) {
   return { increase: '올리기', reps: '한 개 더', hold: '그대로', decrease: '내리기' }[sug?.kind] || '오늘'
 }
 const HEALTH_NOTE = HEALTH_DISCLAIMER
+
+// [2026-11-08] 로그 코치 플랜 요약(사용자 선택: A 세트 칩 + B 변화 한 줄 섞기)
+// 맨 위 = 판단 + 오늘 바뀌는 것 하나를 크게(+2.5kg / −5kg / +1회씩 / 그대로), 그 아래 지난번·오늘 세트별 칸(같은 무게면 늘어난 칸에 +N).
+// 지난 기록(lastWeight·lastReps)이 없으면 예전처럼 한 줄로 보여준다.
+function CoachPlanSummary({ exName, suggestion, label, weight, targets, unit }) {
+  const fmt = (n) => (Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(2).replace(/0+$/, '').replace(/\.$/, ''))
+  const assisted = isAssistedExercise(exName)
+  const zeroOk = allowsZeroWeight(exName) && !assisted
+  const wText = (w) => (zeroOk && Number(w) === 0 ? '맨몸' : `${assisted ? '보조 ' : zeroOk ? '추가 ' : ''}${fmt(w)}kg`)
+  const lastW = suggestion.lastWeight
+  const lastReps = Array.isArray(suggestion.lastReps) ? suggestion.lastReps : null
+  const today = targets?.length ? targets : [suggestion.reps]
+  const kindTone = suggestion.kind === 'increase' ? 'up' : suggestion.kind === 'decrease' || suggestion.comeback || label === '쉬어 가기' ? 'down' : 'same'
+  const toneColor = kindTone === 'up' ? 'var(--color-success)' : kindTone === 'down' ? 'var(--color-danger)' : 'var(--color-label-strong)'
+  if (lastW == null || !lastReps) {
+    return (
+      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+        {label} {wText(weight)} × <span className="bt-num">{today.join('·')}</span>
+        {unit} <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)' }}>(<span className="bt-num">{today.length}</span>세트)</span>
+      </span>
+    )
+  }
+  const dw = Math.round((Number(weight) - Number(lastW)) * 100) / 100
+  const diffs = today.map((r, i) => (lastReps[i] != null ? Number(r) - Number(lastReps[i]) : null))
+  const sameWeight = dw === 0
+  let big
+  let bigUnit
+  if (!sameWeight) {
+    big = `${dw > 0 ? '+' : '−'}${fmt(Math.abs(dw))}`
+    bigUnit = assisted ? 'kg 보조' : 'kg'
+  } else {
+    const pos = diffs.filter((d) => d != null && d > 0)
+    const allOne = pos.length > 0 && pos.length === diffs.filter((d) => d != null).length && pos.every((d) => d === pos[0])
+    if (pos.length === 0) {
+      big = '그대로'
+      bigUnit = ''
+    } else if (allOne) {
+      big = `+${pos[0]}`
+      bigUnit = `${unit}씩`
+    } else {
+      big = `+${pos.reduce((a, b) => a + b, 0)}`
+      bigUnit = unit
+    }
+  }
+  const cols = Math.max(today.length, lastReps.length)
+  const cell = { textAlign: 'center', borderRadius: 'var(--radius-sm)', padding: '6px 0', fontSize: 15, fontWeight: 700, position: 'relative' }
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 9px', borderRadius: 'var(--radius-pill)', background: kindTone === 'up' ? 'var(--color-fill-strong)' : 'var(--color-bg-card)', color: kindTone === 'up' ? 'var(--color-on-fill)' : toneColor, border: kindTone === 'up' ? 'none' : '1px solid var(--color-line)' }}>
+          {kindTone === 'up' ? '▲ ' : kindTone === 'down' ? '▼ ' : ''}
+          {label}
+        </span>
+        <span className="bt-num" style={{ fontSize: 'calc(30px * var(--num-scale, 1))', lineHeight: 1, color: toneColor }}>{big}</span>
+        {bigUnit && <span style={{ fontSize: 14, fontWeight: 800, color: toneColor }}>{bigUnit}</span>}
+      </div>
+      <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-label-normal)' }}>
+        {sameWeight ? (
+          <>
+            <span className="bt-num" style={{ color: 'var(--color-label-strong)' }}>{wText(weight)}</span> 그대로
+          </>
+        ) : (
+          <>
+            <span className="bt-num" style={{ textDecoration: 'line-through', color: 'var(--color-label-neutral)' }}>{wText(lastW)}</span> →{' '}
+            <span className="bt-num" style={{ color: 'var(--color-label-strong)' }}>{wText(weight)}</span>
+          </>
+        )}
+        {' '}· <span className="bt-num">{today.length}</span>세트
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: `38px repeat(${cols}, minmax(0, 1fr))`, gap: 5, alignItems: 'center', marginTop: 8 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>지난번</span>
+        {Array.from({ length: cols }, (_, i) => (
+          <span key={`p${i}`} className="bt-num" style={{ ...cell, background: 'var(--color-bg)', color: 'var(--color-label-neutral)' }}>{lastReps[i] ?? '–'}</span>
+        ))}
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-strong)' }}>오늘</span>
+        {Array.from({ length: cols }, (_, i) => {
+          const r = today[i]
+          const d = sameWeight ? diffs[i] : null
+          const plus = d != null && d > 0
+          return (
+            <span
+              key={`t${i}`}
+              className="bt-num"
+              style={{
+                ...cell,
+                background: r == null ? 'transparent' : plus ? 'var(--color-primary-bg)' : 'var(--color-bg-card)',
+                border: r == null ? '1.5px dashed var(--color-line)' : `1.5px solid ${plus ? 'var(--color-primary-strong)' : 'var(--color-line-strong, var(--color-line))'}`,
+                color: plus ? 'var(--color-primary-strong)' : 'var(--color-label-strong)',
+              }}
+            >
+              {r ?? '–'}
+              {plus && (
+                <sup style={{ position: 'absolute', top: -7, right: -3, fontSize: 9.5, lineHeight: 1.3, padding: '0 4px', borderRadius: 'var(--radius-pill)', background: 'var(--color-primary-strong)', color: 'var(--color-bg-card)' }}>+{d}</sup>
+              )}
+            </span>
+          )
+        })}
+      </div>
+      {!sameWeight && suggestion.kind === 'increase' && (
+        <span className="text-keep-all" style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--color-label-neutral)' }}>무게를 올린 날은 목표 횟수의 아래쪽부터 다시 채워요</span>
+      )}
+    </div>
+  )
+}
 
 const REST_AUTO = 0
 const REST_OPTIONS = [
@@ -1320,6 +1425,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     if (rx.kind === 'interval' && cardioStats(logsThisWeek(coachLogs)).vigorousMin > 0) {
       return { today: rx.minutes, text: `내 프로그램 · 이번 주 인터벌은 이미 했어요 → 오늘은 대화되는 강도로 ${rx.minutes}분` }
     }
+    // [2026-11-08] 인터벌은 글 대신 타임라인(카드에서 그림)
+    if (rx.kind === 'interval') return { today: rx.minutes, text: `내 프로그램 · 오늘 인터벌 ${rx.minutes}분 · 주 1번`, interval: rx.minutes }
     return { today: rx.minutes, text: `내 프로그램 · 오늘 ${rx.minutes}분${rx.note ? ` · ${rx.note}` : ''}` }
   }
 
@@ -2899,22 +3006,15 @@ export function ExerciseCard({
                   <X size={16} strokeWidth={2} />
                 </button>
               </div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}>
-                {ext.planWeight != null && ext.planWeight !== suggestion.weight ? '쉬어 가기' : coachKindLabel(suggestion)}{' '}
-                {allowsZeroWeight(exName) && !isAssistedExercise(exName) && Number(ext.planWeight ?? suggestion.weight) === 0 ? (
-                  '맨몸'
-                ) : (
-                  <>
-                    {isAssistedExercise(exName) ? '보조 ' : allowsZeroWeight(exName) ? '추가 ' : ''}
-                    <span className="bt-num">{fmtKg(ext.planWeight ?? suggestion.weight)}</span>kg
-                  </>
-                )}{' '}
-                × <span className="bt-num">{(ext.planTargets?.length ? ext.planTargets : [suggestion.reps]).join('·')}</span>회{' '}
-                <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>(<span className="bt-num">{ext.planTargets?.length || 1}</span>세트)</span>
-              </span>
-              <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
-                내 기록 보면 · {suggestion.reason}
-              </span>
+              {/* [2026-11-08] 판단 + 바뀌는 것 하나를 크게 + 지난번·오늘 세트 칸(긴 '내 기록 보면' 문장은 '이렇게 정한 이유' 맨 위로) */}
+              <CoachPlanSummary
+                exName={exName}
+                suggestion={suggestion}
+                label={ext.planWeight != null && ext.planWeight !== suggestion.weight ? '쉬어 가기' : coachKindLabel(suggestion)}
+                weight={ext.planWeight ?? suggestion.weight}
+                targets={ext.planTargets}
+                unit={repsUnit(exName)}
+              />
               {/* [2026-11-03 로그 코치 강화] 쉬어 가는 주·주간 세트 채우기 안내 */}
               {(ext.planNotes || []).map((n, i) => (
                 <span key={i} className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', fontWeight: 600 }}>
@@ -2953,6 +3053,7 @@ export function ExerciseCard({
                 const it = ext.intensity || intensityOf()
                 const why = COACH_EVIDENCE[suggestion.comeback ? 'comeback' : suggestion.kind]
                 const parts = [
+                  `내 기록 보면 · ${suggestion.reason}`,
                   ext.programRx?.source === 'trainer' ? '세트 수·목표 횟수·강도는 트레이너 처방을 따랐어요. 무게만 내 지난 기록으로 정했어요.' : null,
                   why?.text,
                   `세트 수(지난번 ${suggestion.lastSetCount || 1}세트 → 오늘 ${ext.planTargets?.length || 1}세트): ${COACH_EVIDENCE.sets.text}`,
@@ -3097,9 +3198,10 @@ export function ExerciseCard({
 
           {/* [2026-11-03 로그 코치] 유산소: 이번 주 유산소 분 vs 목표 → 오늘 권장 분 */}
           {inputType === 'cardio' && !isDone && ext.cardioCoach && (
-            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}>
+            <div role="status" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', flexShrink: 0 }}>로그 코치</span>
-              <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', minWidth: 0 }}>{ext.cardioCoach.text}</span>
+              <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', minWidth: 0, flex: 1 }}>{ext.cardioCoach.text}</span>
+              {ext.cardioCoach.interval ? <CardioTimeline minutes={ext.cardioCoach.interval} style={{ flexBasis: '100%' }} /> : null}
             </div>
           )}
           {/* [2026-11-07 점검] 코치 플랜 카드가 없을 때(처음 하는 종목·버티기 종목) 내 프로그램 처방을 한 줄로 */}

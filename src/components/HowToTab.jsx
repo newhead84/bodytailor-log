@@ -35,6 +35,7 @@ import GuideEditor from './GuideEditor'
 import { Pencil } from 'lucide-react'
 import { useBackableScreen } from '../hooks/useBackableScreen'
 import { ExerciseName } from '../utils/exerciseName'
+import MuscleMap from './MuscleMap'
 
 const MUSCLE_ROLE_LABELS = [
   { key: 'primary', label: '주동근' },
@@ -138,7 +139,7 @@ function ComparisonTable({ group, currentName }) {
 }
 
 // [2026-11-08] 로그 코치 프로그램 화면에서도 운동명을 누르면 이 상세를 띄운다(CoachProgramWizard가 지연 로드)
-export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor, backLabel = '부위별 목록으로' }) {
+export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor, backLabel = '부위별 목록으로', gender = null }) {
   const atom = getExerciseAtom(name)
   // [2026-10-31] 구조화 가이드 + 트레이너 수정본 병합 + 기구 태그(전 종목)
   const overrides = useGuideOverrides()
@@ -201,6 +202,9 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
           </span>
         )}
       </div>
+
+      {/* [2026-11-08] 근육 그림(프로필 성별 체형, 주로·같이 쓰는 근육 이름표) */}
+      <MuscleMap name={name} gender={gender} style={{ marginBottom: 14 }} />
 
       {/* [2026-10-28] GIF 이미지 삭제 → YouTube 영상 검색 링크 */}
       <div style={{ marginBottom: 14 }}>
@@ -383,6 +387,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
           onBack={closeDetail}
           onOpenExercise={(n) => setSelectedExercise(n)}
           editor={userDoc?.role === '트레이너' || userDoc?.role === '관리자' ? { uid, name: userDoc?.signupInfo?.name || userDoc?.nickname || '' } : null}
+          gender={userDoc?.onboarding?.gender || null}
           onAdded={onRoutineUpdated}
         />
       </div>

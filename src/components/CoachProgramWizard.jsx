@@ -4,7 +4,7 @@
 // 트레이너 계획이 있으면 그 계획이 우선(트레이너 계획으로 운동하는 날은 처방을 쓰지 않음).
 import React, { Suspense, lazy, useMemo, useState } from 'react'
 import { CountUp } from '../hooks/useCountUp'
-import { Button, Card, Chip, Disclosure, ScreenHeader, PartBadge } from './ui'
+import { Button, Card, Chip, Disclosure, ScreenHeader, PartBadge, OnceHint } from './ui'
 import { GoalPicker } from './GoalPicker'
 import { PROGRAM_QUESTIONS, DEFAULT_ANSWERS, buildProgram, findCoachProgramTemplate, atomOf } from '../utils/programBuilder'
 import { COACH_INTENSITIES, normalizeIntensity, intensityGoalHint } from '../utils/strength'
@@ -14,6 +14,7 @@ import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { isHoldExercise } from '../utils/load'
 import { saveCoachProgram, MAX_ROUTINE_TEMPLATES, isOwnRoutine } from '../storage'
 import { ExerciseName } from '../utils/exerciseName'
+import CardioTimeline from './CardioTimeline'
 
 // [2026-11-08] 운동명을 누르면 HOWTO 종목 상세를 프로그램 화면 위에 띄운다(처음 보는 종목 이름 확인용)
 const ExerciseDetail = lazy(() => import('./HowToTab').then((m) => ({ default: m.ExerciseDetail })))
@@ -145,7 +146,7 @@ export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, o
       {guideName && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--color-bg)', overflowY: 'auto', padding: '0 16px 40px', paddingBottom: 'calc(40px + var(--safe-bottom, 0px))' }}>
           <Suspense fallback={<p style={{ padding: 24, textAlign: 'center', color: 'var(--color-label-neutral)' }}>불러오는 중...</p>}>
-            <ExerciseDetail key={guideName} uid={uid} name={guideName} routineTemplates={templates || []} onBack={() => setGuideName(null)} onOpenExercise={setGuideName} editor={null} backLabel="프로그램으로" />
+            <ExerciseDetail key={guideName} uid={uid} name={guideName} routineTemplates={templates || []} onBack={() => setGuideName(null)} onOpenExercise={setGuideName} editor={null} backLabel="프로그램으로" gender={userDoc?.onboarding?.gender || null} />
           </Suspense>
         </div>
       )}
@@ -200,7 +201,7 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
         ))}
       </p>
 
-      <p className="text-keep-all" style={{ margin: '0 0 8px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>운동 이름을 누르면 하는 방법을 볼 수 있어요.</p>
+      <OnceHint id="coach-program-guide" text="운동 이름을 누르면 하는 방법을 볼 수 있어요" />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
         {program.parts.map((p, i) => (
           <Card key={p.name} className="bt-enter" style={{ animationDelay: `${0.2 + i * 0.08}s` }}>
@@ -230,7 +231,14 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
                     <span className="bt-num" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-normal)', whiteSpace: 'nowrap' }}>
                       {cardio ? `${rx.minutes}분` : `${rx.sets}세트 × ${rx.repMin}–${rx.repMax}${hold ? '초' : '회'}`}
                     </span>
-                    {cardio && rx.note && (
+                    {/* [2026-11-08] 인터벌은 색 블록 타임라인 + 짧은 한 줄, 그 밖 유산소는 강도 한 줄 */}
+                    {cardio && rx.kind === 'interval' && (
+                      <div style={{ gridColumn: '2 / -1' }}>
+                        <CardioTimeline minutes={rx.minutes} />
+                        <span className="text-keep-all" style={{ display: 'block', marginTop: 3, fontSize: 12, color: 'var(--color-label-neutral)' }}>주 1번 · 이번 주에 했으면 그날은 전부 가볍게</span>
+                      </div>
+                    )}
+                    {cardio && rx.kind !== 'interval' && rx.note && (
                       <span className="text-keep-all" style={{ gridColumn: '2 / -1', fontSize: 12, color: 'var(--color-label-neutral)' }}>{rx.note}</span>
                     )}
                   </div>

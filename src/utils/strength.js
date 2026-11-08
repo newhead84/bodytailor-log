@@ -510,7 +510,8 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
   const it = intensityOf(setting)
   const n = top.reps.length
   const need = Math.ceil(it.incRatio * repMax * n)
-  let out = { ...res, setTargets: Array(n).fill(res.reps), intensity: it.id, lastSetCount: n }
+  // [2026-11-08] lastWeight·lastReps: 코치 카드에 '지난번 → 오늘'을 세트별로 보여주려고(계산에는 안 씀)
+  let out = { ...res, setTargets: Array(n).fill(res.reps), intensity: it.id, lastSetCount: n, lastWeight: top.topW, lastReps: top.reps }
 
   if (res.kind === 'reps') {
     // [2026-11-02 로그 코치] 기준 = 같은 무게로 한 최근 3회까지의 세트별 평균(자동 조절 원칙: 그날 하루 기록에 휘둘리지 않게).

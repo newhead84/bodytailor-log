@@ -423,8 +423,30 @@ export function Chip({ children, active, onClick, style, ...rest }) {
 }
 
 // [2026-10-28 신규, 리디자인] 기준·설명 문단을 기본으로 접어 두는 공용 토글(화면마다 길게 펼쳐진 설명문 정리).
-export function Disclosure({ label = '기준 보기', children, style }) {
+// [2026-11-08 글 줄이기] label 없이 쓰면(설명·기준 문단) ⓘ 버튼으로 접고, 펼치면 옅은 바탕 상자에 보여준다
+export function Disclosure({ label, children, style }) {
   const [open, setOpen] = React.useState(false)
+  if (!label) {
+    return (
+      <div style={style}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={open ? '설명 닫기' : '설명 보기'}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 32, padding: 0, fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)' }}
+        >
+          <span aria-hidden="true" className="bt-num" style={{ width: 20, height: 20, borderRadius: '50%', border: '1.5px solid currentColor', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 800, background: open ? 'var(--color-label-neutral)' : 'transparent', color: open ? 'var(--color-bg-card)' : 'inherit', borderColor: 'var(--color-label-neutral)' }}>i</span>
+          {open ? '닫기' : '기준'}
+        </button>
+        {open && (
+          <div className="bt-enter text-keep-all" style={{ marginTop: 6, padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg)', fontSize: 12.5, lineHeight: 1.6, color: 'var(--color-label-normal)' }}>
+            {children}
+          </div>
+        )}
+      </div>
+    )
+  }
   return (
     <div style={style}>
       <button
@@ -527,5 +549,40 @@ export function Burst({ radius = 26, count = 8, color, delay = 0, style }) {
         <i key={i} style={{ '--a': `${(360 / count) * i}deg` }} />
       ))}
     </span>
+  )
+}
+
+// [2026-11-08 글 줄이기] 처음 한 번만 뜨는 안내 말풍선. 누르면(또는 done=true가 되면) 이 기기에서 다시 안 뜬다(localStorage bt-hint:{id}).
+export function OnceHint({ id, text, sub = '처음 한 번만 보여요 · 누르면 닫혀요', done = false, style }) {
+  const k = `bt-hint:${id}`
+  const [show, setShow] = React.useState(() => {
+    try {
+      return !localStorage.getItem(k)
+    } catch (_) {
+      return false
+    }
+  })
+  const close = React.useCallback(() => {
+    try {
+      localStorage.setItem(k, '1')
+    } catch (_) {
+      // 저장 못 해도 이번 화면에서는 닫는다
+    }
+    setShow(false)
+  }, [k])
+  React.useEffect(() => {
+    if (done && show) close()
+  }, [done, show, close])
+  if (!show) return null
+  return (
+    <button
+      type="button"
+      onClick={close}
+      className="bt-pop-in text-keep-all"
+      style={{ position: 'relative', display: 'block', width: '100%', textAlign: 'left', margin: '0 0 12px', padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-label-strong)', color: 'var(--color-bg-card)', fontSize: 13, fontWeight: 700, ...style }}
+    >
+      {text}
+      {sub && <span style={{ display: 'block', marginTop: 2, fontSize: 11.5, fontWeight: 500, opacity: 0.75 }}>{sub}</span>}
+    </button>
   )
 }

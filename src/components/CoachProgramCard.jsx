@@ -22,8 +22,8 @@ export function CoachProgramCard({ templates, onOpen, style, onDismiss = null })
           <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>{has ? '로그 코치 · 내 프로그램' : '로그 코치에게 프로그램 받기'}</span>
           <span style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
             {has
-              ? '생활이 바뀌었으면 다시 답해 보세요. 일수·시간·목표에 맞게 다시 짜 드려요.'
-              : '질문 10개에 답하면 근력·유산소·코어를 고르게 넣은 주간 프로그램을 짜 드려요. 운동 중에는 로그 코치가 그 계획대로 안내해요.'}
+              ? '생활이 바뀌었으면 다시 답해 보세요' /* [2026-11-08 문장 다듬기] */
+              : '질문 10개 → 근력·유산소·코어를 고루 넣은 내 주간 프로그램'}
           </span>
         </div>
       </div>

@@ -76,7 +76,7 @@ export function WeekSummaryCard({ logs, targetDays, overload, active = true }) {
   ].filter(Boolean)
   return (
     <>
-      <SectionTitle>이번 주</SectionTitle>
+      <SectionTitle>이번 주 <span style={{ ...muted, fontWeight: 500 }}>지난주 같은 요일 대비</span></SectionTitle>
       <Card style={{ marginBottom: 20, position: 'relative' }}>
         {moment && <Shine delay={0.35} />}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px 12px' }}>
@@ -95,7 +95,8 @@ export function WeekSummaryCard({ logs, targetDays, overload, active = true }) {
                   </span>
                 )}
               </div>
-              <div style={{ marginTop: 2 }}>{t.delta} <span style={{ ...muted, fontSize: 12 }}>{t.label === '지난번보다 늘어난 운동' ? '' : '지난주 같은 요일까지 대비'}</span></div>
+              {/* [2026-11-08 문장 다듬기] '지난주 같은 요일까지 대비'는 칸마다 쓰지 않고 제목 옆에 한 번 */}
+              <div style={{ marginTop: 2 }}>{t.delta}</div>
             </div>
           ))}
         </div>
@@ -245,17 +246,26 @@ export function WeeklySetsHeatmap({ logs }) {
 }
 
 // ───────── 종목별 추정 1RM 8주 변화 ─────────
-function Spark({ values, color }) {
+function Spark({ values, color, fluid = false }) {
   if (values.length < 2) return null
-  const w = 64
+  const w = fluid ? 120 : 64
   const h = 22
   const min = Math.min(...values)
   const max = Math.max(...values)
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * w},${max === min ? h / 2 : h - ((v - min) / (max - min)) * (h - 4) - 2}`).join(' ')
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" style={{ flexShrink: 0 }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+    <svg width={fluid ? '100%' : w} height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio={fluid ? 'none' : undefined} aria-hidden="true" style={{ flexShrink: 0, display: 'block' }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
+  )
+}
+function topText(top, strong = false) {
+  if (!top) return ''
+  const w = Number.isInteger(top.w) ? top.w : Number(top.w.toFixed(2))
+  return (
+    <>
+      <span className="bt-num" style={strong ? { fontSize: 14, color: 'var(--color-label-strong)' } : undefined}>{w}</span>kg×<span className="bt-num">{top.r}</span>
+    </>
   )
 }
 export function StrengthTrendCard({ logs, isActive = true }) {
@@ -268,13 +278,23 @@ export function StrengthTrendCard({ logs, isActive = true }) {
     sorted.forEach((log) =>
       (log.exercises || []).forEach((ex) => {
         if ((ex.inputType || getExerciseInputType(ex.name)) !== 'sets') return
-        const v = bestE1rmOfSets(workingSetsOf(ex), ex.name)
+        const ws = workingSetsOf(ex)
+        const v = bestE1rmOfSets(ws, ex.name)
         if (!v) return
+        // [2026-11-08] 그날 대표 세트(가장 무거운 본세트, 같으면 횟수 많은 것) - 근력 추이에 실제 무게를 함께 보여준다
+        const top = ws.reduce((b, st) => {
+          const w = Number(st.weight)
+          const r = Number(st.reps)
+          if (!(r > 0)) return b
+          return !b || w > b.w || (w === b.w && r > b.r) ? { w, r } : b
+        }, null)
         const key = makeExerciseKey(ex.name, ex.grip)
         const arr = (hist[key] ||= [])
         const last = arr[arr.length - 1]
-        if (last && last.date === log.date) last.v = Math.max(last.v, v)
-        else arr.push({ date: log.date, v })
+        if (last && last.date === log.date) {
+          last.v = Math.max(last.v, v)
+          if (top && (!last.top || top.w > last.top.w || (top.w === last.top.w && top.r > last.top.r))) last.top = top
+        } else arr.push({ date: log.date, v, top })
       })
     )
     return Object.entries(hist)
@@ -290,7 +310,7 @@ export function StrengthTrendCard({ logs, isActive = true }) {
       .sort((x, y) => y.a.length - x.a.length || y.cur - x.cur)
   }, [logs])
   const shown = all ? items : items.slice(0, 6)
-  const ST = { up: ['상승', 'var(--color-primary-strong)'], flat: ['정체', 'var(--color-label-neutral)'], down: ['하락', 'var(--color-warning)'] }
+  const ST = { up: ['상승', 'var(--color-success)'], flat: ['유지', 'var(--color-label-neutral)'], down: ['하락', 'var(--color-danger)'] }
   const counts = { up: items.filter((x) => x.status === 'up').length, flat: items.filter((x) => x.status === 'flat').length, down: items.filter((x) => x.status === 'down').length }
   return (
     <>
@@ -301,21 +321,28 @@ export function StrengthTrendCard({ logs, isActive = true }) {
         ) : (
           <>
             <p style={{ ...muted, margin: '0 0 8px' }}>
-              상승 <b style={{ color: 'var(--color-primary-strong)' }}>{counts.up}</b> · 정체 <b>{counts.flat}</b> · 하락 <b style={{ color: 'var(--color-warning)' }}>{counts.down}</b>
+              상승 <b style={{ color: 'var(--color-success)' }}>{counts.up}</b> · 유지 <b>{counts.flat}</b> · 하락 <b style={{ color: 'var(--color-danger)' }}>{counts.down}</b>
             </p>
             {shown.map((x, i) => {
               const isOpen = open === x.key
               return (
                 <div key={x.key} style={{ borderTop: i ? '1px solid var(--color-line)' : 'none' }}>
-                  <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : x.key)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 0', textAlign: 'left', color: 'var(--color-label-strong)' }}>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span className="text-keep-all" style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}><ExerciseName name={exerciseKeyLabel(x.key)} /></span>
-                      <span style={{ ...muted, fontSize: 12 }}>{x.a.length}회 · 최고 {Math.round(x.best)}kg</span>
+                  {/* [2026-11-08] 이름·판정 → 첫 기록 대표 세트 · 꺾은선 · 최근 대표 세트(무게×횟수) → 추정 1RM 작게 */}
+                  <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : x.key)} style={{ display: 'block', width: '100%', padding: '10px 0', textAlign: 'left', color: 'var(--color-label-strong)' }}>
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span className="text-keep-all" style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 700 }}><ExerciseName name={exerciseKeyLabel(x.key)} /></span>
+                      <span style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 800, color: ST[x.status][1] }}>
+                        {x.status === 'up' ? '▲ ' : x.status === 'down' ? '▼ ' : ''}
+                        {x.status === 'flat' ? ST.flat[0] : `${Math.abs(Math.round(x.pct))}%`}
+                      </span>
                     </span>
-                    <Spark values={x.a.map((p) => p.v)} color={getPartColor(x.atom)} />
-                    <span style={{ textAlign: 'right', minWidth: 72 }}>
-                      <span className="bt-num" style={{ display: 'block', fontSize: 16, fontWeight: 800 }}>{Math.round(x.cur)}kg</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: ST[x.status][1] }}>{ST[x.status][0]} {x.pct > 0 ? '+' : ''}{Math.round(x.pct)}%</span>
+                    <span style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                      <span style={{ ...muted, fontSize: 12.5, whiteSpace: 'nowrap' }}>{topText(x.a[0].top)}</span>
+                      <Spark fluid values={x.a.map((p) => p.v)} color={x.status === 'up' ? 'var(--color-success)' : x.status === 'down' ? 'var(--color-danger)' : 'var(--color-label-neutral)'} />
+                      <span style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--color-label-neutral)' }}>{topText(x.a[x.a.length - 1].top, true)}</span>
+                    </span>
+                    <span style={{ display: 'block', ...muted, fontSize: 11.5, marginTop: 3 }}>
+                      추정 1RM <span className="bt-num">{Math.round(x.a[0].v)}</span> → <span className="bt-num">{Math.round(x.cur)}</span>kg · {x.a.length}회
                     </span>
                   </button>
                   {isOpen && (

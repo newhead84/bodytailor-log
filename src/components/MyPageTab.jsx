@@ -42,6 +42,78 @@ function isIosDevice() {
   return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
 }
 
+// [2026-11-08] 프로필 숫자 칸(체중·키·주 목표) + BMI(숫자·지금 판정 그대로·4구간 막대) + 운동 목표 순위 칩
+const BMI_BANDS = [
+  { to: 18.5, label: '~18.5', color: '#9fb6d3' },
+  { to: 23, label: '정상', color: '#9cc98a' },
+  { to: 25, label: '23~25', color: '#e3b55e' },
+  { to: 30, label: '25~', color: '#e08f78' },
+]
+function ProfileNumbers({ userDoc, bmi, bmiCategory }) {
+  const ob = userDoc?.onboarding || {}
+  const goals = normalizeGoals(ob.goals)
+  const tiles = [
+    ['체중', ob.weightKg, 'kg'],
+    ['키', ob.heightCm, 'cm'],
+    ['주 목표', userDoc?.weeklyTargetDays, '일'],
+  ].filter(([, v]) => v != null && v !== '')
+  const lo = 15
+  const hi = 30
+  const pos = bmi != null ? Math.min(100, Math.max(0, ((bmi - lo) / (hi - lo)) * 100)) : null
+  const band = bmi != null ? BMI_BANDS.find((b) => bmi < b.to) || BMI_BANDS[BMI_BANDS.length - 1] : null
+  return (
+    <div style={{ marginTop: 12 }}>
+      {tiles.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${tiles.length}, minmax(0, 1fr))`, gap: 8 }}>
+          {tiles.map(([k, v, u]) => (
+            <div key={k} style={{ background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: '9px 10px', whiteSpace: 'nowrap', minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)', marginBottom: 2 }}>{k}</span>
+              <span className="bt-num" style={{ fontSize: 'calc(min(24px, 6.4vw) * var(--num-scale, 1))', lineHeight: 1 }}>{v}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{u}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {bmi != null && (
+        <div style={{ marginTop: 8, background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: '9px 12px 8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-label-neutral)' }}>BMI</span>
+            <span>
+              <span className="bt-num" style={{ fontSize: 18 }}>{bmi.toFixed(1)}</span>{' '}
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--color-label-strong)' }}>{bmiCategory}</span>
+            </span>
+          </div>
+          <div style={{ position: 'relative', margin: '9px 0 4px' }}>
+            <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden' }}>
+              {BMI_BANDS.map((b, i) => (
+                <span key={b.label} style={{ flex: b.to - (i ? BMI_BANDS[i - 1].to : lo), background: b.color, opacity: band === b ? 1 : 0.45 }} />
+              ))}
+            </div>
+            <span aria-hidden="true" style={{ position: 'absolute', top: -5, left: `calc(${pos}% - 2px)`, width: 4, height: 18, borderRadius: 2, background: 'var(--color-label-strong)', boxShadow: '0 0 0 2px var(--color-bg)' }} />
+          </div>
+          <div style={{ display: 'flex', fontSize: 10.5, color: 'var(--color-label-neutral)' }}>
+            {BMI_BANDS.map((b, i) => (
+              <span key={b.label} style={{ flex: b.to - (i ? BMI_BANDS[i - 1].to : lo), textAlign: 'center' }}>{b.label}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {goals.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+          {goals.map((g, i) => (
+            <span key={g} className="text-keep-all" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg)', color: 'var(--color-label-strong)' }}>
+              {i < 3 && GOAL_LABELS.includes(g) && (
+                <span className="bt-num" style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--color-label-strong)', color: 'var(--color-bg-card)', fontSize: 10.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+              )}
+              {g}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onOpenCoachProgram = null, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, onShowTrainerDirectory, isActive = true }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
@@ -743,26 +815,12 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                   {userDoc?.role} · {userDoc?.onboarding?.gender} · {userDoc?.onboarding?.age}세
                 </span>
               </div>
-              <div>
-                {userDoc?.onboarding?.weightKg}kg · {userDoc?.onboarding?.heightCm}cm
-                {bmi != null && (
-                  <span className="record-notation">
-                    {' '}· BMI {bmi.toFixed(1)} ({bmiCategory})
-                  </span>
-                )}
-              </div>
-              {normalizeGoals(userDoc?.onboarding?.goals).length > 0 && (
-                <div className="text-keep-all">
-                  {normalizeGoals(userDoc.onboarding.goals)
-                    .map((g, i) => (i < 3 && GOAL_LABELS.includes(g) ? `${'①②③'[i]} ${g}` : g))
-                    .join('  ')}
-                </div>
-              )}
-              {userDoc?.weeklyTargetDays ? <div>주 {userDoc.weeklyTargetDays}일 목표</div> : null}
+              {/* [2026-11-08] 체중·키·주 목표는 아래 숫자 칸으로, 목표는 순위 칩으로(글 줄이기) */}
               <TrainerGoalMark userDoc={userDoc} />
             </div>
           )}
         </div>
+        {!editingProfile && <ProfileNumbers userDoc={userDoc} bmi={bmi} bmiCategory={bmiCategory} />}
         {editingProfile ? (
           <div>
             <div style={{ marginBottom: 12 }}>
@@ -1030,8 +1088,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         {/* [2026-08-04 변경] "기존 운동목록에 없는 운동명칭을 직접 지정해 추가하는 기능"이라는
             핵심 설명이 빠져 있어, 커스텀 종목의 용도가 헷갈린다는 피드백으로 문구 보완. */}
         <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-          기존 운동목록에 없는 운동명칭을 직접 지정해서 추가하는 기능이에요. 부위를 고르고 운동명을
-          입력하면, 이후 기록탭·루틴 편집에서 나만 볼 수 있는 종목으로 선택할 수 있어요.
+          목록에 없는 운동을 내 종목으로 추가해요(나만 보여요)
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
           {BODY_PART_ATOMS.map((atom) => (
@@ -1219,7 +1276,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             관리자 대시보드
           </p>
           <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            회원 승인·명단 가져오기·역할 지정·문의 관리를 해요. PC에서는 주소 끝에 /admin 을 붙여 바로 열 수 있어요.
+            회원 승인·명단·역할·문의 관리 · PC는 주소 끝에 /admin
           </p>
         </Card>
       )}

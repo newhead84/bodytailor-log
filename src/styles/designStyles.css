@@ -525,6 +525,15 @@ button:active:not(:disabled) {
 .bt-flip-in {
   animation: bt-flip-in 0.7s var(--ease-out) 0.3s both;
 }
+@keyframes bt-mm-hot {
+  0% { opacity: 0.35; }
+  45% { opacity: 1; filter: brightness(1.15); }
+  100% { opacity: 1; filter: none; }
+}
+.bt-mm-hot {
+  /* [2026-11-08] 근육 그림: 주로 쓰는 근육이 한 번 밝게 떠오름 */
+  animation: bt-mm-hot 0.9s var(--ease-out) 0.15s both;
+}
 .bt-badge-in {
   animation: bt-badge-in 0.35s var(--ease-out) var(--d, 0.5s) both;
 }
