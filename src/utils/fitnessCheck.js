@@ -40,7 +40,7 @@ export const FITNESS_ITEMS = [
     id: 'cooper',
     label: '12분 걷기·달리기',
     optional: true,
-    how: '트레드밀에서 12분 동안 할 수 있는 만큼 빠르게 걷거나 달린 거리.\n심폐 체력을 대략 짐작할 수 있어요.',
+    how: '트레드밀에서 12분 동안 할 수 있는 만큼 빠르게 걷거나 달린 거리.\n심폐 체력을 대략 짐작할 수 있어요.\n숨이 많이 차면 걷기로 바꿔도 돼요.',
     fields: [{ key: 'cooperM', label: '거리(m)', max: 6000, step: 10 }],
   },
 ]

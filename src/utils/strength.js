@@ -632,6 +632,12 @@ function adviseAfterSetRaw(name, set, setting, ctx = {}) {
     }
   }
   const failNote = set.type === 'failure' || (failure && it.id !== 'hard' && it.id !== 'max')
+  // [2026-11-08] T-3: 늘어난 구간 부분 반복 안내는 머신·케이블·고립 종목만(연구가 그쪽 위주). 스쿼트·힌지·런지·바벨 종목과 트레이너 처방 종목은 빼요
+  const partialOk =
+    !setting?.trainerRx &&
+    !['squat', 'hinge', 'lunge'].includes(getExerciseMovementPattern(name)) &&
+    !/바벨|스미스|데드리프트|굿모닝|스쿼트/.test(String(name)) &&
+    (!isCompoundExercise(name) || /케이블|머신|펙덱|레그프레스|레그익스텐션|레그컬|어브덕션|어덕션/.test(String(name)))
   if (planned && done >= planned) {
     return { kind: 'done', reason: `오늘 플랜 ${planned}세트 끝! ${failNote ? '한계까지 갔으니 여기서 마무리해요' : '더 해도 되지만 여기서 마무리해도 충분해요'}${reps >= repMax ? ' · 상한을 채웠으니 다음엔 올리기가 나올 거예요' : ''}` }
   }
@@ -642,7 +648,7 @@ function adviseAfterSetRaw(name, set, setting, ctx = {}) {
     return {
       ...(down ? { weight: nw } : {}),
       kind: down ? 'down' : 'info',
-      reason: `한계(실패)까지 갔어요 → 다음 세트는 한 개 남기고 끝내요(RIR 1)${down ? `, 무게는 ${loadWith(name, nw)}` : ''} · 휴식은 30초 더 쉬어요${down ? '' : ' · 마지막 세트라면 내려간 자리에서 반만 2~4개 더 해도 좋아요(최근 연구)'}`,
+      reason: `한계(실패)까지 갔어요 → 다음 세트는 한 개 남기고 끝내요(RIR 1)${down ? `, 무게는 ${loadWith(name, nw)}` : ''} · 휴식은 30초 더 쉬어요${down || !partialOk ? '' : ' · 마지막 세트라면 내려간 자리에서 반만 2~4개 더 해도 좋아요(머신·고립 종목, 최근 연구)'}`,
     }
   }
   if (reps >= repMax + it.upOver && !failure) {
@@ -711,7 +717,7 @@ export const COACH_EVIDENCE = {
   intensity: { text: '한계에 가까이 할수록 근육은 더 자라지만 피로도 커져요. 그래서 강도는 세트마다 몇 개를 남길지로 정해요.', src: [SRC.proximity] },
   rest: { text: '세트 사이에 1분보다 길게 쉬면 근육 성장에 조금 더 유리하고, 1분 30초를 넘으면 차이가 거의 없어요. 자동 휴식은 이 범위에 맞춰져 있어요.', src: [SRC.rest] },
   session: { text: '한 부위를 한 번에 11세트쯤(다른 종목에서 함께 쓰인 건 반 세트로 계산) 넘게 하면, 그 이상은 근육 성장에 거의 보탬이 안 돼요. 남은 힘은 다음 운동에 쓰는 게 나아요.', recent: [RECENT.session] },
-  partials: { text: '더 이상 안 될 때 근육이 늘어난 쪽(내려간 자리)에서 반만 몇 개 더 하는 방법도 전체 동작과 비슷하게 근육을 키웠다는 연구가 있어요. 아직 초기 연구라 선택 사항이에요.', recent: [RECENT.partials] },
+  partials: { text: '더 이상 안 될 때 근육이 늘어난 쪽(내려간 자리)에서 반만 몇 개 더 하는 방법도 전체 동작과 비슷하게 근육을 키웠다는 연구가 있어요. 아직 초기 연구라 선택 사항이고, 머신·가벼운 고립 종목에서만 권해요(바벨 스쿼트·데드리프트처럼 허리에 부담이 큰 종목은 빼요).', recent: [RECENT.partials] },
 }
 
 // 종목별 추천 이력: 최근 기록마다 "그 전 기록으로 계산한 추천 → 실제로 한 것"(현재 종목 설정 기준으로 다시 계산)

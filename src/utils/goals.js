@@ -82,7 +82,10 @@ export function buildTrainingProfile(goals, { beginner = false, program = null }
   const p = PROFILES[ids[0]] || BASE
   const s = ids[1] ? PROFILES[ids[1]] : null
   const t = ids[2] ? PROFILES[ids[2]] : null
-  const compound = blendRange(p.compound, s?.compound)
+  let compound = blendRange(p.compound, s?.compound)
+  // [2026-11-08] T-2: 처음(가입 8주 미만·경력 6개월 미만)은 다관절도 8회 이상으로 - 자세를 익힌 뒤 무겁게(미국스포츠의학회 초보 8–12회).
+  // 뼈·관절 목표의 5–8회 고중량은 감독 하 연구 근거라 처음부터 혼자 하기엔 위험
+  if (beginner && compound[0] < 8) compound = [8, Math.max(compound[1], 12), compound[2]]
   const iso = blendRange(p.iso, s?.iso)
   let sets = [Math.round(s ? mix(p.sets[0], s.sets[0], 1 / 3) : p.sets[0]), Math.round(s ? mix(p.sets[1], s.sets[1], 1 / 3) : p.sets[1])]
   if (beginner) sets = [Math.min(sets[0], 6), Math.min(sets[1], 12)]
@@ -128,7 +131,7 @@ const mmss = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0
 export function describeTrainingProfile(profile) {
   const pr = profile || current
   const lines = [
-    `다관절 목표 ${pr.compound.repMin}–${pr.compound.repMax}회 · 휴식 ${mmss(pr.compound.restSec)}`,
+    `다관절 목표 ${pr.compound.repMin}–${pr.compound.repMax}회 · 휴식 ${mmss(pr.compound.restSec)}${pr.beginner && pr.compound.repMin === 8 ? ' (처음엔 자세 익히기)' : ''}`,
     `고립 목표 ${pr.iso.repMin}–${pr.iso.repMax}회 · 휴식 ${mmss(pr.iso.restSec)}`,
     pr.programSets ? '부위별 주간 세트·유산소는 코치 프로그램 기준' : `부위별 주간 ${pr.weeklySets.min}–${pr.weeklySets.max}세트${pr.beginner ? ' (처음 8주는 낮게 시작)' : ''}`,
     `주간 유산소 ${pr.cardioGoalMin}분${pr.programSets ? '(코치 프로그램)' : ''}`,

@@ -185,7 +185,8 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
           <div key={k} className="bt-enter" style={{ animationDelay: `${i * 0.06}s`, padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-card)', border: '1px solid var(--color-line)' }}>
             <div style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{k}</div>
             <div className="bt-num" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>
-              {v == null ? '익숙해지면' : <>주 <CountUp value={v} />{unit}</>}
+              {/* [2026-11-08] T-1: 유산소 0분이면 '주 0분' 대신 따로 채우기 */}
+              {v == null ? '익숙해지면' : k === '유산소' && v === 0 ? '따로 채우기' : <>주 <CountUp value={v} />{unit}</>}
             </div>
           </div>
         ))}

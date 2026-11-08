@@ -140,6 +140,9 @@ export default function FitnessCheckScreen({ uid, weightKg, onClose, backRef = n
         <>
           <p className="text-keep-all" style={{ margin: '0 0 14px', fontSize: 13.5, color: 'var(--color-label-normal)' }}>
             할 수 있는 것만 재서 적어요. 몸을 충분히 푼 뒤, 하나 끝나면 2–3분 쉬고 다음 것을 해요.
+            {/* [2026-11-08] T-18: 최대 노력 검사라 시작 전에 보이게 */}
+            <br />
+            <strong style={{ color: 'var(--color-label-strong)' }}>가슴 통증·어지러움·숨이 너무 차면 바로 멈추고 쉬어요.</strong> 치료 중인 질환이 있으면 먼저 의사와 상의해요.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
             {FITNESS_ITEMS.map((it) => (

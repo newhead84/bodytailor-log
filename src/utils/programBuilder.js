@@ -109,7 +109,8 @@ function slotExercise(slot, a) {
     case 'squat2':
       return newbie ? first('고블릿스쿼트', '레그프레스') : first('레그프레스', '핵스쿼트머신(브이스쿼트머신)')
     case 'hinge':
-      return a.life === 'carry' && vet ? first('데드리프트', '루마니안데드리프트') : first('루마니안데드리프트', '백익스텐션')
+      // [2026-11-08] T-4: '처음이에요(머신 위주)'는 바벨 힌지 대신 백익스텐션
+      return newbie ? first('백익스텐션', '하이퍼익스텐션(웨이티드-중량)') : a.life === 'carry' && vet ? first('데드리프트', '루마니안데드리프트') : first('루마니안데드리프트', '백익스텐션')
     case 'single':
       return a.life === 'stairs' || a.life === 'balance' || newbie ? first('스텝업', '덤벨런지') : first('덤벨불가리안스플릿스쿼트', '덤벨런지')
     case 'hamcurl':
@@ -117,7 +118,7 @@ function slotExercise(slot, a) {
     case 'quadiso':
       return first('레그익스텐션')
     case 'glute':
-      return first('바벨힙쓰러스트', '케이블킥백')
+      return newbie ? first('케이블킥백', '원레그힙쓰러스트') : first('바벨힙쓰러스트', '케이블킥백')
     case 'pushH':
       return newbie ? first('체스트프레스머신', '플랫덤벨프레스') : vet ? first('플랫바벨프레스', '플랫덤벨프레스') : first('플랫덤벨프레스', '체스트프레스머신')
     case 'pushI':
@@ -383,18 +384,24 @@ export function buildProgram(input) {
       src: '영국스포츠의학저널 종합 분석(2022) · 관찰 연구',
     },
     {
-      text: Object.values(coachRx).some((r) => r.kind === 'interval')
+      // [2026-11-08] T-1: 시간이 모자라 유산소가 0분이면 '넣었다'고 말하지 않고 따로 채우기를 안내
+      text: cardioMinWeek === 0
+        ? `한 번 ${a.minutes}분 안에는 유산소가 들어가지 않았어요. 운동하지 않는 날 빠르게 걷기 같은 대화되는 강도로 따로 채워요${profile.cardioGoalMin ? `(목표 주 ${profile.cardioGoalMin}분)` : ''}. 심폐 체력이 높은 사람일수록 오래 건강하게 사는 경향이 뚜렷했어요.`
+        : Object.values(coachRx).some((r) => r.kind === 'interval')
         ? `유산소는 주 약 ${cardioMinWeek}분: 대화되는 강도로 꾸준히 + 숨찬 인터벌은 주 1번이에요(이미 한 주에는 그 날도 대화되는 강도로 안내해요). 심폐 체력이 높은 사람일수록 오래 건강하게 사는 경향이 뚜렷했어요.`
         : `유산소는 주 약 ${cardioMinWeek}분, 대화되는 강도로 시작해요. 익숙해지면 숨찬 인터벌을 주 1회 넣어요. 심폐 체력이 높은 사람일수록 오래 건강하게 사는 경향이 뚜렷했어요.`,
       src: '심폐 체력과 사망 위험 연구(2018, 12만 명) · 관찰 연구',
     },
   ]
-  if (beginner) reasons.push({ text: '처음 몇 달은 종목당 2–3세트로 시작해 자세를 익혀요. 그것만으로도 힘이 충분히 늘어요.', src: '미국스포츠의학회 운동 지침(2009)' })
+  if (beginner) reasons.push({ text: '처음 몇 달은 종목당 2–3세트, 8–12회로 시작해 자세를 익힌 뒤 무겁게 들어요. 그것만으로도 힘이 충분히 늘어요.', src: '미국스포츠의학회 운동 지침(2009)' })
+  // [2026-11-08] T-4: 6개월 미만인데 바벨 힌지가 들어가면 자세 확인을 권한다
+  if (beginner && parts.some((p) => p.exercises.some((n) => /루마니안데드리프트|^데드리프트$|바벨힙쓰러스트/.test(n))))
+    reasons.push({ text: '루마니안데드리프트처럼 바벨로 엉덩이를 접는 운동은 처음 몇 번은 트레이너에게 자세를 확인받고 시작해요.', src: '' })
   if (a.life === 'carry') reasons.push({ text: '짐을 드는 힘은 엉덩이·등으로 들어 올리는 힘과 손아귀 힘이에요. 들어 올리기·당기기와 들고 걷기(파머스캐리)·매달리기(데드행)를 넣었어요. 손아귀 힘이 센 사람들이 더 건강한 경향이 있어요.', src: '17개국 악력 연구(2015) · 관찰 연구' })
-  if (a.life === 'stairs') reasons.push({ text: '계단은 한 다리로 몸을 밀어 올리는 동작이라 스텝업 같은 한 다리 운동과 벽 앉기(월싯), 유산소를 넣었어요.', src: '' })
+  if (a.life === 'stairs') reasons.push({ text: `계단은 한 다리로 몸을 밀어 올리는 동작이라 스텝업 같은 한 다리 운동과 벽 앉기(월싯)${cardioMinWeek > 0 ? ', 유산소를' : '를'} 넣었어요.`, src: '' })
   if (a.life === 'balance') reasons.push({ text: `균형은 한 다리 운동과 몸통을 버티는 코어 운동${parts.some((p) => p.exercises.includes('케이블페이스풀')) ? ', 등 뒤쪽(페이스풀)' : ''}으로 지켜요.`, src: '' })
   if (a.sleep === 'low') reasons.push({ text: '잠이 부족하면 회복이 늦어 세트를 조금 줄여 시작했어요. 몸이 버거우면 로그 코치가 쉬어 가는 주를 알려 줘요.', src: '' })
-  if (profile.cardioGoalMin && cardioMinWeek < profile.cardioGoalMin) {
+  if (profile.cardioGoalMin && cardioMinWeek > 0 && cardioMinWeek < profile.cardioGoalMin) {
     const why = cardio.weekMin < profile.cardioGoalMin && cardioMinWeek >= cardio.weekMin - 10 ? '지금 유산소 습관에 맞춰 낮게 시작했어요' : `한 번 ${a.minutes}분 안에 근력과 함께 넣다 보니 주 ${cardioMinWeek}분이 들어갔어요`
     reasons.push({ text: `${why}. 목표(주 ${profile.cardioGoalMin}분)까지는 운동하지 않는 날 빠르게 걷기로 채우거나, 운동 시간을 늘려 다시 만들어 보세요.`, src: '' })
   }
