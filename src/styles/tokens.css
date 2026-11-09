@@ -258,6 +258,8 @@ body,
      서로 다른 크기로 보이는 원인이 됐다(②). 전역으로 비활성화해 명시한 px 값 그대로 렌더링한다. */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* [2026-11-09] 두 번 탭 확대 막기(손가락 확대는 index.html viewport·스크립트). 드래그 핸들 등은 각자 touch-action을 둔다 */
+  touch-action: manipulation;
 }
 
 body {

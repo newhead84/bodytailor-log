@@ -2,13 +2,17 @@
 <html lang="ko" data-theme="dark" data-style="c" data-accent="brass" data-font="paperlogy">
   <head>
     <meta charset="UTF-8" />
-    <!-- [2026-11-01] 확대 막기(maximum-scale) 제거: 안드로이드·PC에서 손가락 확대가 되게. 아이폰은 이 값이 있어도 손가락 확대가 되고,
-         없으면 16px보다 작은 입력 칸을 누를 때 화면이 자동 확대돼 세트 입력이 불편해서 아이폰에만 다시 붙인다. -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- [2026-11-09] 앱 화면 확대·축소 막기(사용자 요청: 기록 중 손가락이 미끄러져 화면이 확대됨). 11-01에 접근성 때문에 풀었던 것을 되돌림.
+         안드로이드·PC 크롬은 viewport 값으로, 아이폰은 viewport 값을 무시하므로 아래 스크립트(gesturestart·두 손가락 이동)로 막는다.
+         두 번 탭 확대는 tokens.css의 touch-action: manipulation. 소개(/intro/)·처리방침(/privacy/)은 별도 파일이라 확대 그대로. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
     <script>
-      if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) {
-        document.querySelector('meta[name=viewport]').setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0')
-      }
+      ;(function () {
+        var stop = function (e) { e.preventDefault() }
+        document.addEventListener('gesturestart', stop, { passive: false })
+        document.addEventListener('gesturechange', stop, { passive: false })
+        document.addEventListener('touchmove', function (e) { if (e.touches && e.touches.length > 1) e.preventDefault() }, { passive: false })
+      })()
     </script>
     <!-- [2026-11-01] 첫 화면(로그인·인트로)의 다크 바탕색. 로그인 뒤에는 App이 현재 테마 바탕색으로 바꾼다 -->
     <meta name="theme-color" content="#141210" />

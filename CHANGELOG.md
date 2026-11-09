@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-09] 앱 화면 확대·축소 막기(사용자 요청: 기록 중 손가락 확대): viewport maximum-scale=1·user-scalable=no(11-01에 접근성 때문에 풀었던 것 되돌림), 아이폰은 gesturestart·두 손가락 이동 막기, 두 번 탭 확대는 touch-action: manipulation. 소개·처리방침 페이지는 확대 그대로 | index.html, src/styles/tokens.css
+
 [2026-11-09] HOME 오늘 차례 운동 목록: 운동을 시작하지 않아도 오늘 차례 파트의 종목 목록(번호·종목명·그립)을 "오늘" 블록에 항상 표시(오늘 운동을 마치면 숨김) | src/components/HomeTab.jsx
 
 [2026-11-08] 완료 효과 강화·효과음(미리보기에서 사용자 선택 A 펀치 + A 아케이드): 세트 저장 체크 튀기·불꽃 크게·'+1세트' 글자, 종목 완료 순간 카드 빛·두 겹 불꽃·'종목 완료!', 운동 완료 팝업 화면 가운데 큰 불꽃 + 꽃가루(레벨 업이면 한 번 더), 효과음 세트 '띵'·종목 완료·신기록 팡파르·운동 완료·레벨 업(Web Audio로 직접 생성, 파일 없음), MY › 설정 '효과음' 켜기·끄기(users.sfxEnabled, 기본 켜짐, rules bool 검사) / 쉬었다 다시 시작해도 무게가 같으면 코치 카드가 빨강(내림)으로 보이지 않게 | utils/sfx.js(신규), ui.jsx(Burst big·FloatText·ScreenCelebration), designStyles.css, WorkoutInput.jsx, MyPageTab.jsx, App.jsx, firestore.rules
