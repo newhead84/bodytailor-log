@@ -32,7 +32,7 @@ import {
 import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises } from './utils/exerciseLibrary'
 import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey, cleanTrainerRx } from './utils/strength'
 import { getSeasonPeriod } from './utils/season'
-import { weekStartStr, todayStr } from './utils/date'
+import { weekStartStr, todayStr, toLocalDateStr } from './utils/date'
 
 // ───────────── [2026-11-01] B2: Spark 한도 대비 - 이 기기 읽기 횟수 근사·한도 초과 알림 ─────────────
 // 서버에서 받은 문서 수만 센다(기기 캐시에서 읽은 것은 제외, 근사값). 하루 단위로 localStorage에 쌓는다.
@@ -1250,6 +1250,45 @@ export async function getTraineeSummaries(memberUids) {
     traineeSummaryCache.set(id, { at: now, data: d ? { ptTotal: d.ptTotal ?? 0, ptRemaining: d.ptRemaining ?? 0, lastDate: d.activity?.lastDate || '', membershipEnd: d.membershipEnd || '', weekDays: d.activity?.weeks?.[weekStartStr(todayStr())] || 0 } : null })
   })
   return Object.fromEntries(memberUids.map((id) => [id, traineeSummaryCache.get(id)?.data || null]))
+}
+// [2026-11-09] 트레이너 HOME '최근 통증 표시': 담당 회원의 최근 N일 기록에서 통증 표시만 모은다(회원당 기록 몇 개 읽기, 10분 캐시).
+// → { memberUid: { date, level: 'strong'|'mild', exercises: [] } } (통증이 없으면 빠짐)
+const painFlagCache = new Map() // memberUid -> { at, data }
+export async function getRecentPainFlags(memberUids, days = 7) {
+  const now = Date.now()
+  const to = todayStr()
+  const fromD = new Date()
+  fromD.setDate(fromD.getDate() - (days - 1))
+  const from = toLocalDateStr(fromD)
+  const need = memberUids.filter((id) => !(painFlagCache.get(id) && now - painFlagCache.get(id).at < 10 * 60 * 1000))
+  await Promise.all(
+    need.map(async (id) => {
+      let data = null
+      try {
+        const logs = await getWorkoutLogsInRange(id, from, to)
+        // 가장 최근에 통증을 표시한 날 하나만(그날 종목들, 심함이 하나라도 있으면 심함)
+        for (const l of logs) {
+          const hits = (l.exercises || [])
+            .map((ex) => {
+              const sets = (ex.sets || []).filter((st) => st?.type !== 'warmup')
+              return { name: ex.name, lv: sets.some((st) => st.pain === 'strong') ? 'strong' : sets.some((st) => st.pain === 'mild') ? 'mild' : null }
+            })
+            .filter((h) => h.lv)
+          if (!hits.length || (data && l.date < data.date)) continue
+          const same = data && data.date === l.date ? data : null
+          data = {
+            date: l.date,
+            level: same?.level === 'strong' || hits.some((h) => h.lv === 'strong') ? 'strong' : 'mild',
+            exercises: [...new Set([...(same?.exercises || []), ...hits.map((h) => h.name)])],
+          }
+        }
+      } catch (err) {
+        console.error('최근 통증 표시 불러오기 실패:', err)
+      }
+      painFlagCache.set(id, { at: now, data })
+    })
+  )
+  return Object.fromEntries(memberUids.map((id) => [id, painFlagCache.get(id)?.data]).filter(([, v]) => v))
 }
 export function invalidateTraineeSummary(memberUid) {
   traineeSummaryCache.delete(memberUid)

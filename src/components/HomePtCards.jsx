@@ -3,7 +3,7 @@
 //  - 트레이너: B18 오늘 PT 카드(완료·노쇼·다음 주 같은 시간 한 번에 예약)
 import React, { useCallback, useEffect, useState } from 'react'
 import { Card, Button, useConfirm } from './ui'
-import { getAppSettings, getUserDoc, listMyTrainees, listTrainerSchedulesByDates, trainerAddSchedule, trainerCompleteSchedule, trainerNoShowSchedule, logAction, invalidateTraineeSummary } from '../storage'
+import { getAppSettings, getUserDoc, listMyTrainees, listTrainerSchedulesByDates, trainerAddSchedule, trainerCompleteSchedule, trainerNoShowSchedule, logAction, invalidateTraineeSummary, getRecentPainFlags } from '../storage'
 import { todayStr } from '../utils/date'
 import { addDays, isTrainerAccount } from '../utils/member'
 
@@ -16,11 +16,19 @@ const tsMs = (t) => (t?.toMillis ? t.toMillis() : typeof t?.seconds === 'number'
 
 export default function HomePtCards({ uid, userDoc }) {
   if (!uid || !userDoc) return null
-  if (userDoc.role === '트레이너') return <TrainerTodayPt uid={uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} />
+  if (userDoc.role === '트레이너') {
+    return (
+      <>
+        <TrainerPainAlerts uid={uid} />
+        <TrainerTodayPt uid={uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} />
+      </>
+    )
+  }
   // [2026-11-02] 관리자 겸 트레이너: 오늘 PT(트레이너)와 내 PT 일정 알림(회원)을 함께
   if (isTrainerAccount(userDoc)) {
     return (
       <>
+        <TrainerPainAlerts uid={uid} />
         <TrainerTodayPt uid={uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} />
         <PtChangeNotice uid={uid} change={userDoc.ptLastChange} />
       </>
@@ -57,6 +65,47 @@ function PtChangeNotice({ uid, change }) {
       <div style={{ marginTop: 12 }}>
         <Button variant="secondary" onClick={dismiss}>확인</Button>
       </div>
+    </Card>
+  )
+}
+
+// [2026-11-09] 담당 회원이 최근 7일 안에 '통증'을 표시했으면 HOME에 알림(심함 먼저). 회원 화면을 열지 않아도 보이게.
+function TrainerPainAlerts({ uid }) {
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    let alive = true
+    listMyTrainees(uid)
+      .then(async (list) => {
+        const flags = await getRecentPainFlags(list.map((c) => c.memberUid))
+        if (!alive) return
+        const name = Object.fromEntries(list.map((c) => [c.memberUid, c.memberName || c.memberNickname || '회원']))
+        setRows(
+          Object.entries(flags)
+            .map(([m, f]) => ({ uid: m, name: name[m], ...f }))
+            .sort((a, b) => (a.level === b.level ? (a.date < b.date ? 1 : -1) : a.level === 'strong' ? -1 : 1))
+        )
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [uid])
+  if (!rows.length) return null
+  return (
+    <Card style={{ marginBottom: 20, border: rows.some((r) => r.level === 'strong') ? '1px solid var(--color-danger)' : undefined }}>
+      <p style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+        최근 통증 표시 <span className="bt-num" style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-label-neutral)' }}>{rows.length}명 · 7일</span>
+      </p>
+      {rows.map((r) => (
+        <div key={r.uid} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-line)', marginTop: 8 }}>
+          <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: r.level === 'strong' ? 'var(--color-danger)' : 'var(--color-label-neutral)' }}>{r.level === 'strong' ? '심함' : '조금'}</span>
+          <span className="text-keep-all" style={{ flex: 1, minWidth: 0, fontSize: 14 }}>
+            <b>{r.name}</b> · {r.exercises.join(', ')}
+          </span>
+          <span className="bt-num" style={{ flexShrink: 0, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>{fmtDay(r.date)}</span>
+        </div>
+      ))}
+      <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>MY › 내 회원에서 기록을 볼 수 있어요</p>
     </Card>
   )
 }

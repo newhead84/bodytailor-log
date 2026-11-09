@@ -33,6 +33,13 @@ export function audioCtx() {
   if (typeof window === 'undefined') return null
   const AC = window.AudioContext || window.webkitAudioContext
   if (!AC) return null
+  // [2026-11-09] 아이폰 사파리: 짧은 알림 소리로 알려 음악 위에 얹히고(음악을 잠깐 줄일 수 있음) 다른 소리를 끊지 않게.
+  // 오디오 세션 기능이 없는 브라우저는 그대로(안드로이드 크롬 등).
+  try {
+    if (navigator.audioSession && navigator.audioSession.type !== 'transient') navigator.audioSession.type = 'transient'
+  } catch (_) {
+    // 무시
+  }
   if (!ctx) {
     ctx = new AC()
     master = null

@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-09] 몸 상태 코칭 보완: 아이폰 알림음을 짧은 알림 오디오 세션(transient)으로(음악 위에 얹힘, 실기기 확인 필요), 지난번 통증·자세 흔들림을 다음 운동 플랜 카드에서 다시 알림(심하면 '대신 할 운동 보기'), 운동 완료 요약 '오늘 몸 상태', 트레이너 HOME '최근 통증 표시'(담당 회원 7일, 10분 캐시), 컨디션 나쁨 '세트도 하나 덜 하기' | utils/audioOut.js, utils/strength.js(lastIssue), utils/sessionCoach.js(lastIssueNote·sessionFeelSummary·lighter), WorkoutInput.jsx, HomePtCards.jsx, storage.js(getRecentPainFlags)
+
 [2026-11-09] 오늘 몸 상태 코칭·종목별 진행 방식(사용자 요청, 트레이너 관점: 무게·횟수보다 자세가 먼저): 운동 시작 전 컨디션(좋음·보통·나쁨, 건너뛰기), 세트 '방금 세트' 몸 상태(괜찮음·자세 흔들림·통증 조금·통증 심함) → 다음 세트 안내, 같은 부위 다른 종목의 통증·실패·자세 흔들림을 다음 종목 플랜에 반영(지난번만큼 또는 10%↓·세트 1개 덜), 자세 흔들림·통증 세트가 있으면 증량 보류, 플랜 카드에 자세 우선 한 줄·이유, 작은 근육 고립 종목은 무게 한 칸이 12% 넘으면 상한 +3회까지 횟수 먼저(페이스풀은 유지형), 고립 종목 정체 시 드롭세트 한 줄 제안. 통증·컨디션은 기록에 저장되어 담당 트레이너 회원 화면에 표시, 처리방침 항목 추가, 사용법 가이드 문구 | utils/sessionCoach.js(신규), utils/strength.js, WorkoutInput.jsx, sessionPayload.js, CalendarView.jsx, TraineesScreen.jsx, WorkoutGuide.jsx, public/privacy/index.html, CLAUDE.md
 
 [2026-11-09] 소리 크기·진동 세기 슬라이더(사용자 요청: 음악에 묻혀 알림이 작음): 휴식 알림음·완료 효과음을 공용 출력(전체 음량 → 리미터)으로 바꿔 기본을 크게(예전 휴식음 약 1.8배, 리미터로 찌그러짐 방지), MY › 설정 '소리 크기'(users.alertVolume)·'진동 세기'(users.vibrationLevel, 진동 길이·횟수로 표현, 0=끔, 아이폰 사파리는 미지원 안내) 0–100·기본 100, 들어 보기·진동 보기, rules 0–100 정수 검사 | utils/audioOut.js(신규), RestTimer.jsx, utils/sfx.js, MyPageTab.jsx, App.jsx, firestore.rules

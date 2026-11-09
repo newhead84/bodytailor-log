@@ -590,6 +590,10 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
   const need = Math.ceil(it.incRatio * repMax * n)
   // [2026-11-08] lastWeight·lastReps: 코치 카드에 '지난번 → 오늘'을 세트별로 보여주려고(계산에는 안 씀)
   let out = { ...res, setTargets: Array(n).fill(res.reps), intensity: it.id, lastSetCount: Math.max(n, top.count || 0), lastWeight: top.topW, lastReps: top.reps }
+  // [2026-11-09] 지난번에 통증·자세 흔들림을 표시했는지(다음 운동 플랜 카드에서 다시 알림)
+  const ls = (lastRecord.sets || []).filter((s) => !isWarmupSet(s))
+  const lastIssue = ls.some((s) => s.pain === 'strong') ? 'strong' : ls.some((s) => s.pain === 'mild') ? 'mild' : ls.some((s) => s.form === 'broken') ? 'form' : null
+  if (lastIssue) out.lastIssue = lastIssue
   // [2026-11-09] 진행 방식(증량형·횟수 우선형·유지형)과 안내
   out.style = progressionStyle(name, setting, top.topW)
   const styleNote = progressionStyleNote(name, setting, top.topW)

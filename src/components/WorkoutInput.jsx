@@ -16,7 +16,7 @@ import RestTimer from './RestTimer'
 import { SetTypeBadge, RirChip, FocusSetPanel, PlatePanel, ExerciseSettingEditor, SetTypeLegend, nextSetType, nextRir } from './SetEditors'
 import WorkoutGuide, { WORKOUT_GUIDE_VERSION } from './WorkoutGuide'
 import { StretchSuggest } from './StretchGuide'
-import { CONDITIONS, normalizeCondition, SET_FEELS, feelOf, feelPatch, adviseAfterFeel, applySessionAdjust, FORM_FIRST_LINE } from '../utils/sessionCoach'
+import { CONDITIONS, normalizeCondition, SET_FEELS, feelOf, feelPatch, adviseAfterFeel, applySessionAdjust, FORM_FIRST_LINE, lastIssueNote, sessionFeelSummary } from '../utils/sessionCoach'
 import {
   suggestNextSet,
   adviseAfterSet,
@@ -431,6 +431,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const [records, setRecords] = useState({}) // { [exerciseKey]: [{weight, reps, saved}] }
   // [2026-11-09] 운동 시작 전 컨디션(좋음·보통·나쁨, 건너뛰기 가능) - 나쁨이면 오늘 플랜은 올리지 않고 지난번만큼(sessionCoach.js)
   const [condition, setCondition] = useState(null)
+  const [conditionLight, setConditionLight] = useState(false) // 컨디션 나쁨일 때 '세트도 하나 덜'
   const [lastRecords, setLastRecords] = useState({}) // { [exerciseKey]: {sets, date} }
   const [restSeconds, setRestSeconds] = useState(REST_AUTO)
   const [restKey, setRestKey] = useState(0)
@@ -668,6 +669,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setCoachPlans(draft.coachPlans || {})
     setTipUps(draft.tipUps || {})
     setCondition(normalizeCondition(draft.condition))
+    setConditionLight(!!draft.conditionLight)
   }
 
   // 세션 상태를 초기(idle)로 되돌린다(운동 완료·취소·자동 저장 공통).
@@ -679,6 +681,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setTipUps({})
     setCapWarned({})
     setCondition(null)
+    setConditionLight(false)
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -905,6 +908,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       coachPlans, // [2026-11-03] 앱을 껐다 켜도 '플랜대로 하기'로 정한 세트 수·증량 제안 횟수를 기억
       tipUps,
       condition, // [2026-11-09] 운동 시작 전 컨디션
+      conditionLight,
       updatedAt: Date.now(),
     }
     // [2026-11-07] 활동 시각: 세트 저장·단계 변경·일시정지/재개가 있을 때만 갱신(무게·횟수 입력만으로는 갱신 안 함).
@@ -956,6 +960,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     freeCategory,
     supersets,
     condition,
+    conditionLight,
   ])
 
   // [2026-07-30] 세션 진행 단계가 바뀔 때마다 상위(App.jsx → HomeTab)에 알려
@@ -1009,6 +1014,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setTipUps({})
     setCapWarned({})
     setCondition(null)
+    setConditionLight(false)
     setCompletedExercises({})
     setHiddenToday([])
     setFreeExercises([])
@@ -1297,8 +1303,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const notes = []
     // [2026-11-09] 오늘 몸 상태 조정·진행 방식(횟수 우선형·유지형)·드롭세트 안내
     if (sug.sessionAdj) notes.push({ text: sug.sessionAdj.text })
+    // [2026-11-09] 지난번 통증·자세 흔들림을 다시 알림(심했으면 '대신 할 운동 보기' 버튼)
+    const li = lastIssueNote(sug.lastIssue)
+    if (li) notes.push(li)
     if (sug.styleNote && !sug.sessionAdj) notes.push({ text: sug.styleNote, muted: true })
-    if (sug.dropHint && !sug.sessionAdj) notes.push({ text: `정체 탈출: 마지막 세트 뒤 ${formatLoad(name, sug.dropHint.weight)}로 낮춰 바로 한 번 더(드롭세트). 자세가 흔들리면 생략해요`, muted: true })
+    if (sug.dropHint && !sug.sessionAdj && !sug.lastIssue) notes.push({ text: `정체 탈출: 마지막 세트 뒤 ${formatLoad(name, sug.dropHint.weight)}로 낮춰 바로 한 번 더(드롭세트). 자세가 흔들리면 생략해요`, muted: true })
     // [2026-11-07] 트레이너 처방 종목은 세트 수를 코치가 바꾸지 않는다(쉬어 가는 주·주간 세트 채우기 없음) - 신호만 알림
     if (settingFor(key)?.trainerRx) {
       if (deload && sug.kind !== 'decrease' && !sug.comeback) notes.push({ text: `${deload.hardWeeks}주 넘게 세게 이어 왔어요. 처방대로 하되 몸이 무거우면 트레이너와 상의해요` })
@@ -1367,7 +1376,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       .filter((ex) => ex.sets.length)
   }
   function adjustForToday(sug, key, recs = records) {
-    return applySessionAdjust(sug, parseExerciseKey(key).name, settingFor(key), { others: othersSaved(recs, key), condition })
+    return applySessionAdjust(sug, parseExerciseKey(key).name, settingFor(key), { others: othersSaved(recs, key), condition, lighter: conditionLight })
   }
   function suggestionFor(key) {
     return adjustForToday(suggestNextSet(parseExerciseKey(key).name, lastRecords[key], settingFor(key)), key)
@@ -2074,6 +2083,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     setTipUps({})
     setCapWarned({})
     setCondition(null)
+    setConditionLight(false)
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -2106,6 +2116,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         workingSets: workingSetCount,
         exerciseCount: exercises.length,
         atoms: [...new Set(exercises.map((ex) => getExerciseAtom(ex.name)).filter(Boolean))], // [2026-10-30] 쿨다운 스트레칭 추천용
+        feel: sessionFeelSummary(exercises), // [2026-11-09] 오늘 통증·자세 흔들림을 표시한 종목
         prCount,
         xpBefore,
         xpAfter: xpBefore + (xpEarned || 0),
@@ -2385,6 +2396,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 </Chip>
               ))}
             </div>
+            {condition === 'bad' && (
+              <div style={{ marginTop: 8 }}>
+                <Chip active={conditionLight} onClick={() => setConditionLight((v) => !v)} style={{ padding: '6px 12px', fontSize: 13 }}>
+                  세트도 하나 덜 하기
+                </Chip>
+              </div>
+            )}
             <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
               {condition === 'bad'
                 ? '오늘은 무게를 올리지 않고 지난번만큼 자세 좋게 해요. 아픈 곳이 있으면 그 부위는 쉬어요'
@@ -2816,6 +2834,20 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
             )}
           </div>
         )}
+        {/* [2026-11-09] 오늘 몸 상태: 통증·자세 흔들림을 표시한 종목 */}
+        {summary?.feel && (
+          <div role="status" style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: `1px solid ${summary.feel.strong.length ? 'var(--color-danger)' : 'var(--color-line)'}`, textAlign: 'left' }}>
+            <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>오늘 몸 상태</p>
+            {summary.feel.strong.length > 0 && <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>통증 심함 · {summary.feel.strong.join(', ')}</p>}
+            {summary.feel.mild.length > 0 && <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-strong)' }}>통증 조금 · {summary.feel.mild.join(', ')}</p>}
+            {summary.feel.form.length > 0 && <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-strong)' }}>자세 흔들림 · {summary.feel.form.join(', ')}</p>}
+            <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
+              {summary.feel.strong.length
+                ? '심한 통증은 트레이너와 상의해 보세요. 며칠 지나도 아프면 진료를 받아 보세요. 다음 운동 플랜에서 다시 알려 드려요'
+                : '다음 운동 플랜에서 다시 알려 드려요. 그 종목은 무게를 올리지 않고 자세부터 확인해요'}
+            </p>
+          </div>
+        )}
         {/* [2026-10-30] 오늘 쓴 부위 쿨다운(정적) 스트레칭 3개 */}
         {summary?.atoms?.length > 0 && <StretchSuggest atoms={summary.atoms} phase="after" title="오늘 쓴 부위 쿨다운 스트레칭" style={{ marginBottom: 12 }} />}
         {/* [2026-08-02 신규] 자유 추가 운동으로 기록한 오늘의 종목을, 화면 이동 없이 바로
@@ -3235,6 +3267,11 @@ export function ExerciseCard({
               {(ext.planNotes || []).map((n, i) => (
                 <span key={i} className="text-keep-all" style={{ fontSize: 12.5, color: n.muted ? 'var(--color-label-normal)' : 'var(--color-label-strong)', fontWeight: n.muted ? 500 : 600 }}>
                   {n.text}
+                  {n.swap && ext.onOpenHowto && (
+                    <button type="button" onClick={ext.onOpenHowto} style={{ display: 'block', marginTop: 6, height: 32, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line-strong)', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+                      대신 할 운동 보기
+                    </button>
+                  )}
                 </span>
               ))}
               {/* [2026-11-09] 자세 우선 원칙(늘 한 줄, 사용자 요청: 무리하게 채우기보다 컨디션에 맞게 정확한 자세) */}

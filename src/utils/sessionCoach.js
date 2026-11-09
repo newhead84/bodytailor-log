@@ -121,7 +121,8 @@ const atomText = (name) => {
 }
 
 // suggestNextSet 결과를 오늘 몸 상태에 맞게 바꾼다. 트레이너 처방 종목은 통증 심함(2단계)만 무게를 바꾸고 그 밖에는 안내만.
-export function applySessionAdjust(sug, name, setting, { others = [], condition = null } = {}) {
+// lighter: 컨디션 나쁨 + '세트도 하나 덜'을 고른 날(1단계에 세트 1개 덜)
+export function applySessionAdjust(sug, name, setting, { others = [], condition = null, lighter = false } = {}) {
   if (!sug) return sug
   const strain = sessionStrain(name, others)
   const { level, why } = sessionAdjustLevel(strain, condition)
@@ -137,6 +138,8 @@ export function applySessionAdjust(sug, name, setting, { others = [], condition 
       ? `오늘 ${where}에 통증이 조금 있었어요 → 올리지 말고 지난번만큼만, 아픈 범위는 피해서`
       : why === 'fatigue'
       ? `오늘 ${where} 운동에서 ${failForm.join('·')} → 피로가 쌓였어요. 올리기는 다음에, 지난번만큼만 자세 좋게`
+      : lighter
+      ? '오늘 컨디션이 나빠요 → 올리기는 다음에, 지난번만큼·세트 하나 덜, 자세 좋게 해요'
       : '오늘 컨디션이 나빠요 → 올리기는 다음에, 지난번만큼만 자세 좋게 해요'
   const adj = { level, why, text, from: strain.from }
   if (setting?.trainerRx && level < 2) return { ...sug, sessionAdj: { ...adj, text: `${text}(트레이너 처방은 그대로, 무리하지 않게)` } }
@@ -167,8 +170,9 @@ export function applySessionAdjust(sug, name, setting, { others = [], condition 
       sessionAdj: adj,
     }
   }
-  // 1단계: 올리기 → 지난번 무게·횟수, 횟수 늘리기 → 지난번 횟수(+1 없이)
-  if (sug.kind === 'decrease') return { ...sug, sessionAdj: adj, dropHint: undefined }
+  // 1단계: 올리기 → 지난번 무게·횟수, 횟수 늘리기 → 지난번 횟수(+1 없이). 컨디션 나쁨 + '세트도 하나 덜'이면 세트 1개 덜
+  const cut = lighter && condition === 'bad' ? 1 : 0
+  if (sug.kind === 'decrease') return { ...sug, sessionAdj: adj, dropHint: undefined, ...(cut ? { setCut: (Number(sug.setCut) || 0) + cut } : {}) }
   const backToLast = sug.kind === 'increase' && sug.lastWeight != null
   const weight = backToLast ? sug.lastWeight : sug.weight
   const targets = backToLast
@@ -183,10 +187,30 @@ export function applySessionAdjust(sug, name, setting, { others = [], condition 
     reps: targets[0],
     kind: 'hold',
     setTargets: targets,
+    ...(cut ? { setCut: (Number(sug.setCut) || 0) + cut } : {}),
     baseReason: sug.reason,
     reason: text,
     progress: undefined,
     dropHint: undefined,
     sessionAdj: adj,
   }
+}
+
+// [2026-11-09] 지난번 몸 상태를 다음 운동에서 다시 알림(플랜 카드 한 줄). swap = '대신 할 운동 보기' 버튼
+export function lastIssueNote(issue) {
+  if (issue === 'strong') return { text: '지난번 이 운동에서 통증이 심했어요 → 오늘도 아프면 멈추고 대신 할 운동으로 바꿔요', swap: true }
+  if (issue === 'mild') return { text: '지난번 통증이 조금 있었어요 → 아픈 범위는 피하고, 아프면 바로 멈춰요' }
+  if (issue === 'form') return { text: '지난번 자세가 흔들린 세트가 있었어요 → 오늘은 자세부터 안정시켜요' }
+  return null
+}
+
+// [2026-11-09] 운동 완료 요약: 오늘 통증·자세 흔들림을 표시한 종목 → { strong:[], mild:[], form:[] }
+export function sessionFeelSummary(exercises = []) {
+  const out = { strong: [], mild: [], form: [] }
+  for (const ex of exercises) {
+    const sets = (ex.sets || []).filter((s) => !isWarmupSet(s))
+    const f = sets.some((s) => s.pain === 'strong') ? 'strong' : sets.some((s) => s.pain === 'mild') ? 'mild' : sets.some((s) => s.form === 'broken') ? 'form' : null
+    if (f && !out[f].includes(ex.name)) out[f].push(ex.name)
+  }
+  return out.strong.length || out.mild.length || out.form.length ? out : null
 }
