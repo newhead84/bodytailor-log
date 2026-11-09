@@ -290,6 +290,7 @@ connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, member
 - Phase3(후보): 기존 운동기록 일괄 업로드 / 알림 세분화.
 
 ### 7.8 다음 작업 인계 (2026-11-08 기준 - 다음 채팅은 여기부터)
+- **2026-11-09 추가**: 다른 채팅(폴더 연결은 됐지만 PC 셸 없음)이 PC 폴더의 옛 파일(d352ec6 기준) `HomeTab.jsx`·`CHANGELOG.md`에 'HOME 오늘 차례 운동 목록'을 써 두었다 → 그 변경만 최신 wip에 옮겨 커밋(fb2105d, 배포 대기). **PC 폴더에는 이 두 파일이 커밋 안 된 변경으로 남아 있음** - 다음 (A) PC 셸 세션에서 `git checkout -- src/components/HomeTab.jsx CHANGELOG.md`로 되돌린 뒤 ff. PC 폴더의 firestore.rules는 옛 파일이라 콘솔에 붙이면 안 됨(최신은 GitHub/전달 파일).
 - **다음 채팅 시작(2026-11-08 밤, 배포 직후)**: 2-0 세션 판별 → origin/wip 확인(main = wip = 43f821a, 배포 대기 = 이 인계 문서뿐).
   1. **먼저 사용자에게 Firebase 콘솔 규칙 게시를 했는지 확인**: 이번 배포에 rules 변경(onboarding `bodyCompOk` - 허리둘레·체지방률·골격근량·인바디 측정일 범위, `sfxEnabled` bool). 게시 전에도 기존 기능은 그대로지만 새 값의 범위 검사가 빠진다(옛 규칙은 키 수만 봄). 파일은 firestore.rules.txt로 전달함.
   2. 실기기 피드백 받기: 효과음 크기·무음 모드, 완료 효과(세트·종목·운동 완료) 체감, 유산소 ±1분 누르고 있기, 운동명 → HOWTO → 대체 운동 바꾸기, 코치 플랜(기준 무게·세트 수·쉰 기간), MY 신체 지표, 지난번 분(근육 그림 크기·가이드 카드 넘김).
