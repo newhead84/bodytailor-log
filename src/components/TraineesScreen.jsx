@@ -33,6 +33,11 @@ function fmtDay(s) {
   const dt = new Date(y, m - 1, d)
   return `${m}/${d}(${DAY[dt.getDay()]})`
 }
+// [2026-11-09] 회원이 표시한 세트 몸 상태(통증 조금·심함, 자세 흔들림) - 트레이너 공유(사용자 결정)
+function feelMark(s) {
+  return s?.pain === 'strong' ? ' (통증 심함)' : s?.pain === 'mild' ? ' (통증)' : s?.form === 'broken' ? ' (자세)' : ''
+}
+const CONDITION_LABEL = { good: '좋음', ok: '보통', bad: '나쁨' }
 // [2026-11-02] 트레이너가 강도를 판단할 수 있게 웜업(W)뿐 아니라 드롭(D)·실패(F)와 RIR도 표시
 function setsText(ex) {
   const type = getExerciseInputType(ex.name)
@@ -40,8 +45,8 @@ function setsText(ex) {
   const mark = (s) => (setTypeMark(s) ? `${setTypeMark(s)} ` : '')
   const rir = (s) => (s.rir !== undefined && s.rir !== null && s.rir !== '' ? ` RIR${s.rir}` : '')
   if (type === 'cardio') return sets.map((s) => formatCardioSet(ex.name, s)).join(' / ')
-  if (type === 'reps') return sets.map((s) => `${mark(s)}${s.reps}${repsUnit(ex.name)}${rir(s)}`).join(' / ')
-  return sets.map((s) => `${mark(s)}${formatLoad(ex.name, s.weight)}×${s.reps}${rir(s)}`).join(' / ')
+  if (type === 'reps') return sets.map((s) => `${mark(s)}${s.reps}${repsUnit(ex.name)}${rir(s)}${feelMark(s)}`).join(' / ')
+  return sets.map((s) => `${mark(s)}${formatLoad(ex.name, s.weight)}×${s.reps}${rir(s)}${feelMark(s)}`).join(' / ')
 }
 // 이 기록에 있는 세트 종류만 뜻을 한 줄로(W 웜업 · D 드롭 · F 실패)
 function setTypeLegend(log) {
@@ -452,6 +457,9 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = fa
                     {fmtDay(l.date)} {l.partName ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {l.partName}</span> : null}
                     {/* [2026-11-02] 3시간 방치로 자동 저장된 기록은 운동 시간이 실제와 다를 수 있어 표시 */}
                     {l.autoFinalized ? <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 600, padding: '1px 6px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', color: 'var(--color-label-neutral)', verticalAlign: 'middle' }}>자동 저장</span> : null}
+                    {/* [2026-11-09] 운동 시작 전 컨디션·통증 표시가 있으면 한눈에 */}
+                    {CONDITION_LABEL[l.condition] ? <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 600, color: 'var(--color-label-neutral)', verticalAlign: 'middle' }}>컨디션 {CONDITION_LABEL[l.condition]}</span> : null}
+                    {(l.exercises || []).some((ex) => (ex.sets || []).some((st) => st?.pain)) ? <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-danger)', color: 'var(--color-danger)', verticalAlign: 'middle' }}>통증</span> : null}
                   </p>
                   <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>
                     {l.durationMin ? <><span className="bt-num">{l.durationMin}</span>분 · </> : null}
@@ -656,8 +664,8 @@ function scheduleRow(s, c, onOpen) {
 function setCell(name, type, st) {
   const mark = setTypeMark(st) ? `${setTypeMark(st)} ` : ''
   if (type === 'cardio') return formatCardioSet(name, st)
-  if (type === 'reps') return `${mark}${st.reps}${repsUnit(name)}`
-  return `${mark}${formatLoad(name, st.weight)}×${st.reps}${repsUnit(name) === '초' ? '초' : ''}`
+  if (type === 'reps') return `${mark}${st.reps}${repsUnit(name)}${feelMark(st)}`
+  return `${mark}${formatLoad(name, st.weight)}×${st.reps}${repsUnit(name) === '초' ? '초' : ''}${feelMark(st)}`
 }
 // [2026-11-07] 처방대로 했는지: 그 계획으로 한 날만, 본세트 수 ≥ 처방 세트 + 처방 세트만큼 하한 이상
 function rxCheck(rx, sets) {

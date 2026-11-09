@@ -20,6 +20,9 @@ function setMeta(s) {
   const meta = {}
   if (s.type && s.type !== 'working') meta.type = s.type
   if (s.rir !== null && s.rir !== undefined && s.rir !== '') meta.rir = Number(s.rir)
+  // [2026-11-09] 세트 몸 상태(통증 조금·심함, 자세 흔들림) - 담당 트레이너도 본다
+  if (s.pain === 'mild' || s.pain === 'strong') meta.pain = s.pain
+  if (s.form === 'broken') meta.form = 'broken'
   return meta
 }
 

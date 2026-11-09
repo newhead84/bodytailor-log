@@ -874,6 +874,9 @@ export default function CalendarView({ uid, logsVersion, onMonthSummary, onLogsC
     const keepMeta = (s) => ({
       ...(s.type && s.type !== 'working' ? { type: s.type } : {}),
       ...(s.rir !== undefined && s.rir !== null && s.rir !== '' ? { rir: Number(s.rir) } : {}),
+      // [2026-11-09] 세트 몸 상태(통증·자세 흔들림)도 그대로 보존
+      ...(s.pain === 'mild' || s.pain === 'strong' ? { pain: s.pain } : {}),
+      ...(s.form === 'broken' ? { form: 'broken' } : {}),
     })
     // [2026-10-29] 비어 있는 세트(횟수·시간 0)는 저장하지 않는다 - 0×0 세트가 근육별 세트·캘린더에 집계되던 문제.
     // 세트가 하나도 안 남은 종목도 뺀다.

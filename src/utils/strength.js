@@ -309,6 +309,45 @@ function roundTo(v, step) {
   return Math.round(v / step) * step
 }
 
+// [2026-11-09] 종목별 진행 방식(사용자 요청: 증량보다 유지·드롭이 나은 종목이 있다).
+//  - 'load' 증량형: 다관절 - 지금 규칙 그대로(이중 진행).
+//  - 'reps' 횟수 우선형: 작은 근육 고립 종목에서 무게 한 칸이 실제 부하의 12%를 넘으면(덤벨 6→8kg = 33% 등)
+//    목표 상한보다 3회 더 쌓은 뒤 올린다(미국스포츠의학회 2009: 목표보다 1–2회 더 하면 2–10% 증량 - 그보다 큰 한 칸은 횟수로 메운다).
+//  - 'quality' 유지형: 어깨 뒤·회전근 보강(페이스풀)은 무게보다 동작 품질 - 횟수 우선형 + 천천히 하기 안내.
+// 트레이너 처방 종목은 처방 범위를 그대로 쓴다(트레이너 처방 > 로그 코치).
+export const QUALITY_EXERCISES = ['케이블페이스풀', '페이스풀']
+export const BIG_JUMP_RATIO = 0.12
+export const BIG_JUMP_EXTRA_REPS = 3
+export function progressionStyle(name, setting = null, w = null) {
+  if (setting?.trainerRx || getExerciseInputType(name) !== 'sets' || isHoldExercise(name) || isAssistedExercise(name)) return 'load'
+  if (QUALITY_EXERCISES.includes(name)) return 'quality'
+  if (isCompoundExercise(name)) return 'load'
+  const load = effectiveLoad(name, Number(w))
+  if (!(load > 0)) return 'load'
+  return getProgressionIncrement(name, setting) / load > BIG_JUMP_RATIO ? 'reps' : 'load'
+}
+// 증량 판단에 쓰는 상한(횟수 우선형·유지형은 +3회)
+export function progressionRepMax(name, setting, w) {
+  const repMax = getRepRange(name, setting)[1]
+  return progressionStyle(name, setting, w) === 'load' ? repMax : repMax + BIG_JUMP_EXTRA_REPS
+}
+// 진행 방식 안내 한 줄(코치 카드)
+export function progressionStyleNote(name, setting, w) {
+  const style = progressionStyle(name, setting, w)
+  if (style === 'load') return null
+  const [, repMax] = getRepRange(name, setting)
+  const inc = getProgressionIncrement(name, setting)
+  const pct = Math.round((inc / Math.max(1, effectiveLoad(name, Number(w)))) * 100)
+  if (style === 'quality') {
+    return `이 운동은 무게보다 동작이 먼저예요 → 당긴 자리에서 1초 멈추고 천천히 돌아와요 · ${repMax + BIG_JUMP_EXTRA_REPS}회까지 쌓고 올려요`
+  }
+  return `무게 한 칸(+${fmtW(inc)}kg)이 지금 무게의 ${pct}%라 커요 → ${repMax}회에서 ${repMax + BIG_JUMP_EXTRA_REPS}회까지 횟수를 먼저 쌓고 올려요`
+}
+// 지난 세트에 '자세 흔들림'·'통증'을 표시했는지(2026-11-09 세트 몸 상태)
+export function setHadIssue(s) {
+  return !!s && (s.form === 'broken' || s.pain === 'mild' || s.pain === 'strong')
+}
+
 // lastRecord: { date, sets:[{weight,reps,type?,rir?}] } → { weight, reps, kind, reason } | null
 // kind: increase(증량) / reps(같은 무게로 횟수 늘리기) / hold(같은 무게 유지) / decrease(감량)
 // [2026-10-29 트레이너 관점 보완]
@@ -339,9 +378,11 @@ function suggestByLastSession(name, lastRecord, setting) {
     (s) => !isWarmupSet(s) && s.weight !== '' && s.weight != null && (zeroOk ? Number(s.weight) >= 0 : Number(s.weight) > 0) && Number(s.reps) > 0
   )
   if (working.length === 0) return null
-  const [repMin, repMax] = getRepRange(name, setting)
   // 기준 무게: 가장 많은 세트를 한 무게(workingWeight)
   const topW = workingWeight(name, working)
+  // [2026-11-09] 횟수 우선형·유지형은 상한 +3회까지 쌓고 올린다(progressionRepMax)
+  const repMin = getRepRange(name, setting)[0]
+  const repMax = progressionRepMax(name, setting, topW)
   const atTop = working.filter((s) => Number(s.weight) === topW)
   const repsAtTop = atTop.map((s) => Number(s.reps))
   const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, ''))
@@ -362,6 +403,17 @@ function suggestByLastSession(name, lastRecord, setting) {
   const progressed = it.incAll
     ? repsAtTop.every((r) => r >= repMax) || (it.incRatio < 1 && totalAtTop >= it.incRatio * repMax * repsAtTop.length)
     : (repsAtTop[0] >= repMax && (it.id !== 'normal' || repsAtTop.every((r) => r >= repMin))) || totalAtTop >= it.incRatio * repMax * repsAtTop.length
+  // [2026-11-09] 자세가 흔들렸거나 통증을 표시한 세트가 있으면 증량하지 않는다(횟수보다 자세가 먼저 - 사용자 요청·트레이너 관점)
+  const issue = atTop.some(setHadIssue)
+  if (progressed && issue) {
+    return {
+      weight: topW,
+      reps: Math.min(repMax, Math.max(repMin, Math.min(...repsAtTop))),
+      kind: 'hold',
+      issueHold: true,
+      reason: `지난번 ${label(topW)} 목표는 채웠지만 ${atTop.some((s) => s.pain) ? '통증' : '자세가 흔들린'} 세트가 있었어요 → 같은 무게로 자세부터 안정시켜요`,
+    }
+  }
   if (progressed) {
     if (assisted && topW <= 0) {
       return { weight: 0, reps: repMax, kind: 'hold', reason: `보조 없이 ${repMax}회 달성했어요. 이제 맨몸 풀업·친업이나 웨이티드로 넘어가 보세요` }
@@ -490,6 +542,14 @@ function lighterWeight(name, w, setting) {
   const cut = Math.max(step, load ? roundTo(load * 0.1, step) : step)
   return isAssistedExercise(name) ? roundTo(w + cut, 0.25) : Math.max(0, roundTo(w - cut, 0.25))
 }
+// [2026-11-09] 비율만큼 가볍게(기구 단위, 최소 한 칸) - 통증 '조금'은 5%
+export function lighterBy(name, w, ratio = 0.1) {
+  const step = getWeightStep(name) || 2.5
+  const load = effectiveLoad(name, w)
+  const cut = Math.max(step, load ? roundTo(load * ratio, step) : step)
+  return isAssistedExercise(name) ? roundTo(w + cut, 0.25) : Math.max(0, roundTo(w - cut, 0.25))
+}
+export { loadWith as loadWithText }
 // [2026-11-03 로그 코치] 쉬어 가는 주 무게(약 10% 가볍게, 기구 단위)
 export function deloadWeight(name, w, setting) {
   return lighterWeight(name, w, setting)
@@ -523,12 +583,17 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
   if (!res) return res
   const top = workingTop(name, lastRecord.sets)
   if (!top) return res
-  const [repMin, repMax] = getRepRange(name, setting)
+  const repMin = getRepRange(name, setting)[0]
+  const repMax = progressionRepMax(name, setting, top.topW) // [2026-11-09] 진행 방식
   const it = intensityOf(setting)
   const n = top.reps.length
   const need = Math.ceil(it.incRatio * repMax * n)
   // [2026-11-08] lastWeight·lastReps: 코치 카드에 '지난번 → 오늘'을 세트별로 보여주려고(계산에는 안 씀)
   let out = { ...res, setTargets: Array(n).fill(res.reps), intensity: it.id, lastSetCount: Math.max(n, top.count || 0), lastWeight: top.topW, lastReps: top.reps }
+  // [2026-11-09] 진행 방식(증량형·횟수 우선형·유지형)과 안내
+  out.style = progressionStyle(name, setting, top.topW)
+  const styleNote = progressionStyleNote(name, setting, top.topW)
+  if (styleNote) out.styleNote = styleNote
 
   if (res.kind === 'reps') {
     // [2026-11-02 로그 코치] 기준 = 같은 무게로 한 최근 3회까지의 세트별 평균(자동 조절 원칙: 그날 하루 기록에 휘둘리지 않게).
@@ -568,6 +633,13 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
     if (tops.every((t) => t && t.topW === top.topW && t.reps.length === n) && Math.max(tops[0].total, tops[1].total) <= tops[2].total) {
       out.stall = { sessions: 3, options: stallOptions(name, setting, repMin, repMax) }
     }
+  }
+  // [2026-11-09] 드롭세트 제안: 고립 종목이 정체됐을 때만, 근육 키우기 목표, 강도 '보통' 이상(근력 목표에는 효과가 거의 같아 넣지 않음).
+  // 다관절 바벨 종목은 지친 상태로 무게를 바꾸는 게 위험해 제외(Sødal 외 2023: 드롭은 근비대에 시간 대비 효과, 종목 마지막에)
+  if (out.stall && !isCompoundExercise(name) && !isHoldExercise(name) && !setting?.trainerRx && it.id !== 'easy' && it.id !== 'easy2') {
+    const primary = getTrainingProfile().primary
+    const dw = dropSetWeight(name, top.topW)
+    if ((primary === 'muscle' || !primary) && dw != null) out.dropHint = { weight: dw }
   }
 
   // [2026-11-08] 공백 후 복귀를 쉰 기간에 따라 나눈다(사용자 지적: 14일만 지나도 10% 가볍게 + 최저 횟수라 너무 낮았다).
@@ -652,7 +724,8 @@ function adviseAfterSetRaw(name, set, setting, ctx = {}) {
     return { kind: 'info', reason: '드롭 세트 끝! 드롭은 종목의 마지막 세트로 쓰는 게 좋아요. 이 종목은 여기서 마무리해도 충분해요' }
   }
   const it = intensityOf(setting)
-  const [repMin, repMax] = getRepRange(name, setting)
+  const repMin = getRepRange(name, setting)[0]
+  const repMax = progressionRepMax(name, setting, w) // [2026-11-09] 진행 방식
   const failure = set.type === 'failure' || (set.rir !== '' && set.rir != null && Number(set.rir) === 0)
   const prev = Array.isArray(ctx.prevWorking) ? ctx.prevWorking : []
   const planned = Number(ctx.plannedCount) || 0
@@ -733,6 +806,9 @@ const SRC = {
   comeback: '2013년 운동 쉬었다 다시 하기 연구',
   proximity: '2023·2024년 한계 근접도 연구 종합 분석',
   rest: '2024년 휴식 시간 연구 종합 분석',
+  // [2026-11-09] 원문: Hickmott 외 2022(무게·운동량 자기조절과 근력·근육 성장 종합 분석), Sødal 외 2023(드롭세트)
+  autoreg: '2022년 컨디션 맞춤(자기조절) 훈련 연구 종합 분석',
+  drop: '2023년 드롭세트 연구 종합 분석',
 }
 // 최근 연구(학술지 심사 전 사전공개·소규모) - 화면에 '최근 연구(검증 중)'으로 따로 표시. 1년에 한 번 다시 점검(CLAUDE.md)
 // 원문: Pelland 외 2024(운동량·빈도), Remmert 외 2025(한 번 운동량), Wolf 외 2024(늘어난 구간 부분 반복)
@@ -755,6 +831,9 @@ export const COACH_EVIDENCE = {
   intensity: { text: '한계에 가까이 할수록 근육은 더 자라지만 피로도 커져요. 그래서 강도는 세트마다 몇 개를 남길지로 정해요.', src: [SRC.proximity] },
   rest: { text: '세트 사이에 1분보다 길게 쉬면 근육 성장에 조금 더 유리하고, 1분 30초를 넘으면 차이가 거의 없어요. 자동 휴식은 이 범위에 맞춰져 있어요.', src: [SRC.rest] },
   session: { text: '한 부위를 한 번에 11세트쯤(다른 종목에서 함께 쓰인 건 반 세트로 계산) 넘게 하면, 그 이상은 근육 성장에 거의 보탬이 안 돼요. 남은 힘은 다음 운동에 쓰는 게 나아요.', recent: [RECENT.session] },
+  // [2026-11-09] 자세 우선·컨디션 맞춤·진행 방식(사용자 요청: 무리하게 채우기보다 컨디션에 맞게 정확한 자세)
+  form: { text: '마지막 몇 개가 힘든 건 정상이에요. 기준은 힘듦이 아니라 자세예요. 자세가 무너진 반복은 목표 근육 대신 관절·허리에 부담이 가고 자극도 줄어서, 무너지기 전에 멈추는 게 맞아요. 그날 컨디션·통증에 맞춰 무게를 조절하는 방식은 정해진 계획만큼, 또는 더 잘 늘었어요.', src: [SRC.acsm, SRC.autoreg] },
+  style: { text: '작은 근육 운동은 무게 한 칸이 커서(예: 덤벨 6→8kg은 33%) 바로 올리면 자세가 무너지기 쉬워요. 그래서 횟수를 몇 개 더 쌓은 뒤 올려요. 정체되면 마지막 세트 뒤 무게를 20%쯤 낮춰 바로 이어 하는 드롭세트가 짧은 시간에 자극을 더해 줘요(근력보다 근육 성장용, 바벨 다관절 종목에는 쓰지 않아요).', src: [SRC.acsm, SRC.drop] },
   partials: { text: '더 이상 안 될 때 근육이 늘어난 쪽(내려간 자리)에서 반만 몇 개 더 하는 방법도 전체 동작과 비슷하게 근육을 키웠다는 연구가 있어요. 아직 초기 연구라 선택 사항이고, 머신·가벼운 고립 종목에서만 권해요(바벨 스쿼트·데드리프트처럼 허리에 부담이 큰 종목은 빼요).', recent: [RECENT.partials] },
 }
 
