@@ -1,8 +1,9 @@
 // sfx.js - [2026-11-08] 완료 효과음(사용자 선택: A 아케이드). 소리 파일 없이 Web Audio 오실레이터로 만든다(저작권·용량 걱정 없음).
 // 세트 저장 'set' · 종목 완료 'ex' · 신기록 'pr' · 오늘 운동 완료 'done' · 레벨 업 'lv'.
 // 켜기·끄기는 MY › 설정 '효과음'(users.sfxEnabled, 기본 켜짐) - App이 렌더 중 setSfxEnabled로 넘긴다(setBodyweightKg와 같은 방식).
+import { audioCtx, audioOut } from './audioOut'
+
 let enabled = true
-let ctx = null
 
 export function setSfxEnabled(on) {
   enabled = on !== false
@@ -11,13 +12,9 @@ export function isSfxEnabled() {
   return enabled
 }
 
+// [2026-11-09] 휴식 알림음과 같은 컨텍스트·전체 음량·리미터(utils/audioOut.js, 음량 슬라이더 반영)
 function audio() {
-  if (typeof window === 'undefined') return null
-  const AC = window.AudioContext || window.webkitAudioContext
-  if (!AC) return null
-  if (!ctx) ctx = new AC()
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {})
-  return ctx
+  return audioCtx()
 }
 
 function tone(c, f, t0, dur, type, vol, f2) {
@@ -30,7 +27,7 @@ function tone(c, f, t0, dur, type, vol, f2) {
   g.gain.setValueAtTime(0, at)
   g.gain.linearRampToValueAtTime(vol, at + 0.01)
   g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
-  o.connect(g).connect(c.destination)
+  o.connect(g).connect(audioOut(c))
   o.start(at)
   o.stop(at + dur + 0.02)
 }

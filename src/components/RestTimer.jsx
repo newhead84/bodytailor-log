@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { audioCtx, audioOut, resetAudio, vibrateAlert } from '../utils/audioOut'
 
 // [2026-07-28] 알림음 5종 추가(사용자가 MY탭에서 선택, userDoc.restTimerSoundId로 저장).
 // 별도 음원 파일 없이 Web Audio API 오실레이터 파형/주파수 조합만으로 구현(오프라인에서도 항상 동작).
@@ -13,27 +14,18 @@ export const REST_SOUND_OPTIONS = [
 // close()하지 않아, 브라우저의 동시 AudioContext 개수 제한(보통 수 개)을 금방 넘겨버렸다.
 // 그러면 이후 생성 시도가 (catch로 조용히 삼켜지며) 실패해서 "몇 번 누르다보면 소리가
 // 아예 안 나는" 문제가 생겼다. 모듈 스코프에 컨텍스트 하나만 만들어 재사용한다.
-let sharedAudioCtx = null
-function getAudioCtx() {
-  if (!sharedAudioCtx) {
-    sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)()
-  }
-  // 브라우저가 절전 등으로 컨텍스트를 suspended 상태로 만들어둔 경우 재생 전 깨워준다.
-  if (sharedAudioCtx.state === 'suspended') {
-    sharedAudioCtx.resume().catch(() => {})
-  }
-  return sharedAudioCtx
-}
-
+// [2026-11-09] 컨텍스트·전체 음량·리미터는 utils/audioOut.js 공용(효과음과 같은 컨텍스트, 음량 슬라이더 반영)
 export function playSound(soundId, times = 2) {
   const profile = REST_SOUND_OPTIONS.find((s) => s.id === soundId) || REST_SOUND_OPTIONS[0]
   try {
-    const ctx = getAudioCtx()
+    const ctx = audioCtx()
+    if (!ctx) return
+    const out = audioOut(ctx)
     for (let i = 0; i < times; i++) {
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.connect(gain)
-      gain.connect(ctx.destination)
+      gain.connect(out)
       osc.type = profile.wave
       osc.frequency.value = profile.freq
       const start = ctx.currentTime + i * 0.28
@@ -47,7 +39,7 @@ export function playSound(soundId, times = 2) {
         const osc2 = ctx.createOscillator()
         const gain2 = ctx.createGain()
         osc2.connect(gain2)
-        gain2.connect(ctx.destination)
+        gain2.connect(out)
         osc2.type = profile.wave
         osc2.frequency.value = profile.freq2
         const start2 = start + 0.14
@@ -61,7 +53,7 @@ export function playSound(soundId, times = 2) {
   } catch (e) {
     // 오디오 재생 불가 환경은 조용히 무시 (알림/진동으로 대체)
     // 컨텍스트 자체가 문제였을 수 있으니, 다음 시도에서 새로 만들 수 있게 초기화한다.
-    sharedAudioCtx = null
+    resetAudio()
   }
 }
 
@@ -102,8 +94,9 @@ export function closeSystemNotification(tag) {
   }
 }
 
+// [2026-11-09] 진동 세기 설정(users.vibrationLevel) 반영 - utils/audioOut.js vibrateAlert
 function vibrateStrong() {
-  if (navigator.vibrate) navigator.vibrate([250, 120, 250, 120, 250])
+  vibrateAlert()
 }
 
 // 세트 저장 직후 자동 시작되는 휴게 타이머. resetKey가 바뀔 때마다 새로 시작.

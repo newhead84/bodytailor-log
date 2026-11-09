@@ -27,6 +27,7 @@ import { CoachProgramCard, CoachBadge } from './CoachProgramCard'
 import { findCoachProgramTemplate } from '../utils/programBuilder'
 import { normalizeGoals, GOAL_LABELS, isBeginnerAccount, getTrainingProfile } from '../utils/goals'
 import { setSfxEnabled, playSfx } from '../utils/sfx'
+import { clampLevel, setAlertLevels, vibrateAlert } from '../utils/audioOut'
 
 // [2026-07-28] 분할 프리셋(SPLIT_TEMPLATE_PRESETS)은 exerciseLibrary.js로 옮겨 MY탭과
 // "운동조합 변경"(RoutineManager) 화면이 같은 프리셋 정의를 공유하도록 정리했다.
@@ -402,6 +403,25 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     await saveSetting(setWakeLockEnabled, !next, next, { screenWakeLock: next, restTimerWakeLockEnabled: next })
   }
 
+  // [2026-11-09] 소리 크기(휴식 알림음·효과음 공통)·진동 세기 - 기본 100, 슬라이더로 낮춘다(users.alertVolume·vibrationLevel)
+  const [alertVolume, setAlertVolumeState] = useState(clampLevel(userDoc?.alertVolume ?? 100))
+  const [vibrationLevel, setVibrationLevelState] = useState(clampLevel(userDoc?.vibrationLevel ?? 100))
+  useEffect(() => {
+    setAlertVolumeState(clampLevel(userDoc?.alertVolume ?? 100))
+    setVibrationLevelState(clampLevel(userDoc?.vibrationLevel ?? 100))
+  }, [userDoc?.alertVolume, userDoc?.vibrationLevel])
+  async function commitAlertVolume(v, prev) {
+    setAlertLevels({ alertVolume: v, vibrationLevel })
+    const ok = await saveSetting(setAlertVolumeState, prev, v, { alertVolume: v })
+    if (ok === false) setAlertLevels({ alertVolume: prev, vibrationLevel })
+  }
+  async function commitVibrationLevel(v, prev) {
+    setAlertLevels({ alertVolume, vibrationLevel: v })
+    const ok = await saveSetting(setVibrationLevelState, prev, v, { vibrationLevel: v })
+    if (ok === false) setAlertLevels({ alertVolume, vibrationLevel: prev })
+  }
+  const vibrationSupported = typeof navigator !== 'undefined' && 'vibrate' in navigator
+
   async function selectRestSound(soundId) {
     await saveSetting(setRestSoundId, restSoundId, soundId, { restTimerSoundId: soundId })
   }
@@ -758,6 +778,26 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               </Chip>
             ))}
           </div>
+          <LevelSlider
+            label="소리 크기"
+            hint="휴식 알림음과 완료 효과음에 함께 적용돼요. 기본은 가장 크게예요."
+            value={alertVolume}
+            onCommit={commitAlertVolume}
+            onPreview={(v) => {
+              setAlertLevels({ alertVolume: v, vibrationLevel })
+              playSound(restSoundId, 1)
+            }}
+            testLabel="들어 보기"
+          />
+          <LevelSlider
+            label="진동 세기"
+            hint={vibrationSupported ? '휴식이 끝날 때 진동이에요. 0이면 진동하지 않아요.' : '이 기기(아이폰 사파리 등)는 웹 진동을 지원하지 않아요.'}
+            value={vibrationLevel}
+            disabled={!vibrationSupported}
+            onCommit={commitVibrationLevel}
+            onPreview={(v) => vibrateAlert(v)}
+            testLabel="진동 보기"
+          />
         </div>
       </Card>
 
@@ -1458,6 +1498,56 @@ function IntroShareButtons() {
         )}
       </div>
       {msg && <p role="status" className="text-keep-all" style={{ margin: 0, fontSize: 12.5, color: 'var(--color-label-neutral)' }}>{msg}</p>}
+    </div>
+  )
+}
+
+// [2026-11-09] 0–100 슬라이더(손을 떼면 저장). onPreview는 '들어 보기'·손을 뗄 때 호출.
+function LevelSlider({ label, hint, value, onCommit, onPreview, testLabel, disabled }) {
+  const [draft, setDraft] = useState(value)
+  const startRef = React.useRef(value)
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+  const commit = () => {
+    const v = clampLevel(draft)
+    const prev = startRef.current
+    startRef.current = v
+    if (v !== prev) onCommit?.(v, prev)
+    onPreview?.(v)
+  }
+  return (
+    <div style={{ marginTop: 14, opacity: disabled ? 0.5 : 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span className="text-keep-all" style={{ fontSize: 14 }}>{label}</span>
+        <span className="bt-num" style={{ fontSize: 14, fontWeight: 700 }}>{draft === 0 ? '끔' : `${draft}%`}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={draft}
+          disabled={disabled}
+          aria-label={label}
+          onPointerDown={() => {
+            startRef.current = clampLevel(value)
+          }}
+          onChange={(e) => setDraft(clampLevel(e.target.value))}
+          onPointerUp={commit}
+          onKeyUp={commit}
+          style={{ flex: 1, minWidth: 0, height: 32, accentColor: 'var(--color-fill-strong)', touchAction: 'pan-y' }}
+        />
+        <Button variant="secondary" style={{ flexShrink: 0 }} disabled={disabled || draft === 0} onClick={() => onPreview?.(draft)}>
+          {testLabel}
+        </Button>
+      </div>
+      {hint && (
+        <div className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', marginTop: 4 }}>
+          {hint}
+        </div>
+      )}
     </div>
   )
 }

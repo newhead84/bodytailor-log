@@ -134,6 +134,9 @@ service cloud.firestore {
         (!keys.hasAny(['coachEnabled']) || d.coachEnabled is bool) &&
         // [2026-11-08] 완료 효과음 켜기·끄기
         (!keys.hasAny(['sfxEnabled']) || d.sfxEnabled is bool) &&
+        // [2026-11-09] 소리 크기·진동 세기(0–100 정수)
+        (!keys.hasAny(['alertVolume']) || (d.alertVolume is int && d.alertVolume >= 0 && d.alertVolume <= 100)) &&
+        (!keys.hasAny(['vibrationLevel']) || (d.vibrationLevel is int && d.vibrationLevel >= 0 && d.vibrationLevel <= 100)) &&
         // [2026-11-07] 로그 코치 프로그램 답(질문 답 12개 이하)
         (!keys.hasAny(['coachProgram']) || (d.coachProgram is map && d.coachProgram.keys().hasOnly(['v', 'answers', 'at']) &&
           d.coachProgram.get('answers', {}) is map && d.coachProgram.get('answers', {}).size() <= 12)) &&

@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-09] 소리 크기·진동 세기 슬라이더(사용자 요청: 음악에 묻혀 알림이 작음): 휴식 알림음·완료 효과음을 공용 출력(전체 음량 → 리미터)으로 바꿔 기본을 크게(예전 휴식음 약 1.8배, 리미터로 찌그러짐 방지), MY › 설정 '소리 크기'(users.alertVolume)·'진동 세기'(users.vibrationLevel, 진동 길이·횟수로 표현, 0=끔, 아이폰 사파리는 미지원 안내) 0–100·기본 100, 들어 보기·진동 보기, rules 0–100 정수 검사 | utils/audioOut.js(신규), RestTimer.jsx, utils/sfx.js, MyPageTab.jsx, App.jsx, firestore.rules
+
 [2026-11-09] 앱 화면 확대·축소 막기(사용자 요청: 기록 중 손가락 확대): viewport maximum-scale=1·user-scalable=no(11-01에 접근성 때문에 풀었던 것 되돌림), 아이폰은 gesturestart·두 손가락 이동 막기, 두 번 탭 확대는 touch-action: manipulation. 소개·처리방침 페이지는 확대 그대로 | index.html, src/styles/tokens.css
 
 [2026-11-09] HOME 오늘 차례 운동 목록: 운동을 시작하지 않아도 오늘 차례 파트의 종목 목록(번호·종목명·그립)을 "오늘" 블록에 항상 표시(오늘 운동을 마치면 숨김) | src/components/HomeTab.jsx

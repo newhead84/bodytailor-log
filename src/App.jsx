@@ -1,6 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-09] 앱 화면 확대·축소 막기.
+ * 최신 변경: [2026-11-09] 소리 크기·진동 세기 슬라이더.
+ *            직전: [2026-11-09] 앱 화면 확대·축소 막기.
  *            직전: [2026-11-09] HOME 오늘 차례 운동 목록.
  *            직전: [2026-11-08] 완료 효과 강화·효과음(A 펀치·A 아케이드).
  *            직전: [2026-11-08] 운동명 → HOWTO·대체 운동 바꾸기, 유산소 타이머 ±1분.
@@ -64,6 +65,7 @@ import { useBackableScreen, hasOpenScreens } from './hooks/useBackableScreen'
 import { showSystemNotification, closeSystemNotification } from './components/RestTimer'
 import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DEFAULT_ACCENT, DEFAULT_FONT, DESIGN_DEFAULTS_VERSION, LOG_MODE_DEFAULT_VERSION } from './utils/fonts'
 import { setSfxEnabled } from './utils/sfx'
+import { setAlertLevels } from './utils/audioOut'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
@@ -408,6 +410,7 @@ export default function App() {
   // 같은 렌더의 계산(볼륨·추정 1RM)부터 쓰이게 한다.
   setBodyweightKg(userDoc?.onboarding?.weightKg || 0)
   setSfxEnabled(userDoc?.sfxEnabled !== false) // [2026-11-08] 완료 효과음(기본 켜짐)
+  setAlertLevels({ alertVolume: userDoc?.alertVolume, vibrationLevel: userDoc?.vibrationLevel }) // [2026-11-09] 소리 크기·진동 세기(기본 100)
   // [2026-10-30] 운동 목표(우선순위) → 목표 반복·휴식·주간 세트·유산소 기준(goals.js). 가입 8주 미만은 주간 세트를 낮게.
   // [2026-11-07] 코치 프로그램이 있으면 주간 유산소·부위별 세트 목표는 프로그램 숫자(점검 M3, 사용자 결정)
   setTrainingProfile(userDoc?.onboarding?.goals || [], {
