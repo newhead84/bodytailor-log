@@ -75,6 +75,8 @@ import {
   computeVolumeFromRecords,
   computeActiveDurationSec,
   countUncheckedAutoSets,
+  uncheckedByExercise,
+  isEditedUnsaved,
   getLastActivityAt,
   isSessionActive,
   isSessionStale,
@@ -82,7 +84,6 @@ import {
   sessionLogId,
   sessionIdentity,
   isFilledSet,
-  isCountableSet,
 } from '../utils/sessionPayload'
 import { todayStr, toLocalDateStr } from '../utils/date'
 import { getLevelInfo } from '../utils/tier'
@@ -1721,7 +1722,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const savedCount = (records[name] || []).filter((st) => st.saved).length
     if (savedCount > 0 && !(await confirm(`"${exerciseKeyLabel(name)}"에 저장한 세트 ${savedCount}개가 있어요. 오늘 목록에서 숨기면 이 세트들은 기록에서 빠져요. 숨길까요?`, { okLabel: '숨기기', cancelLabel: '그대로 두기' }))) return
     // [2026-11-01] 저장(V) 전이라도 직접 입력한 행이 있으면 확인(전체 점검 U24). 자동 프리필·미리 만든 행은 제외
-    const typedCount = savedCount > 0 ? 0 : (records[name] || []).filter((st) => !st.saved && isCountableSet(st) && isFilledSet(st, getExerciseInputType(parseExerciseKey(name).name))).length
+    const typedCount = savedCount > 0 ? 0 : (records[name] || []).filter((st) => isEditedUnsaved(st) && isFilledSet(st, getExerciseInputType(parseExerciseKey(name).name))).length
     if (typedCount > 0 && !(await confirm(`"${exerciseKeyLabel(name)}"에 입력해 둔 세트 ${typedCount}개가 있어요. 숨기면 입력한 값이 사라져요. 숨길까요?`, { okLabel: '숨기기', cancelLabel: '그대로 두기' }))) return
     setHiddenToday((prev) => [...prev, name])
     unpairSuperset(name)
@@ -1873,7 +1874,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     }
     const savedCount = (records[fromKey] || []).filter((st) => st.saved).length
     if (savedCount > 0 && !(await confirm(`"${exerciseKeyLabel(fromKey)}"에 저장한 세트 ${savedCount}개가 있어요. 바꾸면 이 세트들은 기록에서 빠져요. 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '그대로 두기' }))) return
-    setHowto(null)
+    // [2026-11-09] 가이드 화면은 '루틴도 바꾸기' 확인창 뒤에 닫는다(닫히는 것과 확인창이 겹치면 뒤로가기 기록이 한 칸 더 지워져
+    // 다음 기기 뒤로가기에 앱이 닫히거나 이전 사이트로 나갔다)
     unpairSuperset(fromKey)
     setRecords((r) => {
       const { [fromKey]: _omit, ...rest } = r
@@ -1910,23 +1912,40 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         }
       }
     }
-    if (expandedExercise === fromKey) setExpandedExercise(toName)
+    setHowto(null)
+    // [2026-11-09] 바꾼 종목도 처음 여는 것과 같게(지난 기록·코치 플랜·첫 세트 행) - 예전엔 빈 카드로 펼쳐졌다
+    if (expandedExercise === fromKey) openExercise(toName)
     showToast(`${toName}(으)로 바꿨어요`, 1800)
   }
 
   // ── 세트완료(운동 단위 완료) ──
   // [2026-08-02 수정] 응원 멘트 토스트(⑨)가 세트 하나 저장할 때마다 떠서 너무 잦다는
   // 피드백으로, 종목 하나를 통째로 "세트완료" 처리하는 이 시점으로 옮겼다.
-  function completeExercise(name) {
+  async function completeExercise(name) {
+    // [2026-11-09] 종목을 완료하면 체크(V)하지 않은 행을 모두 정리한다(사용자 버그 신고: '플랜대로 하기'·'+ 세트 추가'·
+    // 코치 '적용'·웜업 세트로 미리 만든 행이 남아 운동 완료 때 '체크 안 한 세트' 팝업이 뜨고, 다음 세트 행의 무게만 바꿔 둔
+    // 행은 하지 않은 세트로 저장됐다). 값을 고쳤지만 체크하지 않은 행이 있으면 한 번 묻는다.
+    const inputType = getExerciseInputType(parseExerciseKey(name).name)
+    const edited = (records[name] || []).filter((st) => isEditedUnsaved(st) && isFilledSet(st, inputType))
+    let keepEdited = false
+    if (edited.length) {
+      const ans = await confirm(`체크(V)하지 않은 세트가 ${edited.length}개 있어요. 실제로 한 세트인가요?`, { okLabel: '한 세트로 저장', cancelLabel: '지우기', dismissValue: null })
+      if (ans === null) return
+      keepEdited = !!ans
+    }
     playSfx('ex') // [2026-11-08] 종목 완료 효과음
     setCompletedExercises((c) => ({ ...c, [name]: true }))
     unpairSuperset(name)
-    // [2026-10-27] 체크한 세트가 있는 종목을 "세트완료"하면, 그 뒤에 자동으로 생겨 있던 빈 다음 세트 행
-    // (손대지 않은 auto 행)은 수행하지 않은 것이므로 정리한다.
     setRecords((r) => {
       const sets = r[name]
-      if (!sets || !sets.some((st) => st.saved)) return r
-      return { ...r, [name]: sets.filter((st) => !(st.auto && !st.saved)) }
+      if (!sets) return r
+      const now = Date.now()
+      return {
+        ...r,
+        [name]: sets
+          .filter((st) => st.saved || (keepEdited && isEditedUnsaved(st) && isFilledSet(st, inputType)))
+          .map((st) => (st.saved ? st : { ...st, saved: true, savedAt: now, auto: false, planned: false })),
+      }
     })
     setExpandedExercise((cur) => (cur === name ? null : cur))
     if (!completionOrderRef.current.includes(name)) {
@@ -1972,8 +1991,12 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       if (!ok) return
       includeUnchecked = true
     } else if (unchecked > 0) {
+      // [2026-11-09] 어느 종목인지 함께 보여 준다
+      const where = uncheckedByExercise(records)
+        .map((u) => `${u.name} ${u.n}세트`)
+        .join(', ')
       includeUnchecked = await confirm(
-        `체크(V)하지 않은 세트가 ${unchecked}개 있어요. 실제로 한 세트라면 함께 저장하고, 아니면 체크한 세트만 저장할게요.`,
+        `체크(V)하지 않은 세트가 ${unchecked}개 있어요(${where}). 실제로 한 세트라면 함께 저장하고, 아니면 체크한 세트만 저장할게요.`,
         { okLabel: '함께 저장', cancelLabel: '체크한 세트만', dismissValue: null }
       )
       // [2026-10-29] 바깥을 눌러 닫으면 저장하지 않고 운동을 계속한다(이전엔 '체크한 세트만'으로 저장·종료됐다)
@@ -3562,10 +3585,17 @@ export function ExerciseCard({
             </div>
           )}
           {/* [2026-10-27] 세트 저장(V/세트 완료)과 헷갈리지 않도록 "종목 완료"로 명칭 변경 */}
+          {/* [2026-11-09] 완료한 종목을 펼치면 '이 종목 완료' 대신 '다시 하기'(완료 취소) */}
           <div data-guide="finish">
-            <Button full variant="secondary" onClick={onComplete}>
-              이 종목 완료
-            </Button>
+            {isDone ? (
+              <Button full variant="secondary" onClick={onToggleUncomplete}>
+                다시 하기(완료 취소)
+              </Button>
+            ) : (
+              <Button full variant="secondary" onClick={onComplete}>
+                이 종목 완료
+              </Button>
+            )}
           </div>
         </div>
       )}

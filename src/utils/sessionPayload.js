@@ -40,8 +40,14 @@ export function isFilledSet(s, inputType) {
   return hasNum(s.weight) && hasNum(s.reps) && Number(s.reps) > 0
 }
 
+// [2026-11-09] 체크(V)한 세트만 기록 대상(사용자 버그 신고: 다음 세트 행의 무게만 미리 바꿔 둔 채 종목·운동을 완료하면
+// 하지 않은 세트가 묻지도 않고 저장되고 오늘 볼륨에도 더해졌다). 값을 고쳤지만 체크하지 않은 행은 완료할 때 묻는다.
 export function isCountableSet(s) {
-  return !!s && (!!s.saved || (!s.auto && !s.planned))
+  return !!s && !!s.saved
+}
+// 값을 직접 고쳤지만 체크(V)하지 않은 행(종목 숨기기·완료 때 확인용)
+export function isEditedUnsaved(s) {
+  return !!s && !s.saved && !s.auto && !s.planned
 }
 
 // [2026-10-29] 세트를 저장(V)하면 다음 세트용 행이 직전 값 복사(auto)로 자동 생긴다. 이 행은 "아직 안 한 다음 세트"
@@ -55,7 +61,18 @@ function keepForSave(s, sets, includeUnchecked) {
   return includeUnchecked && !isNextSetPlaceholder(s, sets)
 }
 
-// 체크(V)도 수정도 안 한 자동 프리필 행 중 값이 채워진 행 수(완료 시 포함 여부를 물어볼 때 사용)
+// [2026-11-09] 종목별 체크 안 한 세트 수 → [{ key, name, n }] (완료 팝업에 종목 이름을 함께 보여 줌)
+export function uncheckedByExercise(records) {
+  const out = []
+  Object.entries(records || {}).forEach(([key, sets]) => {
+    const inputType = getExerciseInputType(parseExerciseKey(key).name)
+    const n = (sets || []).filter((s) => !isCountableSet(s) && !isNextSetPlaceholder(s, sets) && isFilledSet(s, inputType)).length
+    if (n) out.push({ key, name: parseExerciseKey(key).name, n })
+  })
+  return out
+}
+
+// 체크(V)하지 않은 행 중 값이 채워진 행 수(완료 시 포함 여부를 물어볼 때 사용)
 export function countUncheckedAutoSets(records) {
   let n = 0
   Object.entries(records || {}).forEach(([key, sets]) => {
