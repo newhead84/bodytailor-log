@@ -50,7 +50,9 @@ function isIosDevice() {
 const TONE_COLOR = { ok: 'var(--color-success, #5d8f43)', low: 'var(--color-label-strong)', mid: 'var(--color-label-strong)', high: 'var(--color-danger)' }
 function MetricGauge({ m, sub }) {
   const pos = Math.min(100, Math.max(0, ((m.value - m.lo) / (m.hi - m.lo)) * 100))
-  const span = (b, i) => Math.min(b.to, m.hi) - (i ? m.bands[i - 1].to : m.lo)
+  // [2026-11-09] 구간 폭을 % 로(사용자 신고: 허리/키 비율처럼 구간 값이 1보다 작으면 flex 비율 합이 1 미만이라 막대가 일부만 채워지고
+  // 표시 막대가 밖으로, 아래 숫자도 겹쳤다)
+  const span = (b, i) => `0 0 ${Math.max(0, ((Math.min(b.to, m.hi) - Math.max(i ? m.bands[i - 1].to : m.lo, m.lo)) / (m.hi - m.lo)) * 100)}%`
   return (
     <div style={{ marginTop: 8, background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: '9px 12px 8px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>

@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-09] 신체 지표 막대 오류(사용자 신고: 허리둘레만 넣으면 허리/키 비율 막대가 일부만 채워지고 표시가 밖으로·숫자 겹침): 구간 폭을 flex 비율(1보다 작으면 합이 1 미만이라 일부만 채움) 대신 % 로 / 같은 모양 점검: 근육별 주간 세트 막대 눈금을 코치 프로그램 상한에 맞춰 늘림(권장 범위가 막대 밖으로 나가던 문제), 그 밖의 % 막대는 0~100으로 묶여 있어 문제없음 / CLAUDE.md 작업 원칙 10 '오류·개선은 넓혀서 검토' | MyPageTab.jsx(MetricGauge), InsightCards.jsx, CLAUDE.md
+
 [2026-11-09] 세트 행·종목 완료 버그 묶음(사용자 신고: 종목 완료 후에도 '이 종목 완료', 다 했는데 '체크 안 한 세트' 팝업): 체크(V)한 세트만 기록·볼륨(다음 세트 행 무게만 바꿔 둔 채 완료하면 하지 않은 세트가 저장되던 문제), 종목 완료 때 체크 안 한 행 모두 정리 + 값 고친 행은 '한 세트로 저장/지우기' 확인, 운동 완료 팝업에 종목 이름, 완료한 종목을 펼치면 '다시 하기(완료 취소)', 종목 바꾸기 후 빈 카드 → 처음 여는 것과 같게, 바꾸기 때 뒤로가기 기록이 한 칸 더 지워지던 문제 | utils/sessionPayload.js(isCountableSet·isEditedUnsaved·uncheckedByExercise), WorkoutInput.jsx(completeExercise·handleFinishWorkout·swapExercise·hideExerciseToday·ExerciseCard), CLAUDE.md
 
 [2026-11-09] 몸 상태 코칭 보완: 아이폰 알림음을 짧은 알림 오디오 세션(transient)으로(음악 위에 얹힘, 실기기 확인 필요), 지난번 통증·자세 흔들림을 다음 운동 플랜 카드에서 다시 알림(심하면 '대신 할 운동 보기'), 운동 완료 요약 '오늘 몸 상태', 트레이너 HOME '최근 통증 표시'(담당 회원 7일, 10분 캐시), 컨디션 나쁨 '세트도 하나 덜 하기' | utils/audioOut.js, utils/strength.js(lastIssue), utils/sessionCoach.js(lastIssueNote·sessionFeelSummary·lighter), WorkoutInput.jsx, HomePtCards.jsx, storage.js(getRecentPainFlags)

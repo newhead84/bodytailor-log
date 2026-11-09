@@ -52,7 +52,8 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
   // [2026-10-29] 하체는 앞·뒤로 나눠 표시
   const atoms = BODY_PART_ATOMS.filter((a) => a !== '유산소').flatMap((a) => (a === '하체' ? [LEG_FRONT, LEG_BACK] : [a]))
   const rows = compact ? atoms.filter((a) => (sets[a] || 0) > 0).sort((a, b) => (sets[b] || 0) - (sets[a] || 0)).slice(0, 5) : atoms
-  const scaleMax = 25
+  // [2026-11-09] 막대 눈금: 기본 25세트, 코치 프로그램 기준 상한이 더 크면(예: 상한 28) 그만큼 늘린다(권장 범위 표시가 막대 밖으로 나가던 문제 - 허리/키 비율 막대 오류를 계기로 같은 모양 점검)
+  const scaleMax = Math.max(25, ...BODY_PART_ATOMS.filter((a) => a !== '유산소').flatMap((a) => (a === '하체' ? [LEG_FRONT, LEG_BACK] : [a])).map((a) => getWeeklySetGuide(a).max + 2))
   // [2026-10-30] 목표·가입 기간에 맞춘 기준(goals.js) - 예: 근력 1순위 6–12, 처음 8주는 낮게
   const WEEKLY_SET_GUIDE = getWeeklySetGuide()
   const bandLeft = (WEEKLY_SET_GUIDE.min / scaleMax) * 100
