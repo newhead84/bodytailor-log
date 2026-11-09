@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-09] HOME 오늘 차례 운동 목록: 운동을 시작하지 않아도 오늘 차례 파트의 종목 목록(번호·종목명·그립)을 "오늘" 블록에 항상 표시(오늘 운동을 마치면 숨김) | src/components/HomeTab.jsx
+
 [2026-11-08] 완료 효과 강화·효과음(미리보기에서 사용자 선택 A 펀치 + A 아케이드): 세트 저장 체크 튀기·불꽃 크게·'+1세트' 글자, 종목 완료 순간 카드 빛·두 겹 불꽃·'종목 완료!', 운동 완료 팝업 화면 가운데 큰 불꽃 + 꽃가루(레벨 업이면 한 번 더), 효과음 세트 '띵'·종목 완료·신기록 팡파르·운동 완료·레벨 업(Web Audio로 직접 생성, 파일 없음), MY › 설정 '효과음' 켜기·끄기(users.sfxEnabled, 기본 켜짐, rules bool 검사) / 쉬었다 다시 시작해도 무게가 같으면 코치 카드가 빨강(내림)으로 보이지 않게 | utils/sfx.js(신규), ui.jsx(Burst big·FloatText·ScreenCelebration), designStyles.css, WorkoutInput.jsx, MyPageTab.jsx, App.jsx, firestore.rules
 
 [2026-11-08] 기록 중 운동명 누르기 → HOWTO 종목 상세(위에 겹쳐 열기, 기기 뒤로가기로 닫힘, 길게 누르기 가이드는 그대로) + '이 운동 대신 하기'(가이드 대체 운동 → 같은 부위·같은 동작 → 같은 부위 8개, 오늘 목록 제외): 오늘만 바꾸고(swapsToday, 루틴 순서는 그대로) 내 루틴이면 '루틴도 바꾸기' 질문, 트레이너 계획은 오늘만, 자유 운동은 목록에서 바로 교체, 저장한 세트가 있으면 확인 / 유산소 타이머 ±1분(누르고 있으면 반복, 0분 아래 금지) | WorkoutInput.jsx(swapExercise·howto 오버레이·CardioTimerPanel·useRepeatPress), HowToTab.jsx(ExerciseDetail swap·swapCandidates), LogTab.jsx·App.jsx(gender)

@@ -288,6 +288,20 @@ export default function HomeTab({
             ? `최근 기록 ${formatShortDate(recentLogs[0].date)}${summarizePartsOfLog(recentLogs[0]) ? ` · ${summarizePartsOfLog(recentLogs[0])}` : ''}`
             : '아직 기록이 없어요.'}
         </p>
+        {/* [2026-11-09] 운동을 시작하지 않아도 오늘 차례 파트의 종목을 바로 보여 준다 */}
+        {suggested && !doneToday && suggested.part?.exercises?.length > 0 && (
+          <ol style={{ margin: '0 0 14px', padding: 0, listStyle: 'none', display: 'grid', gap: 6 }}>
+            {suggested.part.exercises.map((key, i) => {
+              const { name, grip } = parseExerciseKey(key)
+              return (
+                <li key={key} className="text-keep-all" style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 14, color: 'var(--color-label-normal)' }}>
+                  <span className="bt-num" style={{ width: 16, flexShrink: 0, fontSize: 12, color: 'var(--color-label-neutral)' }}>{i + 1}</span>
+                  <span>{name}{grip ? ` · ${grip}` : ''}</span>
+                </li>
+              )
+            })}
+          </ol>
+        )}
         {suggested && !doneToday && increaseList.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, margin: '-4px 0 14px' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)' }}>로그 코치 · 오늘 올리기</span>
