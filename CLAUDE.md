@@ -39,6 +39,7 @@
 - **푸시 전 QA(2026-11-02 사용자 지시, 생략 금지)**: main에 올리기 전에 매번 ① `vite build` 성공 ② 배포 대기 커밋 전체 diff(`git diff origin/main..HEAD`)를 다시 읽고 버그·누락 점검 ③ 목업 하네스(3장)로 바뀐 화면 흐름을 실제로 눌러 보고 콘솔 오류 확인(320/412px) ④ 문제가 나오면 고쳐서 커밋한 뒤 다시 ①부터. QA 결과(확인한 흐름·남은 위험)를 푸시 보고에 함께 적는다. 하네스를 돌릴 수 없는 환경이면 그 사실과 대신 확인한 방법을 알린다.
 
 **세션 시작 판별**
+> **2026-11-09 사고 정리(꼭 지킬 것)**: 폴더가 연결돼 있어도 `device_bash`가 없으면 PC에서 git을 못 친다. 이때 **PC 폴더 파일을 고치고 사용자에게 PowerShell 명령을 주는 것은 금지**(PC 폴더는 옛 커밋에 머물러 있어 그 위에 고치면 최신 작업과 꼬인다, 2026-11-09 다른 채팅이 그렇게 해서 사용자가 지적). 바로 아래 (B) 클라우드 방식으로 GitHub 저장소를 클론해 거기서 고치고 `wip`에 커밋·푸시한다 - 폴더 연결과 상관없이 언제나 가능하다. 사용자에게 "셸이 없어 커밋 못 함", "데스크톱 앱에서 다시 연결" 같은 안내를 하지 않는다. PC 폴더의 파일(특히 firestore.rules)은 옛 버전일 수 있으니 콘솔 게시용으로 쓰지 않고, 규칙은 클론의 firestore.rules를 `firestore.rules.txt`로 보낸다.
 1. `ToolSearch`로 `device_bash`를 찾는다.
    - **있으면 (A) PC 셸**: PC 폴더에서 작업·커밋(인증 `.git/push-auth`). 시작할 때 `git fetch origin main wip` → PC가 깨끗하면 `origin/wip`(없으면 `origin/main`)까지 `git merge --ff-only`로 맞춘다. PC에 wip에 없는 커밋이 있으면 `git push origin HEAD:wip`. 안 커밋된 변경이 있으면 먼저 알린다. 2026-11-02 세션이 남긴 미추적 `tools/pc-sync.sh`가 보이면 지운다.
    - **없고 `device_list_dir`·`device_stage_files`·`device_commit_files`만 있으면 (B) 클라우드**: `add_repo`(newhead84/bodytailor-log, access **push**) → 안내대로 `git clone --depth 1 https://github.com/newhead84/bodytailor-log /home/claude/bodytailor-log`(타임아웃 넉넉히) → `register_repo_root` → `git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'`(얕은 클론은 main만 받아 와서, 먼저 해야 함) → `git fetch --depth=50 origin main wip` → 로컬도 `wip` 브랜치에서 작업: `git checkout -B wip origin/wip`(없으면 `origin/main`에서) + `git branch --set-upstream-to=origin/wip`. 로컬 main은 `origin/main`과 같게 둔다(클라우드 세션의 검사가 main의 안 올린 커밋을 푸시하라고 하기 때문, 2026-11-02). 커밋은 `git -c user.name=Claude -c user.email=noreply@anthropic.com commit --author="MOON <ikjoomoon84@gmail.com>"`(작성자 MOON, 커미터 Claude noreply - 클라우드 세션의 커밋 검사가 커미터 이메일을 확인함). **PC 폴더는 건드리지 않는다**(`.git`에 못 써서 작업 파일만 덮으면 PC 저장소가 꼬임, 2026-11-02 겪음) - 다음 (A) 세션에서 맞춘다.
@@ -290,6 +291,7 @@ connections/{trainerUid_memberUid}: { trainerUid, memberUid, trainerName, member
 - Phase3(후보): 기존 운동기록 일괄 업로드 / 알림 세분화.
 
 ### 7.8 다음 작업 인계 (2026-11-08 기준 - 다음 채팅은 여기부터)
+- **다음 채팅 시작(2026-11-09 저녁 배포 직후)**: 2-0 '세션 시작 판별'의 2026-11-09 사고 정리를 먼저 읽는다(셸이 없으면 클론해서 커밋·푸시, 명령어 안내 금지). main = wip(HOME 오늘 차례 운동 목록까지 배포, 규칙 변경 없음). 이어서 아래 11-08 밤 항목 1~4 순서.
 - **2026-11-09 추가**: 다른 채팅(폴더 연결은 됐지만 PC 셸 없음)이 PC 폴더의 옛 파일(d352ec6 기준) `HomeTab.jsx`·`CHANGELOG.md`에 'HOME 오늘 차례 운동 목록'을 써 두었다 → 그 변경만 최신 wip에 옮겨 커밋(fb2105d, 배포 대기). **PC 폴더에는 이 두 파일이 커밋 안 된 변경으로 남아 있음** - 다음 (A) PC 셸 세션에서 `git checkout -- src/components/HomeTab.jsx CHANGELOG.md`로 되돌린 뒤 ff. PC 폴더의 firestore.rules는 옛 파일이라 콘솔에 붙이면 안 됨(최신은 GitHub/전달 파일).
 - **다음 채팅 시작(2026-11-08 밤, 배포 직후)**: 2-0 세션 판별 → origin/wip 확인(main = wip = 43f821a, 배포 대기 = 이 인계 문서뿐).
   1. **먼저 사용자에게 Firebase 콘솔 규칙 게시를 했는지 확인**: 이번 배포에 rules 변경(onboarding `bodyCompOk` - 허리둘레·체지방률·골격근량·인바디 측정일 범위, `sfxEnabled` bool). 게시 전에도 기존 기능은 그대로지만 새 값의 범위 검사가 빠진다(옛 규칙은 키 수만 봄). 파일은 firestore.rules.txt로 전달함.
