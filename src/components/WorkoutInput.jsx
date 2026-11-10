@@ -117,7 +117,7 @@ function BodyweightPlanCard({ plan, onApply, onDismiss, onOpenHarder }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>로그 코치 · 오늘의 플랜</span>
         <span style={{ fontSize: 11.5, color: 'var(--color-label-neutral)' }}>목표 {plan.repRange[0]}–{plan.repRange[1]}{plan.unit}</span>
-        <button type="button" onClick={onDismiss} aria-label="플랜 닫기" style={{ width: 30, height: 28, marginRight: -6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)' }}>
+        <button type="button" className="bt-hit" onClick={onDismiss} aria-label="플랜 닫기" style={{ width: 30, height: 28, marginRight: -6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)' }}>
           <X size={16} strokeWidth={2} />
         </button>
       </div>
@@ -3015,6 +3015,7 @@ function ExerciseGuideInfoButton({ name, open, onToggle }) {
   return (
     <button
       type="button"
+      className="bt-hit"
       title={`${name} 동작 가이드`}
       onClick={(e) => {
         e.stopPropagation()
@@ -3142,6 +3143,7 @@ export function ExerciseCard({
         )}
         {isDone ? (
           <button
+            className="bt-hit"
             title="완료 취소(다시 수정)"
             aria-label="완료 취소"
             onClick={onToggleUncomplete}
@@ -3347,6 +3349,7 @@ export function ExerciseCard({
                 <span style={{ flexShrink: 0, fontSize: 11.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>강도 {(ext.intensity || intensityOf()).label}</span>
                 <button
                   type="button"
+                  className="bt-hit"
                   onClick={ext.onDismissSuggestion}
                   aria-label="플랜 닫기"
                   title="플랜 닫기"

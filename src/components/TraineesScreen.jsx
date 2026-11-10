@@ -323,12 +323,12 @@ function WeekSchedules({ uid, list, onOpen, onItems }) {
               aria-label={`${fmtDay(d)} PT ${list2.length}건`}
               style={{ minHeight: 64, padding: '4px 2px', borderRadius: 'var(--radius-sm)', border: `1px solid ${on ? 'var(--color-fill-strong)' : 'var(--color-line)'}`, background: d === today ? 'var(--color-bg-elevated)' : 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, color: 'var(--color-label-strong)', minWidth: 0 }}
             >
-              <span style={{ fontSize: 11, color: i === 6 ? 'var(--color-danger)' : i === 5 ? 'var(--color-info, var(--color-label-neutral))' : 'var(--color-label-neutral)' }}>{DAY[(i + 1) % 7]}</span>
+              <span style={{ fontSize: 12, color: i === 6 ? 'var(--color-danger)' : i === 5 ? 'var(--color-info, var(--color-label-neutral))' : 'var(--color-label-neutral)' }}>{DAY[(i + 1) % 7]}</span>
               <span className="bt-num" style={{ fontSize: 13, fontWeight: d === today ? 800 : 600 }}>{Number(d.slice(8))}</span>
               {list2.slice(0, 3).map((s) => (
-                <span key={s.id} className="bt-num" style={{ fontSize: 10.5, lineHeight: 1.2, opacity: s.status === 'scheduled' ? 1 : 0.5, textDecoration: s.status === 'noshow' ? 'line-through' : 'none' }}>{s.time}</span>
+                <span key={s.id} className="bt-num" style={{ fontSize: 12, lineHeight: 1.2, opacity: s.status === 'scheduled' ? 1 : 0.5, textDecoration: s.status === 'noshow' ? 'line-through' : 'none' }}>{s.time}</span>
               ))}
-              {list2.length > 3 && <span style={{ fontSize: 10.5, color: 'var(--color-label-neutral)' }}>+{list2.length - 3}</span>}
+              {list2.length > 3 && <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>+{list2.length - 3}</span>}
             </button>
           )
         })}
@@ -346,6 +346,7 @@ function WeekSchedules({ uid, list, onOpen, onItems }) {
 }
 
 function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = false }) {
+  const confirmBox = useConfirm() // [2026-11-10] 브라우저 기본 알림창 대신 앱 확인창
   const [logs, setLogs] = useState(null)
   const [open, setOpen] = useState({})
   const [editing, setEditing] = useState(null) // null | 'new' | template
@@ -408,7 +409,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = fa
             setPlansKey((k) => k + 1)
           } catch (e) {
             console.error('계획 저장 실패:', e)
-            window.alert(e?.message?.startsWith('한 회원') ? e.message : e?.code === 'not-found' ? '회원이 이 계획을 삭제했어요. 새 계획으로 만들어 주세요.' : '계획을 저장하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.')
+            confirmBox(e?.message?.startsWith('한 회원') ? e.message : e?.code === 'not-found' ? '회원이 이 계획을 삭제했어요. 새 계획으로 만들어 주세요.' : '계획을 저장하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
             if (e?.code === 'not-found') { setEditing(null); setPlansKey((k) => k + 1) }
           }
         }}
@@ -456,10 +457,10 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = fa
                   <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
                     {fmtDay(l.date)} {l.partName ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {l.partName}</span> : null}
                     {/* [2026-11-02] 3시간 방치로 자동 저장된 기록은 운동 시간이 실제와 다를 수 있어 표시 */}
-                    {l.autoFinalized ? <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 600, padding: '1px 6px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', color: 'var(--color-label-neutral)', verticalAlign: 'middle' }}>자동 저장</span> : null}
+                    {l.autoFinalized ? <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, padding: '1px 6px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', color: 'var(--color-label-neutral)', verticalAlign: 'middle' }}>자동 저장</span> : null}
                     {/* [2026-11-09] 운동 시작 전 컨디션·통증 표시가 있으면 한눈에 */}
-                    {CONDITION_LABEL[l.condition] ? <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 600, color: 'var(--color-label-neutral)', verticalAlign: 'middle' }}>컨디션 {CONDITION_LABEL[l.condition]}</span> : null}
-                    {(l.exercises || []).some((ex) => (ex.sets || []).some((st) => st?.pain)) ? <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-danger)', color: 'var(--color-danger)', verticalAlign: 'middle' }}>통증</span> : null}
+                    {CONDITION_LABEL[l.condition] ? <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', verticalAlign: 'middle' }}>컨디션 {CONDITION_LABEL[l.condition]}</span> : null}
+                    {(l.exercises || []).some((ex) => (ex.sets || []).some((st) => st?.pain)) ? <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-danger)', color: 'var(--color-danger)', verticalAlign: 'middle' }}>통증</span> : null}
                   </p>
                   <span style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>
                     {l.durationMin ? <><span className="bt-num">{l.durationMin}</span>분 · </> : null}
@@ -603,7 +604,7 @@ function MonthSchedules({ uid, list, onOpen, onItems }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3 }}>
         {['월', '화', '수', '목', '금', '토', '일'].map((d, i) => (
-          <span key={d} style={{ textAlign: 'center', fontSize: 11.5, padding: '2px 0 4px', color: i === 6 ? 'var(--color-danger)' : i === 5 ? 'var(--color-info, var(--color-label-neutral))' : 'var(--color-label-neutral)' }}>{d}</span>
+          <span key={d} style={{ textAlign: 'center', fontSize: 12, padding: '2px 0 4px', color: i === 6 ? 'var(--color-danger)' : i === 5 ? 'var(--color-info, var(--color-label-neutral))' : 'var(--color-label-neutral)' }}>{d}</span>
         ))}
         {cells.map((d, i) => {
           if (!d) return <span key={`e${i}`} />
@@ -621,12 +622,12 @@ function MonthSchedules({ uid, list, onOpen, onItems }) {
             >
               <span className="bt-num" style={{ fontSize: 12.5, fontWeight: d === today ? 800 : 600, color: col === 6 ? 'var(--color-danger)' : col === 5 ? 'var(--color-info, var(--color-label-strong))' : undefined }}>{Number(d.slice(8))}</span>
               {l.slice(0, 2).map((s) => (
-                <span key={s.id} style={{ display: 'block', fontSize: 11, lineHeight: 1.2, overflow: 'hidden', opacity: s.status === 'scheduled' ? 1 : 0.5, textDecoration: s.status === 'noshow' ? 'line-through' : 'none' }}>
+                <span key={s.id} style={{ display: 'block', fontSize: 12, lineHeight: 1.2, overflow: 'hidden', opacity: s.status === 'scheduled' ? 1 : 0.5, textDecoration: s.status === 'noshow' ? 'line-through' : 'none' }}>
                   <span className="bt-num" style={{ display: 'block', fontWeight: 700 }}>{s.time}</span>
                   <span style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden' }}>{byMember[s.memberUid]?.memberName}</span>
                 </span>
               ))}
-              {l.length > 2 && <span style={{ fontSize: 10.5, color: 'var(--color-label-neutral)' }}>+{l.length - 2}건</span>}
+              {l.length > 2 && <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>+{l.length - 2}건</span>}
             </button>
           )
         })}
@@ -718,11 +719,11 @@ function ExerciseLogTables({ logs, rxIndex = {} }) {
                     {g.rows.map((r) => (
                       <th key={r.id} style={thStyle}>
                         <span className="bt-num">{fmtDay(r.date)}</span>
-                        {r.auto ? <span style={{ display: 'block', fontSize: 10.5, fontWeight: 500, color: 'var(--color-label-neutral)' }}>자동 저장</span> : null}
+                        {r.auto ? <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)' }}>자동 저장</span> : null}
                         {rxe && r.planId && rxe.planIds.has(r.planId) ? (
                           rxCheck(rxe.rx, r.sets)
-                            ? <span style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: 'var(--color-primary-strong)' }}>처방대로</span>
-                            : <span style={{ display: 'block', fontSize: 10.5, fontWeight: 500, color: 'var(--color-label-neutral)' }}>처방보다 적게</span>
+                            ? <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)' }}>처방대로</span>
+                            : <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)' }}>처방보다 적게</span>
                         ) : null}
                       </th>
                     ))}
@@ -749,7 +750,7 @@ function ExerciseLogTables({ logs, rxIndex = {} }) {
                             {st ? (
                               <>
                                 <span className="record-notation" style={{ display: 'block', color: 'var(--color-label-strong)' }}>{setCell(g.name, type, st)}</span>
-                                {hasRir(st) ? <span className="bt-num" style={{ display: 'block', fontSize: 10.5, color: 'var(--color-label-neutral)' }}>RIR {st.rir}</span> : null}
+                                {hasRir(st) ? <span className="bt-num" style={{ display: 'block', fontSize: 12, color: 'var(--color-label-neutral)' }}>RIR {st.rir}</span> : null}
                               </>
                             ) : (
                               <span style={{ color: 'var(--color-line)' }}>·</span>
@@ -761,7 +762,7 @@ function ExerciseLogTables({ logs, rxIndex = {} }) {
                   ))}
                   {showE1 && (
                     <tr>
-                      <td style={{ ...tdStyle, ...stickyCol, fontSize: 11.5, color: 'var(--color-label-neutral)', fontWeight: 700, borderTop: '1px solid var(--color-line)' }}>추정 1RM</td>
+                      <td style={{ ...tdStyle, ...stickyCol, fontSize: 12, color: 'var(--color-label-neutral)', fontWeight: 700, borderTop: '1px solid var(--color-line)' }}>추정 1RM</td>
                       {g.rows.map((r, i) => {
                         const up = i > 0 && e1[i] > 0 && e1[i] > Math.max(0, ...e1.slice(0, i))
                         return (
@@ -829,7 +830,7 @@ function MemberPlans({ conn, uid, onNew, onEdit, onLoaded }) {
       load()
     } catch (e) {
       console.error('계획 삭제 실패:', e)
-      window.alert('계획을 삭제하지 못했어요.')
+      confirm('계획을 삭제하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
     }
   }
   const partsLine = (t) => (t.parts || []).map((p) => `${p.name}(${(p.exercises || []).length})`).join(' · ')

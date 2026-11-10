@@ -7,7 +7,7 @@ import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAU
 import { getMyTrainerConnection, memberEndConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerAvatar } from './TrainerProfileView'
-import { membershipState, fmtYmd, isTrainerAccount } from '../utils/member'
+import { membershipState, fmtYmd, isTrainerAccount, saveFailText } from '../utils/member'
 import { COACH_INTENSITIES, normalizeIntensity, intensityGoalHint } from '../utils/strength'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
@@ -139,7 +139,7 @@ function ProfileNumbers({ userDoc, onEdit }) {
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
             {!bm.fat && onEdit && (
-              <button type="button" onClick={onEdit} style={{ height: 30, padding: '0 11px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-strong)', whiteSpace: 'nowrap' }}>
+              <button type="button" className="bt-hit" onClick={onEdit} style={{ height: 30, padding: '0 11px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-strong)', whiteSpace: 'nowrap' }}>
                 + {bm.whtr ? '인바디' : '허리·인바디'}
               </button>
             )}
@@ -464,6 +464,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   const [designOpen, setDesignOpen] = useState(false)
   // [2026-10-29] 설정 화면(우상단 아이콘)
   const [showSettings, setShowSettings] = useState(false)
+  const [moreSettingsOpen, setMoreSettingsOpen] = useState(false)
   const [showPlan, setShowPlan] = useState(false)
   const settingsTopRef = React.useRef(null)
   function openSettings() {
@@ -556,7 +557,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       await onRoutineUpdated?.()
       setPickingSplitTemplate(false)
     } catch (e) {
-      setTemplateError(e?.message || '템플릿 추가 중 문제가 생겼어요.')
+      setTemplateError(saveFailText(e, e?.message?.includes('최대') ? e.message : '루틴을 추가하지 못했어요. 연결을 확인하고 다시 눌러 주세요.'))
     } finally {
       setAddingTemplateKey(null)
     }
@@ -725,7 +726,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         )}
       </Card>
 
-      <SectionTitle>효과음</SectionTitle>
+      <SectionTitle>소리·진동</SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <Chip active={sfxOn} onClick={() => selectSfx(true)} style={{ flex: 1, justifyContent: 'center' }}>
@@ -736,7 +737,60 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </Chip>
         </div>
         <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>버튼·세트 완료·운동 완료·신기록·레벨 업에 짧은 소리가 나요(무음이면 안 들려요)</span>
+        <div style={{ marginTop: 6, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
+          <div className="text-keep-all" style={{ fontSize: 14, marginBottom: 8 }}>휴식 알림음</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {REST_SOUND_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.id}
+                active={restSoundId === opt.id}
+                onClick={() => {
+                  selectRestSound(opt.id)
+                  playSound(opt.id, 1)
+                }}
+              >
+                {opt.label}
+              </Chip>
+            ))}
+          </div>
+          <LevelSlider
+            label="소리 크기"
+            hint="휴식 알림음과 완료 효과음에 함께 적용돼요. 기본은 가장 크게예요."
+            value={alertVolume}
+            onCommit={commitAlertVolume}
+            onPreview={(v) => {
+              setAlertLevels({ alertVolume: v, vibrationLevel })
+              playSound(restSoundId, 1)
+            }}
+            testLabel="들어 보기"
+          />
+          <LevelSlider
+            label="진동 세기"
+            hint={vibrationSupported ? '휴식이 끝날 때 진동이에요. 0이면 진동하지 않아요.' : '이 기기(아이폰 사파리 등)는 웹 진동을 지원하지 않아요.'}
+            value={vibrationLevel}
+            disabled={!vibrationSupported}
+            onCommit={commitVibrationLevel}
+            onPreview={(v) => vibrateAlert(v)}
+            testLabel="진동 보기"
+          />
+        </div>
       </Card>
+
+      {/* [2026-11-10] 설정 화면이 길어 자주 바꾸지 않는 것(알림 권한·화면 꺼짐·데이터·앱 소개·약관·계정)은 접어 둔다 */}
+      <button
+        type="button"
+        onClick={() => setMoreSettingsOpen((v) => !v)}
+        aria-expanded={moreSettingsOpen}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 48, padding: '0 16px', marginBottom: 20, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', fontSize: 14, fontWeight: 700, color: 'var(--color-label-strong)' }}
+      >
+        <span style={{ minWidth: 0, textAlign: 'left' }}>
+          알림·데이터·계정
+          <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--color-label-neutral)', marginTop: 2 }}>알림 허용·화면 꺼짐 방지·기록 내보내기·앱 소개·약관·계정 삭제</span>
+        </span>
+        <span aria-hidden="true" style={{ flexShrink: 0, fontSize: 16, color: 'var(--color-label-neutral)', transform: moreSettingsOpen ? 'rotate(90deg)' : 'none' }}>›</span>
+      </button>
+      {moreSettingsOpen && (
+      <>
 
       <SectionTitle>알림</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
@@ -781,43 +835,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </Button>
         </div>
 
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
-          <div className="text-keep-all" style={{ fontSize: 14, marginBottom: 8 }}>휴식 알림음</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {REST_SOUND_OPTIONS.map((opt) => (
-              <Chip
-                key={opt.id}
-                active={restSoundId === opt.id}
-                onClick={() => {
-                  selectRestSound(opt.id)
-                  playSound(opt.id, 1)
-                }}
-              >
-                {opt.label}
-              </Chip>
-            ))}
-          </div>
-          <LevelSlider
-            label="소리 크기"
-            hint="휴식 알림음과 완료 효과음에 함께 적용돼요. 기본은 가장 크게예요."
-            value={alertVolume}
-            onCommit={commitAlertVolume}
-            onPreview={(v) => {
-              setAlertLevels({ alertVolume: v, vibrationLevel })
-              playSound(restSoundId, 1)
-            }}
-            testLabel="들어 보기"
-          />
-          <LevelSlider
-            label="진동 세기"
-            hint={vibrationSupported ? '휴식이 끝날 때 진동이에요. 0이면 진동하지 않아요.' : '이 기기(아이폰 사파리 등)는 웹 진동을 지원하지 않아요.'}
-            value={vibrationLevel}
-            disabled={!vibrationSupported}
-            onCommit={commitVibrationLevel}
-            onPreview={(v) => vibrateAlert(v)}
-            testLabel="진동 보기"
-          />
-        </div>
       </Card>
 
       {/* [2026-10-27 리뉴얼 W2] 내 기록 내보내기(CSV) - 데이터는 언제든 내 것 */}
@@ -867,6 +884,8 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             </p>
           </Card>
         </>
+      )}
+      </>
       )}
 
       </div>

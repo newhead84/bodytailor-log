@@ -15,6 +15,7 @@ import { isHoldExercise } from '../utils/load'
 import { saveCoachProgram, MAX_ROUTINE_TEMPLATES, isOwnRoutine } from '../storage'
 import { ExerciseName } from '../utils/exerciseName'
 import CardioTimeline from './CardioTimeline'
+import { saveFailText } from '../utils/member'
 
 // [2026-11-08] 운동명을 누르면 HOWTO 종목 상세를 프로그램 화면 위에 띄운다(처음 보는 종목 이름 확인용)
 const ExerciseDetail = lazy(() => import('./HowToTab').then((m) => ({ default: m.ExerciseDetail })))
@@ -81,7 +82,7 @@ export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, o
       })
       await onSaved()
     } catch (e) {
-      setError('저장하지 못했어요. 연결을 확인하고 다시 눌러 주세요.')
+      setError(saveFailText(e))
       setSaving(false)
     }
   }

@@ -7,6 +7,7 @@ import { SPLIT_TEMPLATE_PRESETS, buildTemplatePartsFromPreset, recommendedSplitK
 import { useBackableScreen } from '../hooks/useBackableScreen'
 import { getTrainingProfile } from '../utils/goals'
 import { CoachProgramCard, CoachBadge } from './CoachProgramCard'
+import { saveFailText } from '../utils/member'
 
 const MAX_ROUTINES = MAX_ROUTINE_TEMPLATES
 
@@ -49,7 +50,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
       await onChanged()
       setPickingSplitTemplate(false)
     } catch (e) {
-      setError(e?.message || '템플릿 추가 중 문제가 생겼어요.')
+      setError(saveFailText(e, e?.message?.includes('최대') ? e.message : '루틴을 추가하지 못했어요. 연결을 확인하고 다시 눌러 주세요.'))
     } finally {
       setAddingTemplateKey(null)
     }
@@ -76,7 +77,7 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
             await onChanged()
             setEditingId(null)
           } catch (e) {
-            setError(e?.message || '저장 중 문제가 생겼어요.')
+            setError(saveFailText(e, e?.message?.includes('최대') ? e.message : '저장하지 못했어요. 연결을 확인하고 다시 눌러 주세요.'))
           }
         }}
       />

@@ -42,7 +42,7 @@ export function TrainerGoalEditor({ member, memberUid, memberName = '', trainer,
       await onChanged?.()
     } catch (e) {
       console.error(fail, e)
-      window.alert(`${fail} 연결 상태를 확인하고 다시 시도해 주세요.`)
+      confirm(`${fail} 연결 상태를 확인하고 다시 시도해 주세요.`, { okLabel: '확인', cancelLabel: '닫기' })
     } finally {
       setBusy(false)
     }
@@ -103,6 +103,7 @@ export function TrainerGoalEditor({ member, memberUid, memberName = '', trainer,
 }
 
 export function TrainerGoalNotice({ uid, userDoc, onChanged }) {
+  const confirm = useConfirm() // [2026-11-10] 브라우저 알림창 대신 앱 확인창
   const [busy, setBusy] = useState(false)
   const p = userDoc?.goalProposal
   const edit = userDoc?.goalByTrainer
@@ -113,7 +114,7 @@ export function TrainerGoalNotice({ uid, userDoc, onChanged }) {
       await onChanged?.()
     } catch (e) {
       console.error('목표 반영 실패:', e)
-      window.alert('저장하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.')
+      confirm('저장하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
     } finally {
       setBusy(false)
     }

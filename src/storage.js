@@ -655,7 +655,9 @@ export async function addWorkoutLog(uid, logData, logId = null) {
     }
   }
   if (!written) await settleOrTimeout(setDoc(ref, logDocData()))
-  invalidateRecentLogsCache()
+  // [2026-11-10] 전체 기록 캐시는 비우지 않고 방금 저장한 기록만 더한다(저장할 때마다 전체 기록을 다시 읽던 Spark 읽기 절약)
+  recentLogsCache = null
+  patchAllLogsCache(uid, (list) => [...list.filter((l) => l.id !== ref.id), readLogDoc({ id: ref.id, data: () => ({ sessionType: 'cycle', scoreWeight: 1.0, ...logData }) })])
 
   // 집계는 부가 기능이라 실패해도 기록 저장 자체에 영향 없게 별도로 처리(await하되 throw 안 함).
   incrementExercisePopularity(logData.exercises)
@@ -758,11 +760,35 @@ function bumpGymStats(logId) {
 
 // [2026-10-27 신규] 개인 기록(PR) 맵이 없는 계정은 전체 기록에서 한 번 계산해 저장한다.
 // 기록을 수정/삭제했을 때도 다시 계산한다(PR이 지워진 기록에 남지 않도록).
-export async function rebuildPersonalRecords(uid) {
+// [2026-11-10] 기록을 고치거나 지운 뒤 활동 요약(마지막 운동일·부위·주별 운동 일수)을 다시 계산 - 예전엔 저장 때만 늘려서
+// 지운 기록이 관리자·트레이너 요약에 남았다. PR 재계산과 같은 전체 기록 읽기(세션 캐시)를 써서 추가 읽기 없음.
+export function activityFromLogs(logs) {
+  const list = (logs || []).filter((l) => l?.date)
+  if (!list.length) return { lastDate: '', lastParts: [], weeks: {} }
+  const lastDate = list.reduce((m, l) => (l.date > m ? l.date : m), '')
+  const lastLog = list.filter((l) => l.date === lastDate).slice(-1)[0]
+  const days = {}
+  list.forEach((l) => {
+    if (l.isBackfilled) return
+    const wk = weekStartStr(l.date)
+    ;(days[wk] = days[wk] || new Set()).add(l.date)
+  })
+  const keep = Object.keys(days).sort().slice(-12)
+  return {
+    lastDate,
+    lastParts: [...new Set((lastLog?.exercises || []).map((e) => e.part || getExerciseAtom(e.name)).filter(Boolean))].slice(0, 8),
+    weeks: Object.fromEntries(keep.map((k) => [k, days[k].size])),
+  }
+}
+
+export async function rebuildPersonalRecords(uid, { withActivity = false } = {}) {
   const prsVersion = prsVersionKey()
   // [2026-10-31] 전체 기록 읽기를 세션 캐시(getAllWorkoutLogs)와 공유 - MY 성취·CSV와 같은 읽기를 다시 하지 않게
-  const prs = computePrsFromLogs(await getAllWorkoutLogs(uid))
-  await settleOrTimeout(updateDoc(doc(db, 'users', uid), { prs, prsVersion }))
+  const logs = await getAllWorkoutLogs(uid)
+  const prs = computePrsFromLogs(logs)
+  const updates = { prs, prsVersion }
+  if (withActivity) updates.activity = activityFromLogs(logs)
+  await settleOrTimeout(updateDoc(doc(db, 'users', uid), updates))
   // 화면(App.jsx)이 사용자 문서를 다시 불러오도록 알림 - 삭제된 기록의 PR이 남아 보이지 않게
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('bt-prs-updated'))
   return prs
@@ -776,17 +802,19 @@ export function getEffectiveSeasonXp(userDoc) {
 }
 
 export async function updateWorkoutLog(uid, logId, partial) {
-  invalidateRecentLogsCache()
+  recentLogsCache = null
+  patchAllLogsCache(uid, (list) => list.map((l) => (l.id === logId ? readLogDoc({ id: logId, data: () => ({ ...l, ...partial }) }) : l)))
   // [2026-11-01] 오프라인에서 '저장 중'에 멈추지 않게(전체 점검 U3)
   await settleOrTimeout(updateDoc(doc(db, 'workoutLogs', uid, 'logs', logId), partial))
-  rebuildPersonalRecords(uid).catch(() => {})
+  rebuildPersonalRecords(uid, { withActivity: 'date' in (partial || {}) || 'exercises' in (partial || {}) }).catch(() => {})
 }
 
 // [2026-07-28] 홈탭 캘린더에서 기록 삭제 기능 추가를 위해 신규 작성.
 export async function deleteWorkoutLog(uid, logId) {
-  invalidateRecentLogsCache()
+  recentLogsCache = null
+  patchAllLogsCache(uid, (list) => list.filter((l) => l.id !== logId))
   await settleOrTimeout(deleteDoc(doc(db, 'workoutLogs', uid, 'logs', logId)))
-  rebuildPersonalRecords(uid).catch(() => {})
+  rebuildPersonalRecords(uid, { withActivity: true }).catch(() => {})
 }
 
 // [2026-10-29] 자동 저장된 운동 "되돌리기": 기록을 지우고 그때 받은 XP도 뺀다(0 아래로는 안 내려감).
@@ -813,8 +841,9 @@ export async function deleteWorkoutLogAndRevertXp(uid, logId, xp) {
     return true
   })
   if (removed) {
-    invalidateRecentLogsCache()
-    rebuildPersonalRecords(uid).catch(() => {})
+    recentLogsCache = null
+    patchAllLogsCache(uid, (list) => list.filter((l) => l.id !== logId))
+    rebuildPersonalRecords(uid, { withActivity: true }).catch(() => {})
   }
 }
 
@@ -867,6 +896,17 @@ const RECENT_LOGS_CACHE_MS = 5 * 60 * 1000
 function invalidateRecentLogsCache() {
   recentLogsCache = null
   allLogsCache = null
+}
+// [2026-11-10] 이 기기에서 저장·수정·삭제한 기록을 전체 기록 캐시에 바로 반영(다시 읽지 않음). 캐시가 없으면 아무것도 안 함.
+// 날짜 오름차순 유지, 배열은 새로 만든다(여러 화면이 같은 배열을 읽으므로 고치지 않음).
+function patchAllLogsCache(uid, fn) {
+  if (!allLogsCache || allLogsCache.uid !== uid) return
+  const prev = allLogsCache.promise
+  const promise = prev.then((list) => fn(list).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)))
+  promise.catch(() => {
+    if (allLogsCache?.promise === promise) allLogsCache = null
+  })
+  allLogsCache = { ...allLogsCache, promise }
 }
 export function getRecentWorkoutLogsCached(uid, count) {
   const now = Date.now()

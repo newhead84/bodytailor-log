@@ -1,6 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-10] 전면 재검토 반영(± 길게 누르기·해부도 근육 그림·REPORT 다시 시도·트레이너 랭킹 제외·PT 차감 누락 방지·문구 정리).
+ * 최신 변경: [2026-11-10] 재검토 남은 항목(활동 요약 재계산·기록 캐시 반영·회원권 만료 안내·설정 접기·홍보 캡처).
+ *            직전: [2026-11-10] 전면 재검토 반영(± 길게 누르기·해부도 근육 그림·REPORT 다시 시도·트레이너 랭킹 제외·PT 차감 누락 방지·문구 정리).
  *            직전: [2026-11-09] 신체 지표 막대 오류·주간 세트 막대 눈금.
  *            직전: [2026-11-09] 세트 행·종목 완료 버그 묶음(체크한 세트만 기록, 종목 바꾸기).
  *            직전: [2026-11-09] 몸 상태 코칭 보완(지난 통증 알림·완료 요약·트레이너 통증 알림).
@@ -64,7 +65,7 @@ import MemberPendingScreen from './components/MemberPendingScreen'
 import ConsentScreen from './components/ConsentScreen'
 import { DeletedAccountScreen } from './components/AccountLegalSection'
 import { hasCurrentConsent } from './utils/legal'
-import { isApprovedMember, phoneHash, phoneLast4, isMembershipExpired, isTrainerAccount } from './utils/member'
+import { isApprovedMember, phoneHash, phoneLast4, isMembershipExpired, isTrainerAccount, setMembershipEndForMessages } from './utils/member'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT, GLOBAL_TIMER_BAR_CONTROLS_HEIGHT } from './components/GlobalTimerBar'
 import { useBackableScreen, hasOpenScreens } from './hooks/useBackableScreen'
 import { showSystemNotification, closeSystemNotification } from './components/RestTimer'
@@ -414,6 +415,7 @@ export default function App() {
   // [2026-10-29] 어시스트·맨몸+추가 종목의 실제 부하(체중 ∓ 입력 무게) 계산용 체중. 렌더 중에 바로 반영해
   // 같은 렌더의 계산(볼륨·추정 1RM)부터 쓰이게 한다.
   setBodyweightKg(userDoc?.onboarding?.weightKg || 0)
+  setMembershipEndForMessages(userDoc?.membershipEnd)
   setSfxEnabled(userDoc?.sfxEnabled !== false) // [2026-11-08] 완료 효과음(기본 켜짐)
   setAlertLevels({ alertVolume: userDoc?.alertVolume, vibrationLevel: userDoc?.vibrationLevel }) // [2026-11-09] 소리 크기·진동 세기(기본 100)
   // [2026-10-30] 운동 목표(우선순위) → 목표 반복·휴식·주간 세트·유산소 기준(goals.js). 가입 8주 미만은 주간 세트를 낮게.

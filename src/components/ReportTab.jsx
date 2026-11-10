@@ -377,7 +377,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
                     <CountUp value={myEntry.finalScore} />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 2 }}>점</span>
                   </span>
-                  <span style={{ fontSize: 11, color: 'var(--color-label-neutral)' }}>세부 보기 ›</span>
+                  <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>세부 보기 ›</span>
                 </div>
               </Card>
             )

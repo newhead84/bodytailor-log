@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Dumbbell, Moon, ClipboardCheck, X, CircleCheck } from 'lucide-react'
 import { Card, Button, useConfirm, Burst, Shine } from './ui'
 import { useMoment } from '../hooks/useMoment'
@@ -96,11 +96,15 @@ export default function HomeTab({
   const [ptItems, setPtItems] = useState([])
   // [2026-10-31] 관리자도 PT를 받을 수 있어 트레이너만 제외
   const isStaff = userDoc?.role === '트레이너'
+  // [2026-11-10] 예전엔 기록을 저장할 때마다(logsVersion) PT 일정·완료 기록 전체를 다시 읽었다 → HOME을 볼 때 10분에 한 번만
+  const ptFetchedAt = useRef(0)
   useEffect(() => {
-    if (!uid || isStaff) return
+    if (!uid || isStaff || !isActive) return
+    if (Date.now() - ptFetchedAt.current < 10 * 60 * 1000) return
     let alive = true
     Promise.all([listPtSchedules({ memberUid: uid }).catch(() => []), listPtSessions({ memberUid: uid }).catch(() => [])]).then(([sch, ses]) => {
       if (!alive) return
+      ptFetchedAt.current = Date.now()
       // 노쇼 처리한 일정은 회원 캘린더에 보이지 않게
       const items = sch.filter((s) => s.status !== 'noshow').map((s) => ({ date: s.date, time: s.time, done: s.status === 'done', trainerName: s.trainerName }))
       ses.filter((x) => !x.scheduleId && !x.noshow).forEach((x) => items.push({ date: x.date, time: '', done: true, trainerName: x.trainerName }))
@@ -109,7 +113,7 @@ export default function HomeTab({
     return () => {
       alive = false
     }
-  }, [uid, isStaff, logsVersion])
+  }, [uid, isStaff, isActive])
   const ptByDate = useMemo(() => {
     const m = {}
     ptItems.forEach((it) => (m[it.date] = m[it.date] || []).push(it))

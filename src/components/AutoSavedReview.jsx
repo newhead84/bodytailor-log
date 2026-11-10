@@ -14,6 +14,7 @@ import { logVolumeKg, getBodyweightKg, weightUnitShort, repsUnit } from '../util
 import { estimateCaloriesV2 } from '../utils/calories'
 import { confirmSetValues, prevTopWeight } from '../utils/inputCheck'
 import { ExerciseName } from '../utils/exerciseName'
+import { saveFailText } from '../utils/member'
 
 const inputStyle = {
   width: '100%',
@@ -119,7 +120,7 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved,
       onClose?.()
     } catch (err) {
       console.error('자동 저장 기록 수정 실패:', err)
-      setError('저장하지 못했어요. 연결을 확인하고 다시 시도해 주세요.')
+      setError(saveFailText(err))
       setBusy(null)
     }
   }

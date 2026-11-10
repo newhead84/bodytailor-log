@@ -123,6 +123,19 @@ export const MEMBERSHIP_SOON_DAYS = 7
 export function membershipEndAt(endStr) {
   return endStr ? new Date(`${endStr}T23:59:59+09:00`) : null
 }
+// [2026-11-10] 저장이 규칙에 막혔을 때 회원권 만료가 이유면 그렇게 알려 준다(예전엔 '연결을 확인' 또는 영어 오류 문구).
+// App이 렌더 중 setMembershipEndForMessages(userDoc.membershipEnd)로 넣는다(setBodyweightKg와 같은 방식).
+let msgMembershipEnd = ''
+export function setMembershipEndForMessages(end) {
+  msgMembershipEnd = end || ''
+}
+export function saveFailText(err, fallback = '저장하지 못했어요. 연결을 확인하고 다시 눌러 주세요.') {
+  const endAt = membershipEndAt(msgMembershipEnd)
+  if (err?.code === 'permission-denied' && endAt && Date.now() > endAt.getTime()) {
+    return `회원권이 ${msgMembershipEnd.replace(/-/g, '.')}에 끝나 저장할 수 없어요. 헬스장에서 회원권을 연장하면 다시 저장돼요.`
+  }
+  return fallback
+}
 function dayDiff(a, b) {
   const [y1, m1, d1] = a.split('-').map(Number)
   const [y2, m2, d2] = b.split('-').map(Number)

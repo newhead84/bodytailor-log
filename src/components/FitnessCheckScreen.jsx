@@ -7,6 +7,7 @@ import { listFitnessTests, addFitnessTest, deleteFitnessTest } from '../storage'
 import { todayStr } from '../utils/date'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { FITNESS_ITEMS, fitnessDerived, daysSince } from '../utils/fitnessCheck'
+import { saveFailText } from '../utils/member'
 
 const inputStyle = {
   width: '100%',
@@ -69,7 +70,7 @@ export default function FitnessCheckScreen({ uid, weightKg, onClose, backRef = n
       setAdding(false)
       setForm({})
     } catch (e) {
-      setError('저장하지 못했어요. 연결을 확인하고 다시 눌러 주세요.')
+      setError(saveFailText(e))
     } finally {
       setSaving(false)
     }
