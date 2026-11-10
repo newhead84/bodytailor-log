@@ -88,20 +88,36 @@ function related(a, b) {
   return x.all.has(y.main) || y.all.has(x.main)
 }
 
-// 오늘 다른 종목에서 쌓인 신호(같은 부위만). others: [{ name, sets(저장한 세트) }]
+// [2026-11-10] 통증은 방향이 있다(사용자 신고: 가슴 운동에서 '통증 조금' → 삼두 운동에도 통증 안내).
+// 통증 난 종목의 주동 부위를 지금 종목이 주동·보조로 쓸 때만 옮긴다(가슴 통증 → 다른 가슴·딥스처럼 가슴을 쓰는 종목 O, 삼두 고립 X).
+// 피로(실패·자세 흔들림)는 지금처럼 양쪽 다(가슴 프레스로 지친 삼두도 피로).
+function loadsSource(name, source) {
+  const x = atomsOf(name)
+  const y = atomsOf(source)
+  if (!x.main || !y.main || x.main === '유산소' || y.main === '유산소') return false
+  return x.all.has(y.main)
+}
+
+// 오늘 다른 종목에서 쌓인 신호. others: [{ name, sets(저장한 세트) }]
 export function sessionStrain(name, others = []) {
-  const out = { fail: 0, form: 0, mild: 0, strong: 0, from: [] }
+  const out = { fail: 0, form: 0, mild: 0, strong: 0, from: [], painFrom: [], fatigueFrom: [] }
   for (const ex of others) {
-    if (!ex?.name || ex.name === name || !related(name, ex.name)) continue
-    let hit = false
+    if (!ex?.name || ex.name === name) continue
+    const fatigueRel = related(name, ex.name)
+    const painRel = loadsSource(name, ex.name)
+    if (!fatigueRel && !painRel) continue
+    let painHit = false
+    let fatigueHit = false
     for (const s of ex.sets || []) {
       if (isWarmupSet(s)) continue
-      if (s.pain === 'strong') (out.strong += 1), (hit = true)
-      else if (s.pain === 'mild') (out.mild += 1), (hit = true)
-      if (s.form === 'broken') (out.form += 1), (hit = true)
-      if (s.type === 'failure' || (s.rir !== '' && s.rir != null && Number(s.rir) === 0)) (out.fail += 1), (hit = true)
+      if (painRel && s.pain === 'strong') (out.strong += 1), (painHit = true)
+      else if (painRel && s.pain === 'mild') (out.mild += 1), (painHit = true)
+      if (fatigueRel && s.form === 'broken') (out.form += 1), (fatigueHit = true)
+      if (fatigueRel && (s.type === 'failure' || (s.rir !== '' && s.rir != null && Number(s.rir) === 0))) (out.fail += 1), (fatigueHit = true)
     }
-    if (hit) out.from.push(ex.name)
+    if (painHit) out.painFrom.push(ex.name)
+    if (fatigueHit) out.fatigueFrom.push(ex.name)
+    if (painHit || fatigueHit) out.from.push(ex.name)
   }
   return out
 }
@@ -127,17 +143,19 @@ export function applySessionAdjust(sug, name, setting, { others = [], condition 
   const strain = sessionStrain(name, others)
   const { level, why } = sessionAdjustLevel(strain, condition)
   if (!level) return sug
-  const where = atomText(name)
+  // [2026-11-10] 문구는 신호가 난 종목 기준(예전엔 지금 종목 부위를 써서 '삼두 쪽에 통증'처럼 사실과 다르게 보였음)
+  const src = (list) => (list.length ? `${list[0]}${list.length > 1 ? ` 외 ${list.length - 1}개` : ''}` : atomText(name))
+  const where = src(why === 'pain' || why === 'pain-strong' ? strain.painFrom || [] : strain.fatigueFrom || [])
   const failForm = []
   if (strain.fail) failForm.push(`실패 ${strain.fail}번`)
   if (strain.form) failForm.push(`자세 흔들림 ${strain.form}번`)
   const text =
     why === 'pain-strong'
-      ? `오늘 ${where}에 통증이 심했어요 → 무게 10%쯤·세트 하나 줄여 가볍게. 이 종목에서도 아프면 쉬어요`
+      ? `오늘 ${where}에서 통증이 심했어요 → 같은 부위를 쓰니 무게 10%쯤·세트 하나 줄여 가볍게. 이 종목에서도 아프면 쉬어요`
       : why === 'pain'
-      ? `오늘 ${where}에 통증이 조금 있었어요 → 올리지 말고 지난번만큼만, 아픈 범위는 피해서`
+      ? `오늘 ${where}에서 통증이 조금 있었어요 → 같은 부위를 쓰니 올리지 말고 지난번만큼만, 아픈 범위는 피해서`
       : why === 'fatigue'
-      ? `오늘 ${where} 운동에서 ${failForm.join('·')} → 피로가 쌓였어요. 올리기는 다음에, 지난번만큼만 자세 좋게`
+      ? `오늘 ${where}에서 ${failForm.join('·')} → 피로가 쌓였어요. 올리기는 다음에, 지난번만큼만 자세 좋게`
       : lighter
       ? '오늘 컨디션이 나빠요 → 올리기는 다음에, 지난번만큼·세트 하나 덜, 자세 좋게 해요'
       : '오늘 컨디션이 나빠요 → 올리기는 다음에, 지난번만큼만 자세 좋게 해요'

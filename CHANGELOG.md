@@ -2,6 +2,10 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-10] 휴식 끝 10초 전 알림(사용자 요청): 짧은 '띡'(1320Hz) + 짧은 진동 한 번, 소리 크기·진동 세기 설정 따름, 휴식 20초 이하·5초 넘게 늦으면 생략, 폰 알림창 없음 | src/components/RestTimer.jsx playPreAlert·PRE_ALERT_SEC
+
+[2026-11-10] 오늘 몸 상태: 통증은 방향 있게(통증 난 종목의 주동 부위를 지금 종목이 쓸 때만, 가슴 통증 → 삼두 고립 X), 피로는 그대로 양쪽, 문구는 신호 난 종목 이름으로('삼두 쪽에 통증'처럼 사실과 다르던 것) | src/utils/sessionCoach.js sessionStrain·loadsSource·applySessionAdjust
+
 [2026-11-10] MY 프로필 카드 여백 줄이기(사용자 지적): 수정 버튼을 이름 줄 오른쪽으로, 지표 설명을 게이지 안으로, BMI·인바디·기준(ⓘ)을 한 줄로(인바디는 작은 테두리 버튼), 목표 칩은 우선순위 3개 짧은 이름 + '+N' 한 줄 | src/components/MyPageTab.jsx ProfileNumbers·MetricGauge
 
 [2026-11-10] 버튼 효과음 '톡'(사용자 선택 B 물방울, 범위 ± 포함 전부): 문서 전체 click 하나로 처리, 설정 '효과음'을 끄면 함께 꺼짐, data-sfx="off"로 뺄 수 있음 | src/utils/sfx.js installTapSound·tap, src/main.jsx, MyPageTab 효과음 문구

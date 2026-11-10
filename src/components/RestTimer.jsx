@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { audioCtx, audioOut, resetAudio, vibrateAlert } from '../utils/audioOut'
+import { audioCtx, audioOut, resetAudio, vibrateAlert, vibrationPattern } from '../utils/audioOut'
 
 // [2026-07-28] 알림음 5종 추가(사용자가 MY탭에서 선택, userDoc.restTimerSoundId로 저장).
 // 별도 음원 파일 없이 Web Audio API 오실레이터 파형/주파수 조합만으로 구현(오프라인에서도 항상 동작).
@@ -15,6 +15,39 @@ export const REST_SOUND_OPTIONS = [
 // 그러면 이후 생성 시도가 (catch로 조용히 삼켜지며) 실패해서 "몇 번 누르다보면 소리가
 // 아예 안 나는" 문제가 생겼다. 모듈 스코프에 컨텍스트 하나만 만들어 재사용한다.
 // [2026-11-09] 컨텍스트·전체 음량·리미터는 utils/audioOut.js 공용(효과음과 같은 컨텍스트, 음량 슬라이더 반영)
+// [2026-11-10] 휴식 끝 10초 전 '곧 끝나요' 알림(사용자 요청): 끝 알림음과 헷갈리지 않게 짧고 높은 '띡' 한 번 + 짧은 진동 한 번.
+// 소리 크기·진동 세기 설정을 따르고, 폰 알림창은 띄우지 않는다(끝 알림과 두 번 쌓이지 않게).
+export const PRE_ALERT_SEC = 10
+export function playPreAlert() {
+  try {
+    const ctx = audioCtx()
+    if (ctx) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(audioOut(ctx))
+      osc.type = 'sine'
+      osc.frequency.value = 1320
+      const t = ctx.currentTime
+      gain.gain.setValueAtTime(0.001, t)
+      gain.gain.exponentialRampToValueAtTime(0.4, t + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14)
+      osc.start(t)
+      osc.stop(t + 0.16)
+    }
+  } catch (_) {
+    // 소리를 못 내도 타이머는 그대로
+  }
+  const p = vibrationPattern()
+  if (p) {
+    try {
+      navigator.vibrate?.(Math.round(p[0] * 0.6))
+    } catch (_) {
+      // 진동 불가 환경은 무시
+    }
+  }
+}
+
 export function playSound(soundId, times = 2) {
   const profile = REST_SOUND_OPTIONS.find((s) => s.id === soundId) || REST_SOUND_OPTIONS[0]
   try {
@@ -126,6 +159,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   const finishedRef = useRef(false)
   const lastOvertimeAlertRef = useRef(0)
   const overtimeAlertCountRef = useRef(0)
+  const preAlertedRef = useRef(false)
   const wakeLockRef = useRef(null)
 
   function computeSignedRemaining() {
@@ -181,6 +215,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   useEffect(() => {
     finishedRef.current = false
     overtimeAlertCountRef.current = 0
+    preAlertedRef.current = false
     setOvertime(false)
     const sec = secondsRef.current
     endAtRef.current = Date.now() + sec * 1000
@@ -192,6 +227,11 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
     intervalRef.current = setInterval(() => {
       const r = computeSignedRemaining()
       setRemaining(r)
+      // [2026-11-10] 10초 전 알림 - 휴식이 20초 이하이면 생략, 화면을 다시 켰을 때 이미 지난 경우(5초 넘게 늦음)도 생략
+      if (!preAlertedRef.current && r <= PRE_ALERT_SEC && r > 0) {
+        preAlertedRef.current = true
+        if (sec > PRE_ALERT_SEC * 2 && r >= PRE_ALERT_SEC - 5) playPreAlert()
+      }
       if (r <= 0) {
         if (!finishedRef.current) {
           finish()
