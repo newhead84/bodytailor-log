@@ -1496,7 +1496,13 @@ function connData(member, trainer, adminUid) {
     createdBy: adminUid,
   }
 }
-export async function adminConnect(member, trainer, adminUid) {
+// [2026-11-10] A-4: 회원과 그 트레이너의 오늘 이후 '예정' PT 일정(관리자 - 트레이너 변경·연결 해제·역할 변경 전 확인용)
+export async function adminFutureSchedules(memberUid, trainerUid) {
+  const today = todayStr()
+  return (await listPtSchedules({ memberUid, trainerUid })).filter((s) => s.status === 'scheduled' && s.date >= today)
+}
+// opts.schedules: 이전 트레이너와의 예정 일정, opts.moveSchedules: true면 새 트레이너로 옮기고 false면 지운다(같은 일괄 쓰기, 퇴사 처리와 같은 방식)
+export async function adminConnect(member, trainer, adminUid, opts = {}) {
   const col = collection(db, 'connections')
   const id = connId(trainer.uid, member.uid)
   const [prev, same] = await Promise.all([getDocs(query(col, where('memberUid', '==', member.uid), where('status', '==', 'active'))), getDoc(doc(db, 'connections', id))])
@@ -1509,11 +1515,24 @@ export async function adminConnect(member, trainer, adminUid) {
   const history = old ? [...(old.history || []), { startedAt: old.startedAt || null, endedAt: old.endedAt || null, endedBy: old.endedBy || null }].slice(-20) : null
   batch.set(doc(db, 'connections', id), { ...connData(member, trainer, adminUid), ...(history ? { history } : {}) })
   if (!member.role || member.role === '일반회원') batch.update(doc(db, 'users', member.uid), { role: 'PT회원', statusUpdatedAt: serverTimestamp() })
+  // 일괄 연결(opts.moveFromPrev): 묻지 않고 이전 트레이너와의 예정 일정을 새 트레이너로 옮긴다
+  if (opts.moveFromPrev && !opts.schedules) {
+    const lists = await Promise.all(prev.docs.filter((d) => d.id !== id).map((d) => adminFutureSchedules(member.uid, d.data().trainerUid).catch(() => [])))
+    opts = { schedules: lists.flat(), moveSchedules: true }
+  }
+  ;(opts.schedules || []).slice(0, 400).forEach((sc) => {
+    if (opts.moveSchedules) batch.update(doc(db, 'ptSchedules', sc.id), { trainerUid: trainer.uid, trainerName: memberLabel(trainer) })
+    else batch.delete(doc(db, 'ptSchedules', sc.id))
+  })
   await batch.commit()
+  if (opts.schedules?.length) invalidateAdminPt()
+  return opts.schedules?.length || 0
 }
 // [2026-11-01] 트레이너 역할 해제(A6): 활성 연결 모두 종료 + 역할 변경을 한 번에
-export async function adminEndTrainerAndSetRole(trainerUid, connIds, role, adminUid) {
+// [2026-11-10] A-4: schedules = 끊기는 연결의 예정 일정(같이 지움)
+export async function adminEndTrainerAndSetRole(trainerUid, connIds, role, adminUid, schedules = []) {
   const batch = writeBatch(db)
+  schedules.slice(0, 400).forEach((sc) => batch.delete(doc(db, 'ptSchedules', sc.id)))
   connIds.forEach((id) => batch.update(doc(db, 'connections', id), { status: 'ended', endedAt: serverTimestamp(), endedBy: adminUid }))
   batch.update(doc(db, 'users', trainerUid), { role, statusUpdatedAt: serverTimestamp() })
   await batch.commit()
@@ -1558,8 +1577,17 @@ export async function adminTrainerLeave({ admin, leaverUid, leaverName, conns, m
   }
   invalidateAdminPt()
 }
-export async function endConnection(id, byUid) {
-  await updateDoc(doc(db, 'connections', id), { status: 'ended', endedAt: serverTimestamp(), endedBy: byUid || null })
+// [2026-11-10] A-4: 관리자가 해제할 때 schedules(그 트레이너와의 예정 일정)를 같은 일괄 쓰기로 지운다
+export async function endConnection(id, byUid, schedules = []) {
+  if (!schedules.length) {
+    await updateDoc(doc(db, 'connections', id), { status: 'ended', endedAt: serverTimestamp(), endedBy: byUid || null })
+    return
+  }
+  const batch = writeBatch(db)
+  batch.update(doc(db, 'connections', id), { status: 'ended', endedAt: serverTimestamp(), endedBy: byUid || null })
+  schedules.slice(0, 400).forEach((sc) => batch.delete(doc(db, 'ptSchedules', sc.id)))
+  await batch.commit()
+  invalidateAdminPt()
 }
 // [2026-11-01] B8: 회원이 직접 담당 트레이너 연결을 해제 - 연결 종료 + 관리 이력(이름 없이) + 그 트레이너와의 오늘 이후 '예정' 일정 삭제를 한 번에.
 // rules: 회원은 같은 일괄 쓰기에서 연결이 ended가 될 때 자기 '예정' 일정만 지울 수 있다. 일정이 많으면 첫 묶음 뒤 나눠 지운다.

@@ -14,7 +14,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
 import { LayoutDashboard, UserPlus, Users, RefreshCw, CalendarDays, Link2, UserRound, BarChart3, History, FileUp, Settings, ArrowLeft, Menu, Search, MessageSquare } from 'lucide-react'
 import '../styles/admin.css'
-import { adminListUsers, adminGetUser, adminApproveMember, adminUpdateMember, adminGetRoster, adminSaveRoster, adminDeleteRoster, adminListConnections, adminListMemberConnections, adminConnect, adminEndTrainerAndSetRole, endConnection, adminSetMembership, getAppSettings, adminSaveSettings, adminListNotes, adminSaveNote, getAllInquiries, logAdmin, logAction, onLogFail, adminGetPrivates } from '../storage'
+import { adminListUsers, adminGetUser, adminApproveMember, adminUpdateMember, adminGetRoster, adminSaveRoster, adminDeleteRoster, adminListConnections, adminListMemberConnections, adminConnect, adminEndTrainerAndSetRole, endConnection, adminFutureSchedules, adminSetMembership, getAppSettings, adminSaveSettings, adminListNotes, adminSaveNote, getAllInquiries, logAdmin, logAction, onLogFail, adminGetPrivates } from '../storage'
 import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId, membershipState, addMonths, addDays, fmtYmd, memberName, isTrainerAccount } from '../utils/member'
 import AdminTools from './AdminTools'
 import TrainerProfilesTab from './TrainerProfilesTab'
@@ -270,16 +270,19 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
     }
     // [2026-11-01] 트레이너 역할을 빼면 담당 연결이 숨은 채 남던 문제(A6): 연결이 있으면 경고 후 함께 해제
     const mine = u.role === '트레이너' && role !== '트레이너' ? conns.filter((c) => c.status === 'active' && c.trainerUid === u.uid) : []
+    // [2026-11-10] A-4: 끊기는 연결의 예정 PT도 함께 지운다(옮기려면 퇴사 처리)
+    let sch = []
     if (mine.length) {
-      if (!(await confirm(`${memberName(u)} 트레이너에게 담당 회원 ${mine.length}명(${mine.map((c) => c.memberName).join(', ')})이 연결돼 있어요. 역할을 '${role}'(으)로 바꾸면 이 연결을 모두 해제해요. 다른 트레이너에게 옮기려면 '트레이너 프로필'의 퇴사 처리를 써 주세요.`, { okLabel: '연결 해제하고 바꾸기', cancelLabel: '취소' }))) return
+      sch = (await Promise.all(mine.map((c) => futureSchedulesOf(c.memberUid, u.uid)))).flat()
+      if (!(await confirm(`${memberName(u)} 트레이너에게 담당 회원 ${mine.length}명(${mine.map((c) => c.memberName).join(', ')})이 연결돼 있어요. 역할을 '${role}'(으)로 바꾸면 이 연결을 모두 해제해요.${sch.length ? ` 잡아 둔 예정 PT ${sch.length}건도 지워요.` : ''} 다른 트레이너에게 옮기려면 '트레이너 프로필'의 퇴사 처리를 써 주세요.`, { okLabel: '연결 해제하고 바꾸기', cancelLabel: '취소' }))) return
     } else if (!(await confirm(`${u.signupInfo?.name || u.nickname || '이 회원'}님의 역할을 '${role}'(으)로 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
     if (!(await stillSame(u))) return
     setBusy(u.uid)
     try {
       if (mine.length) {
-        await adminEndTrainerAndSetRole(u.uid, mine.map((c) => c.id), role, uid)
+        await adminEndTrainerAndSetRole(u.uid, mine.map((c) => c.id), role, uid, sch)
         setConns((list) => list.map((c) => (mine.some((x) => x.id === c.id) ? { ...c, status: 'ended' } : c)))
-        await log('role', u, `${u.role || '일반회원'} → ${role} · 담당 회원 ${mine.length}명 연결 해제`)
+        await log('role', u, `${u.role || '일반회원'} → ${role} · 담당 회원 ${mine.length}명 연결 해제${sch.length ? ` · 예정 PT ${sch.length}건 삭제` : ''}`)
       } else {
         await adminUpdateMember(u.uid, { role }, uid)
         await log('role', u, `${u.role || '일반회원'} → ${role}`)
@@ -486,19 +489,28 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
             users={users}
             conns={conns}
             onConnect={async (member, trainer) => {
+              // [2026-11-10] A-4: 트레이너를 바꾸면 이전 트레이너와 잡아 둔 예정 PT를 옮길지·지울지 묻는다(창만 닫으면 아무것도 안 바꿈)
+              const cur = conns.find((c) => c.status === 'active' && c.memberUid === member.uid && c.trainerUid !== trainer.uid)
+              const sch = cur ? await futureSchedulesOf(member.uid, cur.trainerUid) : []
+              let move = false
+              if (sch.length) {
+                move = await confirm(`${cur.trainerName} 트레이너와 잡아 둔 예정 PT ${sch.length}건(${scheduleList(sch)})이 있어요. ${memberName(trainer)} 트레이너에게 옮길까요?`, { okLabel: '새 트레이너로 옮기기', cancelLabel: '일정 지우기', dismissValue: null })
+                if (move == null) return
+              }
               try {
-                await adminConnect(member, trainer, uid)
-                await log('connect', member, `${memberName(trainer)} 트레이너와 연결`)
+                await adminConnect(member, trainer, uid, sch.length ? { schedules: sch, moveSchedules: move } : {})
+                await log('connect', member, `${memberName(trainer)} 트레이너와 연결${sch.length ? ` · 예정 PT ${sch.length}건 ${move ? '옮김' : '삭제'}` : ''}`)
               } catch (err) {
                 await fail(err, '트레이너 연결')
               }
               await Promise.all([refreshConnsOf(member.uid), refreshUser(member.uid)])
             }}
             onEnd={async (c) => {
-              if (!(await confirm(`${c.trainerName} 트레이너와 ${c.memberName}님의 연결을 해제할까요? 트레이너는 더 이상 이 회원의 기록을 볼 수 없어요(기록은 그대로).`, { okLabel: '해제', cancelLabel: '취소' }))) return
+              const sch = await futureSchedulesOf(c.memberUid, c.trainerUid)
+              if (!(await confirm(`${c.trainerName} 트레이너와 ${c.memberName}님의 연결을 해제할까요? 트레이너는 더 이상 이 회원의 기록을 볼 수 없어요(기록은 그대로).${sch.length ? ` 함께 잡아 둔 예정 PT ${sch.length}건(${scheduleList(sch)})도 지워요.` : ''}`, { okLabel: '해제', cancelLabel: '취소' }))) return
               try {
-                await endConnection(c.id, uid)
-                await log('disconnect', { uid: c.memberUid, signupInfo: { name: c.memberName } }, `${c.trainerName} 트레이너 연결 해제`)
+                await endConnection(c.id, uid, sch)
+                await log('disconnect', { uid: c.memberUid, signupInfo: { name: c.memberName } }, `${c.trainerName} 트레이너 연결 해제${sch.length ? ` · 예정 PT ${sch.length}건 삭제` : ''}`)
                 setConns((list) => list.map((x) => (x.id === c.id ? { ...x, status: 'ended' } : x)))
               } catch (err) {
                 await fail(err, '연결 해제')
@@ -1015,7 +1027,7 @@ function BulkBar({ picked, users, conns, admin, confirm, onClear, onDone }) {
     } else {
       if (!t) return
       targets = picked.filter((u) => u.role !== '트레이너' && (statusOf(u) === 'approved' || u.role === '관리자') && !conns.some((c) => c.status === 'active' && c.memberUid === u.uid && c.trainerUid === t.uid))
-      what = `${memberName(t)} 트레이너와 연결해요(이전 담당은 끝나요). 승인 안 된 회원·트레이너·이미 연결된 회원 ${picked.length - targets.length}명은 건너뛰어요.`
+      what = `${memberName(t)} 트레이너와 연결해요(이전 담당은 끝나고, 이전 트레이너와 잡아 둔 예정 PT는 새 트레이너로 옮겨요). 승인 안 된 회원·트레이너·이미 연결된 회원 ${picked.length - targets.length}명은 건너뛰어요.`
     }
     if (!targets.length) return confirm('적용할 회원이 없어요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (!(await confirm(`${targets.length}명: ${what} 진행할까요?`, { okLabel: '진행', cancelLabel: '취소' }))) return
@@ -1035,8 +1047,9 @@ function BulkBar({ picked, users, conns, admin, confirm, onClear, onDone }) {
           await adminUpdateMember(u.uid, { memberStatus: status }, admin.uid)
           await logAdmin(admin, { action: status === 'approved' ? 'approve' : 'status', targetUid: u.uid, targetName: memberName(u), detail: `일괄: ${MEMBER_STATUS[statusOf(u)]} → ${MEMBER_STATUS[status]}` })
         } else {
-          await adminConnect(u, t, admin.uid)
-          await logAdmin(admin, { action: 'connect', targetUid: u.uid, targetName: memberName(u), detail: `일괄: ${memberName(t)} 트레이너와 연결` })
+          // [2026-11-10] A-4: 이전 트레이너와의 예정 PT는 새 트레이너로 옮긴다
+          const moved = await adminConnect(u, t, admin.uid, { moveFromPrev: true })
+          await logAdmin(admin, { action: 'connect', targetUid: u.uid, targetName: memberName(u), detail: `일괄: ${memberName(t)} 트레이너와 연결${moved ? ` · 예정 PT ${moved}건 옮김` : ''}` })
         }
         done.push(u.uid)
       } catch (err) {
@@ -1084,6 +1097,16 @@ function BulkBar({ picked, users, conns, admin, confirm, onClear, onDone }) {
   )
 }
 
+// [2026-11-10] A-4: 끊기는 연결의 오늘 이후 '예정' PT 일정 목록(읽기 실패면 빈 목록 - 연결 작업은 막지 않음)
+async function futureSchedulesOf(memberUid, trainerUid) {
+  try {
+    return await adminFutureSchedules(memberUid, trainerUid)
+  } catch (err) {
+    console.warn('예정 일정 읽기 실패:', err?.code || err)
+    return []
+  }
+}
+const scheduleList = (sch) => `${sch.slice(0, 3).map((x) => `${fmtYmd(x.date)} ${x.time}`).join(', ')}${sch.length > 3 ? ' …' : ''}`
 function ConnectTab({ users, conns, onConnect, onEnd }) {
   const approved = users.filter((u) => statusOf(u) === 'approved' || u.role === '관리자') // 관리자는 승인 상태와 무관하게 사용
   const trainers = approved.filter(isTrainerAccount) // [2026-11-02] 관리자 겸 트레이너 포함(본인을 자기 회원으로 연결해 양쪽 화면 확인 가능)
