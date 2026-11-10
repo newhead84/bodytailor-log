@@ -54,8 +54,12 @@ const SOUNDS = {
   },
 }
 
+// [2026-11-11] 버튼을 누른 그 순간 다른 효과음(설정 변경 = 종목 완료음 등)이 나면 물방울·띠링은 생략(겹침 방지)
+let lastOwnSfxAt = 0
+
 export function playSfx(kind) {
   if (!enabled || !SOUNDS[kind]) return
+  if (kind !== 'tap') lastOwnSfxAt = Date.now()
   try {
     const c = audio()
     if (c) SOUNDS[kind](c)
@@ -83,7 +87,12 @@ export function installTapSound() {
       const zone = el.closest('[data-sfx]')
       const kind = zone ? zone.getAttribute('data-sfx') : 'tap'
       if (kind === 'off') return
-      playSfx(kind === 'set' ? 'set' : 'tap')
+      // 캡처 단계라 버튼 onClick보다 먼저 온다 - 한 박자 미뤄 onClick이 자기 효과음을 냈으면 건너뛴다
+      const clickAt = Date.now()
+      setTimeout(() => {
+        if (lastOwnSfxAt >= clickAt) return
+        playSfx(kind === 'set' ? 'set' : 'tap')
+      }, 0)
     },
     true
   )

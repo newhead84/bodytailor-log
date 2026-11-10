@@ -2,6 +2,7 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-11] 설정 변경 효과음: MY › 설정에서 값을 바꾸면(테마·강조색·폰트·기록 방식·RIR·코치·코치 강도·화면 꺼짐 방지) 종목 완료음(4음), 같은 값을 다시 누르면 물방울. 휴식 알림음·소리 크기·진동 세기는 자기 미리듣기만, 효과음 켜기는 누르자마자 종목 완료음. 버튼을 누른 순간 다른 효과음이 나면 물방울·띠링 생략(겹침 방지) | src/components/MyPageTab.jsx saveSetting·selectSfx, src/utils/sfx.js playSfx·installTapSound
 [2026-11-11] 버튼 효과음 구분(사용자 선택: 기록 화면 전체): 물방울 '톡'은 일반 메뉴·탭 전환 버튼에만, 기록 화면(WorkoutInput) 안의 버튼(± 무게·횟수, W/D/F, RIR, 추천 적용, 종목 추가·루틴 칩, 도구 줄 등)은 세트 완료음. 세트 저장(V)·이 종목 완료는 자기 효과음만 나게 겹침 제거, 기록 화면 안의 완료 팝업·운동 가이드는 물방울 유지 | src/utils/sfx.js installTapSound(data-sfx set/tap/off), WorkoutInput.jsx 루트·IconButton sfx·완료 팝업·가이드 오버레이, SetEditors.jsx 포커스형 저장 버튼
 [2026-11-10] 재검토 남은 항목 반영(사용자 '모두 추천대로'): 기록 수정·삭제 때 활동 요약(마지막 운동일·주별 일수) 다시 계산, 저장·수정·삭제 때 전체 기록을 다시 읽지 않고 캐시에 반영, HOME PT 일정 읽기를 기록 저장마다 → HOME에서 10분에 한 번, 회원권 만료로 저장이 막히면 그 이유 안내(루틴·코치 프로그램·체력 점검·자동 저장 검토), 작은 버튼 누르는 범위 넓히기(.bt-hit), 트레이너 화면 글자 12px·앱 확인창, MY 설정 '소리·진동' 묶기 + '알림·데이터·계정' 접기, 홍보 페이지 앱 화면 6장 다시 캡처·쉬운 말 괄호·근육 그림 한 줄 | src/storage.js activityFromLogs·patchAllLogsCache, HomeTab.jsx, utils/member.js saveFailText, RoutineManager·MyPageTab·CoachProgramWizard·FitnessCheckScreen·AutoSavedReview, tokens.css, WorkoutInput.jsx, TraineesScreen.jsx·TrainerGoal.jsx, ReportTab.jsx, public/intro
 
