@@ -33,6 +33,8 @@ function tone(c, f, t0, dur, type, vol, f2) {
 }
 
 const SOUNDS = {
+  // [2026-11-10] 버튼 누름 '톡'(사용자 선택 B 물방울): 사인파 900Hz에서 500Hz로 빠르게 내려가는 70ms
+  tap: (c) => tone(c, 900, 0, 0.07, 'sine', 0.22, 500),
   set: (c) => {
     tone(c, 988, 0, 0.08, 'square', 0.12)
     tone(c, 1319, 0.07, 0.16, 'square', 0.12)
@@ -60,4 +62,24 @@ export function playSfx(kind) {
   } catch (_) {
     // 소리를 못 내도 앱 동작에는 영향 없음
   }
+}
+
+// [2026-11-10] 버튼 효과음(사용자 요청 '대부분 버튼에', 범위 선택: ± 포함 전부). 화면마다 onClick을 고치지 않고
+// 문서 전체 click 하나로 처리한다(click이라 스크롤하려고 손가락을 댄 것에는 소리가 나지 않음).
+// 끄기: MY › 설정 '효과음'(완료 효과음과 같은 설정). 소리를 빼고 싶은 요소는 data-sfx="off".
+const TAP_SELECTOR = 'button, [role="button"], [role="tab"], a[href], summary, input[type="checkbox"], input[type="radio"], select'
+let installed = false
+export function installTapSound() {
+  if (installed || typeof document === 'undefined') return
+  installed = true
+  document.addEventListener(
+    'click',
+    (e) => {
+      if (!enabled) return
+      const el = e.target && e.target.closest ? e.target.closest(TAP_SELECTOR) : null
+      if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true' || el.closest('[data-sfx="off"]')) return
+      playSfx('tap')
+    },
+    true
+  )
 }

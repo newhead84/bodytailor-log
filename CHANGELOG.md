@@ -2,6 +2,12 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-10] MY 프로필 카드 여백 줄이기(사용자 지적): 수정 버튼을 이름 줄 오른쪽으로, 지표 설명을 게이지 안으로, BMI·인바디·기준(ⓘ)을 한 줄로(인바디는 작은 테두리 버튼), 목표 칩은 우선순위 3개 짧은 이름 + '+N' 한 줄 | src/components/MyPageTab.jsx ProfileNumbers·MetricGauge
+
+[2026-11-10] 버튼 효과음 '톡'(사용자 선택 B 물방울, 범위 ± 포함 전부): 문서 전체 click 하나로 처리, 설정 '효과음'을 끄면 함께 꺼짐, data-sfx="off"로 뺄 수 있음 | src/utils/sfx.js installTapSound·tap, src/main.jsx, MyPageTab 효과음 문구
+
+[2026-11-10] 칩 줄바꿈 정리(사용자 지적: '통증 심함' 하나만 다음 줄): 방금 세트 = 이름표 위 + 4칸, 도구 칩·운동방식 선택·프로필 목표 = 한 줄 가로 넘김, 커스텀 종목 부위 = 4칸×2줄, 코치 한마디 이름표 위로, 세트 줄 안내 짧게·세트 삭제 한 줄 | src/components/WorkoutInput.jsx, SetEditors.jsx, MyPageTab.jsx
+
 [2026-11-10] 보강 종목 3개 추가: 케이블외회전(유지형 - 무게보다 천천히, 18회까지 쌓고 올리기)·밴드풀어파트·버드독(라이브러리·설명·가이드·기구 태그), 유지형 안내 문구 '당긴 자리' → '끝 자리' | src/utils/exerciseLibrary.js, src/utils/exerciseGuidesMore.js, src/utils/strength.js QUALITY_EXERCISES·ISOLATION_EXERCISES, CLAUDE.md 7.3
 
 [2026-11-10] 같은 종목 통증 반복 감지: 최근 3번 중 2번 이상 통증을 표시한 종목은 올리지 않고 약 10% 가볍게·지난번 횟수까지, 플랜 카드에 '계속 아프면 트레이너와 상의하거나 대신 할 운동으로' + 대신 할 운동 보기(주간 세트 채우기 없음) | src/utils/strength.js suggestNextSetRaw, src/utils/sessionCoach.js lastIssueNote, src/components/WorkoutInput.jsx, CLAUDE.md 7.3

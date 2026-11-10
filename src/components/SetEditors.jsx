@@ -212,7 +212,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
     <button
       type="button"
       onClick={() => onRemoveSet(idx)}
-      style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-label-neutral)', padding: '6px 0' }}
+      style={{ flexShrink: 0, whiteSpace: 'nowrap', fontSize: 13, fontWeight: 600, color: 'var(--color-label-neutral)', padding: '6px 0' }}
     >
       세트 삭제
     </button>
@@ -283,7 +283,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span className="text-keep-all" style={{ fontSize: 13, fontWeight: 700, color: TYPE_COLOR[cur.type] || 'var(--color-label-strong)' }}>
               {(cur.type || 'working') === 'working' ? `${workingIndexOf(idx)}세트` : SET_TYPE_LABEL[cur.type]}
-              <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)' }}> · 위 세트 칸을 누르면 종류 변경</span>
+              {/* [2026-11-10] 좁은 폭에서 두 줄로 꺾이던 안내를 짧게 */}<span style={{ fontWeight: 500, color: 'var(--color-label-neutral)' }}> · 칸을 누르면 종류 변경</span>
             </span>
             {removeBtn}
           </div>

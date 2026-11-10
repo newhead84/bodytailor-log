@@ -2304,11 +2304,13 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       )}
       {(sessionPhase === 'idle' || sessionHeaderOpen) && (<>
       {/* 운동방식: 내 루틴(최대 8개) 중 선택 / 자유 추가 운동 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0 }}>운동방식 선택</span>
+      {/* [2026-11-10] 이름표와 칩이 한 줄에 섞여 칩 하나만 다음 줄로 넘어가던 것 → 이름표는 위, 칩은 가로로 넘겨 보기(아래 파트 줄과 같은 방식) */}
+      <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-label-neutral)', marginBottom: 6 }}>운동방식 선택</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, overflowX: 'auto', paddingBottom: 2 }}>
         {templates.map((t) => (
           <Chip
             key={t.id}
+            style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
             active={sessionType === 'routine' && selectedTemplateId === t.id}
             onClick={() => {
               setSessionType('routine')
@@ -2318,7 +2320,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             {t.title}{t.byTrainer && <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 800, opacity: 0.75 }}>PT</span>}
           </Chip>
         ))}
-        <Chip active={sessionType === 'extra'} onClick={() => setSessionType('extra')}>
+        <Chip active={sessionType === 'extra'} onClick={() => setSessionType('extra')} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
           자유 추가 운동
         </Chip>
       </div>
@@ -3379,8 +3381,9 @@ export function ExerciseCard({
                 ? `오늘 플랜 ${total}세트 끝! 여기서 마무리해도 충분해요`
                 : `${doneN + 1}세트째(총 ${total}${ext.coachPlan?.applied ? '' : ', 지난번과 같게'})${nextRow && nextRow.weight !== '' && nextRow.reps !== '' ? ` · 이번엔 ${formatLoad(exName, nextRow.weight)} × ${nextRow.reps}회` : ''}${doneN + 1 === total ? ' · 마지막 세트는 무게 그대로' : ''}`
             return (
-              <div className="bt-enter" role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', flexShrink: 0 }}>코치 한마디</span>
+              // [2026-11-10] 이름표를 왼쪽에 두면 본문이 좁은 칸에서 여러 줄로 꺾여 이름표 위로 → 본문이 카드 폭 전체를 씀
+              <div className="bt-enter" role="status" style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>코치 한마디</span>
                 <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-strong)', minWidth: 0 }}>{text}</span>
               </div>
             )
@@ -3395,13 +3398,17 @@ export function ExerciseCard({
             if (li < 0) return null
             const cur = feelOf(sets[li])
             return (
-              <div role="group" aria-label="방금 세트 몸 상태" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', flexShrink: 0 }}>방금 세트</span>
-                {SET_FEELS.map((f) => (
-                  <Chip key={f.id} active={cur === f.id} onClick={() => ext.onSetFeel(li, f.id)} style={{ padding: '6px 10px', fontSize: 12.5 }}>
-                    {f.label}
-                  </Chip>
-                ))}
+              // [2026-11-10] 이름표 + 칩 4개가 한 줄에 안 들어가 '통증 심함' 하나만 다음 줄로 넘어가던 것(사용자 지적) →
+              // 이름표는 위 한 줄, 칩 4개는 같은 폭 4칸(좁으면 칸 안에서 두 줄)
+              <div role="group" aria-label="방금 세트 몸 상태" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>방금 세트</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
+                  {SET_FEELS.map((f) => (
+                    <Chip key={f.id} active={cur === f.id} onClick={() => ext.onSetFeel(li, f.id)} className="text-keep-all" style={{ borderRadius: 'var(--radius-md)', padding: '6px 4px', fontSize: 12.5, lineHeight: 1.25, justifyContent: 'center', textAlign: 'center', whiteSpace: 'normal', minWidth: 0 }}>
+                      {f.label}
+                    </Chip>
+                  ))}
+                </div>
               </div>
             )
           })()}
@@ -3459,7 +3466,8 @@ export function ExerciseCard({
           )}
 
           {isStrength && !isDone && (
-            <div data-guide="tools" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            // [2026-11-10] 도구 칩(웜업·원판·슈퍼세트·목표)은 한 줄 가로 넘김 - 좁은 폭에서 하나만 다음 줄로 가던 것
+            <div data-guide="tools" style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
               {!hasSavedWorking && ext.showWarmupRamp && (
                 <ToolChip onClick={ext.onAddWarmups} title={ext.hasUnsavedWarmups ? '체크하지 않은 웜업 세트 빼기' : '본세트 무게 기준 웜업 세트 추가'}>
                   {ext.hasUnsavedWarmups ? '웜업 빼기' : '웜업 세트'}
@@ -3741,6 +3749,7 @@ function ToolChip({ children, onClick, active, title, guideKey }) {
         fontSize: 12.5,
         fontWeight: 600,
         whiteSpace: 'nowrap',
+        flexShrink: 0,
       }}
     >
       {children}

@@ -48,7 +48,7 @@ function isIosDevice() {
 // [2026-11-08] 프로필 숫자 칸(체중·키·허리) + 주 지표 막대(체지방률 → 허리/키 비율 → BMI 순, utils/bodyComp) + 운동 목표 순위 칩
 // BMI는 근육이 많으면 높게 나와서 허리둘레·인바디를 넣으면 참고 한 줄로 내린다(사용자 결정).
 const TONE_COLOR = { ok: 'var(--color-success, #5d8f43)', low: 'var(--color-label-strong)', mid: 'var(--color-label-strong)', high: 'var(--color-danger)' }
-function MetricGauge({ m, sub }) {
+function MetricGauge({ m, sub, note }) {
   const pos = Math.min(100, Math.max(0, ((m.value - m.lo) / (m.hi - m.lo)) * 100))
   // [2026-11-09] 구간 폭을 % 로(사용자 신고: 허리/키 비율처럼 구간 값이 1보다 작으면 flex 비율 합이 1 미만이라 막대가 일부만 채워지고
   // 표시 막대가 밖으로, 아래 숫자도 겹쳤다)
@@ -79,6 +79,8 @@ function MetricGauge({ m, sub }) {
           <span key={b.label} style={{ flex: span(b, i), textAlign: 'center', whiteSpace: 'nowrap' }}>{b.label}</span>
         ))}
       </div>
+      {/* [2026-11-10] 설명 한 줄은 게이지 카드 안으로(카드 밖 별도 줄이 여백을 만들던 것) */}
+      {note && <div className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', marginTop: 4 }}>{note}</div>}
     </div>
   )
 }
@@ -93,6 +95,10 @@ function ProfileNumbers({ userDoc, onEdit }) {
   ].filter(([, v]) => v != null && v !== '')
   const mainNote =
     bm.main?.key === 'whtr' ? '허리둘레가 키의 절반보다 작으면 좋아요' : bm.main?.key === 'bmi' ? '근육이 많으면 높게 나와요 · 허리둘레를 넣으면 더 정확해요' : ''
+  const [showInfo, setShowInfo] = useState(false)
+  // [2026-11-10] 목표 칩은 한 줄로: 우선순위 3개 + 나머지는 '+N'
+  const shownGoals = goals.slice(0, 3)
+  const moreGoals = goals.length - shownGoals.length
   return (
     <div style={{ marginTop: 12 }}>
       {tiles.length > 0 && (
@@ -106,8 +112,7 @@ function ProfileNumbers({ userDoc, onEdit }) {
           ))}
         </div>
       )}
-      {bm.main && <MetricGauge m={bm.main} sub={bm.main.key === 'fat' && bm.inbodyAt ? `${bm.inbodyAt.slice(5).replace('-', '/')} 측정` : ''} />}
-      {mainNote && <div className="text-keep-all" style={{ fontSize: 11.5, color: 'var(--color-label-neutral)', marginTop: 5 }}>{mainNote}</div>}
+      {bm.main && <MetricGauge m={bm.main} note={mainNote} sub={bm.main.key === 'fat' && bm.inbodyAt ? `${bm.inbodyAt.slice(5).replace('-', '/')} 측정` : ''} />}
       {bm.fat && (bm.smm || bm.ffmi) && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 8 }}>
           {bm.smm && (
@@ -126,47 +131,59 @@ function ProfileNumbers({ userDoc, onEdit }) {
           )}
         </div>
       )}
-      {bm.refs.length > 0 && (
-        <div className="text-keep-all" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '2px 10px', marginTop: 8, fontSize: 12, color: 'var(--color-label-neutral)' }}>
-          {bm.refs.map((r) => (
-            <span key={r.key}>
-              {r.title} {r.text} · {r.key === 'bmi' ? '참고용' : r.band.verdict}
-            </span>
-          ))}
+      {/* [2026-11-10] 참고 지표·인바디 넣기·기준(ⓘ)을 한 줄로 - 예전엔 세 줄 + 큰 강조색 버튼이라 여백이 컸다(사용자 지적) */}
+      {bm.main && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 6, minHeight: 32 }}>
+          <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', minWidth: 0 }}>
+            {bm.refs.map((r) => `${r.title} ${r.text} · ${r.key === 'bmi' ? '참고용' : r.band.verdict}`).join('  ')}
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            {!bm.fat && onEdit && (
+              <button type="button" onClick={onEdit} style={{ height: 30, padding: '0 11px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-strong)', whiteSpace: 'nowrap' }}>
+                + {bm.whtr ? '인바디' : '허리·인바디'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowInfo((v) => !v)}
+              aria-expanded={showInfo}
+              aria-label={showInfo ? '기준 닫기' : '기준 보기'}
+              className="bt-num"
+              style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid var(--color-label-neutral)', fontSize: 12.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: showInfo ? 'var(--color-label-neutral)' : 'transparent', color: showInfo ? 'var(--color-bg-card)' : 'var(--color-label-neutral)' }}
+            >
+              i
+            </button>
+          </span>
         </div>
       )}
-      {bm.main && (
-        <Disclosure style={{ marginTop: 2 }}>
-          <span style={{ whiteSpace: 'pre-line' }}>{'체지방률(인바디)이 있으면 그걸, 없으면 허리/키 비율을, 둘 다 없으면 BMI를 크게 보여줘요.\n허리/키 비율은 0.5 미만이 권장 범위예요. BMI는 키와 몸무게만 보는 값이라 근육이 많으면 높게 나와요.\n체지방률 적정 범위는 남성 10~20%, 여성 18~28%를 대략 기준으로 썼어요. 제지방 지수(FFMI)는 지방을 뺀 몸무게를 키로 나눈 값이에요.\n운동 참고용 정보이며 의학적 진단이 아니에요.'}</span>
-        </Disclosure>
-      )}
-      {bm.main && !bm.fat && onEdit && (
-        <button
-          type="button"
-          onClick={onEdit}
-          style={{ width: '100%', marginTop: 6, minHeight: 40, borderRadius: 'var(--radius-md)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 13, fontWeight: 700 }}
-        >
-          {bm.whtr ? '인바디 결과 넣기 (선택)' : '허리둘레·인바디 넣기 (선택)'}
-        </button>
+      {bm.main && showInfo && (
+        <div className="bt-enter text-keep-all" style={{ marginTop: 4, padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg)', fontSize: 12.5, lineHeight: 1.6, color: 'var(--color-label-normal)', whiteSpace: 'pre-line' }}>
+          {'체지방률(인바디)이 있으면 그걸, 없으면 허리/키 비율을, 둘 다 없으면 BMI를 크게 보여줘요.\n허리/키 비율은 0.5 미만이 권장 범위예요. BMI는 키와 몸무게만 보는 값이라 근육이 많으면 높게 나와요.\n체지방률 적정 범위는 남성 10~20%, 여성 18~28%를 대략 기준으로 썼어요. 제지방 지수(FFMI)는 지방을 뺀 몸무게를 키로 나눈 값이에요.\n운동 참고용 정보이며 의학적 진단이 아니에요.'}
+        </div>
       )}
       {(goals.length > 0 || userDoc?.weeklyTargetDays) && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none', marginTop: 8 }}>
           {userDoc?.weeklyTargetDays ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg)', color: 'var(--color-label-strong)' }}>주 {userDoc.weeklyTargetDays}일</span>
+            <span style={{ display: 'inline-flex', flexShrink: 0, whiteSpace: 'nowrap', alignItems: 'center', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg)', color: 'var(--color-label-strong)' }}>주 {userDoc.weeklyTargetDays}일</span>
           ) : null}
-          {goals.map((g, i) => (
-            <span key={g} className="text-keep-all" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg)', color: 'var(--color-label-strong)' }}>
+          {shownGoals.map((g, i) => (
+            <span key={g} className="text-keep-all" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, whiteSpace: 'nowrap', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg)', color: 'var(--color-label-strong)' }}>
               {i < 3 && GOAL_LABELS.includes(g) && (
                 <span className="bt-num" style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--color-label-strong)', color: 'var(--color-bg-card)', fontSize: 10.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
               )}
-              {g}
+              {GOAL_SHORT[g] || g}
             </span>
           ))}
+          {moreGoals > 0 && (
+            <span className="bt-num" style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0, fontSize: 12, fontWeight: 700, padding: '4px 9px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg)', color: 'var(--color-label-neutral)' }}>+{moreGoals}</span>
+          )}
         </div>
       )}
     </div>
   )
 }
+// [2026-11-10] 프로필 목표 칩 짧은 이름(한 줄에 3개가 들어가게) - 전체 이름은 '적용 중인 맞춤 설정'에
+const GOAL_SHORT = { '근육·근력 키우기': '근육·근력', '체지방 줄이기': '체지방', '체력·건강 관리': '체력·건강', '뼈·관절 건강': '뼈·관절', '자세·코어': '자세·코어' }
 
 export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onOpenCoachProgram = null, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, onShowTrainerDirectory, isActive = true }) {
   const confirm = useConfirm()
@@ -718,7 +735,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             끄기
           </Chip>
         </div>
-        <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>세트 저장·종목 완료·운동 완료·신기록·레벨 업 때 짧은 게임 소리. 휴대폰이 무음이면 안 날 수 있어요.</span>
+        <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>버튼을 누를 때 '톡', 세트 저장·종목 완료·운동 완료·신기록·레벨 업 때 짧은 게임 소리. 휴대폰이 무음이면 안 날 수 있어요.</span>
       </Card>
 
       <SectionTitle>알림</SectionTitle>
@@ -867,7 +884,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       </div>
       <SectionTitle>프로필</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
           {/* [2026-10-29] 프로필 수정 버튼은 카드 안(사진 아래)으로 - 우상단 자리는 설정 아이콘 */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
@@ -896,15 +913,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               </div>
             )}
           </div>
-          {!editingProfile && (
-            <button
-              type="button"
-              onClick={startEditProfile}
-              style={{ height: 28, padding: '0 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-strong)' }}
-            >
-              수정
-            </button>
-          )}
           </div>
           {/* [2026-08-01 변경] 프로필 카드 레이아웃 재구성: 사진 오른쪽에 1행(닉네임+역할+성별+나이)
               /2행(신체정보)/3행(운동목표) 텍스트 3줄 배치. 수정 모드에서는 아래 폼에서 편집하므로
@@ -925,6 +933,16 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
               {/* [2026-11-08] 체중·키·주 목표는 아래 숫자 칸으로, 목표는 순위 칩으로(글 줄이기) */}
               <TrainerGoalMark userDoc={userDoc} />
             </div>
+          )}
+          {/* [2026-11-10] 수정 버튼은 이름 줄 오른쪽(사진 아래 따로 한 줄을 차지하던 것) */}
+          {!editingProfile && (
+            <button
+              type="button"
+              onClick={startEditProfile}
+              style={{ height: 32, padding: '0 14px', flexShrink: 0, borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong)', fontSize: 12, fontWeight: 700, color: 'var(--color-label-strong)' }}
+            >
+              수정
+            </button>
           )}
         </div>
         {!editingProfile && <ProfileNumbers userDoc={userDoc} onEdit={startEditProfile} />}
@@ -1221,9 +1239,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
           목록에 없는 운동을 내 종목으로 추가해요(나만 보여요)
         </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+        {/* [2026-11-10] 부위 8개는 4칸 × 2줄(좁은 폭에서 하나만 다음 줄로 넘어가던 것) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, marginBottom: 12 }}>
           {BODY_PART_ATOMS.map((atom) => (
-            <Chip key={atom} active={customExercisePart === atom} onClick={() => setCustomExercisePart(atom)}>
+            <Chip key={atom} active={customExercisePart === atom} onClick={() => setCustomExercisePart(atom)} style={{ justifyContent: 'center', padding: '8px 4px' }}>
               {atom}
             </Chip>
           ))}
