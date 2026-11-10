@@ -1324,8 +1324,14 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       // [2026-11-07] 내리기·복귀 날이나 코치 프로그램이 세트를 정해 둔 종목에는 주간 세트 채우기(+1세트)를 넣지 않는다
       const short = sug.kind !== 'decrease' && !sug.comeback && !sug.sessionAdj && !getProgramRx(name, settingFor(key)) ? weeklyShortfall(name, weekCounts) : null
       if (short && targets.length <= recommendedSetCount(name, settingFor(key))) {
-        targets = [...targets, targets[targets.length - 1]]
-        notes.push({ text: `이번 주 ${short.atom} ${short.cur}세트 · 목표 ${short.min}세트까지 ${short.short}세트 남아서 오늘 1세트 더 넣었어요` })
+        // [2026-11-10 T-6] 세트를 더하는 날은 운동량이 한 번에 뛰지 않게: 더한 세트는 목표 하한 횟수,
+        // '같은 무게로 횟수 늘리기'면 +1회는 첫 세트에만(나머지는 지난번 횟수). 예: 8·8·8·7 → 9·8·8·7·8(예전 9·9·9·8·8)
+        const repMin = getRepRange(name, settingFor(key))[0]
+        if (sug.kind === 'reps' && Array.isArray(sug.lastReps) && sug.lastReps.length) {
+          targets = targets.map((t, i) => (i === 0 ? t : Math.min(t, Math.max(repMin, Number(sug.lastReps[i]) || repMin))))
+        }
+        targets = [...targets, Math.min(repMin, targets[targets.length - 1])]
+        notes.push({ text: `이번 주 ${short.atom} ${short.cur}세트 · 목표 ${short.min}세트까지 ${short.short}세트 남아서 오늘 1세트 더 넣었어요${sug.kind === 'reps' ? '(이 날은 +1회를 첫 세트에만)' : ''}` })
       }
     }
     return { ...sug, weight, targets, notes, deload: !!deload }

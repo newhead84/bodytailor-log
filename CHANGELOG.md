@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-10] 로그 코치 T-6: 주간 세트 채우기로 1세트 더하는 날 운동량 급증 방지(더한 세트는 목표 하한 횟수, '같은 무게로 횟수 늘리기'면 +1회는 첫 세트에만 - 예 8·8·8·7 → 9·8·8·7·6, 예전 9·9·9·8·8) | src/components/WorkoutInput.jsx coachPlanFor
+
 [2026-11-09] 신체 지표 막대 오류(사용자 신고: 허리둘레만 넣으면 허리/키 비율 막대가 일부만 채워지고 표시가 밖으로·숫자 겹침): 구간 폭을 flex 비율(1보다 작으면 합이 1 미만이라 일부만 채움) 대신 % 로 / 같은 모양 점검: 근육별 주간 세트 막대 눈금을 코치 프로그램 상한에 맞춰 늘림(권장 범위가 막대 밖으로 나가던 문제), 그 밖의 % 막대는 0~100으로 묶여 있어 문제없음 / CLAUDE.md 작업 원칙 10 '오류·개선은 넓혀서 검토' | MyPageTab.jsx(MetricGauge), InsightCards.jsx, CLAUDE.md
 
 [2026-11-09] 세트 행·종목 완료 버그 묶음(사용자 신고: 종목 완료 후에도 '이 종목 완료', 다 했는데 '체크 안 한 세트' 팝업): 체크(V)한 세트만 기록·볼륨(다음 세트 행 무게만 바꿔 둔 채 완료하면 하지 않은 세트가 저장되던 문제), 종목 완료 때 체크 안 한 행 모두 정리 + 값 고친 행은 '한 세트로 저장/지우기' 확인, 운동 완료 팝업에 종목 이름, 완료한 종목을 펼치면 '다시 하기(완료 취소)', 종목 바꾸기 후 빈 카드 → 처음 여는 것과 같게, 바꾸기 때 뒤로가기 기록이 한 칸 더 지워지던 문제 | utils/sessionPayload.js(isCountableSet·isEditedUnsaved·uncheckedByExercise), WorkoutInput.jsx(completeExercise·handleFinishWorkout·swapExercise·hideExerciseToday·ExerciseCard), CLAUDE.md
