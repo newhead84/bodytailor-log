@@ -712,7 +712,7 @@ export function defaultPlannedCount(sug, name, setting = null) {
 // → { weight?, kind: 'up'|'down'|'info'|'done', reason } | null ('info'·'done'은 무게 제안 없이 안내만)
 // [2026-11-02 로그 코치] ctx: { prevWorking: 이 세트 전에 저장한 본세트(드롭 제외, 순서대로), plannedCount: 오늘 목표 세트 수, upsGiven: 이미 한 증량 제안 수 }
 //  - 증량 제안은 강도별 횟수 제한(보통 이하 1회·세게 이상 2회), 다음 세트가 마지막이면 무게 대신 횟수로(마지막 세트는 유지)
-//  - 피로 감지: 같은 무게 첫 세트보다 30% 넘게 줄면(속도 20–40% 손실 연구를 반복 수로 옮긴 근사, Pareja-Blanco 외 2017) 낮추거나 마무리
+//  - 피로 감지: 목표 하한보다 적고 같은 무게 첫 세트보다 30% 넘게 줄면(속도 20–40% 손실 연구를 반복 수로 옮긴 근사, Pareja-Blanco 외 2017) 낮추거나 마무리
 //  - 실패(F) 세트 뒤: 다음 세트는 RIR 1, 휴식 30초 더(실패까지 하는 것이 더 낫지 않음, Grgic 외 2022)
 //  - 드롭(D) 세트 뒤: 마무리 안내(드롭은 종목 마지막에, Sødal 외 2023)
 export function adviseAfterSet(name, set, setting, ctx = {}) {
@@ -736,16 +736,6 @@ function adviseAfterSetRaw(name, set, setting, ctx = {}) {
   const done = prev.length + 1
   const validDown = (nw) => nw !== w && (isAssistedExercise(name) || nw > 0 || allowsZeroWeight(name))
 
-  // 피로 감지(같은 무게 첫 세트 대비)
-  const first = prev.find((p) => Number(p.weight) === w && Number(p.reps) > 0)
-  if (first && reps < Number(first.reps) * 0.7) {
-    const nw = lighterWeight(name, w, setting)
-    return {
-      ...(validDown(nw) ? { weight: nw } : {}),
-      kind: validDown(nw) ? 'down' : 'info',
-      reason: `첫 세트 ${first.reps}회 → 이번 ${reps}회, 30% 넘게 줄었어요(피로가 쌓였다는 신호) → ${validDown(nw) ? `다음 세트는 ${loadWith(name, nw)} 낮추거나 ` : ''}여기서 마무리해도 좋아요`,
-    }
-  }
   const failNote = set.type === 'failure' || (failure && it.id !== 'hard' && it.id !== 'max')
   // [2026-11-08] T-3: 늘어난 구간 부분 반복 안내는 머신·케이블·고립 종목만(연구가 그쪽 위주). 스쿼트·힌지·런지·바벨 종목과 트레이너 처방 종목은 빼요
   const partialOk =
@@ -764,6 +754,17 @@ function adviseAfterSetRaw(name, set, setting, ctx = {}) {
       ...(down ? { weight: nw } : {}),
       kind: down ? 'down' : 'info',
       reason: `한계(실패)까지 갔어요 → 다음 세트는 한 개 남기고 끝내요(RIR 1)${down ? `, 무게는 ${loadWith(name, nw)}` : ''} · 휴식은 30초 더 쉬어요${down || !partialOk ? '' : ' · 마지막 세트라면 내려간 자리에서 반만 2~4개 더 해도 좋아요(머신·고립 종목, 최근 연구)'}`,
+    }
+  }
+  // 피로 감지(같은 무게 첫 세트 대비)
+  // [2026-11-10 T-7] 목표 하한보다 적을 때만(첫 세트를 많이 한 날 범위 안 세트를 피로로 잡던 문제), 실패(F) 안내 뒤에 본다
+  const first = prev.find((p) => Number(p.weight) === w && Number(p.reps) > 0)
+  if (first && reps < repMin && reps < Number(first.reps) * 0.7) {
+    const nw = lighterWeight(name, w, setting)
+    return {
+      ...(validDown(nw) ? { weight: nw } : {}),
+      kind: validDown(nw) ? 'down' : 'info',
+      reason: `첫 세트 ${first.reps}회 → 이번 ${reps}회, 30% 넘게 줄었어요(피로가 쌓였다는 신호) → ${validDown(nw) ? `다음 세트는 ${loadWith(name, nw)} 낮추거나 ` : ''}여기서 마무리해도 좋아요`,
     }
   }
   if (reps >= repMax + it.upOver && !failure) {
