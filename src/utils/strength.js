@@ -646,6 +646,31 @@ function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
     if ((primary === 'muscle' || !primary) && dw != null) out.dropHint = { weight: dw }
   }
 
+  // [2026-11-10] 같은 종목 통증 반복: 최근 3번 중 2번 이상 통증(조금·심함)을 표시했으면 올리지 않고 약 10% 가볍게,
+  // 지난번 횟수까지만(아프지 않은 범위로). 계속되면 트레이너 상의·대신 할 운동을 권한다(카드 안내 painRepeat). 공백 복귀가 있으면 그쪽이 먼저.
+  {
+    const recent = (Array.isArray(lastRecord.history) && lastRecord.history.length ? lastRecord.history : [{ sets: lastRecord.sets }]).slice(0, 3)
+    const painN = recent.filter((h) => (h.sets || []).some((st) => !isWarmupSet(st) && (st.pain === 'mild' || st.pain === 'strong'))).length
+    if (painN >= 2) {
+      const lw = lighterWeight(name, top.topW, setting)
+      const load = effectiveLoad(name, top.topW)
+      const okW = (isAssistedExercise(name) || lw > 0 || allowsZeroWeight(name)) && !(load > 0 && Math.abs(effectiveLoad(name, lw) - load) > load * 0.2)
+      const wFinal = okW ? lw : top.topW
+      const targets = top.reps.map((r) => Math.max(isHoldExercise(name) ? 0 : 1, Math.min(r, repMax)))
+      out = {
+        ...out,
+        weight: wFinal,
+        reps: targets[0],
+        kind: wFinal !== top.topW ? 'decrease' : 'hold',
+        setTargets: targets,
+        painRepeat: { count: painN, of: recent.length },
+        reason: `최근 ${recent.length}번 중 ${painN}번 통증을 표시했어요 → ${wFinal !== top.topW ? `${loadWith(name, wFinal)} 가볍게, ` : '무게는 그대로, '}지난번 횟수까지만 아프지 않은 범위로 해요`,
+      }
+      delete out.progress
+      delete out.stall
+      delete out.dropHint
+    }
+  }
   // [2026-11-08] 공백 후 복귀를 쉰 기간에 따라 나눈다(사용자 지적: 14일만 지나도 10% 가볍게 + 최저 횟수라 너무 낮았다).
   // 근력은 3주 안팎까지 거의 유지되고 그 뒤로 서서히 줄어든다(탈훈련 연구 종합, Bosquet 외 2013 · Mujika·Padilla 2000).
   //  20일까지: 평소대로(주 1회·격주 분할도 매번 '다시 시작'이 되지 않게) / 21–27일: 같은 무게, 지난번 횟수까지(+1회 없이) /

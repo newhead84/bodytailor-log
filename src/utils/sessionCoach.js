@@ -197,7 +197,9 @@ export function applySessionAdjust(sug, name, setting, { others = [], condition 
 }
 
 // [2026-11-09] 지난번 몸 상태를 다음 운동에서 다시 알림(플랜 카드 한 줄). swap = '대신 할 운동 보기' 버튼
-export function lastIssueNote(issue) {
+export function lastIssueNote(issue, painRepeat = null) {
+  // [2026-11-10] 같은 종목에서 통증이 반복되면 무게를 낮춘 이유와 다음 행동(트레이너 상의·대신 할 운동)을 함께
+  if (painRepeat) return { text: `이 운동에서 최근 ${painRepeat.of}번 중 ${painRepeat.count}번 통증이 있었어요 → 오늘은 가볍게, 계속 아프면 트레이너와 상의하거나 대신 할 운동으로 바꿔요`, swap: true }
   if (issue === 'strong') return { text: '지난번 이 운동에서 통증이 심했어요 → 오늘도 아프면 멈추고 대신 할 운동으로 바꿔요', swap: true }
   if (issue === 'mild') return { text: '지난번 통증이 조금 있었어요 → 아픈 범위는 피하고, 아프면 바로 멈춰요' }
   if (issue === 'form') return { text: '지난번 자세가 흔들린 세트가 있었어요 → 오늘은 자세부터 안정시켜요' }

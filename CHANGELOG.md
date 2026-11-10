@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-10] 같은 종목 통증 반복 감지: 최근 3번 중 2번 이상 통증을 표시한 종목은 올리지 않고 약 10% 가볍게·지난번 횟수까지, 플랜 카드에 '계속 아프면 트레이너와 상의하거나 대신 할 운동으로' + 대신 할 운동 보기(주간 세트 채우기 없음) | src/utils/strength.js suggestNextSetRaw, src/utils/sessionCoach.js lastIssueNote, src/components/WorkoutInput.jsx, CLAUDE.md 7.3
+
 [2026-11-10] 관리자 A-4: 트레이너 변경·연결 해제·트레이너 역할 변경 때 이전 트레이너와의 오늘 이후 '예정' PT 처리(변경 = 옮기기/지우기 묻기, 창만 닫으면 중단 · 해제·역할 변경 = 함께 삭제 · 일괄 연결 = 새 트레이너로 옮김, 같은 일괄 쓰기·관리 이력에 건수) | src/storage.js adminFutureSchedules·adminConnect·endConnection·adminEndTrainerAndSetRole, src/components/AdminDashboard.jsx
 
 [2026-11-10] 로그 코치 T-8: 트레이너 처방 종목은 운동 중 증량 제안을 한 세션 1번만(강도 '세게'의 2번 증량이 처방과 충돌, 72.5 → 82.5kg +14%), 문구에 '처방 횟수 범위 안에서', 트레이너 계획으로 운동할 때는 한 번 운동량 상한(11세트) 안내 생략 | src/utils/strength.js adviseAfterSetRaw, src/components/WorkoutInput.jsx, CLAUDE.md 7.2

@@ -1305,7 +1305,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // [2026-11-09] 오늘 몸 상태 조정·진행 방식(횟수 우선형·유지형)·드롭세트 안내
     if (sug.sessionAdj) notes.push({ text: sug.sessionAdj.text })
     // [2026-11-09] 지난번 통증·자세 흔들림을 다시 알림(심했으면 '대신 할 운동 보기' 버튼)
-    const li = lastIssueNote(sug.lastIssue)
+    const li = lastIssueNote(sug.lastIssue, sug.painRepeat)
     if (li) notes.push(li)
     if (sug.styleNote && !sug.sessionAdj) notes.push({ text: sug.styleNote, muted: true })
     if (sug.dropHint && !sug.sessionAdj && !sug.lastIssue) notes.push({ text: `정체 탈출: 마지막 세트 뒤 ${formatLoad(name, sug.dropHint.weight)}로 낮춰 바로 한 번 더(드롭세트). 자세가 흔들리면 생략해요`, muted: true })
@@ -1322,7 +1322,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       notes.push({ text: `${deload.hardWeeks}주 넘게 세게 이어 왔어요 → 이번 주는 무게 10%쯤·세트 1개 줄여 회복해요(쉬어 가는 주). 다음 주에 다시 올리면 더 잘 올라가요` })
     } else if (!deload) {
       // [2026-11-07] 내리기·복귀 날이나 코치 프로그램이 세트를 정해 둔 종목에는 주간 세트 채우기(+1세트)를 넣지 않는다
-      const short = sug.kind !== 'decrease' && !sug.comeback && !sug.sessionAdj && !getProgramRx(name, settingFor(key)) ? weeklyShortfall(name, weekCounts) : null
+      const short = sug.kind !== 'decrease' && !sug.comeback && !sug.sessionAdj && !sug.painRepeat && !getProgramRx(name, settingFor(key)) ? weeklyShortfall(name, weekCounts) : null
       if (short && targets.length <= recommendedSetCount(name, settingFor(key))) {
         // [2026-11-10 T-6] 세트를 더하는 날은 운동량이 한 번에 뛰지 않게: 더한 세트는 목표 하한 횟수,
         // '같은 무게로 횟수 늘리기'면 +1회는 첫 세트에만(나머지는 지난번 횟수). 예: 8·8·8·7 → 9·8·8·7·8(예전 9·9·9·8·8)
