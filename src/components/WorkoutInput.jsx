@@ -2306,7 +2306,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   }
 
   return (
-    <div ref={rootRef} style={{ padding: '16px 20px 140px' }}>
+    // [2026-11-11] data-sfx="set": 기록 화면 버튼은 세트 완료음, 일반 메뉴는 물방울(utils/sfx.js installTapSound)
+    <div ref={rootRef} data-sfx="set" style={{ padding: '16px 20px 140px' }}>
       {/* [2026-08-02 신규] 세트완료 응원 멘트 토스트(⑨). 화면 상단 고정, 1줄, 자동으로 사라짐. */}
       {guideEl && <WorkoutGuide container={guideEl} skipKeys={guideSkipKeys} onDone={finishWorkoutGuide} />}
       {setToast && (
@@ -2769,7 +2770,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         )}
       </div>
       {howto && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--color-bg)', overflowY: 'auto', padding: '0 16px 40px', paddingBottom: 'calc(40px + var(--safe-bottom, 0px))' }}>
+        <div data-sfx="tap" style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--color-bg)', overflowY: 'auto', padding: '0 16px 40px', paddingBottom: 'calc(40px + var(--safe-bottom, 0px))' }}>
           <Suspense fallback={<p style={{ padding: 24, textAlign: 'center', color: 'var(--color-label-neutral)' }}>불러오는 중...</p>}>
             <ExerciseDetail
               key={howto.name}
@@ -2838,6 +2839,7 @@ function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateFo
       role="dialog"
       aria-modal="true"
       aria-label="오늘 운동 완료"
+      data-sfx="tap"
       style={{
         position: 'fixed',
         inset: 0,
@@ -3673,7 +3675,7 @@ export function ExerciseCard({
           )}
           {/* [2026-10-27] 세트 저장(V/세트 완료)과 헷갈리지 않도록 "종목 완료"로 명칭 변경 */}
           {/* [2026-11-09] 완료한 종목을 펼치면 '이 종목 완료' 대신 '다시 하기'(완료 취소) */}
-          <div data-guide="finish">
+          <div data-guide="finish" data-sfx="off">
             {isDone ? (
               <Button full variant="secondary" onClick={onToggleUncomplete}>
                 다시 하기(완료 취소)
@@ -3817,7 +3819,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
 
   const buttons = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: isCardio ? 0 : 'auto', flexShrink: 0 }}>
-      <IconButton title={set.saved ? '완료됨' : '세트 완료'} onClick={onSave} disabled={set.saved} tone="save">
+      <IconButton sfx="off" title={set.saved ? '완료됨' : '세트 완료'} onClick={onSave} disabled={set.saved} tone="save">
         <path d="M5 12l5 5L19 7" />
       </IconButton>
       <IconButton title="세트 추가(직전 값 복사)" onClick={onCopy}>
@@ -3888,7 +3890,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
         {rirEnabled && !isHoldExercise(exName) && <RirChip rir={set.rir} onClick={onCycleRir} guideKey={guide ? 'rir' : undefined} />}
         {/* [2026-11-08 순간 강조] 세트를 저장한 순간 체크 둘레로 작은 불꽃 */}
         <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <IconButton guideKey={guide ? 'set-save' : undefined} title={done ? '완료됨' : '세트 완료'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-punch' : ''}>
+          <IconButton sfx="off" guideKey={guide ? 'set-save' : undefined} title={done ? '완료됨' : '세트 완료'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-punch' : ''}>
             <path d="M5 12l5 5L19 7" />
           </IconButton>
           {/* [2026-11-08] 완료 효과 강화 A: 불꽃 크게 + '+1세트' 글자(웜업은 글자 없이) */}
@@ -3901,7 +3903,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
   )
 }
 
-function IconButton({ children, onClick, title, muted, disabled, tone, className, guideKey }) {
+function IconButton({ children, onClick, title, muted, disabled, tone, className, guideKey, sfx }) {
   // [2026-08-02 변경] 세트 저장 체크 아이콘도 "시작" 버튼과 같은 골드 배경이라 대비가
   // 약하다는 피드백으로, 브라운(--color-on-gold) 대신 베이지 토큰(--color-on-gold-button)을 쓴다.
   // [2026-10-27] 저장 전(save)=채움 버튼, 저장 후(done)=초록 체크로 상태를 분명히 구분
@@ -3914,6 +3916,7 @@ function IconButton({ children, onClick, title, muted, disabled, tone, className
   return (
     <button
       data-guide={guideKey}
+      data-sfx={sfx}
       onClick={onClick}
       title={title}
       disabled={disabled}

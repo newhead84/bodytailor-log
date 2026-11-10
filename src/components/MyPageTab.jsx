@@ -390,8 +390,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   }
 
   // [2026-11-01] 설정 저장이 실패하면 화면 선택을 되돌리고 알린다(전체 점검 U25). 오프라인은 대기열에 넣고 진행(실패 아님)
-  async function saveSetting(apply, prev, next, patch) {
+  // [2026-11-11] 설정을 바꾸면 종목 완료 효과음(사용자 지정). 자기 소리·진동 미리듣기가 있는 항목은 sound:false
+  async function saveSetting(apply, prev, next, patch, { sound = true } = {}) {
     apply(next)
+    if (sound && next !== prev) playSfx('ex')
     try {
       await updateUserProfile(uid, patch)
     } catch (err) {
@@ -431,18 +433,18 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   }, [userDoc?.alertVolume, userDoc?.vibrationLevel])
   async function commitAlertVolume(v, prev) {
     setAlertLevels({ alertVolume: v, vibrationLevel })
-    const ok = await saveSetting(setAlertVolumeState, prev, v, { alertVolume: v })
+    const ok = await saveSetting(setAlertVolumeState, prev, v, { alertVolume: v }, { sound: false })
     if (ok === false) setAlertLevels({ alertVolume: prev, vibrationLevel })
   }
   async function commitVibrationLevel(v, prev) {
     setAlertLevels({ alertVolume, vibrationLevel: v })
-    const ok = await saveSetting(setVibrationLevelState, prev, v, { vibrationLevel: v })
+    const ok = await saveSetting(setVibrationLevelState, prev, v, { vibrationLevel: v }, { sound: false })
     if (ok === false) setAlertLevels({ alertVolume, vibrationLevel: prev })
   }
   const vibrationSupported = typeof navigator !== 'undefined' && 'vibrate' in navigator
 
   async function selectRestSound(soundId) {
-    await saveSetting(setRestSoundId, restSoundId, soundId, { restTimerSoundId: soundId })
+    await saveSetting(setRestSoundId, restSoundId, soundId, { restTimerSoundId: soundId }, { sound: false })
   }
 
   // [2026-07-30 신규] MY탭 "화면 테마" 선택 저장. onProfileUpdated()로 App.jsx의 userDoc을
@@ -511,10 +513,17 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     setSfxOnState(userDoc?.sfxEnabled !== false)
   }, [userDoc?.sfxEnabled])
   async function selectSfx(on) {
-    const ok = await saveSetting(setSfxOnState, sfxOn, on, { sfxEnabled: on })
-    if (ok === false) return
+    // [2026-11-11] 켜기는 누르자마자 종목 완료음(저장을 기다리면 물방울이 먼저 나고 늦게 들림)
+    if (on && !sfxOn) {
+      setSfxEnabled(true)
+      playSfx('ex')
+    }
+    const ok = await saveSetting(setSfxOnState, sfxOn, on, { sfxEnabled: on }, { sound: false })
+    if (ok === false) {
+      setSfxEnabled(sfxOn)
+      return
+    }
     setSfxEnabled(on)
-    if (on) playSfx('ex')
   }
   async function selectCoachIntensity(id) {
     await saveSetting(setCoachIntensityState, coachIntensity, id, { coachIntensity: id })

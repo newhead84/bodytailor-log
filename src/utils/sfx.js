@@ -54,8 +54,12 @@ const SOUNDS = {
   },
 }
 
+// [2026-11-11] 버튼을 누른 그 순간 다른 효과음(설정 변경 = 종목 완료음 등)이 나면 물방울·띠링은 생략(겹침 방지)
+let lastOwnSfxAt = 0
+
 export function playSfx(kind) {
   if (!enabled || !SOUNDS[kind]) return
+  if (kind !== 'tap') lastOwnSfxAt = Date.now()
   try {
     const c = audio()
     if (c) SOUNDS[kind](c)
@@ -67,6 +71,8 @@ export function playSfx(kind) {
 // [2026-11-10] 버튼 효과음(사용자 요청 '대부분 버튼에', 범위 선택: ± 포함 전부). 화면마다 onClick을 고치지 않고
 // 문서 전체 click 하나로 처리한다(click이라 스크롤하려고 손가락을 댄 것에는 소리가 나지 않음).
 // 끄기: MY › 설정 '효과음'(완료 효과음과 같은 설정). 소리를 빼고 싶은 요소는 data-sfx="off".
+// [2026-11-11] 운동 버튼과 일반 버튼 소리 구분(사용자 선택: 기록 화면 전체): 가장 가까운 조상의 data-sfx 값으로 고른다.
+//   'set' = 세트 완료음(기록 화면 WorkoutInput 루트) / 'tap' = 물방울(기록 화면 안의 완료 팝업·운동 가이드처럼 일반 화면) / 'off' = 소리 없음(자기 효과음을 내는 버튼)
 const TAP_SELECTOR = 'button, [role="button"], [role="tab"], a[href], summary, input[type="checkbox"], input[type="radio"], select'
 let installed = false
 export function installTapSound() {
@@ -77,8 +83,16 @@ export function installTapSound() {
     (e) => {
       if (!enabled) return
       const el = e.target && e.target.closest ? e.target.closest(TAP_SELECTOR) : null
-      if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true' || el.closest('[data-sfx="off"]')) return
-      playSfx('tap')
+      if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return
+      const zone = el.closest('[data-sfx]')
+      const kind = zone ? zone.getAttribute('data-sfx') : 'tap'
+      if (kind === 'off') return
+      // 캡처 단계라 버튼 onClick보다 먼저 온다 - 한 박자 미뤄 onClick이 자기 효과음을 냈으면 건너뛴다
+      const clickAt = Date.now()
+      setTimeout(() => {
+        if (lastOwnSfxAt >= clickAt) return
+        playSfx(kind === 'set' ? 'set' : 'tap')
+      }, 0)
     },
     true
   )

@@ -334,6 +334,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
           <button
             type="button"
             data-guide="set-save"
+            data-sfx="off"
             onClick={() => {
               // [2026-11-01] 연타 시 다음 세트(프리필)까지 저장되던 문제: 누른 뒤 0.6초 잠금(전체 점검 U9)
               if (Date.now() < saveLockRef.current) return
