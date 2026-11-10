@@ -158,7 +158,7 @@ function ProfileNumbers({ userDoc, onEdit }) {
       )}
       {bm.main && showInfo && (
         <div className="bt-enter text-keep-all" style={{ marginTop: 4, padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg)', fontSize: 12.5, lineHeight: 1.6, color: 'var(--color-label-normal)', whiteSpace: 'pre-line' }}>
-          {'체지방률(인바디)이 있으면 그걸, 없으면 허리/키 비율을, 둘 다 없으면 BMI를 크게 보여줘요.\n허리/키 비율은 0.5 미만이 권장 범위예요. BMI는 키와 몸무게만 보는 값이라 근육이 많으면 높게 나와요.\n체지방률 적정 범위는 남성 10~20%, 여성 18~28%를 대략 기준으로 썼어요. 제지방 지수(FFMI)는 지방을 뺀 몸무게를 키로 나눈 값이에요.\n운동 참고용 정보이며 의학적 진단이 아니에요.'}
+          {'체지방률(인바디)이 있으면 그걸, 없으면 허리/키 비율을, 둘 다 없으면 BMI를 크게 보여 줘요.\n허리/키 비율은 0.5 미만이 권장 범위예요. BMI는 키와 몸무게만 보는 값이라 근육이 많으면 높게 나와요.\n체지방률 적정 범위는 남성 10~20%, 여성 18~28%를 대략 기준으로 썼어요. 제지방 지수(FFMI)는 지방을 뺀 몸무게를 키로 나눈 값이에요.\n운동 참고용 정보이며 의학적 진단이 아니에요.'}
         </div>
       )}
       {(goals.length > 0 || userDoc?.weeklyTargetDays) && (
@@ -666,7 +666,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             </Chip>
           </div>
           <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            {logMode === 'focus' ? '한 번에 한 세트만 크게 보여주고, 큰 버튼으로 입력해요.' : '모든 세트를 표로 한눈에 보며 입력해요.'} 운동 중에는 맨 위 초록 바 왼쪽 버튼으로도 바꿀 수 있어요.
+            {logMode === 'focus' ? '한 번에 한 세트만 크게 보여 주고, 큰 버튼으로 입력해요.' : '모든 세트를 표로 한눈에 보며 입력해요.'} 운동 중에는 맨 위 타이머 바 왼쪽 버튼으로도 바꿀 수 있어요.
           </span>
         </div>
         </>)}
@@ -735,7 +735,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
             끄기
           </Chip>
         </div>
-        <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>버튼을 누를 때 '톡', 세트 저장·종목 완료·운동 완료·신기록·레벨 업 때 짧은 게임 소리. 휴대폰이 무음이면 안 날 수 있어요.</span>
+        <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>버튼·세트 완료·운동 완료·신기록·레벨 업에 짧은 소리가 나요(무음이면 안 들려요)</span>
       </Card>
 
       <SectionTitle>알림</SectionTitle>
@@ -782,7 +782,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         </div>
 
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-line)' }}>
-          <div className="text-keep-all" style={{ fontSize: 14, marginBottom: 8 }}>휴게타이머 알림음</div>
+          <div className="text-keep-all" style={{ fontSize: 14, marginBottom: 8 }}>휴식 알림음</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {REST_SOUND_OPTIONS.map((opt) => (
               <Chip
@@ -1126,7 +1126,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       <SectionTitle
         action={
           <Button variant="secondary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={onManageRoutines}>
-            운동방식 변경
+            루틴 관리
           </Button>
         }
       >
@@ -1352,7 +1352,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                 {trainerConn.trainerName} 트레이너
                 {trainerProfile && <button type="button" onClick={() => onShowTrainerDirectory?.(trainerConn.trainerUid)} style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)', padding: 0 }}>프로필 ›</button>}
               </p>
-              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 트레이너가 내 운동 기록과 신체정보(키·몸무게)·운동 목표를 보고, 운동 계획을 보내 줘요.</p>
+              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 트레이너가 내 운동 기록(컨디션·통증 표시 포함)·신체 정보·운동 목표·체력 점검을 보고, 운동 계획을 보내 줘요.</p>
             </div>
             <button
               type="button"

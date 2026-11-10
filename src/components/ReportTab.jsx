@@ -72,6 +72,9 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   // 내 통계 관련 상태
   const [logs, setLogs] = useState([])
   const [statsLoading, setStatsLoading] = useState(true)
+  const [statsError, setStatsError] = useState(false)
+  const [statsRetry, setStatsRetry] = useState(0)
+  const [rankingError, setRankingError] = useState(false)
 
   // [2026-07-31 신규] 다른 회원들이 즐겨찾는 운동(부위별 공개 집계, ⑨)
   const [popularityByAtom, setPopularityByAtom] = useState([])
@@ -96,8 +99,14 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   async function loadRanking() {
     rankingDirtyRef.current = false
     setRankingLoading(true)
-    const list = await getLeaderboard('all', period, 100)
-    setEntries(list)
+    // [2026-11-10] 읽기 실패(오프라인 등) 때 '불러오는 중'에 멈추지 않게
+    try {
+      setEntries(await getLeaderboard('all', period, 100))
+      setRankingError(false)
+    } catch (err) {
+      console.error('랭킹 불러오기 실패:', err)
+      setRankingError(true)
+    }
     setRankingLoading(false)
   }
 
@@ -123,9 +132,16 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       fromDate.setDate(fromDate.getDate() - STATS_RANGE_DAYS)
       const from = toLocalDateStr(fromDate)
       // [2026-11-07] 84일 범위를 따로 읽지 않고 전체 기록 세션 캐시(MY·PR·점수 갱신과 공유)에서 날짜로 거른다
-      const data = (await getAllWorkoutLogs(uid)).filter((l) => l.date >= from && l.date <= to)
+      let data = null
+      try {
+        data = (await getAllWorkoutLogs(uid)).filter((l) => l.date >= from && l.date <= to)
+      } catch (err) {
+        console.error('통계 불러오기 실패:', err)
+      }
       if (!cancelled) {
-        setLogs(data)
+        // [2026-11-10] 실패하면 '불러오는 중'에 멈추지 않고 다시 시도 안내
+        setStatsError(!data)
+        if (data) setLogs(data)
         setStatsLoading(false)
       }
     }
@@ -136,8 +152,9 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
     // [2026-07-30 수정] logsVersion 의존성 추가: 기존에는 uid가 바뀔 때만 재조회해서,
     // 캘린더에서 추가/수정/삭제한 기록이나 기록탭에서 저장한 기록이 재진입 없이는 부위별
     // 추이·점진적 과부하 등 통계에 반영되지 않는 버그가 있었다(⑰).
-  }, [uid, logsVersion, everActive])
+  }, [uid, logsVersion, everActive, statsRetry])
 
+  const isTrainerRole = userDoc?.role === '트레이너'
   async function handleRefreshMyScore() {
     setRefreshing(true)
     // [2026-10-29] 저장 실패(규칙 거부 등)해도 버튼이 '계산 중'에 멈추지 않게 finally로 해제
@@ -151,6 +168,8 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   }
 
   async function refreshMyScore() {
+    // [2026-11-10] 트레이너는 랭킹에 참여하지 않는다(7.1 권한) - 점수를 올리지 않음
+    if (isTrainerRole) return
     // [2026-11-01] H6: 시즌 동안 주별 점수의 평균(utils/scoring.js computeSeasonScore). 예전 4번 나눠 읽던
     // 범위(이번 주·4주·12주·16주)를 한 번의 조회(시즌 첫 주 16주 전 ~ 오늘)로 합쳐 읽기 수는 늘지 않는다.
     const today = new Date()
@@ -258,6 +277,8 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       {/* [2026-10-31 개편] 순서: 이번 주 → 근육별 세트 → 근력 추이 → 정체·회복 → 장기 추이 → 유산소·균형 → 기록 → 랭킹·다른 회원 */}
       {statsLoading ? (
         <p style={{ textAlign: 'center', padding: 40, color: 'var(--color-label-neutral)' }}>불러오는 중…</p>
+      ) : statsError ? (
+        <LoadRetry onRetry={() => setStatsRetry((n) => n + 1)} />
       ) : logs.length === 0 ? (
         <EmptyState title="아직 통계가 없어요" description="운동 기록을 입력하면 주간 요약·근육별 세트·근력 추이가 여기에 쌓여요." />
       ) : (
@@ -278,7 +299,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
 
       {/* 랭킹 */}
       <SectionTitle
-        action={
+        action={isTrainerRole ? null : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button
               onClick={() => setShowRefreshInfo((v) => !v)}
@@ -300,24 +321,26 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
               {refreshing ? '갱신 중…' : '점수 다시 계산'}
             </Button>
           </div>
-        }
+        )}
       >
         전체 랭킹 · {formatSeasonLabel(period)}
       </SectionTitle>
       {/* [2026-10-31] 랭킹 공개 안내(개인정보) */}
       <p className="text-keep-all" style={{ margin: '-6px 0 10px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
-        시즌 동안 주별 점수의 평균으로 순위를 매겨요. 다른 회원에게는 내 닉네임의 첫 글자만 보여요.
+        {isTrainerRole ? '트레이너 계정은 랭킹에 들어가지 않아요(회원만).' : '시즌 동안 주별 점수의 평균으로 순위를 매겨요. 다른 회원에게는 내 닉네임의 첫 글자만 보여요.'}
       </p>
 
       {showRefreshInfo && (
         <p className="text-keep-all" style={{ margin: '-6px 0 12px', fontSize: 12, color: 'var(--color-label-neutral)', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
           점수는 운동을 완료하면 자동으로 갱신돼요. 이 버튼은 운동완료 후 세트를 수정하는 등 변경사항이
-          생겨 즉시 다시 계산하고 싶을 때만 눌러주세요.
+          생겨 즉시 다시 계산하고 싶을 때만 눌러 주세요.
         </p>
       )}
 
       {rankingLoading ? (
         <p style={{ textAlign: 'center', color: 'var(--color-label-neutral)', fontSize: 13, marginBottom: 20 }}>불러오는 중…</p>
+      ) : rankingError ? (
+        <LoadRetry onRetry={loadRanking} />
       ) : !entries.length ? (
         <div style={{ marginBottom: 20 }}>
           <EmptyState title="아직 랭킹 데이터가 없어요" description="운동을 완료하면 자동으로 등록돼요. '점수 다시 계산'으로도 등록할 수 있어요." />
@@ -364,7 +387,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       )}
 
       {/* 다른 회원 즐겨찾는 운동 (신규, ⑨) */}
-      <SectionTitle>다른 회원들이 즐겨하는 운동</SectionTitle>
+      <SectionTitle>다른 회원들이 즐겨 하는 운동</SectionTitle>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
         {BODY_PART_ATOMS.map((atom) => (
           <Chip key={atom} active={selectedPopAtom === atom} onClick={() => setSelectedPopAtom(atom)}>
@@ -411,6 +434,20 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
         )}
       </Card>
 
+    </div>
+  )
+}
+
+// [2026-11-10] 읽기 실패 안내(오프라인 등)
+function LoadRetry({ onRetry }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '28px 0', marginBottom: 20, color: 'var(--color-label-neutral)', fontSize: 13.5 }}>
+      불러오지 못했어요. 인터넷 연결을 확인해 주세요.
+      <div style={{ marginTop: 10 }}>
+        <button type="button" onClick={onRetry} style={{ padding: '8px 16px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>
+          다시 시도
+        </button>
+      </div>
     </div>
   )
 }

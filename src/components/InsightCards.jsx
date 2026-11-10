@@ -310,7 +310,7 @@ export function RecoveryCard({ logs }) {
   )
 }
 
-export function PrCard({ prs, limit = 5, title = '최근 개인 기록' }) {
+export function PrCard({ prs, limit = 5, title = '최근 신기록' }) {
   const list = useMemo(() => recentPrList(prs, limit), [prs, limit])
   if (list.length === 0) return null
   return (

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { List, RectangleVertical } from 'lucide-react'
 import { cardioTimerMs } from '../utils/cardioFields'
+import { useRepeatPress } from '../hooks/useRepeatPress'
 
 // [2026-08-04 신규]
 // 지난 세션(7/30)에서는 "운동중" 여부만 홈탭 카드로 정적 표시했을 뿐, 실시간 타이머 숫자는
@@ -27,6 +28,10 @@ function formatElapsed(totalSeconds) {
 }
 
 export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset, onAdjust, expanded, onToggleExpanded, logMode, onToggleLogMode }) {
+  // [2026-11-10] 누르고 있으면 반복 + 점점 크게(10초 → 8번째부터 30초 → 20번째부터 1분)
+  const stepFor = (c) => (c < 8 ? 10 : c < 20 ? 30 : 60)
+  const minusPress = useRepeatPress((c) => onAdjust?.(-stepFor(c)))
+  const plusPress = useRepeatPress((c) => onAdjust?.(stepFor(c)))
   const { sessionPhase, sessionStartAt, pauseStartedAt, pausedAccumMs, cardioTimer } = timing || {}
   const isActive = sessionPhase === 'warmup' || sessionPhase === 'main'
   const isPaused = !!pauseStartedAt
@@ -144,7 +149,7 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           <button
             title="10초 빼기"
             aria-label="10초 빼기"
-            onClick={() => onAdjust?.(-10)}
+            {...minusPress}
             style={{
               width: 40,
               height: 40,
@@ -162,7 +167,7 @@ export default function GlobalTimerBar({ timing, onPress, onTogglePause, onReset
           <button
             title="10초 더하기"
             aria-label="10초 더하기"
-            onClick={() => onAdjust?.(10)}
+            {...plusPress}
             style={{
               width: 40,
               height: 40,

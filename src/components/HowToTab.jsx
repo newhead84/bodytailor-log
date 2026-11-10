@@ -65,19 +65,14 @@ function OnboardingBanner({ uid, onDismissed }) {
   }
 
   return (
-    // [2026-10-28 리디자인] 강조 테두리·틴트 배경 대신 무채색 안내 카드 + 정보 아이콘
-    <Card style={{ marginBottom: 20, background: 'var(--color-bg-elevated)', border: '1px solid var(--color-line)' }}>
-      <p className="text-keep-all" style={{ margin: '0 0 6px', fontWeight: 700, fontSize: 15, color: 'var(--color-label-strong)', display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Info size={16} strokeWidth={1.8} style={{ color: 'var(--color-primary-normal)' }} />
-        {HOWTO_ONBOARDING_TEXT.title}
-      </p>
-      <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
-        {HOWTO_ONBOARDING_TEXT.body}
-      </p>
-      <Button variant="ghost" onClick={handleDismiss} disabled={dismissing} style={{ fontSize: 13, padding: '8px 14px' }}>
-        {dismissing ? '처리 중…' : '다시 안 보기'}
-      </Button>
-    </Card>
+    // [2026-11-10] 큰 안내 카드 → 한 줄(NOTE 안내와 같은 모양)
+    <div className="text-keep-all" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '8px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-line)', fontSize: 12.5, color: 'var(--color-label-normal)' }}>
+      <Info size={15} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--color-primary-strong)' }} />
+      <span style={{ flex: 1, minWidth: 0 }}>{HOWTO_ONBOARDING_TEXT.body}</span>
+      <button type="button" onClick={handleDismiss} disabled={dismissing} style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', padding: '6px 2px' }}>
+        닫기
+      </button>
+    </div>
   )
 }
 
@@ -366,8 +361,8 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
               ? `이미 "${addResult.templateTitle}"의 "${addResult.partName}" 파트에 있어요.`
               : `"${addResult.templateTitle}"의 "${addResult.partName}" 파트에 추가했어요.`
             : addResult.reason === 'no-template'
-              ? 'MY탭에서 내 루틴을 먼저 만들어주세요.'
-              : '추가할 파트를 찾지 못했어요. MY탭에서 루틴 구성을 확인해주세요.'}
+              ? 'MY탭에서 내 루틴을 먼저 만들어 주세요.'
+              : '추가할 파트를 찾지 못했어요. MY탭에서 루틴 구성을 확인해 주세요.'}
         </p>
       )}
       {/* [2026-10-31] 건강 정보 면책 */}
@@ -473,7 +468,6 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
         <StretchGuide />
       ) : (
       <>
-      <SectionTitle>운동 둘러보기</SectionTitle>
 
       <div
         style={{

@@ -158,7 +158,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
       <SectionTitle>XP는 어떻게 얻나요?</SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         <div className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)', lineHeight: '22px' }}>
-          <p style={{ margin: '0 0 10px' }}>운동기록을 저장할 때마다 세션 하나당 아래 기준으로 XP를 계산해서 즉시 더해줘요.</p>
+          <p style={{ margin: '0 0 10px' }}>운동기록을 저장할 때마다 세션 하나당 아래 기준으로 XP를 계산해서 즉시 더해 줘요.</p>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             <li>기본 50XP (사이클에 포함된 정규 운동 기준)</li>
             <li>사이클 외 자유 추가 운동은 0.7배(기본 35XP)로 계산돼요</li>

@@ -50,7 +50,7 @@ export function adviseAfterFeel(name, set, setting) {
   if (feel === 'strong') {
     return {
       kind: 'stop',
-      reason: '통증이 심하면 이 종목은 여기서 멈춰요. 근육이 뻐근한 것과 달리 관절이 찌르듯 아프거나 저리면 트레이너와 상의하고, 계속되면 진료를 받아 보세요',
+      reason: '통증이 심하면 이 종목은 멈춰요. 관절이 찌르듯 아프거나 저리면 트레이너와 상의하고, 계속되면 진료를 받아 보세요',
     }
   }
   if (feel === 'mild') {

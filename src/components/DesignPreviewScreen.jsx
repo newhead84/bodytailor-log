@@ -89,7 +89,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
   const [setsByName, setSetsByName] = useState(SAMPLE_SETS)
   const [expandedName, setExpandedName] = useState('플랫바벨프레스')
   const [doneNames, setDoneNames] = useState(['덤벨사이드레터럴레이즈'])
-  // 휴식 타이머: 실제 화면처럼 세트 저장(V) 후에만 표시, 끝나기 전에 다시 시작(알림음·진동 방지)
+  // 휴식 타이머: 실제 화면처럼 세트 완료(V) 후에만 표시, 끝나기 전에 다시 시작(알림음·진동 방지)
   const [restCycle, setRestCycle] = useState(0)
   const [restShown, setRestShown] = useState(false)
   useEffect(() => {
@@ -282,7 +282,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
           )}
         </div>
         <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 'var(--fs-body2)', color: 'var(--color-label-neutral)' }}>
-          샘플 기록 · 저장되지 않아요. 세트 저장(V)·펼치기를 눌러볼 수 있어요.
+          샘플 기록 · 저장되지 않아요. 세트 완료(V)·펼치기를 눌러볼 수 있어요.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {SAMPLE_ORDER.map((name) => {
@@ -363,7 +363,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
         }}
       >
         <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => {}}>
-          취소
+          운동 취소
         </Button>
         <div style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0, whiteSpace: 'nowrap' }}>
           오늘 볼륨
@@ -372,7 +372,7 @@ export default function DesignPreviewScreen({ uid, userDoc, onClose, onApplied }
           </div>
         </div>
         <Button style={{ flex: 1, minWidth: 0 }} onClick={() => {}}>
-          오늘 운동 완료
+          운동 완료
         </Button>
       </div>
     </div>

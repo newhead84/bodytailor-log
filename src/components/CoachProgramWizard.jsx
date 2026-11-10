@@ -283,7 +283,7 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
         다시 답하기
       </Button>
       <p className="text-keep-all" style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>
-        저장하면 내 루틴에 '코치 프로그램'이 생겨요{existing ? '(지금 코치 프로그램을 바꿔요)' : ''}. 종목은 MY › 운동방식 변경에서 언제든 바꿀 수 있어요.
+        저장하면 내 루틴에 '코치 프로그램'이 생겨요{existing ? '(지금 코치 프로그램을 바꿔요)' : ''}. 종목은 MY › 루틴 관리에서 언제든 바꿀 수 있어요.
       </p>
     </>
   )

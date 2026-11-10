@@ -527,8 +527,8 @@ function EditLogForm({
       {editDraft?.exercises.length === 0 && (
         <p className="text-keep-all" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-label-neutral)' }}>
           {isNew
-            ? '추가할 운동을 하나 이상 골라주세요.'
-            : '운동을 모두 지웠어요. 이대로 저장할 수 없으니, 이 날짜 기록 자체를 지우려면 취소 후 "삭제"를 눌러주세요.'}
+            ? '추가할 운동을 하나 이상 골라 주세요.'
+            : '운동을 모두 지웠어요. 이대로 저장할 수 없으니, 이 날짜 기록 자체를 지우려면 취소 후 "삭제"를 눌러 주세요.'}
         </p>
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

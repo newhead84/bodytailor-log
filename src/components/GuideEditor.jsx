@@ -93,7 +93,7 @@ export default function GuideEditor({ name, guide, hasOverride, editor, allNames
       <button type="button" onClick={onClose} style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginBottom: 12 }}>← 수정 취소</button>
       <h2 style={{ margin: '0 0 4px', fontSize: 20 }}>{name} 가이드 수정</h2>
       <p className="text-keep-all" style={{ margin: '0 0 14px', fontSize: 12.5, color: 'var(--color-label-neutral)', lineHeight: 1.6 }}>
-        저장하면 모든 회원에게 바로 보여요. 한 줄에 하나씩 적고, 비워 두면 그 칸은 기본 가이드 내용을 보여줘요.{!getExerciseGuide(name) && ' 이 종목은 아직 기본 가이드가 없어요.'}
+        저장하면 모든 회원에게 바로 보여요. 한 줄에 하나씩 적고, 비워 두면 그 칸은 기본 가이드 내용을 보여 줘요.{!getExerciseGuide(name) && ' 이 종목은 아직 기본 가이드가 없어요.'}
       </p>
       <Card style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <label style={lab}>우리 헬스장 메모 (선택 · 회원에게 맨 위에 보여요)

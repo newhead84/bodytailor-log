@@ -933,6 +933,7 @@ function MemberBody({ member, memberUid, goalEditor }) {
 function PtCard({ member, conn, uid, trainerName, onChanged }) {
   const confirm = useConfirm()
   const [enabled, setEnabled] = useState(false)
+  const [settingsOk, setSettingsOk] = useState(false) // [2026-11-10] 설정을 읽기 전에는 차감 여부를 몰라 완료·노쇼를 막는다
   const [noshowPolicy, setNoshowPolicy] = useState('off') // [2026-10-31] 관리자 설정: off | mark | deduct
   const [sessions, setSessions] = useState([])
   const [schedules, setSchedules] = useState([])
@@ -954,8 +955,9 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
       .then((s) => {
         setEnabled(!!s?.ptDeductEnabled)
         setNoshowPolicy(s?.noshowPolicy || 'off')
+        setSettingsOk(true)
       })
-      .catch(() => {})
+      .catch((err) => console.error('PT 설정 불러오기 실패:', err))
     reload()
   }, [reload])
   useEffect(() => {
@@ -995,6 +997,10 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
   // [2026-11-01] B4: 남은 PT가 없으면 '완료(미결제)'로 차감 없이 남기고 관리자가 결제 후 차감 처리
   const askUnpaid = () => confirm(`${conn.memberName}님은 남은 PT가 없어요. '완료(미결제)'로 기록할까요? 차감 없이 남기고, 관리자가 결제 후 처리해요.`, { okLabel: '미결제로 완료', cancelLabel: '취소' })
   async function use() {
+    if (!settingsOk) {
+      await confirm('PT 설정을 불러오지 못했어요. 화면을 닫았다 다시 열어 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+      return
+    }
     const d = useDate && useDate <= today ? useDate : today
     if (!(await expiredOk('기록'))) return
     if (left <= 0) {
@@ -1005,6 +1011,10 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
     run(() => trainerUsePt(conn.memberUid, trainer, d, { memberName: conn.memberName }), '기록하지 못했어요', `${d} 일정 없이 PT 1회 완료(차감 ${left}→${left - 1})`)
   }
   async function complete(s) {
+    if (!settingsOk) {
+      await confirm('PT 설정을 불러오지 못했어요. 화면을 닫았다 다시 열어 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+      return
+    }
     if (deduct && left <= 0) {
       if (s.date > today) return confirm('아직 날짜가 안 된 일정이에요. 남은 PT가 없어 미리 완료할 수 없어요.', { okLabel: '확인', cancelLabel: '닫기' })
       if (!(await expiredOk('완료'))) return
@@ -1018,6 +1028,10 @@ function PtCard({ member, conn, uid, trainerName, onChanged }) {
     run(() => trainerCompleteSchedule(withName(s), trainer, deduct), '완료 처리하지 못했어요', `${s.date} ${s.time} PT 완료${deduct ? `(차감 ${left}→${left - 1})` : ''}`)
   }
   async function noshow(s) {
+    if (!settingsOk) {
+      await confirm('PT 설정을 불러오지 못했어요. 화면을 닫았다 다시 열어 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
+      return
+    }
     if (s.date > today) return confirm('아직 날짜가 안 된 일정은 노쇼로 처리할 수 없어요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (noshowDeduct && left <= 0) return confirm('남은 PT 횟수가 없어요. 관리자에게 횟수 등록을 요청해 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
     if (!(await confirm(`${fmtDay(s.date)} ${s.time} PT를 노쇼로 처리할까요?${noshowDeduct ? ` 노쇼도 1회 차감돼 남은 횟수가 ${left}회 → ${left - 1}회가 돼요.` : ' 남은 횟수는 그대로예요.'}`, { okLabel: '노쇼 처리', cancelLabel: '취소' }))) return

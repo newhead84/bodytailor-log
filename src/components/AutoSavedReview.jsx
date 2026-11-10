@@ -157,7 +157,7 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved,
           <div className="text-keep-all" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-label-strong)' }}>완료하지 않은 운동을 저장해 뒀어요</span>
             <span style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
-              {notice.date} · "오늘 운동 완료"를 누르지 않아 마지막 세트 시각까지로 자동 저장했어요. 실제와 다르면 고쳐 주세요.
+              {notice.date} · "운동 완료"를 누르지 않아 마지막 세트 시각까지로 자동 저장했어요. 실제와 다르면 고쳐 주세요.
             </span>
           </div>
           <button type="button" onClick={handleClose} disabled={!!busy} aria-label="닫기" style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-label-neutral)', flexShrink: 0 }}>

@@ -258,7 +258,7 @@ export async function ensureUserDoc(uid) {
     // [2026-10-31] 탈퇴 도중 로그인 계정 삭제가 안 된 uid - 새로 만들지 않고 '탈퇴 마치기' 화면으로
     const gone = await getDoc(doc(db, 'deletedAccounts', uid)).catch(() => null)
     if (gone?.exists?.()) return { __deleted: true }
-    // [2026-11-01] S11: 동의 전에는 문서를 만들지 않는다(구글 이름도 저장하지 않음). 화면용 기본값만 돌려주고,
+    // [2026-11-01] S11: 동의 전에는 문서를 만들지 않는다(구글 이름도 저장하지 않음). 화면용 기본값만 돌려 주고,
     // 동의 화면에서 동의하면 createUserDoc으로 만든다(14세 미만 선택 시 아무것도 남지 않음).
     return { ...DEFAULT_USER_DOC, __unsaved: true }
   }

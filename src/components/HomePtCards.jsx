@@ -115,7 +115,7 @@ function TrainerTodayPt({ uid, trainerName }) {
   const today = todayStr()
   const [items, setItems] = useState(null)
   const [names, setNames] = useState({})
-  const [settings, setSettings] = useState({})
+  const [settings, setSettings] = useState(null) // [2026-11-10] 불러오기 전(null)에는 완료·노쇼를 막는다(차감이 조용히 빠지던 문제)
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState('')
   const trainer = { uid, name: trainerName }
@@ -129,7 +129,7 @@ function TrainerTodayPt({ uid, trainerName }) {
   }, [uid, today])
   useEffect(() => {
     load()
-    getAppSettings().then((s) => setSettings(s || {})).catch(() => {})
+    getAppSettings().then((s) => setSettings(s || {})).catch(() => setSettings(false))
     listMyTrainees(uid)
       .then((l) => setNames(Object.fromEntries(l.map((c) => [c.memberUid, c.memberName]))))
       .catch(() => {})
@@ -153,10 +153,19 @@ function TrainerTodayPt({ uid, trainerName }) {
       setBusy('')
     }
   }
+  // [2026-11-10] 설정·회원 정보를 못 읽으면 차감 없이 완료되던 문제 → 알리고 멈춘다
+  const notReady = () => confirm('PT 설정이나 회원 정보를 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
   async function complete(s) {
+    if (!settings) {
+      if (settings === false) getAppSettings().then((x) => setSettings(x || {})).catch(() => {})
+      return notReady()
+    }
     const deductOn = !!settings.ptDeductEnabled
     let member = null
-    if (deductOn) member = await getUserDoc(s.memberUid).catch(() => null)
+    if (deductOn) {
+      member = await getUserDoc(s.memberUid).catch(() => null)
+      if (!member) return notReady()
+    }
     const total = member?.ptTotal || 0
     const left = member?.ptRemaining ?? 0
     const deduct = deductOn && total > 0
@@ -169,11 +178,16 @@ function TrainerTodayPt({ uid, trainerName }) {
     run(s, () => trainerCompleteSchedule(s, trainer, deduct), `${s.date} ${s.time} PT 완료${deduct ? `(차감 ${left}→${left - 1})` : ''}`, '완료했어요.')
   }
   async function noshow(s) {
+    if (!settings) {
+      if (settings === false) getAppSettings().then((x) => setSettings(x || {})).catch(() => {})
+      return notReady()
+    }
     const policy = settings.noshowPolicy || 'off'
     let deduct = false
     let left = 0
     if (policy === 'deduct' && settings.ptDeductEnabled) {
       const m = await getUserDoc(s.memberUid).catch(() => null)
+      if (!m) return notReady()
       left = m?.ptRemaining ?? 0
       deduct = (m?.ptTotal || 0) > 0 && left > 0
     }
@@ -209,7 +223,7 @@ function TrainerTodayPt({ uid, trainerName }) {
             {s.status === 'scheduled' && (
               <>
                 <button type="button" disabled={busy === s.id} onClick={() => complete(s)} style={{ ...btn, color: 'var(--color-primary-strong)' }}>완료</button>
-                {(settings.noshowPolicy || 'off') !== 'off' && <button type="button" disabled={busy === s.id} onClick={() => noshow(s)} style={{ ...btn, color: 'var(--color-warning)' }}>노쇼</button>}
+                {(settings?.noshowPolicy || 'off') !== 'off' && <button type="button" disabled={busy === s.id} onClick={() => noshow(s)} style={{ ...btn, color: 'var(--color-warning)' }}>노쇼</button>}
               </>
             )}
             <button type="button" disabled={busy === s.id} onClick={() => nextWeek(s)} style={{ ...btn, color: 'var(--color-label-normal)' }}>다음 주 같은 시간</button>

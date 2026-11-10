@@ -1,50 +1,71 @@
-// MuscleMap.jsx - [2026-11-08] 종목별 근육 그림(앞·뒤, 남성·여성 체형). 직접 그린 SVG(저작권 문제 없음).
-// 근육 정보는 exerciseLibrary의 muscleRoles(주동근 primary·협력근 synergist)를 그대로 쓴다 → 전 종목 자동.
-// 주로 쓰는 근육 = 진한 색 + 왼쪽 실선 이름표, 같이 쓰는 근육 = 옅은 색 + 오른쪽 점선 이름표.
-// 체형: 남성은 넓은 어깨·굵은 목·곧은 허리·좁은 골반·짧은 머리, 여성은 좁은 어깨·가는 목·잘록한 허리·넓은 골반·긴 머리(뒤는 묶은 머리).
+// MuscleMap.jsx - 종목별 근육 그림(앞·뒤, 남성·여성 체형). 직접 그린 SVG(저작권 문제 없음).
+// [2026-11-10] 해부도 방식으로 다시 그림(사용자 요청: 인체 모형·해부학 모형처럼):
+//  - 근육을 실제 덩어리대로 나눔(어깨 앞·옆·뒤, 가슴 위·아래, 승모근 위·가운데, 극하근·대원근, 넙다리 네 갈래, 종아리 두 갈래 등)
+//  - 근육마다 결(섬유 방향 선)을 넣고 근육 사이 경계선, 몸 윤곽선을 그림. 비주동 근육은 무채색, 주로 = 진한 빨강, 같이 = 옅은 빨강
+//  - 남성 기준 좌표를 그려 두고 여성은 몸통 높이별 폭 비율·팔 위치·다리 틀로 옮김(좁은 어깨·잘록한 허리·넓은 골반, 긴 머리)
+// 근육 정보는 exerciseLibrary의 muscleRoles(주동근 primary·협력근 synergist) → 그림 조각 매핑 MAP. 이름은 그림 밖 칩.
 // 색은 테마 글자색·카드색을 섞어 만들어 다크·베이지·라이트 모두 맞는다.
-import React, { useMemo } from 'react'
+import React, { useId, useMemo } from 'react'
 import { getMuscleRoles } from '../utils/exerciseLibrary'
 
 const HOT = '#e0573f'
+const INK = 'var(--color-label-strong)'
+const mix = (pct) => `color-mix(in srgb, ${INK} ${pct}%, var(--color-bg-card))`
 const C = {
-  skin: 'color-mix(in srgb, var(--color-label-strong) 7%, var(--color-bg-card))',
-  base: 'color-mix(in srgb, var(--color-label-strong) 15%, var(--color-bg-card))',
-  hair: 'color-mix(in srgb, var(--color-label-strong) 38%, var(--color-bg-card))',
+  skin: mix(6),
+  outline: mix(48),
+  base: mix(17),
+  edge: mix(40),
+  hair: mix(34),
   p: HOT,
-  s: `color-mix(in srgb, ${HOT} 42%, var(--color-bg-card))`,
-  gap: 'var(--color-bg-card)',
+  pEdge: '#9a3121',
+  s: `color-mix(in srgb, ${HOT} 50%, var(--color-bg-card))`,
+  sEdge: `color-mix(in srgb, ${HOT} 70%, var(--color-bg-card))`,
 }
 
-// 앱 근육 이름 → 그림 조각
+// 앱 근육 이름 → 그림 조각(여러 개 가능)
 const MAP = [
-  [/^대흉근/, 'pec'],
-  [/삼두근/, 'tri'],
-  [/^(전면|측면)삼각근|삼각근-전면/, 'deltF'],
-  [/^후면삼각근|^극하근/, 'deltB'],
-  [/^광배근|^대원근/, 'lat'],
-  [/이두근|^상완근$/, 'bi'],
-  [/^승모근|^능형근/, 'trap'],
-  [/^척추기립근/, 'erector'],
-  [/^(중|소)둔근/, 'gmed'],
-  [/둔근$/, 'glute'],
-  [/^햄스트링/, 'ham'],
-  [/^대퇴사두근/, 'quad'],
-  [/^내전근/, 'add'],
-  [/^전완근|^상완요골근/, 'fore'],
-  [/^복직근|^복횡근|^코어$/, 'abs'],
-  [/복사근$/, 'obl'],
-  [/^비복근|^가자미근/, 'calf'],
+  [/^대흉근-상부/, ['pecU']],
+  [/^대흉근-(중부|하부)/, ['pec']],
+  [/^대흉근/, ['pecU', 'pec']],
+  [/삼두근/, ['tri']],
+  [/^전면삼각근|삼각근-전면/, ['deltF']],
+  [/^측면삼각근/, ['deltS']],
+  [/^후면삼각근/, ['deltB']],
+  [/^극하근|^견갑하근/, ['infra']],
+  [/^대원근/, ['teres']],
+  [/^광배근/, ['lat']],
+  [/^상완근$/, ['brach']],
+  [/이두근/, ['bi']],
+  [/^승모근-상부/, ['trapU']],
+  [/^승모근-(중부|하부)|^능형근/, ['trapM']],
+  [/^승모근/, ['trapU', 'trapM']],
+  [/^척추기립근/, ['erector']],
+  [/^(중|소)둔근/, ['gmed']],
+  [/둔근$/, ['glute']],
+  [/^햄스트링/, ['ham']],
+  [/^대퇴사두근/, ['quad']],
+  [/^내전근/, ['add']],
+  [/^장요근/, ['hipflex']],
+  [/^전완근|^상완요골근/, ['fore']],
+  [/^복직근|^복횡근|^코어$/, ['abs']],
+  [/복사근$/, ['obl']],
+  [/^비복근|^가자미근/, ['calf']],
 ]
+// 칩: 쉬운 이름 + 해부학 이름(작게)
 const LABEL = {
-  pec: '가슴', tri: '삼두', deltF: '어깨 앞·옆', deltB: '어깨 뒤', lat: '광배근', bi: '이두', trap: '승모근', erector: '척추기립근',
-  glute: '엉덩이', gmed: '엉덩이 옆', ham: '햄스트링', quad: '앞 허벅지', add: '안쪽 허벅지', fore: '전완', abs: '복근', obl: '옆구리', calf: '종아리',
+  pecU: ['윗가슴', '대흉근 상부'], pec: ['가슴', '대흉근'], tri: ['팔 뒤', '삼두근'], deltF: ['어깨 앞', '전면삼각근'],
+  deltS: ['어깨 옆', '측면삼각근'], deltB: ['어깨 뒤', '후면삼각근'], infra: ['어깨 속', '회전근개'], teres: ['겨드랑이 뒤', '대원근'],
+  lat: ['등 넓은 근육', '광배근'], brach: ['팔 앞 깊은 곳', '상완근'], bi: ['팔 앞', '이두근'], trapU: ['목·어깨 위', '승모근 상부'],
+  trapM: ['등 가운데', '승모근 중·하부·능형근'], erector: ['허리', '척추기립근'], gmed: ['엉덩이 옆', '중둔근'], glute: ['엉덩이', '대둔근'],
+  ham: ['허벅지 뒤', '햄스트링'], quad: ['허벅지 앞', '대퇴사두근'], add: ['허벅지 안쪽', '내전근'], hipflex: ['고관절 앞', '장요근'],
+  fore: ['아래팔', '전완근'], abs: ['복근', '복직근'], obl: ['옆구리', '복사근'], calf: ['종아리', '비복근·가자미근'],
 }
 function toIds(list) {
   const out = []
   ;(list || []).forEach((n) => {
     const hit = MAP.find(([re]) => re.test(String(n).trim()))
-    if (hit && !out.includes(hit[1])) out.push(hit[1])
+    if (hit) hit[1].forEach((id) => { if (!out.includes(id)) out.push(id) })
   })
   return out
 }
@@ -56,76 +77,92 @@ export function muscleTargets(name) {
   return p.length || s.length ? { p, s } : null
 }
 
+// ───────── 좌표: 남성 기준, 몸 가운데 x = 0, 왼쪽 반만 [가운데에서 떨어진 거리, y]로 그리고 좌우로 뒤집는다 ─────────
+// 부위 표시: t 몸통(높이별 폭 비율), a 팔(어깨 기준 이동), l 다리(다리 틀: 중심 21·반폭 18)
+const SH = 58 // 남성 어깨 바깥
 function body(female) {
   return female
-    ? { s: 40, nw: 6.5, w: 20, h: 39, legC: 21, legW: 17.5, arm: 6.5, head: [13, 15.5], f: true }
-    : { s: 55, nw: 12, w: 31, h: 33, legC: 20, legW: 19, arm: 10, head: [15, 17], f: false }
+    ? { f: true, sh: 50, armK: 0.86, legC: 22.6, legW: 18.6, head: [14, 19], prof: [[36, 0.74], [58, 0.8], [72, 0.86], [112, 0.86], [140, 0.84], [168, 0.8], [192, 0.98], [214, 1.05], [250, 1.05]] }
+    : { f: false, sh: SH, armK: 1, legC: 21, legW: 18, head: [15, 20], prof: null }
 }
-// [2026-11-08 정정] 다리 굵기를 골반 폭(h)에 묶어 두어 남성은 다리가 가늘고 여성은 허벅지가 굵어 보였다.
-// 다리 조각은 기준 틀(골반 32, 다리 중심 20·반폭 18)로 그린 뒤 legC·legW로 옮긴다 - 골반 폭은 h(엉덩이·실루엣)에만 쓴다.
-const H0 = 32
-const legMap = (P) => (pts) => pts.map(([dx, y]) => [P.legC + (dx - 20) * (P.legW / 18), y])
-const LEG_IDS = new Set(['add', 'quad', 'ham', 'calf', 'glute', 'gmed'])
-// 점은 [중심에서 떨어진 거리, y] - 왼쪽 반을 그리고 좌우로 뒤집는다
-function muscles(view, P) {
-  const list = musclesRaw(view, P)
-  const lm = legMap(P)
-  return list.map(([id, pts]) => (LEG_IDS.has(id) ? [id, lm(pts)] : [id, pts]))
-}
-function musclesRaw(view, P) {
-  const { s, w, f } = P
-  const h = H0
-  const b = f ? 8 : 0 // 여성 가슴은 둥글고 조금 아래로
-  if (view === 'front') {
-    return [
-      ['trap', [[P.nw + 1, 58], [s - 26, 64], [P.nw + 4, 68]]],
-      ['deltF', [[s - 12, 66], [s - 1, 71], [s + 5, 87], [s + 3, 104], [s - 5, 100], [s - 12, 80]]],
-      ['pec', f
-        ? [[3, 80], [s - 15, 74], [s - 9, 90], [s - 13, 108 + b], [s - 24, 116 + b], [12, 114 + b], [4, 106]]
-        : [[3, 74], [s - 14, 70], [s - 8, 84], [s - 12, 104], [22, 112], [4, 110]]],
-      ['bi', [[s + 3, 108], [s + 7, 124], [s + 7, 144], [s - 1, 148], [s - 5, 128], [s - 3, 108]]],
-      ['fore', [[s + 5, 154], [s + 11, 172], [s + 13, 196], [s + 5, 198], [s - 1, 178], [s - 3, 156]]],
-      ['abs', [[15, 118 + b], [2, 118 + b], [2, 136 + b], [15, 136 + b]]],
-      ['abs', [[15, 139 + b], [2, 139 + b], [2, 158], [15, 158]]],
-      ['abs', [[15, 161], [2, 161], [2, 180], [14, 180]]],
-      ['abs', [[14, 183], [2, 183], [2, 202], [8, 200]]],
-      ['obl', [[18, 118 + b], [s - 14, 110 + b], [w + 2, 146], [w + 2 + (f ? 4 : 0), 178], [18, 190]]],
-      ['add', [[6, 210], [h - 15, 214], [h - 18, 244], [9, 264], [3, 230]]],
-      ['quad', [[h + 2, 214], [h + 6, 248], [h + 2, 286], [h - 6, 300], [h - 6, 252], [h - 4, 216]]],
-      ['quad', [[h - 6, 210], [h - 7, 250], [h - 10, 292], [h - 17, 292], [h - 19, 250], [h - 15, 212]]],
-      ['quad', [[h - 19, 264], [h - 20, 294], [h - 26, 302], [h - 30, 290], [h - 26, 270]]],
-      ['calf', [[h - 4, 320], [h - 2, 350], [h - 6, 384], [h - 12, 384], [h - 12, 350], [h - 10, 320]]],
-      ['calf', [[h - 14, 322], [h - 14, 350], [h - 16, 380], [h - 21, 378], [h - 23, 346], [h - 20, 322]]],
-    ]
+function ratioAt(prof, y) {
+  if (!prof) return 1
+  if (y <= prof[0][0]) return prof[0][1]
+  for (let i = 1; i < prof.length; i++) {
+    const [y1, r1] = prof[i]
+    const [y0, r0] = prof[i - 1]
+    if (y <= y1) return r0 + ((r1 - r0) * (y - y0)) / (y1 - y0)
   }
-  return [
-    ['trap', [[0, 54], [P.nw + 2, 58], [s - 26, 66], [s - 14, 70], [14, 96], [0, 126]]],
-    ['deltB', [[s - 12, 66], [s - 1, 71], [s + 5, 87], [s + 3, 104], [s - 5, 100], [s - 12, 80]]],
-    ['tri', [[s + 3, 106], [s + 7, 124], [s + 5, 144], [s - 3, 148], [s - 5, 126], [s - 3, 108]]],
-    ['fore', [[s + 5, 154], [s + 11, 172], [s + 13, 196], [s + 5, 198], [s - 1, 178], [s - 3, 156]]],
-    ['lat', [[14, 100], [s - 12, 82], [s - 8, 104], [w + 2, 148], [16, 174], [8, 142]]],
-    ['erector', [[2, 128], [9, 130], [11, 186], [3, 196]]],
-    // [2026-11-08 정정] 엉덩이: 사각형 대신 둥근 대둔근(바깥 위에서 아래 가운데로 비스듬히, 아래는 주름선) + 위 바깥 작은 중둔근.
-    // 폭은 다리 틀(legMap)을 따라가 골반이 넓은 여성도 엉덩이만 커 보이지 않게 한다(남녀 차이는 몸 윤곽으로).
-    ['gmed', [[15, 190], [29, 186], [37, 193], [36, 205], [28, 200], [18, 197]]],
-    ['glute', [[3, 204], [14, 199], [27, 201], [35, 210], [37, 223], [32, 235], [21, 243], [10, 243], [4, 236]]],
-    ['ham', [[h + 2, 244], [h + 4, 274], [h - 2, 300], [h - 10, 300], [h - 12, 270], [h - 8, 244]]],
-    ['ham', [[h - 12, 244], [h - 14, 274], [h - 16, 300], [h - 23, 300], [6, 272], [5, 246]]],
-    ['calf', [[h, 320], [h + 2, 340], [h - 4, 370], [h - 12, 364], [h - 12, 336], [h - 8, 320]]],
-    ['calf', [[h - 14, 320], [h - 14, 336], [h - 14, 366], [h - 22, 358], [h - 24, 336], [h - 20, 320]]],
-  ]
+  return prof[prof.length - 1][1]
 }
-// 몸 실루엣(목·몸통·팔·다리) - 근육 조각 아래 깔아 체형이 보이게
-function silhouette(P) {
-  const { s, w, h, nw, arm, f } = P
-  const torso = f
-    ? [[nw, 48], [nw + 1, 60], [s - 10, 64], [s - 1, 72], [s - 6, 100], [w + 3, 128], [w, 152], [w + 8, 180], [h, 200], [h + 4, 214], [4, 226], [0, 226]]
-    : [[nw, 48], [nw + 2, 60], [s - 10, 63], [s + 1, 72], [s - 5, 100], [w + 8, 128], [w + 2, 160], [w + 2, 184], [h, 202], [h + 4, 214], [4, 226], [0, 226]]
-  const H = H0
-  const leg = [[h + 3, 212], ...legMap(P)([[H + 7, 250], [H + 2, 300], [H - 2, 318], [H + 1, 345], [H - 6, 388], [H - 18, 392], [H - 22, 360], [H - 24, 318], [H - 28, 300], [6, 262]]), [4, 226]]
-  const armL = [[s - 1, 70], [s + 6, 80], [s + arm + 4, 150], [s + arm + 8, 200], [s + 4, 202], [s - arm + 6, 152], [s - arm + 2, 104]]
-  return { torso, leg, armL }
+function place(P, region) {
+  if (region === 'a') return ([x, y]) => [(x - SH) * P.armK + P.sh, y]
+  if (region === 'l') return ([x, y]) => [P.legC + (x - 21) * (P.legW / 18), y]
+  return ([x, y]) => [x * ratioAt(P.prof, y), y]
 }
+
+// 몸 윤곽(살)
+const SIL = {
+  torso: ['t', [[12, 42], [12.5, 58], [20, 65], [36, 69], [46, 72], [52, 78], [50, 96], [44, 108], [41, 124], [37, 146], [33, 168], [34, 186], [37, 200], [40, 216], [41, 232], [30, 242], [12, 244], [0, 245]]],
+  arm: ['a', [[42, 72], [52, 72], [59, 80], [62, 98], [63, 124], [65, 148], [68, 166], [72, 188], [74, 212], [73, 228], [65, 230], [61, 212], [55, 190], [51, 170], [49, 150], [47, 128], [45, 110], [42, 90]]],
+  hand: ['a', [[64, 226], [74, 226], [77, 242], [76, 256], [71, 264], [66, 262], [63, 246]]],
+  leg: ['l', [[40, 224], [41, 250], [39, 280], [35, 306], [33, 322], [35, 344], [35, 362], [30, 390], [27, 408], [16, 410], [13, 390], [8, 362], [7, 340], [9, 322], [7, 300], [5, 270], [3, 248], [1, 240]]],
+  footF: ['l', [[27, 404], [29, 420], [25, 430], [12, 430], [11, 420], [14, 404]]],
+  footB: ['l', [[26, 404], [27, 420], [23, 428], [15, 428], [13, 420], [15, 404]]],
+}
+
+// 근육: [부위, id, 점, 결] - 결 = 각도(0 가로, 90 세로, 바깥쪽이 +x) 또는 [x, y] 모이는 점(부채꼴)
+const FRONT = [
+  ['t', 'scm', [[11, 36], [13, 42], [7, 64], [3, 68], [2, 62], [8, 44]], 104],
+  ['t', 'trapU', [[12, 50], [14, 58], [24, 64], [40, 69], [44, 72], [30, 72], [16, 68], [12, 62]], 18],
+  ['t', 'serr', [[38, 114], [44, 110], [42, 124], [40, 140], [35, 146], [33, 132]], 160],
+  ['t', 'obl', [[18, 124], [34, 125], [39, 140], [36, 160], [34, 176], [36, 192], [30, 206], [18, 214], [18, 180]], 125],
+  ['t', 'abs', [[2, 124], [15, 124], [16, 142], [2, 142]], 90],
+  ['t', 'abs', [[2, 145], [16, 145], [16, 162], [2, 162]], 90],
+  ['t', 'abs', [[2, 165], [16, 165], [15, 182], [2, 182]], 90],
+  ['t', 'abs', [[2, 185], [15, 185], [12, 212], [7, 226], [2, 228]], 90],
+  ['t', 'pecU', [[4, 74], [16, 71], [34, 71], [44, 76], [48, 88], [30, 90], [14, 90], [4, 88]], [52, 98]],
+  ['t', 'pec', [[4, 90], [16, 92], [34, 92], [48, 92], [50, 100], [44, 110], [34, 120], [20, 124], [8, 122], [4, 114]], [52, 100]],
+  ['a', 'deltS', [[46, 72], [54, 74], [60, 84], [62, 102], [60, 118], [55, 112], [54, 92], [50, 80]], 95],
+  ['a', 'deltF', [[40, 72], [48, 73], [54, 84], [56, 100], [56, 114], [50, 108], [46, 94], [40, 84]], 100],
+  ['a', 'bi', [[46, 116], [54, 116], [58, 130], [58, 150], [55, 162], [50, 160], [47, 144], [45, 128]], 92],
+  ['a', 'brach', [[58, 138], [62, 144], [63, 162], [58, 164]], 95],
+  ['a', 'fore', [[52, 166], [60, 168], [64, 186], [68, 212], [66, 224], [62, 222], [56, 196], [51, 178]], 76],
+  ['a', 'fore', [[60, 162], [66, 164], [71, 182], [72, 202], [67, 196], [62, 178]], 74],
+  ['l', 'tfl', [[34, 218], [40, 224], [40, 242], [35, 238]], 100],
+  ['l', 'hipflex', [[8, 232], [18, 228], [16, 248], [9, 246]], 120],
+  ['l', 'add', [[3, 242], [9, 238], [18, 252], [17, 270], [12, 288], [7, 280], [3, 262]], 110],
+  ['l', 'quad', [[33, 236], [40, 244], [40, 278], [36, 304], [30, 314], [31, 296], [34, 264]], 95],
+  ['l', 'quad', [[22, 232], [30, 230], [33, 262], [30, 296], [25, 306], [19, 292], [18, 258]], 90],
+  ['l', 'quad', [[12, 272], [18, 280], [22, 300], [19, 316], [11, 314], [8, 298]], 62],
+  ['l', 'sart', [[30, 224], [34, 226], [20, 268], [13, 300], [10, 316], [7, 312], [10, 296], [16, 266]], 112],
+  ['l', 'calf', [[8, 334], [14, 332], [16, 356], [13, 384], [10, 376], [8, 354]], 90],
+  ['l', 'tib', [[23, 330], [30, 334], [29, 360], [25, 392], [22, 392], [21, 360]], 93],
+  ['l', 'per', [[31, 336], [34, 344], [32, 370], [28, 384], [29, 360]], 92],
+]
+const BACK = [
+  ['t', 'trapU', [[0, 40], [8, 42], [12, 52], [16, 62], [30, 68], [44, 72], [40, 78], [22, 80], [0, 84]], 18],
+  ['t', 'trapM', [[0, 84], [22, 80], [40, 78], [38, 86], [24, 94], [14, 112], [6, 128], [0, 138]], [44, 76]],
+  ['t', 'infra', [[20, 94], [36, 86], [42, 92], [40, 104], [30, 108], [18, 106]], [48, 92]],
+  ['t', 'teres', [[28, 108], [40, 104], [46, 110], [44, 116], [32, 116]], 160],
+  ['t', 'lat', [[4, 130], [14, 112], [24, 108], [30, 116], [44, 116], [46, 112], [44, 124], [40, 140], [36, 160], [34, 180], [26, 190], [12, 194], [4, 180]], [50, 112]],
+  ['t', 'obl', [[34, 160], [38, 150], [38, 182], [34, 196], [28, 192], [33, 178]], 110],
+  ['t', 'erector', [[2, 168], [10, 166], [13, 184], [12, 200], [8, 212], [2, 214]], 90],
+  ['a', 'deltS', [[50, 72], [56, 76], [61, 88], [62, 104], [60, 116], [58, 104], [55, 86]], 95],
+  ['a', 'deltB', [[38, 74], [48, 73], [56, 80], [60, 96], [58, 112], [52, 106], [46, 92], [38, 84]], 70],
+  ['a', 'tri', [[44, 112], [52, 110], [54, 130], [54, 152], [50, 160], [46, 144], [44, 126]], 92],
+  ['a', 'tri', [[53, 104], [60, 110], [62, 130], [60, 150], [55, 154], [55, 128]], 92],
+  ['a', 'fore', [[52, 166], [62, 164], [68, 180], [72, 206], [70, 224], [66, 222], [60, 198], [52, 180]], 78],
+  ['l', 'gmed', [[16, 206], [30, 204], [38, 210], [40, 222], [34, 226], [22, 216]], 60],
+  ['l', 'glute', [[2, 218], [12, 212], [26, 212], [36, 220], [40, 234], [38, 248], [30, 258], [16, 260], [4, 256], [2, 240]], 35],
+  ['l', 'add', [[3, 260], [9, 262], [11, 292], [6, 286], [3, 272]], 100],
+  ['l', 'ham', [[24, 262], [37, 258], [39, 286], [33, 314], [27, 316], [26, 290]], 95],
+  ['l', 'ham', [[10, 262], [23, 262], [24, 292], [19, 316], [13, 316], [10, 292]], 88],
+  ['l', 'calf', [[8, 362], [12, 374], [18, 382], [26, 382], [31, 368], [33, 374], [29, 394], [24, 402], [18, 402], [11, 392]], 90],
+  ['l', 'calf', [[8, 330], [20, 326], [20, 352], [17, 374], [11, 370], [7, 348]], 90],
+  ['l', 'calf', [[22, 326], [34, 330], [35, 350], [29, 368], [23, 364], [22, 346]], 90],
+]
+
 function smooth(pts, closed = true) {
   const n = pts.length
   let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`
@@ -134,81 +171,136 @@ function smooth(pts, closed = true) {
     const p1 = pts[i]
     const p2 = pts[(i + 1) % n]
     const p3 = pts[(i + 2) % n]
-    const t = 0.18
+    const t = 0.17
     d += ` C${(p1[0] + (p2[0] - p0[0]) * t).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) * t).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) * t).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) * t).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`
   }
   return closed ? `${d}Z` : d
 }
-const CX = 150
-const X = (dx, side) => (side < 0 ? CX - dx : CX + dx)
-const mirror = (pts, side) => pts.map(([dx, y]) => [X(dx, side), y])
-// 몸통처럼 가운데를 지나는 모양: 왼쪽 반 + 오른쪽 반(역순)을 이어 하나로
+const mirror = (pts, side) => pts.map(([x, y]) => [side * x, y])
+// 몸통처럼 가운데를 지나는 모양: 왼쪽 반 + 오른쪽 반(역순)
 const whole = (pts) => [...mirror(pts, -1), ...mirror([...pts].reverse(), 1)]
+
+// 결(섬유) 선: 근육 모양 상자를 덮는 평행선 또는 모이는 점에서 퍼지는 선 - 근육 모양으로 잘라(clipPath) 보인다
+function fibers(pts, fib) {
+  const xs = pts.map((p) => p[0])
+  const ys = pts.map((p) => p[1])
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys)
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
+  const R = Math.hypot(x1 - x0, y1 - y0) / 2 + 2
+  const segs = []
+  if (Array.isArray(fib)) {
+    const [fx, fy] = fib
+    const angs = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([x, y]) => Math.atan2(y - fy, x - fx))
+    let a0 = Math.min(...angs), a1 = Math.max(...angs)
+    if (a1 - a0 > Math.PI) { const t = a0; a0 = a1; a1 = t + 2 * Math.PI }
+    const dist = Math.hypot(cx - fx, cy - fy) || 1
+    const step = 3.2 / dist
+    const L0 = Math.max(0, dist - R), L1 = dist + R
+    for (let a = a0; a <= a1; a += step) segs.push([[fx + Math.cos(a) * L0, fy + Math.sin(a) * L0], [fx + Math.cos(a) * L1, fy + Math.sin(a) * L1]])
+  } else {
+    const r = (fib * Math.PI) / 180
+    const dx = Math.cos(r), dy = Math.sin(r)
+    for (let t = -R; t <= R; t += 3.2) {
+      const px = cx - dy * t, py = cy + dx * t
+      segs.push([[px - dx * R, py - dy * R], [px + dx * R, py + dy * R]])
+    }
+  }
+  return segs
+}
+const segPath = (segs, side) => segs.map(([[a, b], [c, d]]) => `M${(side * a).toFixed(1)} ${b.toFixed(1)}L${(side * c).toFixed(1)} ${d.toFixed(1)}`).join('')
 
 function Head({ P, view }) {
   const [rx, ry] = P.head
-  const cy = 30
+  const cy = 24
+  const face = (
+    <g>
+      {[-1, 1].map((sd) => <ellipse key={sd} cx={sd * (rx - 0.5)} cy={cy + 3} rx={2.6} ry={4.6} fill={C.skin} stroke={C.outline} strokeWidth="0.9" />)}
+      <ellipse cx={0} cy={cy} rx={rx} ry={ry} fill={C.skin} stroke={C.outline} strokeWidth="1.1" />
+    </g>
+  )
   if (!P.f) {
-    // 짧은 머리: 이마 위 모자 모양
     const hair = view === 'front'
-      ? `M${CX - rx - 1} ${cy - 2} Q${CX - rx} ${cy - ry - 5} ${CX} ${cy - ry - 4} Q${CX + rx} ${cy - ry - 5} ${CX + rx + 1} ${cy - 2} Q${CX} ${cy - ry + 3} ${CX - rx - 1} ${cy - 2}Z`
-      : `M${CX - rx - 1} ${cy + 4} Q${CX - rx - 2} ${cy - ry - 5} ${CX} ${cy - ry - 4} Q${CX + rx + 2} ${cy - ry - 5} ${CX + rx + 1} ${cy + 4} Q${CX} ${cy + ry - 2} ${CX - rx - 1} ${cy + 4}Z`
-    return (
-      <g>
-        <ellipse cx={CX} cy={cy} rx={rx} ry={ry} fill={C.skin} />
-        <path d={hair} fill={C.hair} />
-      </g>
-    )
+      ? `M${-rx - 0.5} ${cy - 3} Q${-rx} ${cy - ry - 4} 0 ${cy - ry - 3} Q${rx} ${cy - ry - 4} ${rx + 0.5} ${cy - 3} Q${rx - 3} ${cy - ry + 4} 0 ${cy - ry + 5} Q${-rx + 3} ${cy - ry + 4} ${-rx - 0.5} ${cy - 3}Z`
+      : `M${-rx - 0.5} ${cy + 6} Q${-rx - 1.5} ${cy - ry - 4} 0 ${cy - ry - 3} Q${rx + 1.5} ${cy - ry - 4} ${rx + 0.5} ${cy + 6} Q0 ${cy + ry - 4} ${-rx - 0.5} ${cy + 6}Z`
+    return <g>{face}<path d={hair} fill={C.hair} /></g>
   }
-  // 긴 머리: 앞은 얼굴 양옆으로 어깨까지, 뒤는 머리 전체 + 묶은 머리
   if (view === 'front') {
     return (
       <g>
-        <path d={`M${CX - rx - 4} ${cy - 2} Q${CX - rx - 6} ${cy - ry - 8} ${CX} ${cy - ry - 6} Q${CX + rx + 6} ${cy - ry - 8} ${CX + rx + 4} ${cy - 2} L${CX + rx + 6} ${cy + 34} Q${CX + rx - 2} ${cy + 38} ${CX + rx - 3} ${cy + 22} L${CX - rx + 3} ${cy + 22} Q${CX - rx + 2} ${cy + 38} ${CX - rx - 6} ${cy + 34}Z`} fill={C.hair} />
-        <ellipse cx={CX} cy={cy + 1} rx={rx - 1} ry={ry - 1} fill={C.skin} />
-        <path d={`M${CX - rx} ${cy - 4} Q${CX - 2} ${cy - ry - 4} ${CX + rx} ${cy - 6} Q${CX + rx - 2} ${cy - ry - 6} ${CX} ${cy - ry - 5} Q${CX - rx + 1} ${cy - ry - 4} ${CX - rx} ${cy - 4}Z`} fill={C.hair} />
+        <path d={`M${-rx - 3} ${cy - 2} Q${-rx - 5} ${cy - ry - 7} 0 ${cy - ry - 5} Q${rx + 5} ${cy - ry - 7} ${rx + 3} ${cy - 2} L${rx + 5} ${cy + 32} Q${rx - 2} ${cy + 36} ${rx - 3} ${cy + 20} L${-rx + 3} ${cy + 20} Q${-rx + 2} ${cy + 36} ${-rx - 5} ${cy + 32}Z`} fill={C.hair} />
+        <ellipse cx={0} cy={cy + 1} rx={rx - 1} ry={ry - 1} fill={C.skin} stroke={C.outline} strokeWidth="1" />
+        <path d={`M${-rx} ${cy - 4} Q-2 ${cy - ry - 3} ${rx} ${cy - 6} Q${rx - 2} ${cy - ry - 5} 0 ${cy - ry - 4} Q${-rx + 1} ${cy - ry - 3} ${-rx} ${cy - 4}Z`} fill={C.hair} />
       </g>
     )
   }
   return (
     <g>
-      <path d={`M${CX - 5} ${cy + 10} Q${CX - 9} ${cy + 34} ${CX} ${cy + 46} Q${CX + 9} ${cy + 34} ${CX + 5} ${cy + 10}Z`} fill={C.hair} />
-      <ellipse cx={CX} cy={cy} rx={rx + 1.5} ry={ry + 1} fill={C.hair} />
+      <path d={`M-5 ${cy + 10} Q-9 ${cy + 34} 0 ${cy + 46} Q9 ${cy + 34} 5 ${cy + 10}Z`} fill={C.hair} />
+      <ellipse cx={0} cy={cy} rx={rx + 1.5} ry={ry + 1} fill={C.hair} />
     </g>
   )
 }
 
-function Figure({ view, P, target }) {
-  const sil = silhouette(P)
-  const list = muscles(view, P)
+function Figure({ view, P, target, uid }) {
+  const sil = useMemo(() => {
+    const pl = (key) => SIL[key][1].map(place(P, SIL[key][0]))
+    return { torso: pl('torso'), arm: pl('arm'), hand: pl('hand'), leg: pl('leg'), foot: pl(view === 'front' ? 'footF' : 'footB') }
+  }, [P, view])
+  const list = useMemo(
+    () => (view === 'front' ? FRONT : BACK).map(([reg, id, pts, fib]) => {
+      const f = place(P, reg)
+      const pp = pts.map(f)
+      const ff = Array.isArray(fib) ? f(fib) : fib
+      return { id, pts: pp, fib: fibers(pp, ff) }
+    }),
+    [P, view]
+  )
   const roleOf = (id) => (target?.p.includes(id) ? 'p' : target?.s.includes(id) ? 's' : null)
+  // 살 윤곽: 굵은 선을 먼저 그리고 같은 모양을 선 없이 덮어 바깥 윤곽만 남긴다(조각 이음매가 안 보이게)
+  const skinPieces = [
+    ...[-1, 1].map((sd) => smooth(mirror(sil.arm, sd))),
+    ...[-1, 1].map((sd) => smooth(mirror(sil.hand, sd))),
+    ...[-1, 1].map((sd) => smooth(mirror(sil.leg, sd))),
+    ...[-1, 1].map((sd) => smooth(mirror(sil.foot, sd))),
+    smooth(whole(sil.torso)),
+  ]
+  const breast = P.f && view === 'front'
+    ? [-1, 1].map((sd) => smooth(mirror([[6, 104], [10, 118], [22, 128], [34, 122], [40, 106]].map(place(P, 't')), sd), false))
+    : null
   return (
-    <svg viewBox="66 4 168 394" role="img" aria-label={view === 'front' ? '앞모습' : '뒷모습'} style={{ height: 'min(300px, 62vw)', width: 'auto', display: 'block' }}>
+    <svg viewBox="-84 0 168 434" role="img" aria-label={view === 'front' ? '앞모습' : '뒷모습'} style={{ height: 'min(330px, 70vw)', width: 'auto', display: 'block' }}>
       {view === 'back' && P.f && <Head P={P} view={view} />}
-      {[-1, 1].map((sd) => (
-        <path key={`a${sd}`} d={smooth(mirror(sil.armL, sd))} fill={C.skin} />
-      ))}
-      <path d={smooth(whole(sil.torso))} fill={C.skin} />
-      {[-1, 1].map((sd) => (
-        <path key={`l${sd}`} d={smooth(mirror(sil.leg, sd))} fill={C.skin} />
-      ))}
+      {skinPieces.map((d, i) => <path key={`o${i}`} d={d} fill={C.skin} stroke={C.outline} strokeWidth="2.2" strokeLinejoin="round" />)}
+      {skinPieces.map((d, i) => <path key={`f${i}`} d={d} fill={C.skin} />)}
       {!(view === 'back' && P.f) && <Head P={P} view={view} />}
-      {list.map(([id, pts], i) =>
+      <defs>
+        {list.map((m, i) => [-1, 1].map((sd) => (
+          <clipPath key={`c${i}${sd}`} id={`${uid}${view}${i}${sd < 0 ? 'l' : 'r'}`}>
+            <path d={smooth(mirror(m.pts, sd))} />
+          </clipPath>
+        )))}
+      </defs>
+      {list.map((m, i) =>
         [-1, 1].map((sd) => {
-          const role = roleOf(id)
+          const role = roleOf(m.id)
+          const d = smooth(mirror(m.pts, sd))
           return (
-            <path
-              key={`${i}${sd}`}
-              d={smooth(mirror(pts, sd))}
-              fill={role === 'p' ? C.p : role === 's' ? C.s : C.base}
-              stroke={C.gap}
-              strokeWidth="1.6"
-              strokeLinejoin="round"
-              className={role === 'p' ? 'bt-mm-hot' : undefined}
-            />
+            <g key={`${i}${sd}`} className={role === 'p' ? 'bt-mm-hot' : undefined}>
+              <path d={d} fill={role === 'p' ? C.p : role === 's' ? C.s : C.base} />
+              <path
+                d={segPath(m.fib, sd)}
+                clipPath={`url(#${uid}${view}${i}${sd < 0 ? 'l' : 'r'})`}
+                stroke={role === 'p' ? '#7a2214' : role === 's' ? HOT : INK}
+                strokeOpacity={role === 'p' ? 0.38 : role === 's' ? 0.4 : 0.17}
+                strokeWidth="0.5"
+                fill="none"
+              />
+              <path d={d} fill="none" stroke={role === 'p' ? C.pEdge : role === 's' ? C.sEdge : C.edge} strokeWidth="0.8" strokeLinejoin="round" />
+            </g>
           )
         })
       )}
+      {breast && breast.map((d, i) => <path key={`b${i}`} d={d} fill="none" stroke={C.outline} strokeOpacity="0.7" strokeWidth="1" strokeLinecap="round" />)}
     </svg>
   )
 }
@@ -217,37 +309,45 @@ function Figure({ view, P, target }) {
 function Chips({ title, ids, tone }) {
   if (!ids.length) return null
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-label-neutral)', minWidth: 52 }}>{title}</span>
-      {ids.map((id) => (
-        <span
-          key={id}
-          style={{
-            fontSize: 13,
-            fontWeight: 800,
-            padding: '3px 10px',
-            borderRadius: 'var(--radius-pill)',
-            background: tone === 'p' ? '#c4432c' : C.s,
-            color: tone === 'p' ? '#fff' : 'var(--color-label-strong)',
-          }}
-        >
-          {LABEL[id]}
-        </span>
-      ))}
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-label-neutral)', minWidth: 52, paddingTop: 5, flexShrink: 0 }}>{title}</span>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+        {ids.map((id) => (
+          <span
+            key={id}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'baseline',
+              gap: 5,
+              fontSize: 13,
+              fontWeight: 800,
+              padding: '3px 10px',
+              borderRadius: 'var(--radius-pill)',
+              background: tone === 'p' ? '#c4432c' : C.s,
+              color: tone === 'p' ? '#fff' : 'var(--color-label-strong)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {LABEL[id][0]}
+            <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.82 }}>{LABEL[id][1]}</span>
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
 
 export default function MuscleMap({ name, gender, style }) {
   const target = useMemo(() => muscleTargets(name), [name])
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
+  const P = useMemo(() => body(gender === '여성'), [gender])
   if (!target) return null
-  const P = body(gender === '여성')
   return (
-    <div style={{ background: 'var(--color-bg-card)', border: 'var(--card-border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--card-shadow)', padding: '12px 12px 14px', ...style }}>
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 'min(28px, 5vw)' }}>
+    <div style={{ background: 'var(--color-bg-card)', border: 'var(--card-border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--card-shadow)', padding: '12px 10px 14px', ...style }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 'min(18px, 3vw)' }}>
         {['front', 'back'].map((v) => (
           <div key={v}>
-            <Figure view={v} P={P} target={target} />
+            <Figure view={v} P={P} target={target} uid={`mm${uid}${P.f ? 'f' : 'm'}`} />
             <div style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', marginTop: 2 }}>{v === 'front' ? '앞' : '뒤'}</div>
           </div>
         ))}

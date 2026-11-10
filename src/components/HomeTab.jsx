@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Dumbbell, Moon, ClipboardCheck, X } from 'lucide-react'
+import { Dumbbell, Moon, ClipboardCheck, X, CircleCheck } from 'lucide-react'
 import { Card, Button, useConfirm, Burst, Shine } from './ui'
 import { useMoment } from '../hooks/useMoment'
 import MembershipNotice from './MembershipNotice'
@@ -329,7 +329,7 @@ export default function HomeTab({
               운동중 · 이어서 하기
             </Button>
             <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={onCancelWorkout}>
-              취소
+              운동 취소
             </Button>
           </div>
         ) : !doneToday || showExtraCta ? (
@@ -337,12 +337,13 @@ export default function HomeTab({
             오늘 운동 기록하러 가기
           </Button>
         ) : (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button full disabled style={{ flex: 1 }}>
-              오늘도 득근! 수고하셨습니다!
-            </Button>
+          // [2026-11-10] 누를 수 없는 큰 강조 버튼이 버튼처럼 보이던 것 → 완료 표시 줄 + 버튼 하나
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 800, color: 'var(--color-label-strong)' }}>
+              <CircleCheck size={18} strokeWidth={2} aria-hidden="true" style={{ color: 'var(--color-primary-strong)', flexShrink: 0 }} />오늘 운동 완료 · 수고했어요
+            </span>
             <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setShowExtraCta(true)}>
-              한 세트 더?
+              운동 더 하기
             </Button>
           </div>
         )}
@@ -397,7 +398,7 @@ export default function HomeTab({
         </p>
       )}
       {(weekLogs.length > 0 || liveExercises?.length > 0) && <MuscleSetsCard logs={weekLogs} liveExercises={liveExercises} compact title="이번 주 근육별 세트" />}
-      <PrCard prs={userDoc?.prs} limit={2} title="최근 PR" />
+      <PrCard prs={userDoc?.prs} limit={2} title="최근 신기록" />
 
       {nextPt && (
         <p style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--color-label-normal)', display: 'flex', alignItems: 'center', gap: 8 }}>

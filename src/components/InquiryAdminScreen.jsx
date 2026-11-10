@@ -1,6 +1,6 @@
 // InquiryAdminScreen.jsx
 // [2026-07-31 신규] role === '관리자' 계정에서만 MY탭에 진입점이 보이는 문의 관리 화면(⑩).
-// 전체 사용자 문의를 미답변 우선으로 보여주고, 각 문의에 답변을 입력해 등록할 수 있다.
+// 전체 사용자 문의를 미답변 우선으로 보여 주고, 각 문의에 답변을 입력해 등록할 수 있다.
 // [2026-11-01] 관리자 대시보드 안 '문의' 탭으로도 쓴다(embedded: 대시보드 상태 유지, 이미 읽은 목록 재사용). 답변·삭제 후 전체를 다시 읽지 않고 그 줄만 고친다(A28). 오류 표시(A34).
 import React, { useEffect, useState } from 'react'
 import { Card, Button, ScreenHeader, EmptyState, useConfirm } from './ui'
@@ -134,7 +134,7 @@ export default function InquiryAdminScreen({ onClose, embedded = false, initial 
   const body = (
     <>
       <p className="text-keep-all" style={{ fontSize: 15.5, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
-        답변을 남기면 작성자가 MY탭 &ldquo;문의하기&rdquo; 화면에서 바로 확인할 수 있어요. 답변 안 한 문의 전부와 최근 50건을 보여줘요.
+        답변을 남기면 작성자가 MY탭 &ldquo;문의하기&rdquo; 화면에서 바로 확인할 수 있어요. 답변 안 한 문의 전부와 최근 50건을 보여 줘요.
       </p>
       {error && <p className="text-keep-all" style={{ fontSize: 15.5, color: 'var(--color-danger)', margin: '0 0 12px' }}>{error}</p>}
       {loading ? (

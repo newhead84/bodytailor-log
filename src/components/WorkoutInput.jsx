@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, lazy, Suspense } from 'react'
 import { useBackableScreen } from '../hooks/useBackableScreen'
+import { useRepeatPress } from '../hooks/useRepeatPress'
 import { playSfx } from '../utils/sfx'
 // [2026-11-08] 운동명 누르기 → HOWTO 종목 상세(지연 로드, 코치 프로그램 결과 화면과 같은 방식)
 const ExerciseDetail = lazy(() => import('./HowToTab').then((m) => ({ default: m.ExerciseDetail })))
@@ -416,7 +417,7 @@ function formatClock(totalSeconds) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
-// [2026-07-30 신규] 홈탭에서 "운동중" 상태를 보여주고 실수로 시작한 세션을 취소할 수 있도록,
+// [2026-07-30 신규] 홈탭에서 "운동중" 상태를 보여 주고 실수로 시작한 세션을 취소할 수 있도록,
 // 상위(App.jsx)에서 현재 진행 단계(sessionPhase)를 구독(onSessionPhaseChange)하고
 // ref.cancelSession()으로 세션을 취소할 수 있게 forwardRef + useImperativeHandle을 추가했다.
 const WorkoutInput = forwardRef(function WorkoutInput(
@@ -1441,6 +1442,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     return adjustForToday(suggestNextSet(parseExerciseKey(key).name, lastRecords[key], settingFor(key)), key)
   }
   // [2026-11-10] 맨몸·밴드·버티기 종목 오늘의 플랜(횟수·초) + 오늘 몸 상태(같은 부위 통증·피로·컨디션)면 늘리지 않고 지난번만큼
+  // [2026-11-10] 오늘 몸 상태로 '그대로'일 때도 세트 수는 처방(setTargets 길이)을 따른다
   function bwPlanFor(key) {
     const nm = parseExerciseKey(key).name
     const sug = suggestBodyweight(nm, lastRecords[key], settingFor(key))
@@ -1448,7 +1450,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     const { level, why } = sessionAdjustLevel(sessionStrain(nm, othersSaved(records, key)), condition)
     if (level && sug.kind !== 'hold' && sug.kind !== 'comeback') {
       const t = why === 'pain' || why === 'pain-strong' ? '같은 부위를 쓰는 운동에서 통증이 있었어요' : why === 'fatigue' ? '같은 부위가 많이 지쳤어요' : '컨디션이 나빠요'
-      return { ...sug, kind: 'hold', harderTo: null, setTargets: sug.lastReps.map((r) => Math.max(1, Math.min(r, sug.repRange[1]))), reason: `오늘 ${t} → 늘리지 말고 지난번만큼, 자세 좋게${why === 'pain-strong' ? '. 이 종목도 아프면 쉬어요' : ''}` }
+      return { ...sug, kind: 'hold', harderTo: null, setTargets: sug.setTargets.map((_, i) => Math.max(1, Math.min(sug.lastReps[i] ?? sug.repRange[0], sug.repRange[1]))), reason: `오늘 ${t} → 늘리지 말고 지난번만큼, 자세 좋게${why === 'pain-strong' ? '. 이 종목도 아프면 쉬어요' : ''}` }
     }
     return sug
   }
@@ -2293,12 +2295,10 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             whiteSpace: 'pre-line',
           }}
         >
-          내 루틴은 자주 하는 운동 종목을 부위별로 묶어 미리 저장해 두는 나만의 운동 조합이에요.
+          {/* [2026-11-10] 네 문장 → 두 줄(읽는 피로) */}
+          자주 하는 운동을 부위별로 묶어 두면 기록할 때 바로 불러와요.
           {'\n'}
-          한 번 만들어 두면 기록탭에서 매번 종목을 처음부터 고르지 않고 저장된 순서 그대로 빠르게 기록할 수 있고,
-          운동을 완료할 때마다 실제로 수행한 순서가 자동으로 반영돼 다음에도 그 순서로 이어져요.
-          {'\n'}
-          아래 버튼을 눌러 첫 루틴을 만들어 보세요(무분할·2분할·3분할 같은 분할 템플릿 중에서 골라 바로 시작할 수 있어요).
+          무분할·2분할·3분할 예시에서 골라 바로 시작할 수 있어요.
         </p>
         <Button onClick={() => onGoToRoutineSetup?.()}>내 루틴 만들기</Button>
       </div>
@@ -2339,36 +2339,16 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           elapsedSeconds/isPaused/handleAdjustElapsed/handleResetElapsed/handlePauseToggle는
           여전히 draft 저장·자동재개 등 다른 로직에서 쓰이므로 그대로 둔다. */}
 
-      {showGuideHint && sessionPhase !== 'idle' && (
+      {/* [2026-11-10] 운동 전 큰 안내 카드(3문장, 예전 동작 설명)를 없애고 이 한 줄로 통일 */}
+      {showGuideHint && (
         // [2026-10-29] 운동 중에는 가이드 안내를 한 줄로(카드가 화면 1/4을 차지하던 문제)
         <div className="text-keep-all" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary-bg)', fontSize: 12.5, color: 'var(--color-label-normal)' }}>
           <Info size={15} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--color-primary-strong)' }} />
-          <span style={{ flex: 1, minWidth: 0 }}>종목명을 길게 누르면 동작 가이드가 열려요.</span>
+          <span style={{ flex: 1, minWidth: 0 }}>종목명을 누르면 동작 가이드가 열려요.</span>
           <button type="button" onClick={handleDismissGuideHint} disabled={dismissingGuideHint} style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: 'var(--color-label-neutral)', padding: '4px 2px' }}>
             다시 보지 않기
           </button>
         </div>
-      )}
-      {showGuideHint && sessionPhase === 'idle' && (
-        <Card
-          style={{
-            marginBottom: 14,
-            background: 'var(--color-primary-bg)',
-            border: '1px solid var(--color-primary-normal)',
-          }}
-        >
-          <p className="text-keep-all" style={{ margin: '0 0 6px', fontWeight: 700, fontSize: 14, color: 'var(--color-label-strong)' }}>
-            동작 가이드 보는 법
-          </p>
-          <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.5, color: 'var(--color-label-neutral)' }}>
-            종목 카드의 종목명을 길게 누르면 동작 설명(자세·핵심 포인트·흔한 실수)을 볼 수 있어요. 다시 길게
-            누르거나, 짧게 탭하거나, 카드 밖을 눌러 닫을 수 있어요. 종목을 새로 고르는
-            화면에서는 종목명 옆 ⓘ 버튼을 눌러 같은 가이드를 볼 수 있어요.
-          </p>
-          <Button variant="ghost" onClick={handleDismissGuideHint} disabled={dismissingGuideHint} style={{ fontSize: 13, padding: '8px 14px' }}>
-            {dismissingGuideHint ? '처리 중…' : '다시 보지 않기'}
-          </Button>
-        </Card>
       )}
 
       {sessionPhase !== 'idle' && (
@@ -2390,7 +2370,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       {(sessionPhase === 'idle' || sessionHeaderOpen) && (<>
       {/* 운동방식: 내 루틴(최대 8개) 중 선택 / 자유 추가 운동 */}
       {/* [2026-11-10] 이름표와 칩이 한 줄에 섞여 칩 하나만 다음 줄로 넘어가던 것 → 이름표는 위, 칩은 가로로 넘겨 보기(아래 파트 줄과 같은 방식) */}
-      <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-label-neutral)', marginBottom: 6 }}>운동방식 선택</span>
+      <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-label-neutral)', marginBottom: 6 }}>오늘 할 루틴</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, overflowX: 'auto', paddingBottom: 2 }}>
         {templates.map((t) => (
           <Chip
@@ -2455,7 +2435,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         <>
           <Card style={{ textAlign: 'center', padding: 24 }}>
             <p className="text-keep-all" style={{ margin: 0, fontSize: 14, color: 'var(--color-label-normal)' }}>
-              아래 버튼을 누르면 바로 웜업이 시작돼요. 준비가 되면 언제든 "본운동 시작"으로 넘어갈 수 있어요.
+              "운동 시작"을 누르면 웜업부터 시작해요.
             </p>
           {comeback && (
             <p className="text-keep-all" role="status" style={{ margin: '12px 0 0', padding: '8px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg)', fontSize: 12.5, color: 'var(--color-label-strong)', textAlign: 'left' }}>
@@ -2501,7 +2481,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             {formatClock(elapsedSeconds)}
           </p>
           <p className="text-keep-all" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-            준비가 됐다면 시간에 상관없이 바로 본운동을 시작할 수 있어요.
+            준비되면 언제든 본운동으로 넘어가요.
           </p>
           {/* [2026-11-09] 운동 시작 전 컨디션(건너뛰기 가능) - 나쁨이면 오늘 플랜은 올리지 않고 지난번만큼 */}
           <div style={{ marginTop: 16, textAlign: 'left' }}>
@@ -2667,7 +2647,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                   )
                 })}
                 <button onClick={() => setAddingExercise(false)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                  취소
+                  닫기
                 </button>
               </Card>
             )
@@ -2711,7 +2691,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 ))}
               </div>
               <button onClick={() => setAddingFreeExercise(false)} style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                취소
+                닫기
               </button>
             </Card>
           )}
@@ -2764,7 +2744,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         {sessionPhase === 'warmup' && (
           <>
             <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={handleCancelSession}>
-              취소
+              운동 취소
             </Button>
             <Button style={{ flex: 1 }} onClick={handleStartMain}>
               본운동 시작
@@ -2774,7 +2754,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         {sessionPhase === 'main' && (
           <>
             <Button variant="secondary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={handleCancelSession}>
-              취소
+              운동 취소
             </Button>
             <div style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0, whiteSpace: 'nowrap' }}>
               오늘 볼륨
@@ -2783,7 +2763,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
               </div>
             </div>
             <Button style={{ flex: 1, minWidth: 0 }} disabled={!hasAnyRecord || saving} onClick={handleFinishWorkout}>
-              {saving ? '저장 중…' : sessionType === 'extra' ? '자유 운동 기록 완료' : '오늘 운동 완료'}
+              {saving ? '저장 중…' : sessionType === 'extra' ? '자유 운동 완료' : '운동 완료'}
             </Button>
           </>
         )}
@@ -3529,7 +3509,7 @@ export function ExerciseCard({
                     )}
                   </span>
                 )}
-                <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
+                <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)', whiteSpace: 'pre-line' }}>
                   {ext.setTip.reason}
                 </span>
               </div>
@@ -3709,29 +3689,7 @@ export function ExerciseCard({
 
 // [2026-10-29 신규, 유산소 기록 개선] "타이머로 기록": 체크하지 않은 첫 유산소 줄에 타이머를 붙여 큰 경과 시간으로 보여 주고,
 // 종료(또는 세트 저장)하면 시간(분) 칸을 채운다. 타이머 상태는 세트 행(cardioTimer)에 있어 새로고침해도 이어진다.
-// [2026-11-08] 누르고 있으면 반복(처음 0.45초 뒤부터 0.15초마다) - 유산소 타이머 ±1분
-function useRepeatPress(fn) {
-  const fnRef = useRef(fn)
-  fnRef.current = fn
-  const timers = useRef([])
-  const stop = () => {
-    timers.current.forEach((x) => clearTimeout(x) || clearInterval(x))
-    timers.current = []
-  }
-  useEffect(() => stop, [])
-  return {
-    onPointerDown: (e) => {
-      e.preventDefault()
-      stop()
-      fnRef.current()
-      timers.current.push(setTimeout(() => timers.current.push(setInterval(() => fnRef.current(), 150)), 450))
-    },
-    onPointerUp: stop,
-    onPointerLeave: stop,
-    onPointerCancel: stop,
-    onContextMenu: (e) => e.preventDefault(),
-  }
-}
+// [2026-11-10] 누르고 있으면 반복·가속은 hooks/useRepeatPress(유산소 ±1분·세트 칸 ±·상단 운동 시간 ±)
 
 function CardioTimerPanel({ sets, onFieldChange }) {
   const idx = sets.findIndex((st) => !st.saved)
@@ -3856,7 +3814,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
 
   const buttons = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: isCardio ? 0 : 'auto', flexShrink: 0 }}>
-      <IconButton title={set.saved ? '저장됨' : '세트 저장'} onClick={onSave} disabled={set.saved} tone="save">
+      <IconButton title={set.saved ? '완료됨' : '세트 완료'} onClick={onSave} disabled={set.saved} tone="save">
         <path d="M5 12l5 5L19 7" />
       </IconButton>
       <IconButton title="세트 추가(직전 값 복사)" onClick={onCopy}>
@@ -3927,7 +3885,7 @@ function SetRow({ set, inputType, exName, weightStep, setIndex, onCycleType, onC
         {rirEnabled && !isHoldExercise(exName) && <RirChip rir={set.rir} onClick={onCycleRir} guideKey={guide ? 'rir' : undefined} />}
         {/* [2026-11-08 순간 강조] 세트를 저장한 순간 체크 둘레로 작은 불꽃 */}
         <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <IconButton guideKey={guide ? 'set-save' : undefined} title={done ? '저장됨' : '세트 저장'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-punch' : ''}>
+          <IconButton guideKey={guide ? 'set-save' : undefined} title={done ? '완료됨' : '세트 완료'} onClick={onSave} disabled={done} tone={done ? 'done' : 'save'} className={justSaved ? 'bt-punch' : ''}>
             <path d="M5 12l5 5L19 7" />
           </IconButton>
           {/* [2026-11-08] 완료 효과 강화 A: 불꽃 크게 + '+1세트' 글자(웜업은 글자 없이) */}
@@ -3986,6 +3944,16 @@ function IconButton({ children, onClick, title, muted, disabled, tone, className
 const STEP_BTN_STYLE = { color: 'var(--color-label-normal)', fontSize: 18, lineHeight: 1, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }
 // [2026-11-01] integer: 횟수 칸은 소수점 없는 숫자 키패드(전체 점검 U16)
 function Stepper({ value, onChange, step, placeholder, width = 52, fluid = false, grow = 1, minInput = 24, integer = false }) {
+  // [2026-11-10] ± 누르고 있으면 반복(점점 빠르게)
+  const valRef = useRef(value)
+  valRef.current = value
+  const bump = (d) => {
+    const next = String(Math.max(0, Math.round(((Number(valRef.current) || 0) + d) * 100) / 100))
+    valRef.current = next
+    onChange(next)
+  }
+  const minusPress = useRepeatPress(() => bump(-step))
+  const plusPress = useRepeatPress(() => bump(step))
   const btn = fluid
     ? { ...STEP_BTN_STYLE, flex: '1 1 0', minWidth: 24, maxWidth: 40, height: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }
     : { ...STEP_BTN_STYLE, padding: '8px 5px', fontSize: 16 }
@@ -3993,7 +3961,7 @@ function Stepper({ value, onChange, step, placeholder, width = 52, fluid = false
     <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-sm)', ...(fluid ? { flex: `${grow} 1 0`, minWidth: 0 } : { flexShrink: 0 }) }}>
       <button
         type="button"
-        onClick={() => onChange(String(Math.max(0, Math.round(((Number(value) || 0) - step) * 100) / 100)))}
+        {...minusPress}
         aria-label="줄이기"
         style={btn}
       >
@@ -4020,7 +3988,7 @@ function Stepper({ value, onChange, step, placeholder, width = 52, fluid = false
       />
       <button
         type="button"
-        onClick={() => onChange(String(Math.round(((Number(value) || 0) + step) * 100) / 100))}
+        {...plusPress}
         aria-label="늘리기"
         style={btn}
       >

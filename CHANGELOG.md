@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-10] 전면 재검토 반영: ± 누르고 있으면 빠르게(운동 시간 10초→30초→1분, 세트 무게·횟수, 포커스형 큰 ±), HOWTO 근육 그림 해부도 방식으로 다시 그림(근육 결·경계선·어깨 앞·옆·뒤, 가슴 위·아래, 승모근 위·가운데, 회전근개·대원근·장요근 분리, 칩에 해부학 이름), REPORT 읽기 실패 시 다시 시도, 트레이너 랭킹 제외, PT 완료·노쇼 설정·회원 정보 못 읽으면 차감 없이 완료되던 문제, 맨몸 플랜 '그대로'일 때 처방 세트 수, 문구 정리(세트 완료·루틴 관리·오늘 할 루틴·운동 취소·운동 완료·신기록·휴식 알림음·타이머 바·코치 한마디 RIR 표기 빼기·통증 안내 줄이기·띄어쓰기), HOME 완료 상태 버튼 정리, NOTE·HOWTO 안내 한 줄, 동의 화면 보관 기간·트레이너 공개 범위 문구, 관리자 승인 창 문구, 처리방침 개정일, 홍보 FAQ 줄이기·컨디션·통증 FAQ | src/hooks/useRepeatPress.js, GlobalTimerBar.jsx, SetEditors.jsx BigStep, WorkoutInput.jsx Stepper·bwPlanFor·문구, MuscleMap.jsx, ReportTab.jsx, HomePtCards.jsx, TraineesScreen.jsx PT 카드, HomeTab.jsx, HowToTab.jsx·howtoText.js, MyPageTab.jsx, ConsentScreen.jsx, AdminDashboard.jsx, strength.js·sessionCoach.js·achievements.js 문구, public/privacy, public/intro
+
 [2026-11-10] 맨몸·밴드·버티기 종목 로그 코치(사용자 신고: 코어 운동 코칭 없음): 횟수·초 이중 진행, 상한 도달 시 어렵게 바꾸기(천천히·한 단계 위 종목 보기), 통증·자세 그대로, 21일+ 다시 시작, 처방 세트 수, 같은 날 몸 상태 반영, 운동 중 코치 한마디·방금 세트 칩, '내 프로그램' 줄 중복 숨김, 코어 맨몸·밴드 목표 12–20회·데드행 20–45초 | src/utils/strength.js suggestBodyweight·adviseBodyweightSet·BODYWEIGHT_HARDER·getRepRange, src/components/WorkoutInput.jsx BodyweightPlanCard·bwPlanFor·applyBwPlan, CLAUDE.md 7.3
 
 [2026-11-10] 휴식 끝 10초 전 알림(사용자 요청): 짧은 '띡'(1320Hz) + 짧은 진동 한 번, 소리 크기·진동 세기 설정 따름, 휴식 20초 이하·5초 넘게 늦으면 생략, 폰 알림창 없음 | src/components/RestTimer.jsx playPreAlert·PRE_ALERT_SEC

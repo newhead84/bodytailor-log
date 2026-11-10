@@ -6,6 +6,7 @@
 //  - PlatePanel: 바벨 원판 계산(한쪽 기준, 20kg 봉).
 //  - ExerciseSettingEditor: 종목별 목표 반복 범위·휴식 시간 설정.
 import React, { useRef } from 'react'
+import { useRepeatPress } from '../hooks/useRepeatPress'
 import { SET_TYPES, SET_TYPE_LABEL, SET_TYPE_SHORT, SET_TYPE_DESC, platesPerSide } from '../utils/strength'
 
 const TYPE_COLOR = {
@@ -136,11 +137,13 @@ export function RirChip({ rir, onClick, guideKey }) {
   )
 }
 
+// [2026-11-10] 누르고 있으면 반복(useRepeatPress)
 function BigStep({ label, onClick }) {
+  const press = useRepeatPress(() => onClick())
   return (
     <button
       type="button"
-      onClick={onClick}
+      {...press}
       className="bt-num"
       style={{
         flex: 1,
@@ -492,7 +495,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, histo
         증량 폭은 기구에 맞춰 자동으로 정해져요(덤벨 2kg·머신 5kg·바벨 2.5kg). 로그 코치 강도는 MY › 설정에서 한 번에 바꿔요.
       </span>
       <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
-        보통 강도에서는 첫 세트가 상한을, 나머지 세트가 하한 이상을 채우거나 총 반복이 상한×세트 수의 90% 이상이면 다음 운동에서 올리기를 추천해요. 그 전까지는 최근 평균보다 세트마다 1회씩 늘리는 목표를 보여줘요. 기본값은 MY 프로필의 운동 목표에 맞춰져요.
+        보통 강도에서는 첫 세트가 상한을, 나머지 세트가 하한 이상을 채우거나 총 반복이 상한×세트 수의 90% 이상이면 다음 운동에서 올리기를 추천해요. 그 전까지는 최근 평균보다 세트마다 1회씩 늘리는 목표를 보여 줘요. 기본값은 MY 프로필의 운동 목표에 맞춰져요.
       </span>
       {/* [2026-10-30 추천 고도화] 최근 추천과 실제 결과(현재 설정 기준으로 다시 계산) */}
       {history.length > 0 && (

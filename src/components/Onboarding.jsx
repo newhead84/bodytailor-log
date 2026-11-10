@@ -44,10 +44,10 @@ function writeProgress(step, form) {
 }
 
 const STEP_TITLES = {
-  member: '바디테일러 회원 정보를 알려주세요',
+  member: '바디테일러 회원 정보를 알려 주세요',
   nickname: '앱에서 쓸 닉네임을 정해 주세요',
   days: '일주일에 며칠 운동할 계획인가요?',
-  gender: '성별을 알려주세요',
+  gender: '성별을 알려 주세요',
   age: '나이가 어떻게 되세요?',
   weight: '몸무게가 어떻게 되세요?',
   height: '키가 어떻게 되세요?',

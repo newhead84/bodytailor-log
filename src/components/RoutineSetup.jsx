@@ -284,7 +284,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
 // 따른다. 종목 Chip은 (2026-08-02에 전면 삭제됐던) 롱프레스 동작 가이드 토글을 다시 붙였다
 // (ExerciseGuideToggle, 짧게 재탭하면 선택 상태 변화 없이 닫힘 - 상세는 해당 파일 주석 참고).
 // [2026-10-29 개편] 파트마다 70여 개 종목 칩이 한꺼번에 펼쳐져 고르기 어렵다는 점검 결과로,
-// 부위별로 "고른 종목"만 먼저 보여주고 나머지는 "+ 종목 더 보기"로 접어 두며, 파트 상단에 검색칸을 둔다.
+// 부위별로 "고른 종목"만 먼저 보여 주고 나머지는 "+ 종목 더 보기"로 접어 두며, 파트 상단에 검색칸을 둔다.
 // 검색어가 있으면 모든 부위에서 이름이 맞는 종목만 펼쳐 보여준다.
 function PartEditor({ part, customExercises, onToggle, onRemovePart, onEditAtoms }) {
   const atoms = getAtomsForPart(part)

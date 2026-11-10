@@ -202,11 +202,11 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
     const takenBy = m?.roster.linkedUid && m.roster.linkedUid !== u.uid ? (users || []).find((x) => x.uid === m.roster.linkedUid) : null
     if (!silent) {
       if (m && !m.nameOk) {
-        link = await confirm(`신청 이름(${u.signupInfo?.name})과 명단 이름(${m.roster.name})이 달라요. 명단과 연결해서 승인할까요? (취소하면 연결 없이 승인)`, { okLabel: '연결해서 승인', cancelLabel: '연결 없이 승인', dismissValue: null })
+        link = await confirm(`신청 이름(${u.signupInfo?.name})과 명단 이름(${m.roster.name})이 달라요. 명단과 연결해서 승인할까요?`, { okLabel: '연결해서 승인', cancelLabel: '연결 없이 승인', dismissValue: null })
         if (link == null) return // [2026-11-08] A-1: 창을 닫기만 하면 승인하지 않는다(예전엔 '연결 없이 승인'으로 처리됨)
       } else if (!(await confirm(`${memberName(u)}님을 ${re ? `다시 승인할까요? (지금: ${MEMBER_STATUS[prevStatus]})` : '승인할까요?'}`, { okLabel: re ? '다시 승인' : '승인', cancelLabel: '취소' }))) return
       if (link && takenBy) {
-        link = await confirm(`이 명단은 이미 ${memberName(takenBy)}님 계정과 연결돼 있어요. ${memberName(u)}님 계정으로 연결을 옮길까요? (취소하면 연결 없이 승인)`, { okLabel: '연결 옮기기', cancelLabel: '연결 없이 승인', dismissValue: null })
+        link = await confirm(`이 명단은 이미 ${memberName(takenBy)}님 계정과 연결돼 있어요. ${memberName(u)}님 계정으로 연결을 옮길까요?`, { okLabel: '연결 옮기기', cancelLabel: '연결 없이 승인', dismissValue: null })
         if (link == null) return
       }
     } else if (takenBy) link = false // 일괄 승인: 이미 연결된 명단은 건드리지 않는다

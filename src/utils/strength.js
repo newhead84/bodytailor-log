@@ -429,7 +429,7 @@ function suggestByLastSession(name, lastRecord, setting) {
         weight: topW,
         reps: repMax,
         kind: 'hold',
-        reason: `상한 ${repMax}회는 달성했지만 한계(RIR 0)까지 갔어요 → 같은 무게로 한 번 더, 여유가 생기면 증량`,
+        reason: `상한 ${repMax}회는 채웠지만 한계까지 갔어요 → 같은 무게로 한 번 더. 여유가 생기면 올려요`,
       }
     }
     let w = harder(topW)
@@ -784,7 +784,7 @@ function adviseAfterSetRaw(name, set, setting, ctx = {}) {
     return {
       ...(down ? { weight: nw } : {}),
       kind: down ? 'down' : 'info',
-      reason: `한계(실패)까지 갔어요 → 다음 세트는 한 개 남기고 끝내요(RIR 1)${down ? `, 무게는 ${loadWith(name, nw)}` : ''} · 휴식은 30초 더 쉬어요${down || !partialOk ? '' : ' · 마지막 세트라면 내려간 자리에서 반만 2~4개 더 해도 좋아요(머신·고립 종목, 최근 연구)'}`,
+      reason: `한계까지 갔어요 → 다음 세트는 1개 남기고 끝내요${down ? `, 무게는 ${loadWith(name, nw)}` : ''} · 휴식 30초 더${down || !partialOk ? '' : '\n마지막 세트라면 내려간 자리에서 반만 2~4개 더 해도 좋아요'}`,
     }
   }
   // 피로 감지(같은 무게 첫 세트 대비)

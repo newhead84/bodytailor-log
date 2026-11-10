@@ -6,7 +6,7 @@
 // guide: { level, setup?: string[], start: string[], move: string[], breath, keyPoints: [{ cue, feel }], mistakes: [{ what, why, fix }], cautions?: string[], alternatives?: string[] }
 
 // [2026-10-31] 나머지 106종목(exerciseGuidesMore.js, 약 160KB)은 메인 번들에서 빼고 처음 필요할 때 불러온다.
-// 불러오기 전에는 getExerciseGuide가 null을 돌려주고, useGuideOverrides()를 쓰는 화면은 불러온 뒤 다시 그려진다.
+// 불러오기 전에는 getExerciseGuide가 null을 돌려 주고, useGuideOverrides()를 쓰는 화면은 불러온 뒤 다시 그려진다.
 let MORE_GUIDES = null
 let moreLoading = null
 export function loadMoreGuides() {
