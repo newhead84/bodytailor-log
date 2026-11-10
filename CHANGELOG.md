@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-10] 보강 종목 3개 추가: 케이블외회전(유지형 - 무게보다 천천히, 18회까지 쌓고 올리기)·밴드풀어파트·버드독(라이브러리·설명·가이드·기구 태그), 유지형 안내 문구 '당긴 자리' → '끝 자리' | src/utils/exerciseLibrary.js, src/utils/exerciseGuidesMore.js, src/utils/strength.js QUALITY_EXERCISES·ISOLATION_EXERCISES, CLAUDE.md 7.3
+
 [2026-11-10] 같은 종목 통증 반복 감지: 최근 3번 중 2번 이상 통증을 표시한 종목은 올리지 않고 약 10% 가볍게·지난번 횟수까지, 플랜 카드에 '계속 아프면 트레이너와 상의하거나 대신 할 운동으로' + 대신 할 운동 보기(주간 세트 채우기 없음) | src/utils/strength.js suggestNextSetRaw, src/utils/sessionCoach.js lastIssueNote, src/components/WorkoutInput.jsx, CLAUDE.md 7.3
 
 [2026-11-10] 관리자 A-4: 트레이너 변경·연결 해제·트레이너 역할 변경 때 이전 트레이너와의 오늘 이후 '예정' PT 처리(변경 = 옮기기/지우기 묻기, 창만 닫으면 중단 · 해제·역할 변경 = 함께 삭제 · 일괄 연결 = 새 트레이너로 옮김, 같은 일괄 쓰기·관리 이력에 건수) | src/storage.js adminFutureSchedules·adminConnect·endConnection·adminEndTrainerAndSetRole, src/components/AdminDashboard.jsx

@@ -257,6 +257,8 @@ export const ISOLATION_EXERCISES = [
   '리어델트펙덱',
   '벤트오버덤벨레이즈',
   '케이블페이스풀',
+  '케이블외회전',
+  '밴드풀어파트',
   '바벨업라이트로우',
   '케이블업라이트로우',
   'JM프레스',
@@ -315,7 +317,8 @@ function roundTo(v, step) {
 //    목표 상한보다 3회 더 쌓은 뒤 올린다(미국스포츠의학회 2009: 목표보다 1–2회 더 하면 2–10% 증량 - 그보다 큰 한 칸은 횟수로 메운다).
 //  - 'quality' 유지형: 어깨 뒤·회전근 보강(페이스풀)은 무게보다 동작 품질 - 횟수 우선형 + 천천히 하기 안내.
 // 트레이너 처방 종목은 처방 범위를 그대로 쓴다(트레이너 처방 > 로그 코치).
-export const QUALITY_EXERCISES = ['케이블페이스풀', '페이스풀']
+// [2026-11-10] 케이블외회전 추가(회전근개 보강 - 무게보다 천천히·정확히). 밴드·맨몸 종목(밴드외회전·밴드풀어파트·버드독·데드버그)은 무게가 없어 처음부터 증량 제안이 없다
+export const QUALITY_EXERCISES = ['케이블페이스풀', '페이스풀', '케이블외회전']
 export const BIG_JUMP_RATIO = 0.12
 export const BIG_JUMP_EXTRA_REPS = 3
 export function progressionStyle(name, setting = null, w = null) {
@@ -339,7 +342,7 @@ export function progressionStyleNote(name, setting, w) {
   const inc = getProgressionIncrement(name, setting)
   const pct = Math.round((inc / Math.max(1, effectiveLoad(name, Number(w)))) * 100)
   if (style === 'quality') {
-    return `이 운동은 무게보다 동작이 먼저예요 → 당긴 자리에서 1초 멈추고 천천히 돌아와요 · ${repMax + BIG_JUMP_EXTRA_REPS}회까지 쌓고 올려요`
+    return `이 운동은 무게보다 동작이 먼저예요 → 끝 자리에서 1초 멈추고 천천히 돌아와요 · ${repMax + BIG_JUMP_EXTRA_REPS}회까지 쌓고 올려요`
   }
   return `무게 한 칸(+${fmtW(inc)}kg)이 지금 무게의 ${pct}%라 커요 → ${repMax}회에서 ${repMax + BIG_JUMP_EXTRA_REPS}회까지 횟수를 먼저 쌓고 올려요`
 }
