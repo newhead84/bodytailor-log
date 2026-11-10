@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-10] 맨몸·밴드·버티기 종목 로그 코치(사용자 신고: 코어 운동 코칭 없음): 횟수·초 이중 진행, 상한 도달 시 어렵게 바꾸기(천천히·한 단계 위 종목 보기), 통증·자세 그대로, 21일+ 다시 시작, 처방 세트 수, 같은 날 몸 상태 반영, 운동 중 코치 한마디·방금 세트 칩, '내 프로그램' 줄 중복 숨김, 코어 맨몸·밴드 목표 12–20회·데드행 20–45초 | src/utils/strength.js suggestBodyweight·adviseBodyweightSet·BODYWEIGHT_HARDER·getRepRange, src/components/WorkoutInput.jsx BodyweightPlanCard·bwPlanFor·applyBwPlan, CLAUDE.md 7.3
+
 [2026-11-10] 휴식 끝 10초 전 알림(사용자 요청): 짧은 '띡'(1320Hz) + 짧은 진동 한 번, 소리 크기·진동 세기 설정 따름, 휴식 20초 이하·5초 넘게 늦으면 생략, 폰 알림창 없음 | src/components/RestTimer.jsx playPreAlert·PRE_ALERT_SEC
 
 [2026-11-10] 오늘 몸 상태: 통증은 방향 있게(통증 난 종목의 주동 부위를 지금 종목이 쓸 때만, 가슴 통증 → 삼두 고립 X), 피로는 그대로 양쪽, 문구는 신호 난 종목 이름으로('삼두 쪽에 통증'처럼 사실과 다르던 것) | src/utils/sessionCoach.js sessionStrain·loadsSource·applySessionAdjust

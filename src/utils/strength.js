@@ -282,7 +282,10 @@ export function getRepRange(name, setting) {
   const rx = getProgramRx(name, setting)
   if (rx && Number(rx.repMin) > 0 && Number(rx.repMax) >= Number(rx.repMin)) return [Number(rx.repMin), Number(rx.repMax)]
   // [2026-11-07] 무게를 드는 버티기(파머스캐리)는 초 단위 목표
+  // [2026-11-10] 맨몸 코칭: 데드행은 20–45초, 무게 없는 코어·밴드 종목은 12–20회
+  if (name === '데드행') return [20, 45]
   if (isHoldExercise(name)) return [30, 60]
+  if (getExerciseInputType(name) === 'reps' && (getExerciseAtom(name) === '코어' || EXERCISE_META[name]?.equipment === 'band')) return [12, 20]
   const pr = getTrainingProfile()
   return isCompoundExercise(name) ? [pr.compound.repMin, pr.compound.repMax] : [pr.iso.repMin, pr.iso.repMax]
 }
@@ -1078,4 +1081,112 @@ export function lowerBodyLoadSets(logs) {
     })
   )
   return n
+}
+
+// ---------------------------------------------------------------------------
+// [2026-11-10] 맨몸·밴드·버티기 종목 로그 코치(사용자 신고: 코어 운동은 코칭이 없음 - 무게 없는 종목 전체에 없었다).
+// 무게 대신 횟수(버티기는 초)로 이중 진행: 세트마다 지난번 +1회(버티기 +5초)씩, 모든 세트가 목표 상한에 닿으면
+// '어렵게 바꾸기'(천천히 하기 또는 한 단계 어려운 종목). 같은 세션 통증·피로 조정은 WorkoutInput이 sessionStrain으로 더한다.
+export const BODYWEIGHT_HARDER = {
+  인클라인푸시업: '푸시업',
+  푸시업: '다이아몬드푸시업',
+  어시스트풀업: '풀업',
+  풀업: '웨이티드(중량) 풀업',
+  어시스트친업: '친업',
+  친업: '웨이티드(중량) 풀업',
+  벤치딥스: '체스트딥스',
+  체스트딥스: '웨이티드(중량) 딥스',
+  크런치: '디클라인싯업',
+  캡틴스체어레그레이즈: '행잉레그레이즈',
+  플랭크: '사이드플랭크',
+  사이드플랭크: '앱롤아웃',
+  데드버그: '버드독',
+  버드독: '팔로프프레스',
+}
+// 받침 있으면 '으로'(ㄹ 받침은 '로'), 없으면 '로'
+function roParticle(word) {
+  const c = String(word).replace(/[^가-힣]+$/, '').slice(-1).charCodeAt(0) - 0xac00
+  if (!(c >= 0 && c <= 11171)) return '로'
+  const jong = c % 28
+  return jong === 0 || jong === 8 ? '로' : '으로'
+}
+export function isBodyweightCoached(name) {
+  return getExerciseInputType(name) === 'reps'
+}
+export function suggestBodyweight(name, lastRecord, setting, opts = {}) {
+  const res = suggestBodyweightRaw(name, lastRecord, setting, opts)
+  if (!res) return res
+  // [2026-11-10] 세트 수: 트레이너 처방·코치 프로그램이 정했으면 그 수(늘어난 세트는 목표 하한), 없으면 지난번 세트 수
+  const rx = getProgramRx(name, setting)
+  const n = rx && Number(rx.sets) >= 1 ? Math.min(8, Math.round(Number(rx.sets))) : res.setTargets.length
+  const t = res.setTargets.slice(0, n)
+  while (t.length < n) t.push(res.repRange[0])
+  return { ...res, setTargets: t }
+}
+function suggestBodyweightRaw(name, lastRecord, setting, opts = {}) {
+  if (!isBodyweightCoached(name) || !lastRecord?.sets?.length) return null
+  const hold = isHoldExercise(name)
+  const unit = hold ? '초' : '회'
+  const step = hold ? 5 : 1
+  const working = lastRecord.sets.filter((st) => !isWarmupSet(st) && Number(st.reps) > 0)
+  if (!working.length) return null
+  const last = working.map((st) => Number(st.reps))
+  const [repMin, repMax] = getRepRange(name, setting)
+  const issue = working.some(setHadIssue)
+  const harderTo = BODYWEIGHT_HARDER[name] || null
+  const base = { lastReps: last, unit, repRange: [repMin, repMax], bodyweight: true }
+  // [2026-11-10] 오래 쉬었다 돌아오면 무게 종목과 같은 단계: 21–27일 지난번만큼, 28–55일 세트마다 2회(버티기 10초) 덜, 56일 이상 세트 1개 덜 + 목표 하한부터
+  const gap = lastRecord.date ? daysBetween(lastRecord.date, opts.today || todayStr()) : 0
+  if (gap >= 21) {
+    const less = hold ? 10 : 2
+    const targets =
+      gap >= 56
+        ? last.slice(0, Math.max(1, last.length - 1)).map(() => repMin)
+        : gap >= 28
+        ? last.map((r) => Math.max(1, Math.min(repMax, r - less)))
+        : last.map((r) => Math.max(1, Math.min(repMax, r)))
+    return {
+      ...base,
+      kind: 'comeback',
+      setTargets: targets,
+      reason: `${gap}일 만이에요 → ${gap >= 56 ? `세트 하나 덜, 목표 하한 ${repMin}${unit}부터` : gap >= 28 ? `세트마다 ${less}${unit}씩 덜 해서` : '지난번만큼만 해서'} 다시 몸을 만들어요`,
+    }
+  }
+  if (last.every((r) => r >= repMax)) {
+    if (issue) {
+      return { ...base, kind: 'hold', setTargets: last.map((r) => Math.min(r, repMax)), reason: `지난번 모든 세트 ${repMax}${unit} 이상이지만 ${working.some((st) => st.pain) ? '통증' : '자세가 흔들린'} 세트가 있었어요 → 같은 목표로 자세부터` }
+    }
+    return {
+      ...base,
+      kind: 'harder',
+      harderTo,
+      setTargets: last.map(() => repMax),
+      reason: `지난번 모든 세트 ${repMax}${unit} 이상 → 이제 어렵게 바꿔요. ${hold ? '같은 시간에 더 단단히 버티거나' : '3초에 걸쳐 내리고 끝에서 1초 멈추거나'}${harderTo ? `, 한 단계 어려운 ${harderTo}${roParticle(harderTo)}` : ''}`,
+    }
+  }
+  if (issue) {
+    return { ...base, kind: 'hold', setTargets: last.map((r) => Math.max(1, Math.min(r, repMax))), reason: `지난번 ${working.some((st) => st.pain) ? '통증' : '자세가 흔들린'} 세트가 있었어요 → 늘리지 말고 지난번만큼 자세 좋게` }
+  }
+  const targets = last.map((r) => Math.min(repMax, Math.max(Math.min(repMin, r + step), r + step)))
+  const lowest = Math.min(...last)
+  return {
+    ...base,
+    kind: 'more',
+    setTargets: targets,
+    reason: lowest < repMin - 2 * step
+      ? `지난번 ${last.join('·')}${unit} → 세트마다 ${step}${unit}씩만 더. 목표 ${repMin}–${repMax}${unit}까지 천천히 쌓아요`
+      : `지난번 ${last.join('·')}${unit} → 세트마다 ${step}${unit}씩 더, 모든 세트 ${repMax}${unit}가 되면 어렵게 바꿔요`,
+  }
+}
+// 운동 중 맨몸 종목 코치 한마디: 목표 상한보다 3(버티기 15초) 넘게 하면 천천히, 하한보다 많이 모자라면 같은 목표로
+export function adviseBodyweightSet(name, set, setting) {
+  if (!isBodyweightCoached(name) || !set || isWarmupSet(set)) return null
+  const hold = isHoldExercise(name)
+  const r = Number(set.reps)
+  if (!(r > 0)) return null
+  const [repMin, repMax] = getRepRange(name, setting)
+  const over = hold ? 15 : 3
+  if (r > repMax + over) return { kind: 'info', reason: hold ? `목표(${repMax}초)보다 훨씬 오래 버텼어요 → 다음엔 더 단단히(배·엉덩이 힘을 더 주고) 버텨 보세요` : `목표(${repMax}회)보다 ${r - repMax}회 더 했어요 → 다음 세트는 3초에 걸쳐 내리고 끝에서 1초 멈춰요` }
+  if (r < repMin - (hold ? 10 : 3)) return { kind: 'info', reason: `목표(${repMin}${hold ? '초' : '회'})보다 적었어요 → 괜찮아요, 다음 세트도 같은 목표로 자세 좋게` }
+  return null
 }
