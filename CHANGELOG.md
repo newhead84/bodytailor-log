@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-10] 로그 코치 T-8: 트레이너 처방 종목은 운동 중 증량 제안을 한 세션 1번만(강도 '세게'의 2번 증량이 처방과 충돌, 72.5 → 82.5kg +14%), 문구에 '처방 횟수 범위 안에서', 트레이너 계획으로 운동할 때는 한 번 운동량 상한(11세트) 안내 생략 | src/utils/strength.js adviseAfterSetRaw, src/components/WorkoutInput.jsx, CLAUDE.md 7.2
+
 [2026-11-10] 로그 코치 T-7: 운동 중 피로 감지는 목표 하한보다 적고 첫 세트보다 30% 넘게 줄 때만, 실패(F) 안내를 먼저(첫 세트 14회 → 9회(목표 7–11)에 '내리기'가 뜨던 문제) | src/utils/strength.js adviseAfterSetRaw, CLAUDE.md 7.3
 
 [2026-11-10] 로그 코치 T-6: 주간 세트 채우기로 1세트 더하는 날 운동량 급증 방지(더한 세트는 목표 하한 횟수, '같은 무게로 횟수 늘리기'면 +1회는 첫 세트에만 - 예 8·8·8·7 → 9·8·8·7·6, 예전 9·9·9·8·8) | src/components/WorkoutInput.jsx coachPlanFor

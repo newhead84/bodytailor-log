@@ -771,10 +771,12 @@ function adviseAfterSetRaw(name, set, setting, ctx = {}) {
     if (planned && done === planned - 1) {
       return { kind: 'info', reason: `목표(${repMax}회)보다 ${reps - repMax}회 더 했어요 → 마지막 세트는 무게를 그대로 두고 편하게 채워요(다음 운동에서 올려요)` }
     }
-    if ((Number(ctx.upsGiven) || 0) >= it.ups) return null
+    // [2026-11-10 T-8] 트레이너 처방 종목은 한 세션에 한 번만 올리고, 처방 범위 안에서라고 밝힌다(강도 '세게'의 2회 증량이 처방과 충돌)
+    const rx = !!setting?.trainerRx
+    if ((Number(ctx.upsGiven) || 0) >= (rx ? 1 : it.ups)) return null
     const nw = heavierWeight(name, w, setting)
     if (nw === w) return null
-    return { weight: nw, kind: 'up', reason: `목표(${repMax}회)보다 ${reps - repMax}회 더 했어요 → 다음 세트는 ${loadWith(name, nw)} 해 보세요` }
+    return { weight: nw, kind: 'up', reason: `목표(${repMax}회)보다 ${reps - repMax}회 더 했어요 → 다음 세트는 ${loadWith(name, nw)} 해 보세요${rx ? '(처방 횟수 범위 안에서)' : ''}` }
   }
   if (reps <= repMin - 2 || (reps < repMin && failure)) {
     const nw = lighterWeight(name, w, setting)

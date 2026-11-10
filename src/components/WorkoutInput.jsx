@@ -1628,7 +1628,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       const prevWorking = (records[name] || []).filter((st, i) => i !== idx && st.saved && st.type !== 'warmup' && st.type !== 'drop')
       let tip = savedSet && coachEnabled ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
       // [2026-11-03 최근 연구] 오늘 이 부위 세트(보조 0.5세트로 계산)가 한 번 운동 상한(약 11세트)을 넘으면 한 번 안내(무게 제안이 있으면 그게 먼저)
-      if (coachEnabled && savedSet && savedSet.type !== 'warmup' && (!tip || tip.weight == null)) {
+      // [2026-11-10 T-8] 트레이너 계획으로 운동할 때는 세트 수를 트레이너가 정했으므로 이 안내를 넣지 않는다(처방 > 로그 코치)
+      if (coachEnabled && !programOff && savedSet && savedSet.type !== 'warmup' && (!tip || tip.weight == null)) {
         const exs = Object.entries(records).map(([k, sets]) => {
           const nm = parseExerciseKey(k).name
           return { name: nm, sets: (sets || []).filter((st, i) => (k === name && i === idx) || st.saved) }
