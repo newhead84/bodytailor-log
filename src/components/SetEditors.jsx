@@ -7,6 +7,7 @@
 //  - ExerciseSettingEditor: 종목별 목표 반복 범위·휴식 시간 설정.
 import React, { useRef } from 'react'
 import { useRepeatPress } from '../hooks/useRepeatPress'
+import { Term } from './ui'
 import { SET_TYPES, SET_TYPE_LABEL, SET_TYPE_SHORT, SET_TYPE_DESC, platesPerSide } from '../utils/strength'
 
 const TYPE_COLOR = {
@@ -304,7 +305,7 @@ export function FocusSetPanel({ sets, inputType, weightStep, weightLabel = '무�
           </div>
           {rirEnabled && (
           <div data-guide="rir" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>남은 여력(RIR) · 선택</span>
+            <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>남은 여력(<Term k="RIR" />) · 선택</span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
               {[0, 1, 2, 3].map((n) => {
                 const on = cur.rir != null && cur.rir !== '' && Number(cur.rir) === n

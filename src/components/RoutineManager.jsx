@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react'
-import { Button, Card, ScreenHeader, useConfirm } from './ui'
+import { Button, Card, ScreenHeader, useConfirm, Term } from './ui'
 import RoutineSetup from './RoutineSetup'
 import { saveRoutineTemplate, deleteRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine } from '../storage'
 import TrainerPlanBadge from './TrainerPlanBadge'
@@ -179,12 +179,12 @@ export default function RoutineManager({ uid, templates, customExercises, onChan
                 fontWeight: 600,
               }}
             >
-              + 분할운동 템플릿에서 추가
+              + 분할 예시에서 추가
             </button>
           ) : (
             <Card>
               <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                근육 성장에는 부위당 주 2회가 유리해서, 주당 운동 일수에 맞는 분할에 '추천'을 표시했어요. 선택하면 내 루틴에 추가되고, 이후 자유롭게 수정할 수 있어요.
+                근육 성장에는 부위당 주 2회가 유리해서, 주당 운동 일수에 맞는 <Term k="분할" />에 '추천'을 표시했어요. 선택하면 내 루틴에 추가되고, 이후 자유롭게 수정할 수 있어요.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
                 {sortedPresets.map((preset) => (

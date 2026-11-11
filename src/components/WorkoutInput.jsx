@@ -3,7 +3,7 @@ import { ChevronDown, Info } from 'lucide-react'
 // [2026-11-08] 운동명 누르기 → HOWTO 종목 상세(지연 로드, 코치 프로그램 결과 화면과 같은 방식)
 const ExerciseDetail = lazy(() => import('./HowToTab').then((m) => ({ default: m.ExerciseDetail })))
 import { Reorder } from 'framer-motion'
-import { Button, Chip, Card } from './ui'
+import { Button, Chip, Card, Term } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import RestTimer from './RestTimer'
 import WorkoutGuide from './WorkoutGuide'
@@ -504,7 +504,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
               운동 취소
             </Button>
             <div style={{ fontSize: 13, color: 'var(--color-label-neutral)', flexShrink: 0, whiteSpace: 'nowrap' }}>
-              오늘 볼륨
+              오늘 <Term k="볼륨" />
               <div className="record-notation" style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>
                 <CountUp value={totalVolume} />
               </div>

@@ -3187,6 +3187,21 @@ export const LEGACY_EXERCISE_GRIP_MAP = {
   '와이드푸시업': '와이드',
 }
 
+// [2026-11-11 신규] 종목키 → 값 맵(트레이너 처방 trainerRx·코치 처방 coachRx)의 키를 새 이름으로(읽을 때만, 저장 데이터는 그대로).
+// 키는 '이름' 또는 '이름::그립'. 옛 이름과 새 이름이 함께 있으면 새 이름 쪽 값을 남긴다.
+export function normalizeExerciseKeyMap(map) {
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return map
+  const keys = Object.keys(map)
+  if (!keys.some((k) => normalizeExerciseName(k.split('::')[0]) !== k.split('::')[0])) return map
+  const out = {}
+  keys.forEach((k) => {
+    const [name, ...rest] = k.split('::')
+    const nk = [normalizeExerciseName(name), ...rest].join('::')
+    if (nk === k || !(nk in map)) out[nk] = map[k]
+  })
+  return out
+}
+
 // [2026-10-29 신규] 운동 기록 1건의 종목명을 읽을 때 정규화(저장된 데이터는 바꾸지 않음).
 export function normalizeLogExercises(log) {
   if (!log || !Array.isArray(log.exercises)) return log

@@ -262,9 +262,15 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
   }
   async function setStatus(u, memberStatus) {
     if (memberStatus === 'approved') return approve(u)
-    if (!(await confirm(`${u.signupInfo?.name || u.nickname || '이 회원'}님을 '${MEMBER_STATUS[memberStatus]}'(으)로 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
+    const who = u.signupInfo?.name || u.nickname || '이 회원'
     // [2026-11-01] 거절 사유(A36) - 관리자 메모(adminNotes)에만 남긴다(회원에게는 보이지 않음)
-    const reason = memberStatus === 'rejected' ? (window.prompt('거절 사유를 적어 두세요(선택, 관리자만 봐요).', '') || '').trim().slice(0, 200) : ''
+    // [2026-11-11] 브라우저 prompt 대신 확인창 안 입력칸(사유는 선택, 취소·닫기면 거절도 하지 않음)
+    let reason = ''
+    if (memberStatus === 'rejected') {
+      const r = await confirm(`${who}님을 '${MEMBER_STATUS[memberStatus]}'(으)로 바꿀까요?\n거절 사유를 적어 두면 관리자 메모에만 남아요(선택).`, { okLabel: '거절하기', cancelLabel: '취소', input: { placeholder: '예: 명단에 없는 번호', maxLength: 200 } })
+      if (r === false) return
+      reason = String(r).slice(0, 200)
+    } else if (!(await confirm(`${who}님을 '${MEMBER_STATUS[memberStatus]}'(으)로 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
     if (!(await stillSame(u))) return
     setBusy(u.uid)
     try {

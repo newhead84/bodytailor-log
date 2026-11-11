@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronLeft, ExternalLink, Settings, Link2, Share2, Award } from 'lucide-react'
-import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches, ScreenHeader, Burst, Shine, Disclosure } from './ui'
+import { Card, SectionTitle, Button, Chip, TierEmblem, useConfirm, AccentSwatches, ScreenHeader, Burst, Shine, Disclosure, Term } from './ui'
 import { useMoment } from '../hooks/useMoment'
 import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
@@ -707,7 +707,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>RIR(남은 여력) 기록</span>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}><Term k="RIR" />(남은 여력) 기록</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <Chip active={rirEnabled} onClick={() => selectRirEnabled(true)} style={{ flex: 1, justifyContent: 'center' }}>
               켜기
@@ -1214,12 +1214,12 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                 fontWeight: 600,
               }}
             >
-              + 분할운동 템플릿에서 추가
+              + 분할 예시에서 추가
             </button>
           ) : (
             <div>
               <p className="text-keep-all" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--color-label-neutral)' }}>
-                근육 성장에는 부위당 주 2회가 유리해서, 주당 운동 일수에 맞는 분할에 '추천'을 표시했어요. 선택하면 내 루틴에 추가되고, 이후 자유롭게 수정할 수 있어요.
+                근육 성장에는 부위당 주 2회가 유리해서, 주당 운동 일수에 맞는 <Term k="분할" />에 '추천'을 표시했어요. 선택하면 내 루틴에 추가되고, 이후 자유롭게 수정할 수 있어요.
               </p>
               {templateError && (
                 <p className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-danger, #e5484d)', margin: '0 0 10px' }}>

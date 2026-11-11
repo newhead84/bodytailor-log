@@ -5,7 +5,7 @@
 import React, { Suspense, lazy, useMemo, useState } from 'react'
 import { MuscleFigures, targetsForExercises } from './MuscleMap'
 import { CountUp } from '../hooks/useCountUp'
-import { Button, Card, Chip, Disclosure, ScreenHeader, PartBadge, OnceHint } from './ui'
+import { Button, Card, Chip, Disclosure, ScreenHeader, PartBadge, OnceHint, Term } from './ui'
 import { GoalPicker } from './GoalPicker'
 import { PROGRAM_QUESTIONS, DEFAULT_ANSWERS, buildProgram, findCoachProgramTemplate, atomOf } from '../utils/programBuilder'
 import { COACH_INTENSITIES, normalizeIntensity, intensityGoalHint } from '../utils/strength'
@@ -257,7 +257,7 @@ function ProgramResult({ gender = null, program, intensity, existing, hasTrainer
       </div>
 
       <p className="text-keep-all" style={{ margin: '0 0 6px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
-        부위별 주간 세트(주 평균): {ATOM_ORDER.filter((a) => program.weeklySets[a]).map((a) => `${a} ${Math.round(program.weeklySets[a])}`).join(' · ')}
+        부위별 <Term k="주간 세트" />(주 평균): {ATOM_ORDER.filter((a) => program.weeklySets[a]).map((a) => `${a} ${Math.round(program.weeklySets[a])}`).join(' · ')}
       </p>
       <p className="text-keep-all" style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
         무게는 내 기록을 보고 로그 코치가 그날그날 정해요. 기록이 없는 종목은 가볍게 시작해 목표 횟수를 채우면 올라가요.

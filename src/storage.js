@@ -30,7 +30,7 @@ import {
   runTransaction,
   getCountFromServer,
 } from 'firebase/firestore'
-import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises } from './utils/exerciseLibrary'
+import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises, normalizeExerciseKeyMap } from './utils/exerciseLibrary'
 import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey, cleanTrainerRx } from './utils/strength'
 import { withWeight } from './utils/weightLog'
 import { getSeasonPeriod } from './utils/season'
@@ -452,7 +452,11 @@ export async function getRoutineTemplates(uid) {
     const parts = Array.isArray(data.parts)
       ? data.parts.map((p) => ({ ...p, exercises: normalizeExerciseNames(p.exercises) }))
       : data.parts
-    return { id: d.id, ...data, parts }
+    // [2026-11-11] 처방 키(trainerRx·coachRx)도 옛 종목명이면 새 이름으로 - 루틴 종목명과 같은 기준이라야 처방이 붙는다
+    const rx = {}
+    if (data.trainerRx) rx.trainerRx = normalizeExerciseKeyMap(data.trainerRx)
+    if (data.coachRx) rx.coachRx = normalizeExerciseKeyMap(data.coachRx)
+    return { id: d.id, ...data, parts, ...rx }
   })
 }
 

@@ -1,7 +1,7 @@
 // WorkoutCompleteModal.jsx - [2026-11-11] WorkoutInput.jsx에서 분리(동작 변경 없음): 운동 완료 요약 카드
 import React, { useEffect, useState } from 'react'
 import { playSfx } from '../utils/sfx'
-import { Button, TierEmblem, Burst, Shine, ScreenCelebration } from './ui'
+import { Button, TierEmblem, Burst, Shine, ScreenCelebration, Term } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { StretchSuggest } from './StretchGuide'
 import { getLevelInfo } from '../utils/tier'
@@ -35,8 +35,8 @@ export default function WorkoutCompleteModal({ xpEarned, summary, pendingRoutine
   const stats = summary
     ? [
         { label: '운동 시간', value: mins, unit: '분' },
-        { label: '총 볼륨', value: Math.round(summary.volume), unit: 'kg' },
-        { label: '본세트', value: summary.workingSets, unit: '세트' },
+        { label: '총 볼륨', term: '볼륨', value: Math.round(summary.volume), unit: 'kg' },
+        { label: '본세트', term: '본세트', value: summary.workingSets, unit: '세트' },
         { label: '신기록', value: summary.prCount, unit: '개' },
       ]
     : []
@@ -104,7 +104,7 @@ export default function WorkoutCompleteModal({ xpEarned, summary, pendingRoutine
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 16 }}>
             {stats.map((st) => (
               <div key={st.label} style={{ padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)' }}>
-                <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-label-neutral)', marginBottom: 2 }}>{st.label}</span>
+                <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-label-neutral)', marginBottom: 2 }}>{st.term ? <Term k={st.term}>{st.label}</Term> : st.label}</span>
                 <span className="bt-num" style={{ fontSize: 'calc(20px * var(--num-scale))', color: 'var(--color-label-strong)', whiteSpace: 'nowrap' }}>
                   <CountUp value={st.value} />
                   <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{st.unit}</span>

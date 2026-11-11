@@ -1,6 +1,8 @@
 import React from 'react'
 import { ACCENT_OPTIONS } from '../utils/fonts'
+import { createPortal } from 'react-dom'
 import { useBackableScreen } from '../hooks/useBackableScreen'
+import { glossaryText } from '../utils/glossary'
 // [2026-10-29] platinum.png('PLATINUM' 글자 일러스트)는 단계명 변경으로 미사용 - 파일은 보관
 
 export function Button({ children, onClick, variant = 'primary', disabled, style, type = 'button', full }) {
@@ -297,13 +299,16 @@ const ConfirmContext = React.createContext(null)
 
 export function ConfirmProvider({ children }) {
   const [state, setState] = React.useState(null) // { message, resolve }
+  const [inputText, setInputText] = React.useState('')
 
   // [2026-10-27] 선택적으로 버튼 문구를 바꿀 수 있다: confirm(msg, { okLabel, cancelLabel })
   const confirm = React.useCallback((message, options = {}) => {
     return new Promise((resolve) => {
       // [2026-10-29] dismissValue: 바깥(배경)을 눌러 닫았을 때 돌려줄 값(기본 false). 두 버튼이 모두
       // "진행" 의미인 확인창(예: 체크한 세트만 / 함께 저장)은 null을 받아 작업 자체를 멈춘다.
-      setState({ message, resolve, okLabel: options.okLabel, cancelLabel: options.cancelLabel, dismissValue: 'dismissValue' in options ? options.dismissValue : false })
+      // [2026-11-11] input: { placeholder, maxLength } - 입력칸이 있는 확인창(브라우저 prompt 대신). 확인 = 입력한 글(비어도 ''), 취소·닫기 = false
+      setState({ message, resolve, okLabel: options.okLabel, cancelLabel: options.cancelLabel, dismissValue: 'dismissValue' in options ? options.dismissValue : false, input: options.input || null })
+      setInputText('')
     })
   }, [])
 
@@ -325,7 +330,7 @@ export function ConfirmProvider({ children }) {
   useBackableScreen(!!state, dismiss)
   React.useEffect(() => {
     if (!state) return
-    boxRef.current?.querySelector('button')?.focus()
+    boxRef.current?.querySelector(stateRef.current?.input ? 'textarea' : 'button')?.focus()
     function onKey(e) {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -377,11 +382,26 @@ export function ConfirmProvider({ children }) {
             >
               {state.message}
             </p>
+            {state.input && (
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value.slice(0, state.input.maxLength || 200))}
+                placeholder={state.input.placeholder || ''}
+                rows={3}
+                maxLength={state.input.maxLength || 200}
+                style={{ width: '100%', boxSizing: 'border-box', margin: '-6px 0 4px', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg)', color: 'var(--color-label-strong)', fontSize: 15, lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical' }}
+              />
+            )}
+            {state.input && (
+              <p className="bt-num" style={{ margin: '0 0 14px', fontSize: 12, textAlign: 'right', color: 'var(--color-label-neutral)' }}>
+                {inputText.length}/{state.input.maxLength || 200}
+              </p>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <Button variant="ghost" full onClick={() => respond(false)}>
                 {state.cancelLabel || '취소'}
               </Button>
-              <Button variant="primary" full onClick={() => respond(true)}>
+              <Button variant="primary" full onClick={() => respond(state.input ? inputText.trim() : true)}>
                 {state.okLabel || '확인'}
               </Button>
             </div>
@@ -419,6 +439,81 @@ export function Chip({ children, active, onClick, style, ...rest }) {
     >
       {children}
     </button>
+  )
+}
+
+// [2026-11-11 신규] 운동 용어 말풍선: 점선 밑줄 글자를 누르면 바로 아래(공간이 없으면 위)에 뜻이 뜬다.
+// 뜻은 utils/glossary.js. 화면 밖·다른 곳 누르기·스크롤·Esc로 닫힘, 한 번에 하나만 열림.
+// 부모 transform·overflow에 갇히지 않게 body로 띄운다(portal). 버튼 안에는 쓰지 않는다(버튼 중첩).
+const TERM_EVENT = 'bt-term-open'
+export function Term({ k, children }) {
+  const text = glossaryText(k)
+  const ref = React.useRef(null)
+  const id = React.useId()
+  const [pos, setPos] = React.useState(null)
+  const close = React.useCallback(() => setPos(null), [])
+  React.useEffect(() => {
+    if (!pos) return undefined
+    const onOther = (e) => { if (e.detail !== id) close() }
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) close() }
+    const onKey = (e) => { if (e.key === 'Escape') close() }
+    // 누른 직후 남은 스크롤(관성·자동 스크롤)로 바로 닫히지 않게, 글자가 24px 넘게 움직였을 때만 닫는다
+    const onScroll = () => { const r = ref.current?.getBoundingClientRect(); if (!r || Math.abs(r.top - pos.anchorTop) > 24) close() }
+    window.addEventListener(TERM_EVENT, onOther)
+    window.addEventListener('pointerdown', onDown, true)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener(TERM_EVENT, onOther)
+      window.removeEventListener('pointerdown', onDown, true)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [pos, id, close])
+  if (!text) return <>{children ?? k}</>
+  const toggle = (e) => {
+    e.stopPropagation()
+    e.preventDefault()
+    if (pos) { close(); return }
+    const r = ref.current.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const width = Math.min(260, vw - 16)
+    const left = Math.max(8, Math.min(r.left + r.width / 2 - width / 2, vw - 8 - width))
+    const below = vh - r.bottom > 130 || r.top < 130
+    window.dispatchEvent(new CustomEvent(TERM_EVENT, { detail: id }))
+    setPos({ left, width, anchorTop: r.top, top: below ? r.bottom + 6 : null, bottom: below ? null : vh - r.top + 6 })
+  }
+  return (
+    <>
+      <span
+        ref={ref}
+        role="button"
+        tabIndex={0}
+        aria-expanded={!!pos}
+        aria-label={`${k} 뜻 보기`}
+        onClick={toggle}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggle(e) }}
+        style={{ textDecorationLine: 'underline', textDecorationStyle: 'dotted', textDecorationThickness: 1.5, textUnderlineOffset: 3, textDecorationColor: 'var(--color-label-neutral)', cursor: 'help', WebkitTapHighlightColor: 'transparent' }}
+      >
+        {children ?? k}
+      </span>
+      {pos && createPortal(
+        <div
+          role="tooltip"
+          className="bt-pop-in text-keep-all"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={close}
+          style={{ position: 'fixed', zIndex: 200, left: pos.left, width: pos.width, ...(pos.top != null ? { top: pos.top } : { bottom: pos.bottom }), padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-elevated, var(--card-bg))', border: '1px solid var(--color-line)', boxShadow: '0 6px 20px rgba(0,0,0,0.18)', fontSize: 13, lineHeight: 1.55, fontWeight: 500, color: 'var(--color-label-normal)', whiteSpace: 'pre-line', textAlign: 'left', letterSpacing: 0, textTransform: 'none' }}
+        >
+          <b style={{ display: 'block', marginBottom: 2, fontSize: 13, color: 'var(--color-label-strong)' }}>{k}</b>
+          {text}
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 

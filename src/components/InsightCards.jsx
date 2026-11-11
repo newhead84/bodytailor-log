@@ -6,7 +6,7 @@
 //  - PrCard: 최근 개인 기록(추정 1RM)
 //  - BoneHealthCard: "근력강화·골밀도증진" 목표 사용자용 주간 체크(주 2–3회, 고중량 다관절 세트)
 import React, { useMemo, useState } from 'react'
-import { Card, SectionTitle, Chip, Disclosure } from './ui'
+import { Card, SectionTitle, Chip, Disclosure, Term } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { BODY_PART_ATOMS, getPartColor, getExerciseInputType, getExerciseAtom, getExerciseMovementPattern } from '../utils/exerciseLibrary'
 import { exerciseKeyLabel, parseExerciseKey } from '../utils/exerciseKey'
@@ -88,7 +88,7 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
           )
         }
       >
-        {title}
+        {typeof title === 'string' && title.endsWith('주간 세트') ? <>{title.slice(0, -5)}<Term k="주간 세트" /></> : title}
       </SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {figure && (
@@ -297,7 +297,7 @@ export function RecoveryCard({ logs }) {
   if (plateaus.length === 0 && !suggestDeload) return null
   return (
     <>
-      <SectionTitle>정체 · 회복</SectionTitle>
+      <SectionTitle><Term k="정체" /> · 회복</SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {suggestDeload && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -305,7 +305,7 @@ export function RecoveryCard({ logs }) {
               <span className="bt-num">{hardWeeks}</span>주 연속 고강도로 훈련 중이에요
             </span>
             <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-normal)' }}>
-              4–8주마다 1주 정도 세트 수를 30–50% 줄이는 디로드 주를 넣으면 피로가 풀리고 다음 성장이 쉬워져요. 디로드 주에도 종목·빈도는 그대로 유지하세요.
+              4–8주마다 1주 정도 세트 수를 30–50% 줄이는 <Term k="디로드" /> 주를 넣으면 피로가 풀리고 다음 성장이 쉬워져요. 디로드 주에도 종목·빈도는 그대로 유지하세요.
             </span>
           </div>
         )}
@@ -354,7 +354,7 @@ export function PrCard({ prs, limit = 5, title = '최근 신기록' }) {
                 {fmt1(p.e1rm)}
                 <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}> kg</span>
               </span>
-              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>추정 1RM</span>
+              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}><Term k="추정 1RM" /></span>
             </div>
           </div>
         ))}

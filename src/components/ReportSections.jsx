@@ -7,7 +7,7 @@
 //  - HealthPillarsCard(2026-11-07): 건강 체력 4가지(근력·유산소·숨찬 운동·코어·균형) 이번 주 + 체력 점검 바로가기
 import React, { useMemo, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Card, SectionTitle, Disclosure, Burst, Shine } from './ui'
+import { Card, SectionTitle, Disclosure, Burst, Shine, Term } from './ui'
 import { useMoment } from '../hooks/useMoment'
 import { CountUp } from '../hooks/useCountUp'
 import { BODY_PART_ATOMS, getExerciseAtom, getExerciseInputType, getPartColor, EXERCISE_META } from '../utils/exerciseLibrary'
@@ -70,8 +70,8 @@ export function WeekSummaryCard({ logs, targetDays, overload, active = true }) {
   const vol = (arr) => Math.round(arr.reduce((s, l) => s + logVolumeKg(l), 0))
   const tiles = [
     { label: '운동한 날', v: days(thisW), suffix: `/${targetDays}일`, delta: <Delta now={days(thisW)} prev={days(lastW)} unit="일" /> },
-    { label: '본세트', v: workingSetCount(thisW), suffix: '세트', delta: <Delta now={workingSetCount(thisW)} prev={workingSetCount(lastW)} /> },
-    { label: '총 볼륨', v: vol(thisW), suffix: 'kg', delta: <Delta now={vol(thisW)} prev={vol(lastW)} unit="kg" pct /> },
+    { label: '본세트', term: '본세트', v: workingSetCount(thisW), suffix: '세트', delta: <Delta now={workingSetCount(thisW)} prev={workingSetCount(lastW)} /> },
+    { label: '총 볼륨', term: '볼륨', v: vol(thisW), suffix: 'kg', delta: <Delta now={vol(thisW)} prev={vol(lastW)} unit="kg" pct /> },
     overload ? { label: '지난번보다 늘어난 운동', v: overload.score, suffix: '%', delta: <span style={muted}>{overload.count}개 중</span> } : null,
   ].filter(Boolean)
   return (
@@ -82,7 +82,7 @@ export function WeekSummaryCard({ logs, targetDays, overload, active = true }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px 12px' }}>
           {tiles.map((t, ti) => (
             <div key={t.label} style={{ minWidth: 0 }}>
-              <div className="text-keep-all" style={{ ...muted, marginBottom: 4 }}>{t.label}</div>
+              <div className="text-keep-all" style={{ ...muted, marginBottom: 4 }}>{t.term ? <Term k={t.term}>{t.label}</Term> : t.label}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
                 <span className="bt-num" style={{ position: 'relative', fontSize: 'calc(26px * var(--num-scale, 1))', lineHeight: 1.1 }}>
                   {ti === 0 && moment && <Burst radius={24} count={10} delay={0.6} />}
@@ -187,7 +187,7 @@ export function WeeklySetsHeatmap({ logs }) {
   const any = byWeek.some((m) => Object.keys(m).length)
   return (
     <>
-      <SectionTitle>부위별 주간 세트 추이</SectionTitle>
+      <SectionTitle>부위별 <Term k="주간 세트" /> 추이</SectionTitle>
       <Card style={{ marginBottom: 20, padding: '14px 12px' }}>
         {!any ? (
           <p style={{ ...muted, margin: 0 }}>최근 8주 기록이 아직 없어요.</p>
@@ -315,7 +315,7 @@ export function StrengthTrendCard({ logs, isActive = true }) {
   const counts = { up: items.filter((x) => x.status === 'up').length, flat: items.filter((x) => x.status === 'flat').length, down: items.filter((x) => x.status === 'down').length }
   return (
     <>
-      <SectionTitle>근력 추이 <span style={{ ...muted, fontWeight: 500 }}>최근 8주</span></SectionTitle>
+      <SectionTitle>근력 추이 <span style={{ ...muted, fontWeight: 500 }}>최근 8주 · <Term k="추정 1RM" /></span></SectionTitle>
       <Card style={{ marginBottom: 20 }}>
         {!items.length ? (
           <p className="text-keep-all" style={{ ...muted, margin: 0 }}>같은 운동을 8주 안에 두 번 이상 하면 추정 1RM 변화를 보여 줘요.</p>

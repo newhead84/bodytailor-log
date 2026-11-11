@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useRepeatPress } from '../hooks/useRepeatPress'
 import { X, SlidersHorizontal, Play, Minus, Plus } from 'lucide-react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card, Disclosure, PartBadge, Burst, Shine, FloatText } from './ui'
+import { Button, Chip, Card, Disclosure, PartBadge, Burst, Shine, FloatText, Term } from './ui'
 import CardioTimeline from './CardioTimeline'
 import { ExerciseName } from '../utils/exerciseName'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
@@ -101,7 +101,7 @@ function CoachPlanSummary({ exName, suggestion, label, weight, targets, weights,
         </div>
         <div style={row}>
           <span className="text-keep-all" style={{ flex: '1 0 170px', fontSize: 13, color: 'var(--color-label-normal)' }}>
-            <b style={{ color: 'var(--color-label-strong)' }}>1세트 무겁게</b> (탑세트)
+            <b style={{ color: 'var(--color-label-strong)' }}>1세트 무겁게</b> (<Term k="탑세트" />)
             {lastW != null && lastReps?.[0] != null && (
               <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
                 지난번 <span className="bt-num">{wText(lastW)} × {lastReps[0]}</span>
@@ -117,7 +117,7 @@ function CoachPlanSummary({ exName, suggestion, label, weight, targets, weights,
         {rest.length > 0 && (
           <div style={row}>
             <span className="text-keep-all" style={{ flex: '1 0 170px', fontSize: 13, color: 'var(--color-label-normal)' }}>
-              <b style={{ color: 'var(--color-label-strong)' }}>{rest.length}세트 가볍게</b> (백오프세트)
+              <b style={{ color: 'var(--color-label-strong)' }}>{rest.length}세트 가볍게</b> (<Term k="백오프세트" />)
               <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>무거운 세트보다 10%쯤 가볍게</span>
             </span>
             <span className="bt-num" style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-label-strong)', whiteSpace: 'nowrap' }}>
@@ -456,7 +456,8 @@ export function ExerciseCard({
               {bestE1rm > 0 && (
                 <span>
                   {/* [2026-11-01] 320px에서 '접기' 버튼에 끝 글자가 가리지 않게 '추정 1RM'과 숫자 사이에서 줄바꿈 허용 */}
-                  추정 1RM <span style={{ whiteSpace: 'nowrap' }}><span className="bt-num">{fmtKg(bestE1rm)}</span>kg</span>
+                  {/* [2026-11-11] 뜻 보기 점선은 펼친 카드에만(접힌 카드마다 그으면 지저분함) */}
+                  {expanded ? <Term k="추정 1RM" /> : '추정 1RM'} <span style={{ whiteSpace: 'nowrap' }}><span className="bt-num">{fmtKg(bestE1rm)}</span>kg</span>
                 </span>
               )}
               {suggestion?.kind === 'increase' && !isDone && (

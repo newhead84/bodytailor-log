@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Dumbbell, Moon, ClipboardCheck, X, CircleCheck } from 'lucide-react'
-import { Card, Button, useConfirm, Burst, Shine } from './ui'
+import { Card, Button, useConfirm, Burst, Shine, Term } from './ui'
 import { useMoment } from '../hooks/useMoment'
 import MembershipNotice from './MembershipNotice'
 import { TrainerGoalNotice } from './TrainerGoal'
@@ -372,9 +372,9 @@ export default function HomeTab({
         {weekGoalMoment && <Shine delay={0.3} />}
         {[
           { v: weekStats.sessions, unit: '회', label: '이번 주 운동', d: 0 },
-          { v: weekStats.sets, unit: '세트', label: '본세트', d: 0 },
+          { v: weekStats.sets, unit: '세트', label: '본세트', term: '본세트', d: 0 },
           // [2026-10-28] 1,000kg 이상도 t 대신 kg(쉼표) 그대로 - 큰 숫자 카운트업이 보이도록
-          { v: Math.round(weekStats.volume), unit: 'kg', label: '총 볼륨', d: 0 },
+          { v: Math.round(weekStats.volume), unit: 'kg', label: '총 볼륨', term: '볼륨', d: 0 },
         ].map((it, i) => (
           <div key={it.label} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: i ? 14 : 2, borderLeft: i ? '1px solid var(--color-line)' : 'none' }}>
             {/* [2026-10-28] 320px 화면에서 52,000kg가 칸을 넘던 문제 → 화면 폭에 비례해 상한(min)까지만 */}
@@ -383,7 +383,7 @@ export default function HomeTab({
               <CountUp value={it.v} decimals={it.d} />
               <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginLeft: 2 }}>{it.unit}</span>
             </span>
-            <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{it.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>{it.term ? <Term k={it.term}>{it.label}</Term> : it.label}</span>
             {i === 0 && weekGoalMet && (
               <span className={weekGoalMoment ? 'bt-badge-in' : undefined} style={{ alignSelf: 'flex-start', marginTop: 2, padding: '1px 7px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
                 주간 목표 달성

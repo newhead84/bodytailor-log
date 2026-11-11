@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Card, SectionTitle, TierBadge, ScreenHeader } from './ui'
+import { Card, SectionTitle, TierBadge, ScreenHeader, Term } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { TIERS, getTierByXp, getLevelInfo, stageLevelRange, LEVELS_PER_STAGE, LEGEND_XP_PER_LEVEL } from '../utils/tier'
 import { getLeaderboard } from '../storage'
@@ -107,7 +107,7 @@ export default function TierInfoScreen({ uid, xp, onClose }) {
           <p style={{ margin: '0 0 10px' }}>주마다 아래 항목으로 주별 점수를 매기고, 시즌 동안 주별 점수의 평균을 전체 랭킹에 반영해요.</p>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             <li>출석 40%: 그 주에 운동한 날 수 / 주당 목표 일수(MY에서 설정, 2~6일)</li>
-            <li>볼륨·기록 30%: 직전 4주 평균 대비 그 주 총 볼륨(평균만큼 하면 만점, 더 늘려도 추가 점수 없음)</li>
+            <li><Term k="볼륨" />·기록 30%: 직전 4주 평균 대비 그 주 총 볼륨(평균만큼 하면 만점, 더 늘려도 추가 점수 없음)</li>
             <li>점진적 과부하 30%: 같은 운동의 직전 기록보다 중량·볼륨이 늘어난 비율</li>
             <li>보너스: 연속 출석 4주마다 +5점(최대 +20)</li>
           </ul>

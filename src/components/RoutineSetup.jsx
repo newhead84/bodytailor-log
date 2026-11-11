@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Button, Chip, Card, ScreenHeader, useConfirm } from './ui'
+import { Button, Chip, Card, ScreenHeader, useConfirm, Term } from './ui'
 import {
   BODY_PART_ATOMS,
   buildPartName,
@@ -170,7 +170,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
       <p className="text-keep-all" style={{ fontSize: 14, color: 'var(--color-label-neutral)', margin: '0 0 20px' }}>
         {forTrainer
           ? '저장하면 회원의 기록 화면 루틴 목록에 "트레이너 계획"으로 바로 나타나요. 종목을 고른 뒤 아래 "종목별 처방"에 세트·횟수·강도를 적으면 회원 화면에서 로그 코치보다 먼저 따라요.'
-          : <>원하는 부위끼리 자유롭게 묶어 파트를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&이두&삼두, 하체&가슴){onSkip && ' 지금 정하기 어렵다면 오른쪽 위 "나중에"를 눌러 건너뛸 수 있어요.'}</>}
+          : <>원하는 부위끼리 자유롭게 묶어 <Term k="파트" />를 만들고, 파트마다 종목을 선택해 주세요. (예: 등&이두&삼두, 하체&가슴){onSkip && ' 지금 정하기 어렵다면 오른쪽 위 "나중에"를 눌러 건너뛸 수 있어요.'}</>}
       </p>
 
       <div style={{ marginBottom: 22 }}>
