@@ -170,7 +170,7 @@ function CoachPlanSummary({ exName, suggestion, label, weight, targets, weights,
     const kindTone = suggestion.kind === 'increase' ? 'up' : suggestion.kind === 'decrease' || label === '쉬어 가기' ? 'down' : 'same'
     const toneColor = kindTone === 'up' ? 'var(--color-success)' : kindTone === 'down' ? 'var(--color-danger)' : 'var(--color-label-strong)'
     const rest = today.slice(1)
-    const row = { display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'baseline', padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg-card)', border: '1px solid var(--color-line)' }
+    const row = { display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: 8, rowGap: 2, alignItems: 'baseline', padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg-card)', border: '1px solid var(--color-line)' }
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -181,7 +181,7 @@ function CoachPlanSummary({ exName, suggestion, label, weight, targets, weights,
           <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>무거운 세트 먼저</span>
         </div>
         <div style={row}>
-          <span className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
+          <span className="text-keep-all" style={{ flex: '1 0 170px', fontSize: 13, color: 'var(--color-label-normal)' }}>
             <b style={{ color: 'var(--color-label-strong)' }}>1세트 무겁게</b> (탑세트)
             {lastW != null && lastReps?.[0] != null && (
               <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
@@ -197,9 +197,9 @@ function CoachPlanSummary({ exName, suggestion, label, weight, targets, weights,
         </div>
         {rest.length > 0 && (
           <div style={row}>
-            <span className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
+            <span className="text-keep-all" style={{ flex: '1 0 170px', fontSize: 13, color: 'var(--color-label-normal)' }}>
               <b style={{ color: 'var(--color-label-strong)' }}>{rest.length}세트 가볍게</b> (백오프세트)
-              <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>무거운 세트보다 10%쯤 가볍게 이어 해요</span>
+              <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>무거운 세트보다 10%쯤 가볍게</span>
             </span>
             <span className="bt-num" style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-label-strong)', whiteSpace: 'nowrap' }}>
               {wText(weights[1])} × {rest.join('·')}

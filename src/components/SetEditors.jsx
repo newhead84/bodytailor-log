@@ -524,7 +524,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, histo
           </div>
           <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)', whiteSpace: 'pre-line' }}>
             {setStyle === 'top'
-              ? '웜업 뒤 첫 세트를 가장 무겁게(탑세트), 나머지 세트는 10%쯤 가볍게 2회 더(백오프세트) 해요.\n무게는 첫 세트가 목표 상한을 채우면 올려요.'
+              ? '웜업 뒤 첫 세트를 가장 무겁게(탑세트), 나머지 세트는 10%쯤 가볍게 2회 더(백오프세트) 해요.\n무게는 첫 세트가 목표 상한 가까이 채우면 올려요.'
               : '모든 본세트를 같은 무게로 해요. 무거운 세트 먼저를 고르면 첫 세트만 무겁게, 나머지는 가볍게 해요.'}
           </span>
         </div>
