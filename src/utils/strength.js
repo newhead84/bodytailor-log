@@ -108,7 +108,9 @@ export function cleanTrainerRx(raw) {
     let b = Math.round(Number(r.repMax))
     if (!(sets >= 1 && sets <= 8) || !(a >= lo && a <= hi) || !(b >= lo && b <= hi)) return
     if (b < a) [a, b] = [b, a]
-    out[key] = { sets, repMin: a, repMax: b, ...(INTENSITY_BY_ID[r.intensity] ? { intensity: r.intensity } : {}) }
+    // [2026-11-11] 트레이너도 '무거운 세트 먼저'(탑세트 + 백오프)를 처방할 수 있다 - 무게 종목·2세트 이상만
+    const top = r.setStyle === 'top' && !hold && getExerciseInputType(name) === 'sets' && sets >= 2
+    out[key] = { sets, repMin: a, repMax: b, ...(INTENSITY_BY_ID[r.intensity] ? { intensity: r.intensity } : {}), ...(top ? { setStyle: 'top' } : {}) }
   })
   return out
 }
@@ -116,7 +118,7 @@ export function cleanTrainerRx(raw) {
 export function trainerRxText(rx, unit = '회') {
   if (!rx) return ''
   const it = INTENSITY_BY_ID[rx.intensity]
-  return `${rx.sets}세트 × ${rx.repMin === rx.repMax ? rx.repMin : `${rx.repMin}–${rx.repMax}`}${unit}${it ? ` · 강도 ${it.label}` : ''}`
+  return `${rx.sets}세트 × ${rx.repMin === rx.repMax ? rx.repMin : `${rx.repMin}–${rx.repMax}`}${unit}${it ? ` · 강도 ${it.label}` : ''}${rx.setStyle === 'top' ? ' · 무거운 세트 먼저' : ''}`
 }
 export function intensityHowText(id) {
   const it = INTENSITY_BY_ID[id]
@@ -590,8 +592,10 @@ export const TOPSET_BACKOFF_EXTRA_REPS = 2
 export function canUseTopSet(name, setting = null) {
   return getExerciseInputType(name) === 'sets' && !isHoldExercise(name) && !setting?.trainerRx
 }
+// 트레이너 처방이 있으면 처방의 방식을 따르고(회원이 고를 수 없음), 없으면 회원 종목 설정
 export function isTopSetStyle(name, setting = null) {
-  return setting?.setStyle === 'top' && canUseTopSet(name, setting)
+  const want = setting?.trainerRx ? setting.trainerRx.setStyle : setting?.setStyle
+  return want === 'top' && getExerciseInputType(name) === 'sets' && !isHoldExercise(name)
 }
 // 백오프 무게(오늘 탑세트 무게 기준, 기구 단위 반올림·최소 한 칸). 0kg가 안 되는 종목에서 0이 되면 null(같은 무게로)
 export function backoffWeight(name, topWeight) {

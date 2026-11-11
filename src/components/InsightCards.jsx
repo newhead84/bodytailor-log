@@ -25,6 +25,7 @@ import {
   LEG_BACK,
 } from '../utils/strength'
 import { ExerciseName } from '../utils/exerciseName'
+import { MuscleFigures, ATOM_FIGURE_IDS } from './MuscleMap'
 
 export function startOfWeekStr(d = new Date(), offsetWeeks = 0) {
   const date = new Date(d)
@@ -41,7 +42,7 @@ export function logsInWeek(logs, offsetWeeks = 0) {
 }
 const fmt1 = (n) => (Math.round(n * 10) / 10).toString()
 
-export function MuscleSetsCard({ logs, liveExercises = null, compact = false, title = '근육별 주간 세트' }) {
+export function MuscleSetsCard({ logs, liveExercises = null, compact = false, title = '근육별 주간 세트', gender = null }) {
   const [week, setWeek] = useState(0)
   // [2026-10-29] 이번 주 보기에는 지금 진행 중인 운동에서 체크한 세트도 더한다(저장 전이라 0으로 보이던 문제)
   const hasLive = week === 0 && Array.isArray(liveExercises) && liveExercises.length > 0
@@ -58,6 +59,19 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
   const WEEKLY_SET_GUIDE = getWeeklySetGuide()
   const bandLeft = (WEEKLY_SET_GUIDE.min / scaleMax) * 100
   const bandWidth = ((WEEKLY_SET_GUIDE.max - WEEKLY_SET_GUIDE.min) / scaleMax) * 100
+  // [2026-11-11] 근육 그림(리포트만): 카드의 '적정' 기준(minEffective) 이상인 부위 = 진하게, 조금 한 부위 = 옅게, 안 한 부위 = 회색. 코어는 범위가 없어 4세트부터 진하게.
+  const figure = useMemo(() => {
+    if (compact) return null
+    const p = []
+    const s = []
+    atoms.forEach((a) => {
+      const v = sets[a] || 0
+      if (!(v > 0)) return
+      const enough = a === '코어' ? v >= 4 : v >= getWeeklySetGuide(a).minEffective
+      ;(enough ? p : s).push(...(ATOM_FIGURE_IDS[a] || []))
+    })
+    return p.length || s.length ? { p, s } : null
+  }, [compact, sets]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
       <SectionTitle
@@ -77,6 +91,14 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
         {title}
       </SectionTitle>
       <Card style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {figure && (
+          <div style={{ marginBottom: 4 }}>
+            <MuscleFigures target={figure} gender={gender} height={180} />
+            <p className="text-keep-all" style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+              진하게 = 적정 이상 · 옅게 = 조금 · 회색 = 아직
+            </p>
+          </div>
+        )}
         {rows.length === 0 ? (
           <p className="text-keep-all" style={{ margin: 0, fontSize: 13, color: 'var(--color-label-neutral)' }}>
             이번 주 기록이 아직 없어요.

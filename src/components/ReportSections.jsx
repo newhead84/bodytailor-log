@@ -131,7 +131,7 @@ export function HealthPillarsCard({ logs, liveExercises = null, lastFitnessDate 
   const rows = [
     { k: '근력', v: `${strengthMin}분`, goal: '주 30–60분', ratio: strengthMin / 30, done: strengthMin >= 30 },
     { k: '유산소', v: `${cardioMin}분`, goal: `주 ${cardioGoal}분`, ratio: cardioMin / cardioGoal, done: cardioMin >= cardioGoal },
-    { k: '숨찬 운동', v: vigorous ? `${Math.round(st.vigorousMin)}분` : '아직', goal: '주 1회', ratio: vigorous ? 1 : 0, done: vigorous },
+    { k: '숨찬 운동', v: vigorous ? `${Math.round(st.vigorousMin)}분` : '아직', goal: '주 1회', ratio: vigorous ? 1 : 0, done: vigorous, note: vigorous ? '' : '말이 끊길 만큼 숨찬 유산소 · 세트 완료 뒤 \'숨찼어요\'를 누르면 들어가요' }, // [2026-11-11] 기준을 화면에
     { k: '코어·균형', v: `${balanceDays}일`, goal: '주 2일', ratio: balanceDays / 2, done: balanceDays >= 2 },
   ]
   const since = lastFitnessDate ? daysSince(lastFitnessDate) : null
@@ -151,6 +151,7 @@ export function HealthPillarsCard({ logs, liveExercises = null, lastFitnessDate 
               <div aria-hidden="true" style={{ height: 6, borderRadius: 3, background: 'var(--color-line)', overflow: 'hidden' }}>
                 <div className="bt-bar" style={{ height: '100%', width: `${Math.min(100, Math.round(r.ratio * 100))}%`, background: r.done ? 'var(--color-fill-strong)' : 'var(--color-label-neutral)' }} />
               </div>
+              {r.note && <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>{r.note}</p>}
             </div>
           ))}
         </div>
@@ -170,7 +171,7 @@ export function HealthPillarsCard({ logs, liveExercises = null, lastFitnessDate 
           </button>
         )}
         <Disclosure style={{ marginTop: 10 }}>
-          나이 들어서도 건강하게 지내는 데는 근력, 꾸준한 유산소, 가끔 숨찬 운동, 몸통·균형 네 가지가 고르게 필요해요. 근력 시간은 본세트 1개를 휴식 포함 약 2.7분으로 쳐서 계산해요. 근력 운동은 주 30–60분 하는 사람들에게서 건강 효과가 가장 컸어요(영국스포츠의학저널 종합 분석 2022, 관찰 연구). 유산소는 숨찬 운동(인터벌·에어바이크·빠른 달리기)을 2배로 쳐요. 코어·균형은 코어·한 다리·버티기 운동을 한 날 수예요.
+          나이 들어서도 건강하게 지내는 데는 근력, 꾸준한 유산소, 가끔 숨찬 운동, 몸통·균형 네 가지가 고르게 필요해요. 근력 시간은 본세트 1개를 휴식 포함 약 2.7분으로 쳐서 계산해요. 근력 운동은 주 30–60분 하는 사람들에게서 건강 효과가 가장 컸어요(영국스포츠의학저널 종합 분석 2022, 관찰 연구). 숨찬 운동은 인터벌 트레드밀·에어바이크·줄넘기·배틀로프, 시속 8km 이상 달리기예요. 유산소 세트 뒤 '숨찼어요(말 끊김)'를 누른 세트도 들어가요(말이 끊길 정도면 고강도). 유산소 분에는 숨찬 운동을 2배로 쳐요. 하체 운동처럼 숨이 차는 근력 운동은 '근력'으로 세요. 코어·균형은 코어·한 다리·버티기 운동을 한 날 수예요.
         </Disclosure>
       </Card>
     </>
@@ -420,12 +421,13 @@ export function FrequentBySetsCard({ logs }) {
 }
 
 // ───────── 랭킹(상위 10명 + 나) ─────────
-export function RankingList({ entries, uid, myNickname, onOpenMine, active = true }) {
+export function RankingList({ entries, uid, myNickname, onOpenMine, active = true, outside = null }) {
   const myIdx = entries.findIndex((e) => e.uid === uid)
   // [2026-11-08 순간 강조] 내 줄은 REPORT를 처음 볼 때(세션당 한 번) 빛이 한 번 스쳐 지나감
   const myMoment = useMoment(myIdx >= 0 ? 'report-my-rank' : null, active && myIdx >= 0)
   const rows = entries.slice(0, 10).map((e, i) => ({ e, rank: rankAt(entries, i), first: i === 0 }))
   if (myIdx >= 10) rows.push({ e: entries[myIdx], rank: rankAt(entries, myIdx), gap: true })
+  else if (myIdx < 0 && outside?.entry) rows.push({ e: outside.entry, rank: outside.rank, gap: true }) // [2026-11-11] 상위 100명 밖
   return (
     <Card style={{ marginBottom: 20, padding: '6px 16px' }}>
       {rows.map(({ e, rank, gap, first }) => {
@@ -439,7 +441,7 @@ export function RankingList({ entries, uid, myNickname, onOpenMine, active = tru
               disabled={!me}
               style={{ position: me ? 'relative' : undefined, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 0', borderTop: !first && !gap ? '1px solid var(--color-line)' : 'none', textAlign: 'left', color: 'var(--color-label-strong)', cursor: me ? 'pointer' : 'default', opacity: 1 }}
             >
-              <span className="bt-num" style={{ width: 28, fontSize: rank <= 3 ? 20 : 16, fontWeight: 800, color: rank <= 3 ? 'var(--color-label-strong)' : 'var(--color-label-neutral)' }}>{rank}</span>
+              <span className="bt-num" style={{ minWidth: 28, whiteSpace: 'nowrap', fontSize: rank <= 3 ? 20 : 16, fontWeight: 800, color: rank <= 3 ? 'var(--color-label-strong)' : 'var(--color-label-neutral)' }}>{rank}</span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: me ? 800 : 600 }}>
                 {me ? `${myNickname || '나'} (나)` : maskName(e.nickname)}
               </span>

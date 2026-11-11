@@ -241,7 +241,7 @@ function Head({ P, view }) {
   )
 }
 
-function Figure({ view, P, target, uid }) {
+function Figure({ view, P, target, uid, height = null }) {
   const sil = useMemo(() => {
     const pl = (key) => SIL[key][1].map(place(P, SIL[key][0]))
     return { torso: pl('torso'), arm: pl('arm'), hand: pl('hand'), leg: pl('leg'), foot: pl(view === 'front' ? 'footF' : 'footB') }
@@ -268,7 +268,7 @@ function Figure({ view, P, target, uid }) {
     ? [-1, 1].map((sd) => smooth(mirror([[6, 104], [10, 118], [22, 128], [34, 122], [40, 106]].map(place(P, 't')), sd), false))
     : null
   return (
-    <svg viewBox="-84 0 168 434" role="img" aria-label={view === 'front' ? '앞모습' : '뒷모습'} style={{ height: 'min(330px, 70vw)', width: 'auto', display: 'block' }}>
+    <svg viewBox="-84 0 168 434" role="img" aria-label={view === 'front' ? '앞모습' : '뒷모습'} style={{ height: height || 'min(330px, 70vw)', width: 'auto', display: 'block' }}>
       {view === 'back' && P.f && <Head P={P} view={view} />}
       {skinPieces.map((d, i) => <path key={`o${i}`} d={d} fill={C.skin} stroke={C.outline} strokeWidth="2.2" strokeLinejoin="round" />)}
       {skinPieces.map((d, i) => <path key={`f${i}`} d={d} fill={C.skin} />)}
@@ -333,6 +333,46 @@ function Chips({ title, ids, tone }) {
           </span>
         ))}
       </div>
+    </div>
+  )
+}
+
+// [2026-11-11] 종목 여러 개(코치 프로그램 하루치)가 쓰는 근육: 주로 쓰는 근육을 모으고, 같이 쓰는 근육은 주로 쓰는 쪽에 없을 때만
+export function targetsForExercises(names) {
+  const p = []
+  const s = []
+  ;(names || []).forEach((n) => {
+    const t = muscleTargets(n)
+    if (!t) return
+    t.p.forEach((id) => { if (!p.includes(id)) p.push(id) })
+    t.s.forEach((id) => { if (!s.includes(id)) s.push(id) })
+  })
+  return p.length || s.length ? { p, s: s.filter((id) => !p.includes(id)) } : null
+}
+// [2026-11-11] 리포트 부위(가슴·등·어깨·이두·삼두·하체 앞·뒤·코어) → 그림 조각
+export const ATOM_FIGURE_IDS = {
+  가슴: ['pecU', 'pec'],
+  등: ['lat', 'trapM', 'teres'],
+  어깨: ['deltF', 'deltS', 'deltB', 'infra', 'trapU'],
+  이두: ['bi', 'brach', 'fore'],
+  삼두: ['tri'],
+  '하체 앞': ['quad', 'hipflex', 'add'],
+  '하체 뒤': ['glute', 'gmed', 'ham', 'calf'],
+  코어: ['abs', 'obl', 'erector'],
+}
+// [2026-11-11] 이름표 없이 앞·뒤 그림만(작게 쓰는 곳: 리포트 근육별 주간 세트, 코치 프로그램 파트)
+export function MuscleFigures({ target, gender, height = 160, labels = true, style }) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
+  const P = useMemo(() => body(gender === '여성'), [gender])
+  if (!target) return null
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', gap: Math.round(height / 14), ...style }}>
+      {['front', 'back'].map((v) => (
+        <div key={v}>
+          <Figure view={v} P={P} target={target} uid={`mf${uid}${P.f ? 'f' : 'm'}`} height={height} />
+          {labels && <div style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)', marginTop: 2 }}>{v === 'front' ? '앞' : '뒤'}</div>}
+        </div>
+      ))}
     </div>
   )
 }

@@ -1,6 +1,9 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-11] 관리자 대시보드 운영자 관점 개편(오늘 할 일·회원 케어·유지·분석·공지·설문·관리자 + 트레이너).
+ * 최신 변경: [2026-11-11] 체중 추이(REPORT·MY), 근육 그림(REPORT·코치 프로그램), WorkoutInput 화면·훅 분리.
+ *            직전: [2026-11-11] 남겨둔 작업: 트레이너 처방 무거운 세트 먼저·이탈 위험 기준·연락 문구·오늘 처리함·랭킹 100위 밖·WorkoutInput 분리.
+ *            직전: [2026-11-11] 트레이너 일정 모아보기에서 추가·수정, 유산소 타이머 행 저장 확인, 숨찬 운동 '숨찼어요' 표시.
+ *            직전: [2026-11-11] 관리자 대시보드 운영자 관점 개편(오늘 할 일·회원 케어·유지·분석·공지·설문·관리자 + 트레이너).
  *            직전: [2026-11-11] 세트 짜는 방식 '무거운 세트 먼저'(탑세트 + 백오프세트).
  *            직전: [2026-11-11] 설정 변경 효과음 = 종목 완료음.
  *            직전: [2026-11-11] 버튼 효과음 구분(기록 화면 버튼 = 세트 완료음, 일반 메뉴 = 물방울).
@@ -899,6 +902,7 @@ export default function App() {
             liveExercises={liveExercises}
             uid={authUser.uid}
             userDoc={userDoc}
+            onProfileUpdated={refreshUserDoc}
             targetSessionsPerWeek={targetSessionsPerWeek}
             logsVersion={logsVersion}
             onShowTierInfo={() => setShowTierInfo(true)}

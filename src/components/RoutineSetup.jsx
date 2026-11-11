@@ -515,6 +515,21 @@ function TrainerRxEditor({ keys, rx, setRx }) {
                       <option key={c.id} value={c.id}>강도: {c.label} ({c.id === 'max' ? '마지막 세트 한계' : `${c.rir}개 남김`})</option>
                     ))}
                   </select>
+                  {getExerciseInputType(name) === 'sets' && !isHoldExercise(name) && (
+                    <button
+                      type="button"
+                      aria-pressed={r.setStyle === 'top'}
+                      onClick={() => patch(k, { setStyle: r.setStyle === 'top' ? undefined : 'top' })}
+                      style={{ height: 36, padding: '0 10px', border: '1px solid var(--color-line)', borderRadius: 'var(--radius-pill)', background: r.setStyle === 'top' ? 'var(--color-fill-strong)' : 'transparent', color: r.setStyle === 'top' ? 'var(--color-on-fill)' : 'var(--color-label-normal)', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}
+                    >
+                      {r.setStyle === 'top' ? '✓ ' : ''}무거운 세트 먼저
+                    </button>
+                  )}
+                  {r.setStyle === 'top' && (
+                    <span className="text-keep-all" style={{ flexBasis: '100%', fontSize: 12, color: 'var(--color-label-neutral)' }}>
+                      첫 본세트를 가장 무겁게 하고, 나머지는 약 10% 가볍게(백오프) 해요.
+                    </span>
+                  )}
                 </div>
               )}
             </div>

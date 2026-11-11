@@ -3,6 +3,7 @@
 // 저장하면 내 루틴 '코치 프로그램' 하나가 생기고(이미 있으면 바꿈), 운동 중 로그 코치가 그 처방(세트 수·목표 횟수·유산소 분)을 따른다.
 // 트레이너 계획이 있으면 그 계획이 우선(트레이너 계획으로 운동하는 날은 처방을 쓰지 않음).
 import React, { Suspense, lazy, useMemo, useState } from 'react'
+import { MuscleFigures, targetsForExercises } from './MuscleMap'
 import { CountUp } from '../hooks/useCountUp'
 import { Button, Card, Chip, Disclosure, ScreenHeader, PartBadge, OnceHint } from './ui'
 import { GoalPicker } from './GoalPicker'
@@ -142,7 +143,7 @@ export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, o
           {!canNext && <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>목표를 하나 이상 골라 주세요.</p>}
         </>
       ) : (
-        program && <ProgramResult program={program} intensity={answers.intensity} existing={!!existing} hasTrainerPlan={hasTrainerPlan} coachOff={userDoc?.coachEnabled === false} saving={saving} error={error} onSave={handleSave} onRedo={() => setStep(0)} onOpenGuide={setGuideName} />
+        program && <ProgramResult gender={userDoc?.onboarding?.gender || null} program={program} intensity={answers.intensity} existing={!!existing} hasTrainerPlan={hasTrainerPlan} coachOff={userDoc?.coachEnabled === false} saving={saving} error={error} onSave={handleSave} onRedo={() => setStep(0)} onOpenGuide={setGuideName} />
       )}
       {guideName && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--color-bg)', overflowY: 'auto', padding: '0 16px 40px', paddingBottom: 'calc(40px + var(--safe-bottom, 0px))' }}>
@@ -157,7 +158,7 @@ export default function CoachProgramWizard({ uid, userDoc, templates, onSaved, o
 
 const ATOM_ORDER = ['가슴', '등', '어깨', '하체', '이두', '삼두', '코어']
 
-function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff, saving, error, onSave, onRedo, onOpenGuide }) {
+function ProgramResult({ gender = null, program, intensity, existing, hasTrainerPlan, coachOff, saving, error, onSave, onRedo, onOpenGuide }) {
   const it = COACH_INTENSITIES.find((c) => c.id === intensity) || COACH_INTENSITIES[2]
   const rotation = Array.from({ length: program.days }, (_, i) => program.parts[i % program.parts.length].name)
   const avgMin = Math.round(program.sessionMin.reduce((x, y) => x + y, 0) / program.sessionMin.length)
@@ -207,9 +208,13 @@ function ProgramResult({ program, intensity, existing, hasTrainerPlan, coachOff,
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
         {program.parts.map((p, i) => (
           <Card key={p.name} className="bt-enter" style={{ animationDelay: `${0.2 + i * 0.08}s` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>{p.name}</span>
-              <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>약 <span className="bt-num">{program.sessionMin[i]}</span>분</span>
+            {/* [2026-11-11] 그날 쓰는 근육을 작은 앞·뒤 그림으로(진하게 = 주로, 옅게 = 같이) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 16, fontWeight: 800, color: 'var(--color-label-strong)' }}>{p.name}</span>
+                <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>약 <span className="bt-num">{program.sessionMin[i]}</span>분</span>
+              </div>
+              <MuscleFigures target={targetsForExercises(p.exercises)} gender={gender} height={88} labels={false} style={{ flexShrink: 0 }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {p.exercises.map((n, j) => {

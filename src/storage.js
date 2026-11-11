@@ -28,9 +28,11 @@ import {
   FieldPath,
   writeBatch,
   runTransaction,
+  getCountFromServer,
 } from 'firebase/firestore'
 import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises } from './utils/exerciseLibrary'
 import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey, cleanTrainerRx } from './utils/strength'
+import { withWeight } from './utils/weightLog'
 import { getSeasonPeriod } from './utils/season'
 import { weekStartStr, todayStr, toLocalDateStr } from './utils/date'
 
@@ -347,6 +349,13 @@ export async function adminGetPrivates(uids) {
 // [2026-11-01] 오프라인이면 로컬 대기열에 넣고 4초 뒤 진행, 권한 거부 등 즉시 실패는 throw(전체 점검 U3)
 export async function updateUserProfile(uid, partial) {
   await settleOrTimeout(updateDoc(doc(db, 'users', uid), partial))
+}
+
+// [2026-11-11] 오늘 체중 기록(REPORT 체중 추이): 지금 몸무게(onboarding.weightKg)와 날짜별 기록(weightLog)을 함께 바꾼다
+export async function recordBodyWeight(uid, prevLog, date, kg) {
+  const weightLog = withWeight(prevLog, date, kg)
+  await updateUserProfile(uid, { 'onboarding.weightKg': Math.round(Number(kg) * 10) / 10, weightLog })
+  return weightLog
 }
 
 // [2026-10-31] 트레이너 목표 제안·직접 수정(users 문서). 목표 = onboarding.goals, 주간 목표 = weeklyTargetDays.
@@ -1828,6 +1837,7 @@ export async function upsertLeaderboardEntry(group, period, uid, scoreData) {
   const ref = doc(db, 'leaderboard', group, period, uid)
   await setDoc(ref, { ...scoreData, updatedAt: serverTimestamp() }, { merge: true })
   leaderboardCache.delete(`${group}/${period}`) // 내 점수가 바뀌었으니 다음 조회는 새로
+  myRankCache.delete(`${group}/${period}/${uid}`)
 }
 
 // [2026-10-31] Spark 읽기 절약: 랭킹 100명(최대 100읽기)을 REPORT·등급 화면을 열 때마다 다시 읽던 것을
@@ -1848,6 +1858,28 @@ export function getLeaderboard(group, period, count = 100) {
       throw err
     })
   leaderboardCache.set(key, { count, at: Date.now(), promise })
+  return promise
+}
+
+// [2026-11-11] 상위 100명 밖일 때 내 순위: 내 점수 문서 1개 + '나보다 점수 높은 회원 수' 집계(1000명당 읽기 1회). 동점은 같은 순위.
+const myRankCache = new Map() // `${group}/${period}/${uid}` -> { at, promise }
+export function getMyLeaderboardRank(group, period, uid) {
+  const key = `${group}/${period}/${uid}`
+  const hit = myRankCache.get(key)
+  if (hit && Date.now() - hit.at < SHARED_READ_CACHE_MS) return hit.promise
+  const promise = (async () => {
+    const snap = await getDoc(doc(db, 'leaderboard', group, period, uid))
+    if (!snap.exists()) return null
+    const entry = { uid, ...snap.data() }
+    const agg = await getCountFromServer(query(collection(db, 'leaderboard', group, period), where('finalScore', '>', Number(entry.finalScore) || 0)))
+    countReads(1)
+    return { entry, rank: agg.data().count + 1 }
+  })().catch((err) => {
+    myRankCache.delete(key)
+    if (err?.code === 'permission-denied') return null
+    throw err
+  })
+  myRankCache.set(key, { at: Date.now(), promise })
   return promise
 }
 

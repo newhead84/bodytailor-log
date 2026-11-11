@@ -5,7 +5,7 @@
 
 import { getExerciseInputType, getExerciseAtom } from './exerciseLibrary'
 import { setsVolumeKg } from './load'
-import { toSavedCardioSet } from './cardioFields'
+import { toSavedCardioSet, cardioTimerMinutes } from './cardioFields'
 import { parseExerciseKey } from './exerciseKey'
 import { toLocalDateStr } from './date'
 
@@ -59,6 +59,28 @@ function isNextSetPlaceholder(s, sets) {
 function keepForSave(s, sets, includeUnchecked) {
   if (isCountableSet(s)) return true
   return includeUnchecked && !isNextSetPlaceholder(s, sets)
+}
+
+// [2026-11-11] 유산소 '타이머로 기록' 행은 세트 완료(V) 때만 시간이 채워져서, V 없이 종목·운동을 완료하면
+// '빈 행'으로 보고 묻지도 않고 지웠다(사용자 신고: 유산소를 했는데 캘린더·리포트에 없음). 완료 확인 전에 타이머 시간을
+// durationMin으로 채워(fromTimer 표시) 다른 미체크 세트처럼 묻게 한다. 1분 미만이면 그대로 둔다.
+// capMin: 3시간 방치 자동 저장처럼 실제로 언제 멈췄는지 모를 때 상한(분) - 다음에 앱을 열면 검토 팝업에서 고칠 수 있다
+export function withTimerMinutes(records, now = Date.now(), { capMin = null, markSaved = false } = {}) {
+  let changed = false
+  const out = {}
+  Object.entries(records || {}).forEach(([key, sets]) => {
+    out[key] = (sets || []).map((s) => {
+      if (!s || s.saved || !s.cardioTimer?.startAt) return s
+      let m = cardioTimerMinutes(s.cardioTimer, now)
+      if (capMin != null && m > capMin) m = capMin
+      if (!(m >= 1)) return s
+      changed = true
+      const { cardioTimer, ...rest } = s
+      if (markSaved) return { ...rest, durationMin: String(m), auto: false, planned: false, saved: true, savedAt: s.cardioTimer.startAt }
+      return { ...rest, durationMin: String(m), auto: false, planned: false, fromTimer: true }
+    })
+  })
+  return changed ? out : records
 }
 
 // [2026-11-09] 종목별 체크 안 한 세트 수 → [{ key, name, n }] (완료 팝업에 종목 이름을 함께 보여 줌)

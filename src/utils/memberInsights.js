@@ -71,6 +71,13 @@ export function segmentOf(u, today, st = activityStats(u, today)) {
 
 // 이탈 위험: 점수 = 신호별 가중치 합, 이유는 한 줄씩(사람이 보고 연락하기 위한 근거 - 벤치마킹: '이유와 연락 시점'이 함께 보여야 함)
 // 회원권이 이미 끝난 회원·휴회 중인 회원은 위험 대상이 아니다(재등록·휴회는 다른 목록).
+// [2026-11-11] 이탈 위험 기준(관리자 '설정·도구'에서 바꿈, settings/app.riskAwayDays·riskHighDays). 대시보드가 렌더 중 setRiskConfig로 넣는다.
+let riskCfg = { away: 14, high: 21 }
+export function setRiskConfig(settings) {
+  const n = (v, d) => (Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 365 ? Number(v) : d)
+  const away = n(settings?.riskAwayDays, 14)
+  riskCfg = { away, high: Math.max(away + 1, n(settings?.riskHighDays, 21)) }
+}
 export function riskOf(u, today, note = null, st = activityStats(u, today)) {
   const ms = membershipState(u, today)
   if (ms.kind === 'expired' || ms.kind === 'exempt') return null
@@ -83,10 +90,10 @@ export function riskOf(u, today, note = null, st = activityStats(u, today)) {
   }
   const typicalGap = st.priorAvg > 0 ? 7 / st.priorAvg : null
   if (st.daysSince == null) {
-    if (st.joinedDays != null && st.joinedDays >= 14) add(4, `가입 ${st.joinedDays}일째 운동 기록 없음`)
-  } else if (st.daysSince >= 21) add(4, `${st.daysSince}일째 운동 없음`)
-  else if (st.daysSince >= 14) add(3, `${st.daysSince}일째 운동 없음`)
-  else if (typicalGap && st.daysSince >= 7 && st.daysSince >= typicalGap * 2.5) add(2, `평소 주 ${round1(st.priorAvg)}일 → ${st.daysSince}일째 안 옴`)
+    if (st.joinedDays != null && st.joinedDays >= riskCfg.away) add(4, `가입 ${st.joinedDays}일째 운동 기록 없음`)
+  } else if (st.daysSince >= riskCfg.high) add(4, `${st.daysSince}일째 운동 없음`)
+  else if (st.daysSince >= riskCfg.away) add(3, `${st.daysSince}일째 운동 없음`)
+  else if (typicalGap && st.daysSince >= Math.min(7, riskCfg.away - 1) && st.daysSince >= typicalGap * 2.5) add(2, `평소 주 ${round1(st.priorAvg)}일 → ${st.daysSince}일째 안 옴`)
   if (st.priorN >= 3 && st.priorAvg >= 1.5 && st.recentAvg <= st.priorAvg * 0.5) add(2, `최근 2주 운동이 평소의 절반 이하(주 ${round1(st.priorAvg)}일 → ${round1(st.recentAvg)}일)`)
   if (st.joinedDays != null && st.joinedDays >= 14 && st.joinedDays < 90 && st.daysSince != null) {
     const weeksIn = Math.max(1, Math.min(12, Math.floor(st.joinedDays / 7)))
@@ -245,3 +252,19 @@ export function timelineOf(u, logs = [], note = null) {
 }
 
 export { addDays }
+
+// [2026-11-11] 연락 문구(복사해서 문자·카톡으로 보냄 - 앱이 보내지 않음). 상황에 맞는 것을 앞에.
+// 건강·몸 상태는 묻지 않는다(관리자 메모에 건강 정보 금지와 같은 기준).
+export function contactTemplates(u, today, { name = '', check = null } = {}) {
+  const who = name ? `${name}님` : '회원님'
+  const daysLeft = u?.membershipEnd ? daysBetween(today, u.membershipEnd) : null
+  const end = u?.membershipEnd ? `${Number(u.membershipEnd.slice(5, 7))}월 ${Number(u.membershipEnd.slice(8, 10))}일` : ''
+  const list = [
+    { id: 'away', label: '오랜만', text: `${who}, 바디테일러입니다. 요즘 많이 바쁘셨죠? 다시 시작하실 때 편한 시간 알려 주시면 가볍게 다시 맞춰 드릴게요.` },
+    { id: 'newbie', label: '신규 확인', text: `${who}, 바디테일러입니다. 운동 시작하신 지 ${check ? `${check}주째` : '얼마 안 됐'}네요. 기구 쓰는 법이나 루틴이 어렵게 느껴지시면 언제든 말씀해 주세요.` },
+    { id: 'expire', label: '회원권 안내', text: `${who}, 바디테일러입니다. 회원권이 ${end || '곧'} 끝나요. 이어서 운동하실 계획이면 편하실 때 안내 도와드릴게요.` },
+    { id: 'hello', label: '안부', text: `${who}, 바디테일러입니다. 운동은 잘 되고 계신가요? 궁금한 점 있으면 편하게 연락 주세요.` },
+  ]
+  const first = check ? 'newbie' : daysLeft != null && daysLeft >= 0 && daysLeft <= 30 ? 'expire' : riskOf(u, today) ? 'away' : 'hello'
+  return [...list.filter((t) => t.id === first), ...list.filter((t) => t.id !== first && (t.id !== 'expire' || end))]
+}

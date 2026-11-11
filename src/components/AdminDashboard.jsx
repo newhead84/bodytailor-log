@@ -26,7 +26,7 @@ import { Badge, fmtDate, selectStyle, statusOf, isGymMember } from './adminUi'
 import { CareTab, ContactDialog, buildCareQueue, RiskBadge } from './AdminCare'
 import RetentionTab from './AdminRetention'
 import NoticesTab from './AdminNotices'
-import { riskOf, segmentOf, activityStats, normalizeTags, SEGMENTS, isCareTarget } from '../utils/memberInsights'
+import { riskOf, segmentOf, activityStats, normalizeTags, SEGMENTS, isCareTarget, setRiskConfig } from '../utils/memberInsights'
 import { dashSetting } from './AdminTools'
 import { todayStr } from '../utils/date'
 
@@ -78,6 +78,7 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState('')
   const [settings, setSettings] = useState({})
+  setRiskConfig(settings) // [2026-11-11] 이탈 위험 기준(렌더 중 - riskOf를 쓰는 모든 탭이 같은 값)
   const [logFails, setLogFails] = useState(0) // [2026-11-01] 관리 이력 저장 실패 수(A32)
   const [priv, setPriv] = useState({}) // [2026-11-01] S6: uid -> 번호 변환값(memberPrivate, 필요한 회원만 읽음)
   const [quota, setQuota] = useState(false) // [2026-11-01] B2: 하루 한도 초과

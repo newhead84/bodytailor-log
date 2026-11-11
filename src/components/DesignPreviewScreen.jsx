@@ -10,7 +10,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { X, ChevronDown } from 'lucide-react'
 import { Button, Chip, AccentSwatches } from './ui'
-import { ExerciseCard } from './WorkoutInput'
+import { ExerciseCard } from './ExerciseCard'
 import GlobalTimerBar, { GLOBAL_TIMER_BAR_HEIGHT } from './GlobalTimerBar'
 import RestTimer from './RestTimer'
 import WorkoutGuide, { WORKOUT_GUIDE_STEPS } from './WorkoutGuide'

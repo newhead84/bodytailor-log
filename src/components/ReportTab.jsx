@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, SectionTitle, Chip, Button, TierBadge, EmptyState, Disclosure } from './ui'
-import { getLeaderboard, upsertLeaderboardEntry, getAllWorkoutLogs, getExercisePopularityByAtom, getEffectiveSeasonXp, listFitnessTests } from '../storage'
+import { getLeaderboard, getMyLeaderboardRank, upsertLeaderboardEntry, getAllWorkoutLogs, getExercisePopularityByAtom, getEffectiveSeasonXp, listFitnessTests } from '../storage'
 import { getTierByXp, getLevelInfo } from '../utils/tier'
 import { computeOverloadByOccurrenceForDisplay, computeSeasonScore, seasonScoreRangeStart, rankAt } from '../utils/scoring'
 import { getExerciseAtom, getExerciseInputType, getSynergistAtoms, getBodyweightVolumeFactor, BODY_PART_ATOMS, getPartColor } from '../utils/exerciseLibrary'
@@ -12,6 +12,7 @@ import { workingSetsOf, bestE1rmOfSets } from '../utils/strength'
 import { setsVolumeKg, isHoldExercise, logVolumeKg } from '../utils/load'
 import { CountUp } from '../hooks/useCountUp'
 import { MuscleSetsCard, CardioCard, RecoveryCard, PrCard, BoneHealthCard, BalanceCard, startOfWeekStr } from './InsightCards'
+import WeightTrendCard from './WeightTrendCard'
 import { WeekSummaryCard, WeeklySetsHeatmap, StrengthTrendCard, FrequentBySetsCard, RankingList, maskName, HealthPillarsCard } from './ReportSections'
 import { getTrainingProfile } from '../utils/goals'
 
@@ -35,7 +36,7 @@ function startOfWeek(d) {
   return date
 }
 
-export default function ReportTab({ liveExercises = null, uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true, onOpenFitness = null }) {
+export default function ReportTab({ onProfileUpdated = null, liveExercises = null, uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true, onOpenFitness = null }) {
   // [2026-11-07] 이 탭은 숨겨진 채 앱 시작과 함께 렌더되므로, 처음 열 때까지는 랭킹·인기 운동·통계 기록을 읽지 않는다
   // (앱 열기마다 읽기 약 50~150 절약, Spark 한도). 한 번 열린 뒤에는 예전처럼 동작한다.
   const [everActive, setEverActive] = useState(!!isActive)
@@ -62,6 +63,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
   const attendanceTargetDays = Math.min(6, Math.max(2, targetSessionsPerWeek || 3))
   // 랭킹 관련 상태
   const [entries, setEntries] = useState([])
+  const [outsideMe, setOutsideMe] = useState(null) // [2026-11-11] 상위 100명 밖일 때 { entry, rank }
   const [rankingLoading, setRankingLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   // [2026-07-29 신규] "내 점수 갱신" 버튼의 용도가 불명확하다는 피드백으로, 버튼 자체는
@@ -101,7 +103,10 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
     setRankingLoading(true)
     // [2026-11-10] 읽기 실패(오프라인 등) 때 '불러오는 중'에 멈추지 않게
     try {
-      setEntries(await getLeaderboard('all', period, 100))
+      const list = await getLeaderboard('all', period, 100)
+      setEntries(list)
+      // [2026-11-11] 상위 100명 밖이면 내 순위만 따로(집계 1회)
+      setOutsideMe(list.length >= 100 && uid && !list.some((e) => e.uid === uid) ? await getMyLeaderboardRank('all', period, uid).catch(() => null) : null)
       setRankingError(false)
     } catch (err) {
       console.error('랭킹 불러오기 실패:', err)
@@ -265,8 +270,8 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
 
   // [2026-10-31] 내 순위 카드(누르면 등급·점수 안내) + 상위 10명 목록(다른 회원 닉네임은 첫 글자만, RankingList)
   const myRankIndex = entries.findIndex((e) => e.uid === uid)
-  const myEntry = myRankIndex >= 0 ? entries[myRankIndex] : null
-  const myRank = rankAt(entries, myRankIndex) // [2026-11-01] M8: 동점은 같은 순위
+  const myEntry = myRankIndex >= 0 ? entries[myRankIndex] : outsideMe?.entry || null
+  const myRank = myRankIndex >= 0 ? rankAt(entries, myRankIndex) : outsideMe?.rank // [2026-11-01] M8: 동점은 같은 순위
 
   // [2026-10-31] 이번 주 요약의 '늘어난 운동' - 비교할 직전 기록이 있는 회차만
   const overloadComparable = overloadProgress.occurrences.filter((o) => !o.isNew)
@@ -285,8 +290,9 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
         <>
           <WeekSummaryCard logs={logs} targetDays={attendanceTargetDays} overload={overloadSummary} active={isActive} />
           <HealthPillarsCard logs={logs} liveExercises={liveExercises} lastFitnessDate={lastFitnessDate} onOpenFitness={onOpenFitness} />
-          <MuscleSetsCard logs={logs} liveExercises={liveExercises} />
+          <MuscleSetsCard logs={logs} liveExercises={liveExercises} gender={userDoc?.onboarding?.gender || null} />
           <StrengthTrendCard logs={logs} isActive={isActive} />
+          <WeightTrendCard uid={uid} userDoc={userDoc} onSaved={onProfileUpdated} />
           <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} />
           <WeeklySetsHeatmap logs={logs} />
           <CardioCard logs={logs} liveExercises={liveExercises} />
@@ -327,7 +333,7 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
       </SectionTitle>
       {/* [2026-10-31] 랭킹 공개 안내(개인정보) */}
       <p className="text-keep-all" style={{ margin: '-6px 0 10px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
-        {isTrainerRole ? '트레이너 계정은 랭킹에 들어가지 않아요(회원만).' : '시즌 동안 주별 점수의 평균으로 순위를 매겨요. 다른 회원에게는 내 닉네임의 첫 글자만 보여요.'}
+        {isTrainerRole ? '트레이너 계정은 랭킹에 들어가지 않아요(회원만).' : '순위는 이번 시즌 주별 점수의 평균이에요. 다른 회원에게는 닉네임 첫 글자만 보여요.'}
       </p>
 
       {showRefreshInfo && (
@@ -361,28 +367,28 @@ export default function ReportTab({ liveExercises = null, uid, userDoc, targetSe
                 }}
               >
                 {/* [2026-10-28 리디자인] 강조 테두리 대신 큰 순위 숫자로 위계 */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span className="bt-num" style={{ fontSize: 'calc(30px * var(--num-scale))', lineHeight: 1, minWidth: 28 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                  <span className="bt-num" style={{ fontSize: `calc(${String(myRank).length >= 3 ? 24 : 30}px * var(--num-scale))`, lineHeight: 1, minWidth: 28, whiteSpace: 'nowrap', flexShrink: 0 }}>
                     {myRank}
                     <span style={{ fontSize: 13, color: 'var(--color-label-neutral)', marginLeft: 1 }}>위</span>
                   </span>
                   {/* [2026-08-01] 닉네임+티어가 세로 2줄이던 걸 한 줄로 통합(티어 뱃지 오른쪽에 닉네임) */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
                     <TierBadge label={tier.label} tierKey={tier.key} level={getLevelInfo(getEffectiveSeasonXp(userDoc)).level} size="sm" />
                     <span style={{ fontWeight: 700, fontSize: 14 }}>{userDoc?.nickname || myEntry.nickname} (나)</span>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span className="bt-num" style={{ fontSize: 'calc(20px * var(--num-scale))', display: 'block' }}>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <span className="bt-num" style={{ fontSize: 'calc(20px * var(--num-scale))', display: 'block', whiteSpace: 'nowrap' }}>
                     <CountUp value={myEntry.finalScore} />
                     <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', marginLeft: 2 }}>점</span>
                   </span>
-                  <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>세부 보기 ›</span>
+                  <span style={{ fontSize: 12, color: 'var(--color-label-neutral)', whiteSpace: 'nowrap' }}>세부 보기 ›</span>
                 </div>
               </Card>
             )
           })()}
-          <RankingList entries={entries} uid={uid} myNickname={userDoc?.nickname} onOpenMine={onShowTierInfo} active={isActive} />
+          <RankingList entries={entries} uid={uid} myNickname={userDoc?.nickname} onOpenMine={onShowTierInfo} active={isActive} outside={outsideMe} />
         </div>
       )}
 

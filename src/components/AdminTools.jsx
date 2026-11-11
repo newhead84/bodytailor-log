@@ -11,7 +11,7 @@ import { adminExportAll, adminPurgeOldLogs, adminDeleteNotes, adminPurgeOldSeaso
 import { downloadText } from '../utils/exportCsv'
 import { todayStr } from '../utils/date'
 
-export const DASH_DEFAULTS = { staleDays: 14, ptLowCount: 3, expireSoonDays: 7 }
+export const DASH_DEFAULTS = { staleDays: 14, ptLowCount: 3, expireSoonDays: 7, riskAwayDays: 14, riskHighDays: 21 }
 export const dashSetting = (settings, k) => {
   const v = Number(settings?.[k])
   return Number.isInteger(v) && v >= 1 && v <= 365 ? v : DASH_DEFAULTS[k]
@@ -35,7 +35,8 @@ export default function AdminTools({ users, notes, settings, admin, onSettings, 
       if (!Number.isInteger(n) || n < 1 || n > 365) return say('dash', '1~365 사이 숫자로 적어 주세요.')
       patch[k] = n
     }
-    const ok = await onSettings(patch, `대시보드 기준: 운동 없음 ${patch.staleDays}일 · PT ${patch.ptLowCount}회 이하 · 만료 ${patch.expireSoonDays}일 안`)
+    if (patch.riskHighDays <= patch.riskAwayDays) return say('dash', "'위험 높음' 일수는 '관리 필요' 일수보다 커야 해요.")
+    const ok = await onSettings(patch, `대시보드 기준: 운동 없음 ${patch.staleDays}일 · PT ${patch.ptLowCount}회 이하 · 만료 ${patch.expireSoonDays}일 안 · 이탈 위험 ${patch.riskAwayDays}/${patch.riskHighDays}일`)
     say('dash', ok ? '저장했어요.' : '')
   }
   async function exportAll() {
@@ -111,6 +112,11 @@ export default function AdminTools({ users, notes, settings, admin, onSettings, 
           <label style={lab}>운동 없음(일)<input type="number" min="1" max="365" inputMode="numeric" value={vals.staleDays} onChange={(e) => setVals((v) => ({ ...v, staleDays: e.target.value }))} style={inputStyle} /></label>
           <label style={lab}>남은 PT(회 이하)<input type="number" min="1" max="365" inputMode="numeric" value={vals.ptLowCount} onChange={(e) => setVals((v) => ({ ...v, ptLowCount: e.target.value }))} style={inputStyle} /></label>
           <label style={lab}>만료 임박(일 안)<input type="number" min="1" max="365" inputMode="numeric" value={vals.expireSoonDays} onChange={(e) => setVals((v) => ({ ...v, expireSoonDays: e.target.value }))} style={inputStyle} /></label>
+        </div>
+        <p className="text-keep-all" style={{ ...desc, margin: '14px 0 8px' }}>이탈 위험 표시: 마지막 운동부터 이 일수가 지나면 '관리 필요', 더 지나면 '위험 높음'이에요(가입 후 기록이 없는 회원도 같은 기준).</p>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label style={lab}>관리 필요(일)<input type="number" min="1" max="365" inputMode="numeric" value={vals.riskAwayDays} onChange={(e) => setVals((v) => ({ ...v, riskAwayDays: e.target.value }))} style={inputStyle} /></label>
+          <label style={lab}>위험 높음(일)<input type="number" min="1" max="365" inputMode="numeric" value={vals.riskHighDays} onChange={(e) => setVals((v) => ({ ...v, riskHighDays: e.target.value }))} style={inputStyle} /></label>
           <Button onClick={saveDash}>저장</Button>
         </div>
         {note('dash')}

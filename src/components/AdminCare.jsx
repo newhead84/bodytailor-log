@@ -7,7 +7,7 @@ import { adminSaveNote, logAdmin } from '../storage'
 import { fmtYmd, memberName } from '../utils/member'
 import { todayStr } from '../utils/date'
 import {
-  isCareTarget, activityStats, addContact, celebrationsOf, contactsOf, CONTACT_HOW, CONTACT_RESULT, followUpDue, lastContactOf, newbieOf, normalizeTags, riskOf, RISK_LABEL, segmentOf, SEGMENTS, timelineOf, addDays,
+  isCareTarget, activityStats, addContact, celebrationsOf, contactTemplates, contactsOf, CONTACT_HOW, CONTACT_RESULT, followUpDue, lastContactOf, newbieOf, normalizeTags, riskOf, RISK_LABEL, segmentOf, SEGMENTS, timelineOf, addDays,
 } from '../utils/memberInsights'
 
 export const RISK_TONE = { high: 'bad', mid: 'warn', low: 'ok' }
@@ -78,6 +78,31 @@ export function ContactDialog({ u, note, admin, check = null, reason = '', onSav
     </div>
   )
   const last = lastContactOf(note)
+  const templates = useMemo(() => contactTemplates(u, today, { name: memberName(u), check }), [u, today, check])
+  const [tplId, setTplId] = useState(templates[0]?.id || '')
+  const [draft, setDraft] = useState(templates[0]?.text || '')
+  const [copied, setCopied] = useState(false)
+  async function copyDraft() {
+    let ok = false
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(draft)
+        ok = true
+      }
+    } catch (e) {
+      console.warn('복사 실패:', e)
+    }
+    if (!ok) {
+      const ta = document.createElement('textarea')
+      ta.value = draft
+      document.body.appendChild(ta)
+      ta.select()
+      try { ok = document.execCommand('copy') } catch { ok = false }
+      ta.remove()
+    }
+    setCopied(ok)
+    if (ok) setHow('msg')
+  }
   return (
     <div role="dialog" aria-modal="true" aria-label={`${memberName(u)} 연락 기록`} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(16,24,40,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(480px, 100%)', maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: 14, padding: 18, display: 'flex', flexDirection: 'column', gap: 14, boxShadow: 'var(--shadow-card)' }}>
@@ -86,6 +111,21 @@ export function ContactDialog({ u, note, admin, check = null, reason = '', onSav
           {reason && <p className="text-keep-all" style={{ ...muted, margin: '4px 0 0' }}>{reason}</p>}
           {last && <p className="text-keep-all" style={{ ...muted, margin: '4px 0 0' }}>지난 연락 {fmtYmd(last.date)} · {CONTACT_HOW[last.how]} · {CONTACT_RESULT[last.result]}{last.text ? ` · ${last.text}` : ''}</p>}
         </div>
+        {templates.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={muted}>보낼 문구(복사해서 문자·카톡으로 보내요)</span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {templates.map((t) => (
+                <Chip key={t.id} active={tplId === t.id} onClick={() => { setTplId(t.id); setDraft(t.text); setCopied(false) }} style={{ padding: '6px 12px', fontSize: 14.5 }}>{t.label}</Chip>
+              ))}
+            </div>
+            <textarea aria-label="보낼 문구" value={draft} maxLength={500} rows={3} onChange={(e) => { setDraft(e.target.value); setCopied(false) }} style={{ ...selectStyle, padding: '10px 12px', fontSize: 15, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button type="button" className="adm-act" onClick={copyDraft} disabled={!draft.trim()}>문구 복사</button>
+              {copied && <span style={muted}>복사했어요. 보낸 뒤 아래에 기록해 주세요.</span>}
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={muted}>어떻게</span>{chips(CONTACT_HOW, how, setHow)}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={muted}>결과</span>{chips(CONTACT_RESULT, result, setResult)}</div>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -267,6 +307,18 @@ export function buildCareQueue({ users, notes, today, pending = [], matchOf = ()
   })
   return [...items.values()].sort((a, b) => a.prio - b.prio || memberName(a.u).localeCompare(memberName(b.u), 'ko'))
 }
+// [2026-11-11] 오늘 처리한 일(연락 기록·재등록 연락) - 할 일 목록에서 빠진 회원을 여기서 확인
+export function buildDoneToday({ users, notes, today }) {
+  const out = []
+  users.filter(isGymMember).forEach((u) => {
+    const note = notes[u.uid]
+    const done = []
+    contactsOf(note).filter((c) => c.date === today).forEach((c) => done.push(`${CONTACT_HOW[c.how] || '연락'} · ${CONTACT_RESULT[c.result] || ''}${c.check ? ` · 신규 ${c.check}주차` : ''}`))
+    if (note?.renewal?.at === today) done.push('재등록 연락 기록')
+    if (done.length) out.push({ u, text: done.join(' / '), at: Math.max(0, ...contactsOf(note).filter((c) => c.date === today).map((c) => c.at || 0)) })
+  })
+  return out.sort((a, b) => b.at - a.at)
+}
 export const QUEUE_FILTERS = [
   { key: 'all', label: '전체' },
   { key: 'follow', label: '연락 예정' },
@@ -276,9 +328,10 @@ export const QUEUE_FILTERS = [
 ]
 const KIND_TONE = { join: 'ok', follow: 'warn', risk: 'bad', new: 'neutral', expire: 'warn', pt: 'neutral' }
 
-export function CareQueue({ queue, onContact, onOpenMember, onApprove, onRenewal, onPt, limit = 10 }) {
+export function CareQueue({ queue, done = [], onContact, onOpenMember, onApprove, onRenewal, onPt, limit = 10 }) {
   const [f, setF] = useState('all')
   const [all, setAll] = useState(false)
+  const [showDone, setShowDone] = useState(false)
   const pick = (x) => {
     const q = QUEUE_FILTERS.find((y) => y.key === f)
     return f === 'all' || (q.kinds ? q.kinds.includes(x.kind) : x.kind === f)
@@ -327,6 +380,19 @@ export function CareQueue({ queue, onContact, onOpenMember, onApprove, onRenewal
               <button type="button" className="adm-link" onClick={() => setAll((v) => !v)} style={{ fontSize: 14 }}>{all ? '접기' : `${list.length - limit}건 더 보기`}</button>
             </div>
           )}
+        </div>
+      )}
+      {done.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--color-line)' }}>
+          <button type="button" onClick={() => setShowDone((v) => !v)} aria-expanded={showDone} style={{ width: '100%', textAlign: 'left', padding: '11px 16px', fontSize: 14.5, fontWeight: 700, color: 'var(--color-label-normal)' }}>
+            오늘 처리함 <span className="bt-num">{done.length}</span>건 <span style={{ fontWeight: 400, color: 'var(--color-label-neutral)' }}>{showDone ? '접기' : '보기'}</span>
+          </button>
+          {showDone && done.map((x) => (
+            <button key={x.u.uid} type="button" onClick={() => onOpenMember?.(x.u)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 16px', borderTop: '1px solid var(--color-line)' }}>
+              <b style={{ fontSize: 15 }}>{memberName(x.u)}</b>
+              <span className="text-keep-all" style={{ display: 'block', fontSize: 13.5, color: 'var(--color-label-neutral)', marginTop: 2 }}>✓ {x.text}</span>
+            </button>
+          ))}
         </div>
       )}
     </div>

@@ -13,6 +13,7 @@ import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import AccountLegalSection from './AccountLegalSection'
 import { todayStr } from '../utils/date'
+import { withWeight } from '../utils/weightLog'
 import { BODY_RANGES, bodyRangeError } from '../utils/inputCheck'
 import { bodyMetrics, BODY_COMP_RANGES, bodyCompRangeError } from '../utils/bodyComp'
 import { getTierByXp, getNextTier, getLevelInfo, stageLevelRange } from '../utils/tier'
@@ -362,6 +363,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       nickname: (nickname || '').trim().slice(0, 30), // [2026-10-29] 랭킹 규칙(30자 이하)에 맞춤
       // [2026-10-29] 주당 운동 목표 일수(출석 목표). 고르지 않았으면 저장하지 않음(루틴 파트 수 사용)
       ...(weeklyTargetDays ? { weeklyTargetDays } : {}),
+      // [2026-11-11] 몸무게를 바꾸면 오늘 날짜로 체중 기록에도 남긴다(REPORT 체중 추이)
+      ...(Number(onboardingForm.weightKg) > 0 && Number(onboardingForm.weightKg) !== Number(userDoc?.onboarding?.weightKg)
+        ? { weightLog: withWeight(userDoc?.weightLog, todayStr(), Number(onboardingForm.weightKg)) }
+        : {}),
       onboarding: {
         ...onboardingForm,
         age: Number(onboardingForm.age),
@@ -698,7 +703,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
             {coachEnabled
               ? '내 기록을 보고 오늘의 플랜(무게·세트·횟수)과 운동 중 코치 한마디를 알려 줘요.'
-              : '꺼져 있어요. 플랜·코치 한마디 없이 지난번 기록만 미리 채워져요. 기록·리포트는 그대로예요.'}
+              : '꺼짐 · 지난번 기록만 미리 채워요(플랜·코치 한마디 없음)'}
           </span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -831,7 +836,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           <div style={{ minWidth: 0, marginRight: 12 }}>
             <div className="text-keep-all" style={{ fontSize: 14 }}>운동 중 화면 꺼짐 방지</div>
             <div className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', marginTop: 2 }}>
-              {wakeLockSupported ? '운동을 시작하면 끝날 때까지 화면을 켜 둬요. 화면이 꺼지면 휴식 알림이 늦을 수 있어요.' : '화면이 꺼지면 휴식 알림이 늦을 수 있어요.'}
+              {wakeLockSupported ? '운동하는 동안 화면을 켜 둬요(꺼지면 휴식 알림이 늦을 수 있어요)' : '화면이 꺼지면 휴식 알림이 늦을 수 있어요.'}
             </div>
           </div>
           <Button
@@ -1380,7 +1385,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                 {trainerConn.trainerName} 트레이너
                 {trainerProfile && <button type="button" onClick={() => onShowTrainerDirectory?.(trainerConn.trainerUid)} style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)', padding: 0 }}>프로필 ›</button>}
               </p>
-              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 트레이너가 내 운동 기록(컨디션·통증 표시 포함)·신체 정보·운동 목표·체력 점검을 보고, 운동 계획을 보내 줘요.</p>
+              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 트레이너가 내 운동 기록(컨디션·통증 포함)·신체 정보·목표·체력 점검을 보고 계획을 보내 줘요.</p>
             </div>
             <button
               type="button"
@@ -1425,7 +1430,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
                   <span style={{ fontSize: 14, fontWeight: 700 }}><span className="bt-num">{userDoc.ptRemaining ?? 0}</span>회 남음 <span style={{ fontWeight: 500, color: 'var(--color-label-neutral)' }}>/ 총 <span className="bt-num">{userDoc.ptTotal}</span>회</span></span>
                 </div>
               ) : null}
-              <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>회원권이 끝나면 앱에서도 새 운동 기록이 막혀요. 연장·PT 등록은 헬스장 데스크에 문의해 주세요.</p>
+              <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>회원권이 끝나면 새 기록을 남길 수 없어요. 연장·PT 등록은 데스크에 문의해 주세요.</p>
             </Card>
           </>
         )

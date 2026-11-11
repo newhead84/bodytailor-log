@@ -20,7 +20,7 @@ import { toLocalDateStr, weekStartStr } from '../utils/date'
 import { membershipState, isPausedOn, pausesOf, addDays } from '../utils/member'
 import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
-import { formatLoad, repsUnit, logVolumeKg } from '../utils/load'
+import { formatLoad, repsUnit, logVolumeKg, isAssistedExercise } from '../utils/load'
 import { formatCardioSet } from '../utils/cardioFields'
 import { setTypeMark, detectPlateaus, recentPrList, SET_TYPE_LABEL, bestE1rmOfSets, cleanTrainerRx, trainerRxText } from '../utils/strength'
 import { exerciseKeyLabel, makeExerciseKey } from '../utils/exerciseKey'
@@ -44,7 +44,7 @@ function setsText(ex) {
   const sets = ex.sets || []
   const mark = (s) => (setTypeMark(s) ? `${setTypeMark(s)} ` : '')
   const rir = (s) => (s.rir !== undefined && s.rir !== null && s.rir !== '' ? ` RIR${s.rir}` : '')
-  if (type === 'cardio') return sets.map((s) => formatCardioSet(ex.name, s)).join(' / ')
+  if (type === 'cardio') return sets.map((s) => `${formatCardioSet(ex.name, s)}${s?.hard ? ' (숨참)' : ''}`).join(' / ')
   if (type === 'reps') return sets.map((s) => `${mark(s)}${s.reps}${repsUnit(ex.name)}${rir(s)}${feelMark(s)}`).join(' / ')
   return sets.map((s) => `${mark(s)}${formatLoad(ex.name, s.weight)}×${s.reps}${rir(s)}${feelMark(s)}`).join(' / ')
 }
@@ -164,7 +164,7 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
   const schedules = list && list.length > 0 && (
     <>
       <OverdueSchedules uid={uid} list={list} onOpen={setSel} />
-      {wide ? <MonthSchedules uid={uid} list={list} onOpen={setSel} onItems={setWeekItems} /> : <WeekSchedules uid={uid} list={list} onOpen={setSel} onItems={setWeekItems} />}
+      {wide ? <MonthSchedules uid={uid} trainerName={trainerName} list={list} onOpen={setSel} onItems={setWeekItems} /> : <WeekSchedules uid={uid} trainerName={trainerName} list={list} onOpen={setSel} onItems={setWeekItems} />}
     </>
   )
   const members = list === null ? (
@@ -256,8 +256,9 @@ function OverdueSchedules({ uid, list, onOpen }) {
 
 // [2026-10-31] 오늘·이번 주 PT 일정 모아보기 - 줄을 누르면 그 회원 화면으로
 // [2026-11-01] B21: 월~일 주간 일정표 + ‹ › 주 이동(한 주 = 날짜 7개 조회 1번). 다른 트레이너 일정은 규칙상 읽을 수 없어 내 일정만.
-function WeekSchedules({ uid, list, onOpen, onItems }) {
+function WeekSchedules({ uid, trainerName = '', list, onOpen, onItems }) {
   const [items, setItems] = useState(null)
+  const [rev, setRev] = useState(0) // [2026-11-11] 일정 추가·수정 뒤 다시 읽기
   const [offset, setOffset] = useState(0)
   const today = toLocalDateStr(new Date())
   const monday = weekStartStr(today, offset)
@@ -280,27 +281,11 @@ function WeekSchedules({ uid, list, onOpen, onItems }) {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, monday])
+  }, [uid, monday, rev])
   const byMember = Object.fromEntries(list.map((c) => [c.memberUid, c]))
   const shown = (items || []).filter((s) => byMember[s.memberUid])
   const dayItems = shown.filter((s) => s.date === day)
-  const row = (s) => {
-    const c = byMember[s.memberUid]
-    const done = s.status === 'done'
-    const ns = s.status === 'noshow'
-    return (
-      <button
-        key={s.id}
-        type="button"
-        onClick={() => onOpen(c)}
-        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 0', borderTop: '1px solid var(--color-line)', textAlign: 'left', color: 'var(--color-label-strong)' }}
-      >
-        <span className="bt-num" style={{ minWidth: 44, fontSize: 14, fontWeight: 700 }}>{s.time}</span>
-        <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{c.memberName}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: done ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }}>{ns ? '노쇼' : done ? '완료' : '예정'} ›</span>
-      </button>
-    )
-  }
+
   const navBtn = { width: 36, height: 32, borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', fontSize: 16, color: 'var(--color-label-normal)' }
   return (
     <Card style={{ marginBottom: 14 }}>
@@ -338,7 +323,7 @@ function WeekSchedules({ uid, list, onOpen, onItems }) {
       ) : (
         <>
           <p style={{ margin: '12px 0 2px', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>{fmtDay(day)}{day === today ? ' 오늘' : ''} · {dayItems.length}건</p>
-          {dayItems.length ? dayItems.map(row) : <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>이날 잡힌 PT가 없어요. 일정은 회원 화면의 PT 카드에서 잡아요.</p>}
+          <DaySchedulePanel uid={uid} trainerName={trainerName} list={list} day={day} dayItems={dayItems} onOpen={onOpen} onChanged={() => setRev((r) => r + 1)} />
         </>
       )}
     </Card>
@@ -549,8 +534,9 @@ function MemberTiles({ list, sums, weekItems, onOpen }) {
 
 // [2026-11-03] 태블릿 PT 일정: 월 캘린더(월요일 시작). 날짜 칸에 건수·시간·회원 이름 2명까지, 누르면 아래에 그날 목록.
 // 조회는 기존 날짜 목록 조회(in 10개씩)를 이번 달 날짜로 나눠 부른다 - 새 색인 없음, 읽기 = 그달 일정 수.
-function MonthSchedules({ uid, list, onOpen, onItems }) {
+function MonthSchedules({ uid, trainerName = '', list, onOpen, onItems }) {
   const today = toLocalDateStr(new Date())
+  const [rev, setRev] = useState(0) // [2026-11-11] 일정 추가·수정 뒤 다시 읽기
   const [offset, setOffset] = useState(0)
   const [day, setDay] = useState(today)
   const [items, setItems] = useState(null)
@@ -581,7 +567,7 @@ function MonthSchedules({ uid, list, onOpen, onItems }) {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, monthKey])
+  }, [uid, monthKey, rev])
   const byMember = Object.fromEntries(list.map((c) => [c.memberUid, c]))
   const shown = (items || []).filter((s) => byMember[s.memberUid])
   const dayItems = shown.filter((s) => s.date === day)
@@ -637,38 +623,149 @@ function MonthSchedules({ uid, list, onOpen, onItems }) {
       ) : (
         <>
           <p style={{ margin: '12px 0 2px', fontSize: 12.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>{fmtDay(day)}{day === today ? ' 오늘' : ''} · {dayItems.length}건</p>
-          {dayItems.length ? dayItems.map((s) => scheduleRow(s, byMember[s.memberUid], onOpen)) : <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>이날 잡힌 PT가 없어요. 일정은 회원 화면의 PT 카드에서 잡아요.</p>}
+          <DaySchedulePanel uid={uid} trainerName={trainerName} list={list} day={day} dayItems={dayItems} onOpen={onOpen} onChanged={() => setRev((r) => r + 1)} />
         </>
       )}
     </Card>
   )
 }
-function scheduleRow(s, c, onOpen) {
-  const done = s.status === 'done'
-  const ns = s.status === 'noshow'
+// [2026-11-11] 일정 모아보기에서 바로 추가·시간 바꾸기·삭제(사용자 요청: 앱에서도 PT 일정 작성·수정). 완료·노쇼·차감은 남은 PT·회원권 확인이
+// 필요해서 '회원 화면에서'로 연다(같은 함수·같은 규칙, 관리 이력 'pt'도 회원 화면과 같게 남김).
+const toMins = (t) => Number(String(t).slice(0, 2)) * 60 + Number(String(t).slice(3, 5))
+function DaySchedulePanel({ uid, trainerName, list, day, dayItems, onOpen, onChanged }) {
+  const confirm = useConfirm()
+  const today = toLocalDateStr(new Date())
+  const [openId, setOpenId] = useState('')
+  const [move, setMove] = useState({ date: '', time: '' })
+  const [adding, setAdding] = useState(false)
+  const [who, setWho] = useState('')
+  const [time, setTime] = useState('19:00')
+  const [busy, setBusy] = useState(false)
+  const byMember = Object.fromEntries(list.map((c) => [c.memberUid, c]))
+  const trainer = { uid, name: trainerName }
+  async function run(fn, failMsg, c, detail) {
+    setBusy(true)
+    try {
+      await fn()
+      await logAction({ action: 'pt', targetUid: c.memberUid, targetName: c.memberName, detail }).catch(() => {})
+      setOpenId('')
+      setAdding(false)
+      onChanged()
+    } catch (err) {
+      console.error(failMsg, err)
+      await confirm(`${failMsg}. 연결 상태를 확인해 주세요.`, { okLabel: '확인', cancelLabel: '닫기' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function overlapOk(date, t, exceptId = '') {
+    try {
+      const same = (await listTrainerSchedulesByDates(uid, [date])).filter((x) => x.id !== exceptId && x.status !== 'noshow' && Math.abs(toMins(x.time) - toMins(t)) < 60)
+      if (same.length) return !!(await confirm(`${fmtDay(date)} ${same.map((x) => x.time).join(', ')}에 이미 PT가 있어요(1시간 안). 그래도 ${t}로 할까요?`, { okLabel: '네', cancelLabel: '취소' }))
+    } catch (err) {
+      console.error('중복 일정 확인 실패:', err)
+    }
+    return true
+  }
+  async function add() {
+    const c = byMember[who]
+    if (!c || !time) return
+    const t = time.slice(0, 5)
+    if (!(await overlapOk(day, t))) return
+    run(() => trainerAddSchedule(c.memberUid, trainer, day, t, { memberName: c.memberName }), '일정을 등록하지 못했어요', c, `${day} ${t} PT 일정 등록`)
+  }
+  async function saveMove(sc) {
+    const c = byMember[sc.memberUid]
+    const t = move.time.slice(0, 5)
+    if (!move.date || !t || (move.date === sc.date && t === sc.time)) return setOpenId('')
+    if (!(await overlapOk(move.date, t, sc.id))) return
+    run(() => trainerMoveSchedule(sc, move.date, t), '시간을 바꾸지 못했어요', c, `${sc.date} ${sc.time} → ${move.date} ${t} PT 일정 변경`)
+  }
+  async function remove(sc) {
+    const c = byMember[sc.memberUid]
+    if (!(await confirm(`${fmtDay(sc.date)} ${sc.time} ${c.memberName} PT 일정을 삭제할까요? 회원 캘린더에서도 사라지고 회원 HOME에 취소 알림이 보여요.`, { okLabel: '삭제', cancelLabel: '취소' }))) return
+    run(() => trainerDeleteSchedule(sc.id, sc), '삭제하지 못했어요', c, `${sc.date} ${sc.time} PT 일정 삭제`)
+  }
+  const inp = { height: 40, padding: '0 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg-card)', color: 'var(--color-label-strong)', fontSize: 14 }
+  const small = { height: 34, padding: '0 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }
   return (
-    <button
-      key={s.id}
-      type="button"
-      onClick={() => onOpen(c)}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 0', borderTop: '1px solid var(--color-line)', textAlign: 'left', color: 'var(--color-label-strong)' }}
-    >
-      <span className="bt-num" style={{ minWidth: 44, fontSize: 14, fontWeight: 700 }}>{s.time}</span>
-      <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{c.memberName}</span>
-      <span style={{ fontSize: 12, fontWeight: 700, color: done ? 'var(--color-label-neutral)' : 'var(--color-primary-strong)' }}>{ns ? '노쇼' : done ? '완료' : '예정'} ›</span>
-    </button>
+    <div>
+      {!dayItems.length && <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-label-neutral)' }}>이날 잡힌 PT가 없어요.</p>}
+      {dayItems.map((sc) => {
+        const c = byMember[sc.memberUid]
+        const open = openId === sc.id
+        const editable = sc.status === 'scheduled'
+        return (
+          <div key={sc.id} style={{ borderTop: '1px solid var(--color-line)' }}>
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => {
+                setOpenId(open ? '' : sc.id)
+                setMove({ date: sc.date < today ? today : sc.date, time: sc.time })
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 0', textAlign: 'left', color: 'var(--color-label-strong)' }}
+            >
+              <span className="bt-num" style={{ minWidth: 44, fontSize: 14, fontWeight: 700 }}>{sc.time}</span>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{c.memberName}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: sc.status === 'scheduled' ? 'var(--color-primary-strong)' : 'var(--color-label-neutral)' }}>{sc.status === 'noshow' ? '노쇼' : sc.status === 'done' ? '완료' : '예정'} {open ? '▴' : '▾'}</span>
+            </button>
+            {open && (
+              <div className="bt-enter" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '2px 0 12px' }}>
+                {editable && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <input type="date" aria-label="날짜" value={move.date} min={today} onChange={(e) => setMove((m) => ({ ...m, date: e.target.value }))} style={inp} />
+                    <input type="time" aria-label="시간" value={move.time} step={600} onChange={(e) => setMove((m) => ({ ...m, time: e.target.value }))} style={inp} />
+                    <button type="button" disabled={busy} onClick={() => saveMove(sc)} style={small}>시간 바꾸기</button>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => onOpen(c)} style={{ ...small, background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', border: 'none' }}>회원 화면 · 완료·노쇼</button>
+                  {editable && <button type="button" disabled={busy} onClick={() => remove(sc)} style={{ ...small, color: 'var(--color-danger)' }}>삭제</button>}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {day >= today && (
+        <div style={{ borderTop: '1px solid var(--color-line)', paddingTop: 10, marginTop: dayItems.length ? 0 : 8 }}>
+          {!adding ? (
+            <button type="button" onClick={() => { setAdding(true); setWho(list[0]?.memberUid || '') }} style={{ ...small, width: '100%', height: 40, borderStyle: 'dashed' }}>+ {fmtDay(day)} 일정 추가</button>
+          ) : (
+            <div className="bt-enter" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <select aria-label="회원" value={who} onChange={(e) => setWho(e.target.value)} style={{ ...inp, flex: '1 1 120px', minWidth: 0 }}>
+                {list.map((c) => <option key={c.memberUid} value={c.memberUid}>{c.memberName}</option>)}
+              </select>
+              <input type="time" aria-label="시간" value={time} step={600} onChange={(e) => setTime(e.target.value)} style={inp} />
+              <button type="button" disabled={busy || !who || !time} onClick={add} style={{ ...small, height: 40, background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', border: 'none' }}>추가</button>
+              <button type="button" onClick={() => setAdding(false)} style={{ ...small, height: 40 }}>취소</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
+
 
 // [2026-11-03] 수기 운동일지처럼: 종목마다 표 1장, 칸 = 날짜(오래된 → 최근, 오른쪽 끝이 최근), 줄 = 세트.
 // 처음에는 오른쪽 끝(최근)으로 스크롤해 둔다. 맨 아래 줄은 그날 최고 추정 1RM(무게 종목만, 늘면 ▲).
 function setCell(name, type, st) {
   const mark = setTypeMark(st) ? `${setTypeMark(st)} ` : ''
-  if (type === 'cardio') return formatCardioSet(name, st)
+  if (type === 'cardio') return `${formatCardioSet(name, st)}${st?.hard ? ' (숨참)' : ''}`
   if (type === 'reps') return `${mark}${st.reps}${repsUnit(name)}${feelMark(st)}`
   return `${mark}${formatLoad(name, st.weight)}×${st.reps}${repsUnit(name) === '초' ? '초' : ''}${feelMark(st)}`
 }
 // [2026-11-07] 처방대로 했는지: 그 계획으로 한 날만, 본세트 수 ≥ 처방 세트 + 처방 세트만큼 하한 이상
+// [2026-11-11] '무거운 세트 먼저'로 한 날: 첫 본세트가 나머지 본세트보다 무거우면(어시스트는 보조가 더 적으면) 그 세트에 표시
+function topFirstSet(name, type, work) {
+  if (type !== 'sets' || (work || []).length < 2) return false
+  const w = work.map((st) => Number(st?.weight))
+  if (!w.every((v) => Number.isFinite(v))) return false
+  const rest = w.slice(1)
+  return isAssistedExercise(name) ? w[0] < Math.min(...rest) : w[0] > Math.max(...rest)
+}
 function rxCheck(rx, sets) {
   const work = (sets || []).filter((st) => st?.type !== 'warmup' && Number(st?.reps) > 0)
   const okSets = work.filter((st) => Number(st.reps) >= rx.repMin).length
@@ -745,12 +842,14 @@ function ExerciseLogTables({ logs, rxIndex = {} }) {
                       <td style={{ ...tdStyle, ...stickyCol, color: 'var(--color-label-neutral)', fontWeight: 700 }}>{i + 1}</td>
                       {g.rows.map((r, ri) => {
                         const st = split[ri].work[i]
+                        const top = i === 0 && topFirstSet(g.name, type, split[ri].work)
                         return (
                           <td key={r.id} style={tdStyle}>
                             {st ? (
                               <>
                                 <span className="record-notation" style={{ display: 'block', color: 'var(--color-label-strong)' }}>{setCell(g.name, type, st)}</span>
                                 {hasRir(st) ? <span className="bt-num" style={{ display: 'block', fontSize: 12, color: 'var(--color-label-neutral)' }}>RIR {st.rir}</span> : null}
+                                {top ? <span style={{ display: 'block', fontSize: 12, color: 'var(--color-label-neutral)' }}>무거운 세트</span> : null}
                               </>
                             ) : (
                               <span style={{ color: 'var(--color-line)' }}>·</span>

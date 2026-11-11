@@ -11,7 +11,7 @@ import { dashSetting } from './AdminTools'
 import { daysBetween, fmtYmd, memberName, membershipState, MEMBER_STATUS, isTrainerAccount } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
 import { downloadText } from '../utils/exportCsv'
-import { CareQueue, SegmentBar, buildCareQueue } from './AdminCare'
+import { CareQueue, SegmentBar, buildCareQueue, buildDoneToday } from './AdminCare'
 import { HealthKpis } from './AdminRetention'
 import { retentionStats, celebrationsOf, isCareTarget } from '../utils/memberInsights'
 
@@ -73,6 +73,7 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings
         <div className="adm-col">
           <CareQueue
             queue={queue}
+            done={buildDoneToday({ users: members, notes, today })}
             onContact={onContact}
             onOpenMember={onOpenMember}
             onApprove={onApprove}

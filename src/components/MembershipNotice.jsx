@@ -16,7 +16,7 @@ export default function MembershipNotice({ userDoc, full = false }) {
       <p className="text-keep-all" style={{ margin: '6px 0 0', fontSize: 13.5, lineHeight: 1.6, color: 'var(--color-label-normal)' }}>
         {expired
           ? `${fmtYmd(ms.end)}까지였어요. 새 운동 기록은 헬스장에서 재등록하면 바로 다시 쓸 수 있고, 지난 기록·캘린더·리포트는 그대로 볼 수 있어요.`
-          : `${fmtYmd(ms.end)}까지 이용할 수 있어요. 회원권이 끝나면 앱에서도 새 운동 기록이 막혀요. 연장은 헬스장 데스크에 문의해 주세요.`}
+          : `${fmtYmd(ms.end)}까지 이용할 수 있어요. 회원권이 끝나면 새 기록을 남길 수 없어요. 연장은 데스크에 문의해 주세요.`}
       </p>
     </Card>
   )

@@ -89,6 +89,7 @@ export function toSavedCardioSet(name, s) {
   ALL_CARDIO_KEYS.forEach((k) => {
     if (!(k in out) && s?.[k] != null && s?.[k] !== '' && Number.isFinite(Number(s[k]))) out[k] = Number(s[k])
   })
+  if (s?.hard === true) out.hard = true // [2026-11-11] '숨찼어요'(말하기 테스트) - 고강도로 센다
   return out
 }
 
@@ -136,14 +137,16 @@ export function cardioTimerMs(t, now = Date.now()) {
   if (!t?.startAt) return 0
   return Math.max(0, (t.pausedAt || now) - t.startAt - (t.pausedMs || 0))
 }
-export function cardioTimerMinutes(t) {
-  return Math.round((cardioTimerMs(t) / 60000) * 10) / 10
+export function cardioTimerMinutes(t, now = Date.now()) {
+  return Math.round((cardioTimerMs(t, now) / 60000) * 10) / 10
 }
 
 // [2026-10-30] 고강도 유산소(WHO: 고강도 1분 = 중강도 2분). 인터벌·에어바이크·배틀로프·줄넘기, 달리기는 시속 8km 이상.
 const VIGOROUS_NAMES = ['트레드밀인터벌', '에어바이크', '배틀로프', '줄넘기']
 const RUN_NAMES = ['트레드밀', '실외러닝']
+// [2026-11-11] 회원이 '숨찼어요'(말이 끊길 정도 = 말하기 테스트의 고강도)로 표시한 세트도 고강도
 export function isVigorousCardio(name, s) {
+  if (s?.hard === true) return true
   if (VIGOROUS_NAMES.includes(name)) return true
   return RUN_NAMES.includes(name) && (Number(s?.speedKmh) || 0) >= 8
 }

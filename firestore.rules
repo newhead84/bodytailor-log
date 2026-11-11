@@ -141,6 +141,8 @@ service cloud.firestore {
         (!keys.hasAny(['coachProgram']) || (d.coachProgram is map && d.coachProgram.keys().hasOnly(['v', 'answers', 'at']) &&
           d.coachProgram.get('answers', {}) is map && d.coachProgram.get('answers', {}).size() <= 12)) &&
         (!keys.hasAny(['customExercises']) || (d.customExercises is map && d.customExercises.size() <= 12)) &&
+        // [2026-11-11] 체중 기록(날짜별, 최대 120개)
+        (!keys.hasAny(['weightLog']) || (d.weightLog is list && d.weightLog.size() <= 120)) &&
         // S3: 문의 간격 기록은 서버 시각으로만
         (!keys.hasAny(['lastInquiryAt']) || d.lastInquiryAt == request.time);
     }
@@ -498,8 +500,8 @@ service cloud.firestore {
     match /settings/{sid} {
       allow read: if request.auth != null;
       // [2026-11-01] B16: 대시보드 기준값(운동 없음 일수·PT 적음 횟수·만료 임박 일수) 정수 1~365
-      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['ptDeductEnabled', 'noshowPolicy', 'updatedAt', 'staleDays', 'ptLowCount', 'expireSoonDays']) &&
-        settingNumOk('staleDays') && settingNumOk('ptLowCount') && settingNumOk('expireSoonDays');
+      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['ptDeductEnabled', 'noshowPolicy', 'updatedAt', 'staleDays', 'ptLowCount', 'expireSoonDays', 'riskAwayDays', 'riskHighDays']) &&
+        settingNumOk('staleDays') && settingNumOk('ptLowCount') && settingNumOk('expireSoonDays') && settingNumOk('riskAwayDays') && settingNumOk('riskHighDays');
     }
     function settingNumOk(k) {
       return !(k in request.resource.data) ||
