@@ -11,11 +11,14 @@ import { dashSetting } from './AdminTools'
 import { daysBetween, fmtYmd, memberName, membershipState, MEMBER_STATUS, isTrainerAccount } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
 import { downloadText } from '../utils/exportCsv'
+import { CareQueue, SegmentBar, buildCareQueue } from './AdminCare'
+import { HealthKpis } from './AdminRetention'
+import { retentionStats, celebrationsOf, isCareTarget } from '../utils/memberInsights'
 
 
 // ───────── 요약 홈(대시보드) ─────────
 const KPI_ICON = { pending: UserPlus, expiring: Clock, ptLow: Dumbbell, stale: Moon, todayPt: CalendarDays, inq: MessageSquare, unpaid: Receipt, ptAsk: Handshake }
-export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings, onGo, onOpenMember, onApprove, onEditMembership }) {
+export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings, notes = {}, onContact, onGo, onOpenMember, onApprove, onEditMembership }) {
   const today = todayStr()
   const STALE_DAYS = dashSetting(settings, 'staleDays')
   const PT_LOW = dashSetting(settings, 'ptLowCount')
@@ -55,120 +58,73 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings
     // [2026-11-01] B4: 남은 PT가 없을 때 트레이너가 남긴 '완료(미결제)'(이번 달)
     { key: 'unpaid', label: '미결제 PT', n: month ? (month.ses || []).filter((x) => x.unpaid).length : '…', s: '결제 후 PT 관리에서 차감', alert: !!month && (month.ses || []).some((x) => x.unpaid), go: () => onGo('pt') },
   ]
-  // 처리할 회원: 사유별 한 줄(우선순위 순), 같은 회원은 첫 사유만
-  const todo = []
-  const seen = new Set()
-  const push = (u, reason, tone, action) => {
-    if (seen.has(u.uid)) return
-    seen.add(u.uid)
-    todo.push({ u, reason, tone, action })
-  }
-  pending.forEach((u) => {
-    const m = matchOf(u)
-    push(u, m?.nameOk ? '가입 · 명단 일치' : m ? '가입 · 번호만 일치' : '가입 · 명단에 없음', m?.nameOk ? 'ok' : 'warn', m?.nameOk ? { label: '승인', primary: true, run: () => onApprove(u) } : { label: '검토', run: () => onGo('pending') })
-  })
-  expiring.sort((a, b) => a.membershipEnd.localeCompare(b.membershipEnd)).forEach((u) => {
-    const d = daysBetween(today, u.membershipEnd)
-    push(u, d === 0 ? '오늘 만료' : `D-${d} 만료`, 'warn', { label: '재등록 연락', run: () => onGo('renewal') })
-  })
-  // [2026-11-01] 소진한 지 30일이 지난 회원은 '처리할 회원'에서 뺀다(A38: 재등록 안 한 회원이 계속 남던 문제). KPI 숫자는 그대로.
-  const soldOutRecent = (u) => {
-    const ms = u.ptUpdatedAt?.toMillis ? u.ptUpdatedAt.toMillis() : typeof u.ptUpdatedAt?.seconds === 'number' ? u.ptUpdatedAt.seconds * 1000 : null
-    return !ms || Date.now() - ms <= 30 * 86400000
-  }
-  ptLow.filter((u) => (u.ptRemaining ?? 0) === 0 && soldOutRecent(u)).forEach((u) => push(u, 'PT 소진', 'bad', { label: 'PT 등록', run: () => onEditMembership(u) }))
-  ptLow.filter((u) => (u.ptRemaining ?? 0) > 0).forEach((u) => push(u, `PT ${u.ptRemaining}회 남음`, 'warn', { label: '상세', run: () => onOpenMember(u) }))
-  stale.sort((a, b) => String(a.activity?.lastDate || '').localeCompare(String(b.activity?.lastDate || ''))).forEach((u) =>
-    push(u, `${daysBetween(u.activity.lastDate, today)}일 미운동`, 'neutral', { label: '상세', run: () => onOpenMember(u) })
-  )
-  noRecord.forEach((u) => push(u, '운동 기록 없음', 'neutral', { label: '상세', run: () => onOpenMember(u) }))
-  const [showAll, setShowAll] = useState(false)
-  const shown = showAll ? todo : todo.slice(0, 8)
-  // 주간 운동한 회원(최근 8주)
-  const weeks = Array.from({ length: 8 }, (_, i) => weekStartStr(new Date(), i - 7))
-  const weekBars = weeks.map((w, i) => ({ label: `${Number(w.slice(5, 7))}/${Number(w.slice(8, 10))}`, value: members.filter((u) => (u.activity?.weeks?.[w] || 0) > 0).length, highlight: i === 7 }))
-  // 트레이너 이번 달
-  const trainers = users.filter(isTrainerAccount)
-  const tRows = trainers
-    .map((t) => ({
-      t,
-      done: (month?.sch || []).filter((s) => s.trainerUid === t.uid && s.status === 'done').length + (month?.ses || []).filter((x) => x.trainerUid === t.uid && !x.scheduleId && !x.noshow).length,
-      noshow: (month?.sch || []).filter((s) => s.trainerUid === t.uid && s.status === 'noshow').length,
-      active: conns.filter((c) => c.status === 'active' && c.trainerUid === t.uid).length,
-    }))
-    .sort((a, b) => b.done - a.done)
+  // [2026-11-11] 첫 화면 개편(사용자 선택: 오늘 할 일 중심) - 건강 지표 4개 → 오늘 할 일(연락 예정·이탈 위험·신규 확인·가입·만료·PT) | 회원 상태·오늘 PT·축하할 회원 → 운영 현황 숫자
+  const queue = buildCareQueue({ users, notes, today, pending, matchOf, expireSoonDays: SOON })
+  const careMembers = members.filter(isCareTarget)
+  const r = retentionStats(careMembers, today, notes)
+  const cheers = careMembers
+    .map((u) => ({ u, cel: celebrationsOf(u, today) }))
+    .filter((x) => x.cel.length)
+    .slice(0, 8)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div className="adm-kpis">
-        {kpis.map((k) => {
-          const Icon = KPI_ICON[k.key]
-          return (
-            <button key={k.key} type="button" className={`adm-kpi${k.alert ? ' alert' : ''}`} onClick={k.go}>
-              <span className="h">{k.label}<Icon size={16} strokeWidth={2} color="var(--color-label-neutral)" aria-hidden="true" /></span>
-              <span className="v">{k.n}</span>
-              <span className="s">{k.s}</span>
-            </button>
-          )
-        })}
-      </div>
+      <HealthKpis r={r} onGo={onGo} />
       <div className="adm-split">
         <div className="adm-col">
-          <div className="adm-panel">
-            <div className="adm-panel-h"><b>처리할 회원 <span style={{ ...muted, fontWeight: 500 }}>{todo.length}명</span></b>{todo.length > 8 && <button type="button" className="adm-link" onClick={() => setShowAll((v) => !v)}>{showAll ? '접기' : '전체 보기'}</button>}</div>
-            {!todo.length ? <p style={{ ...muted, margin: 0, padding: 16 }}>지금 처리할 회원이 없어요.</p> : (
-              <div className="adm-table-wrap">
-                <table className="adm-table">
-                  <thead><tr><th>회원</th><th>사유</th><th className="adm-hide-m">회원권 · PT</th><th aria-label="동작" /></tr></thead>
-                  <tbody>
-                    {shown.map((x) => (
-                      <tr key={x.u.uid} className="adm-click" onClick={() => onOpenMember(x.u)}>
-                        <td><b>{memberName(x.u)}</b></td>
-                        <td><Badge tone={x.tone}>{x.reason}</Badge></td>
-                        <td className="adm-hide-m">{x.u.membershipEnd ? `~${fmtYmd(x.u.membershipEnd)}` : '-'}{(x.u.ptTotal || 0) > 0 ? ` · PT ${x.u.ptRemaining ?? 0}/${x.u.ptTotal}` : ''}</td>
-                        <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                          <button type="button" className={`adm-act${x.action.primary ? ' primary' : ''}`} onClick={x.action.run}>{x.action.label}</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-          <div className="adm-panel">
-            <div className="adm-panel-h"><b>주간 운동한 회원</b><span style={muted}>최근 8주</span></div>
-            <div style={{ padding: '14px 16px 12px' }}><Bars items={weekBars} unit="명" height={110} /></div>
-          </div>
+          <CareQueue
+            queue={queue}
+            onContact={onContact}
+            onOpenMember={onOpenMember}
+            onApprove={onApprove}
+            onRenewal={() => onGo('renewal')}
+            onPt={onEditMembership}
+          />
         </div>
         <div className="adm-col">
           <div className="adm-panel">
+            <div className="adm-panel-h"><b>회원 상태</b><button type="button" className="adm-link" onClick={() => onGo('retention')}>유지·분석</button></div>
+            <div style={{ padding: 16 }}><SegmentBar seg={r.seg} onPick={() => onGo('care')} /></div>
+          </div>
+          <div className="adm-panel">
             <div className="adm-panel-h"><b>오늘 PT</b><button type="button" className="adm-link" onClick={() => onGo('pt')}>PT 관리</button></div>
             <div style={{ padding: '4px 16px 10px' }}>
-              {!month ? <p style={muted}>불러오는 중…</p> : !todayPt.length ? <p style={{ ...muted, margin: '10px 0' }}>오늘 잡힌 PT가 없어요.</p> : todayPt.map((s, i) => (
-                <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '48px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 0', borderTop: i ? '1px dashed var(--color-line)' : 'none', fontSize: 14.5 }}>
-                  <b className="bt-num">{s.time}</b>
-                  <span><b>{memberName(byUid[s.memberUid])}</b> <span style={muted}>· {s.trainerName}</span></span>
-                  <Badge tone={s.status === 'done' ? 'ok' : s.status === 'noshow' ? 'bad' : 'neutral'}>{s.status === 'done' ? '완료' : s.status === 'noshow' ? '노쇼' : '예정'}</Badge>
+              {!month ? <p style={muted}>불러오는 중…</p> : !todayPt.length ? <p style={{ ...muted, margin: '10px 0' }}>오늘 잡힌 PT가 없어요.</p> : todayPt.map((sc, i) => (
+                <div key={sc.id} style={{ display: 'grid', gridTemplateColumns: '48px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 0', borderTop: i ? '1px dashed var(--color-line)' : 'none', fontSize: 14.5 }}>
+                  <b className="bt-num">{sc.time}</b>
+                  <span><b>{memberName(byUid[sc.memberUid])}</b> <span style={muted}>· {sc.trainerName}</span></span>
+                  <Badge tone={sc.status === 'done' ? 'ok' : sc.status === 'noshow' ? 'bad' : 'neutral'}>{sc.status === 'done' ? '완료' : sc.status === 'noshow' ? '노쇼' : '예정'}</Badge>
                 </div>
               ))}
             </div>
           </div>
           <div className="adm-panel">
-            <div className="adm-panel-h"><b>트레이너 이번 달</b><button type="button" className="adm-link" onClick={() => onGo('pt')}>정산</button></div>
-            {!tRows.length ? <p style={{ ...muted, margin: 0, padding: 16 }}>트레이너가 없어요.</p> : (
-              <table className="adm-table">
-                <thead><tr><th>트레이너</th><th style={{ textAlign: 'right' }}>PT 완료</th><th style={{ textAlign: 'right' }}>노쇼</th><th style={{ textAlign: 'right' }}>담당</th></tr></thead>
-                <tbody>
-                  {tRows.map((r) => (
-                    <tr key={r.t.uid}><td><b>{memberName(r.t)}</b></td><td className="bt-num" style={{ textAlign: 'right' }}>{month ? r.done : '…'}</td><td className="bt-num" style={{ textAlign: 'right' }}>{month ? r.noshow : '…'}</td><td className="bt-num" style={{ textAlign: 'right' }}>{r.active}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            <div className="adm-panel-h"><b>축하할 회원</b><button type="button" className="adm-link" onClick={() => onGo('care')}>모두 보기</button></div>
+            <div style={{ padding: '4px 16px 10px' }}>
+              {!cheers.length ? <p style={{ ...muted, margin: '10px 0' }}>이번 주는 아직 없어요.</p> : cheers.map((x, i) => (
+                <button key={x.u.uid} type="button" onClick={() => onOpenMember(x.u)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 0', borderTop: i ? '1px dashed var(--color-line)' : 'none', fontSize: 14.5 }}>
+                  <b>{memberName(x.u)}</b> <span className="text-keep-all" style={{ color: 'var(--color-success)' }}>{x.cel.map((c) => c.text).join(' · ')}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-      <p className="text-keep-all" style={{ ...muted, margin: 0 }}>운동 여부는 회원이 운동을 저장할 때 남는 마지막 운동일로 판단해요(2026-10-31 이후 저장분부터).</p>
+      <div>
+        <p style={{ ...sectionTitle, fontSize: 15, margin: '0 0 8px' }}>운영 현황</p>
+        <div className="adm-kpis adm-kpis-sm">
+          {kpis.map((k) => {
+            const Icon = KPI_ICON[k.key]
+            return (
+              <button key={k.key} type="button" className={`adm-kpi${k.alert ? ' alert' : ''}`} onClick={k.go}>
+                <span className="h">{k.label}<Icon size={16} strokeWidth={2} color="var(--color-label-neutral)" aria-hidden="true" /></span>
+                <span className="v">{k.n}</span>
+                <span className="s">{k.s}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <p className="text-keep-all" style={{ ...muted, margin: 0 }}>운동 여부는 회원이 운동을 저장할 때 남는 마지막 운동일·주별 운동 일수로 판단해요(기록 내용은 보지 않아요).</p>
     </div>
   )
 }

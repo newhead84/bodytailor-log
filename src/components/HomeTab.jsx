@@ -29,6 +29,7 @@ import { pickRandomQuote } from '../utils/quotes'
 import { todayStr, toLocalDateStr } from '../utils/date'
 import { getSeasonPeriod, formatSeasonLabel } from '../utils/season'
 import { getLevelInfo } from '../utils/tier'
+import HomeNoticeCard from './HomeNoticeCard'
 
 // 로그 하나에서 실제로 수행한 부위들을 중복 없이 뽑아 "가슴·삼두"처럼 요약한다.
 function summarizePartsOfLog(log) {
@@ -239,6 +240,9 @@ export default function HomeTab({
       >
         {quote}
       </p>
+
+      {/* [2026-11-11] 관리자 공지·만족도 설문 */}
+      <HomeNoticeCard uid={uid} userDoc={userDoc} isActive={isActive} />
 
       {/* [2026-10-27 신규] "오늘 운동 완료"를 누르지 않고 방치된 세션을 자동 저장했을 때의 안내 */}
       {autoNotice && (

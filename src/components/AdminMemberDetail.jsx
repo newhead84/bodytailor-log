@@ -8,9 +8,10 @@ import { Badge, Bars, LogRow, fmtDate, fmtDateTime, muted, sectionTitle, selectS
 import { adminListLogs, adminListMemberConnections, adminSaveNote, adminGetNote, adminSetPauses, adminEditSignupInfo, adminFindRosterByHash, adminTransferMembership, listPtSessions, listPtSchedules, logAdmin, adminUpdateMember } from '../storage'
 import { addDays, daysBetween, fmtYmd, memberName, membershipState, pausesOf, MEMBER_STATUS, isValidMobile, phoneHash, phoneLast4 } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
+import { MemberCarePanel } from './AdminCare'
 
 // [2026-11-01] onUserChanged(uid): 바뀐 회원 문서만 다시 읽기, onNotePatched(uid, patch): 메모를 화면 상태에만 반영(전체 재조회 없음, A5)
-export default function AdminMemberDetail({ u, users = [], note, admin, onBack, onUserChanged, onNotePatched, onEditMembership }) {
+export default function AdminMemberDetail({ u, users = [], note, admin, onBack, onUserChanged, onNotePatched, onEditMembership, onContact }) {
   const confirm = useConfirm()
   const today = todayStr()
   const [conns, setConns] = useState(null)
@@ -114,7 +115,7 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
         <p style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{memberName(u)} <span style={{ fontSize: 15.5, fontWeight: 500, color: 'var(--color-label-neutral)' }}>· {u.nickname || '닉네임 없음'}</span></p>
         <p style={{ ...muted, margin: '6px 0 0', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <Badge tone={statusOf(u) === 'approved' ? 'ok' : 'neutral'}>{MEMBER_STATUS[statusOf(u)]}</Badge>
-          <span>{u.role || '일반회원'}</span>
+          <span>{u.role === '관리자' && u.trainerEnabled ? '관리자 + 트레이너' : u.role || '일반회원'}</span>
           {u.signupInfo?.phoneLast4 && <span>휴대폰 끝 {u.signupInfo.phoneLast4}</span>}
           {u.memberNo && <span>회원번호 {u.memberNo}</span>}
           {u.createdAt && <span>가입 {fmtDate(u.createdAt)}</span>}
@@ -122,6 +123,9 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
         <SignupEditor key={u.signupInfo?.name || ''} u={u} admin={admin} confirm={confirm} onDone={() => onUserChanged?.(u.uid)} />
         {u.role === '관리자' && <TrainerToggle u={u} admin={admin} confirm={confirm} activeConns={(conns || []).filter((c) => c.status === 'active' && c.trainerUid === u.uid).length} onDone={() => onUserChanged?.(u.uid)} />}
       </Card>
+
+      {/* [2026-11-11] 회원 케어: 위험 이유·신규 진행·태그·연락 기록·다음 연락·생애 기록 */}
+      {u.role !== '트레이너' && !(u.role === '관리자' && !u.membershipEnd) && <MemberCarePanel u={u} note={note} admin={admin} logs={logs} onNotePatched={onNotePatched} onContact={onContact} />}
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>

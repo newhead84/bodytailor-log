@@ -12,7 +12,7 @@
 //  휴대폰 카드형 회원 목록(B17), CSV 끝 4자리 선택(B32), 연결 해제 후 역할 되돌리기(B29), 명단에서 빼기(B9), 설정·도구 확장(AdminTools: B1·B2·B3·B12·B16·B28)
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Chip, useConfirm } from './ui'
-import { LayoutDashboard, UserPlus, Users, RefreshCw, CalendarDays, Link2, UserRound, BarChart3, History, FileUp, Settings, ArrowLeft, Menu, Search, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, UserPlus, Users, RefreshCw, CalendarDays, Link2, UserRound, BarChart3, History, FileUp, Settings, ArrowLeft, Menu, Search, MessageSquare, HeartHandshake, TrendingUp, Megaphone } from 'lucide-react'
 import '../styles/admin.css'
 import { adminListUsers, adminGetUser, adminApproveMember, adminUpdateMember, adminGetRoster, adminSaveRoster, adminDeleteRoster, adminListConnections, adminListMemberConnections, adminConnect, adminEndTrainerAndSetRole, endConnection, adminFutureSchedules, adminSetMembership, getAppSettings, adminSaveSettings, adminListNotes, adminSaveNote, getAllInquiries, logAdmin, logAction, onLogFail, adminGetPrivates } from '../storage'
 import { MEMBER_STATUS, MEMBER_ROLES, normalizeName, decodeCsvBuffer, parseCsv, guessColumns, normalizeDate, phoneHash, phoneLast4, isValidMobile, rosterDocId, membershipState, addMonths, addDays, fmtYmd, memberName, isTrainerAccount } from '../utils/member'
@@ -22,13 +22,22 @@ import AdminMemberDetail from './AdminMemberDetail'
 import AdminPtTab from './AdminPtTab'
 import InquiryAdminScreen from './InquiryAdminScreen'
 import { SummaryTab, RenewalTab, StatsTab, LogsTab, exportMembersCsv } from './AdminInsights'
-import { Badge, fmtDate, selectStyle, statusOf } from './adminUi'
+import { Badge, fmtDate, selectStyle, statusOf, isGymMember } from './adminUi'
+import { CareTab, ContactDialog, buildCareQueue, RiskBadge } from './AdminCare'
+import RetentionTab from './AdminRetention'
+import NoticesTab from './AdminNotices'
+import { riskOf, segmentOf, activityStats, normalizeTags, SEGMENTS, isCareTarget } from '../utils/memberInsights'
+import { dashSetting } from './AdminTools'
 import { todayStr } from '../utils/date'
 
+// [2026-11-11] 운영자 관점 개편(사용자 선택: 오늘 할 일 중심): 회원 케어·유지·분석·공지·설문 추가, 메뉴를 하는 일 순서로
 const TABS = [
-  { key: 'summary', label: '대시보드', icon: LayoutDashboard },
+  { key: 'summary', label: '오늘', icon: LayoutDashboard },
+  { key: 'care', label: '회원 케어', icon: HeartHandshake },
   { key: 'pending', label: '승인 대기', icon: UserPlus },
-  { key: 'members', label: '회원', icon: Users },
+  { key: 'members', label: '회원 목록', icon: Users },
+  { key: 'retention', label: '유지·분석', icon: TrendingUp },
+  { key: 'notices', label: '공지·설문', icon: Megaphone },
   { key: 'renewal', label: '재등록', icon: RefreshCw },
   { key: 'pt', label: 'PT 관리', icon: CalendarDays },
   { key: 'connect', label: '트레이너 연결', icon: Link2 },
@@ -41,9 +50,10 @@ const TABS = [
 ]
 const NAV = [
   { group: '', items: ['summary'] },
-  { group: '회원', items: ['pending', 'members', 'renewal', 'inquiries'] },
+  { group: '회원 관리', items: ['care', 'members', 'pending', 'renewal', 'inquiries'] },
   { group: 'PT·트레이너', items: ['pt', 'connect', 'trainers'] },
-  { group: '운영', items: ['stats', 'logs', 'roster', 'etc'] },
+  { group: '분석', items: ['retention', 'stats', 'logs'] },
+  { group: '운영', items: ['notices', 'roster', 'etc'] },
 ]
 const NOSHOW = [
   ['off', '쓰지 않음', '트레이너 화면에 노쇼 버튼이 없어요.'],
@@ -71,6 +81,7 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
   const [logFails, setLogFails] = useState(0) // [2026-11-01] 관리 이력 저장 실패 수(A32)
   const [priv, setPriv] = useState({}) // [2026-11-01] S6: uid -> 번호 변환값(memberPrivate, 필요한 회원만 읽음)
   const [quota, setQuota] = useState(false) // [2026-11-01] B2: 하루 한도 초과
+  const [contact, setContact] = useState(null) // [2026-11-11] 연락 기록 창 { u, reason, check }
   async function loadPrivates(uids) {
     const need = uids.filter((id) => !(id in priv))
     if (!need.length) return
@@ -167,10 +178,17 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
   const me = (users || []).find((x) => x.uid === uid)
   const admin = { uid, name: me ? memberName(me) : '관리자' }
   const log = (action, u, detail) => logAdmin(admin, { action, targetUid: u?.uid || '', targetName: u ? memberName(u) : '', detail })
-  const openMember = (u) => {
+  const openMember = (u, to) => {
+    if (to === 'pending') return go('pending')
     setDetailUid(u.uid)
     setTab('members')
   }
+  const openContact = (u, opts = {}) => setContact({ u, reason: opts.reason || '', check: opts.check || null })
+  // [2026-11-11] 메뉴 '회원 케어' 숫자 = 오늘 할 일 중 연락할 것(연락 예정·이탈 위험 높음·신규 확인)
+  const careCount = useMemo(() => {
+    if (!users) return 0
+    return buildCareQueue({ users, notes, today: todayStr() }).filter((x) => ['follow', 'new'].includes(x.kind) || (x.kind === 'risk' && x.risk?.level === 'high')).length
+  }, [users, notes])
 
   async function fail(err, what) {
     console.error(what, err)
@@ -263,29 +281,36 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
     }
     await refreshUser(u.uid)
   }
-  async function setRole(u, role) {
+  // [2026-11-11] '관리자 + 트레이너'(ADMIN_TRAINER) = role 관리자 + trainerEnabled true. 트레이너 일을 하던 계정이 트레이너 일을 그만둘 때만 담당 연결을 정리한다.
+  async function setRole(u, choice) {
+    const cur = roleValueOf(u)
+    if (choice === cur) return
+    const role = choice === ADMIN_TRAINER ? '관리자' : choice
+    const extra = role === '관리자' ? { trainerEnabled: choice === ADMIN_TRAINER } : u.trainerEnabled ? { trainerEnabled: false } : {}
     if (u.uid === uid && role !== '관리자') {
       await confirm('내 계정의 관리자 권한은 여기서 뺄 수 없어요. 다른 관리자 계정에서 바꿔 주세요.', { okLabel: '확인', cancelLabel: '닫기' })
       return
     }
     // [2026-11-01] 트레이너 역할을 빼면 담당 연결이 숨은 채 남던 문제(A6): 연결이 있으면 경고 후 함께 해제
-    const mine = u.role === '트레이너' && role !== '트레이너' ? conns.filter((c) => c.status === 'active' && c.trainerUid === u.uid) : []
+    const wasTrainer = isTrainerAccount(u)
+    const willTrainer = choice === '트레이너' || choice === ADMIN_TRAINER
+    const mine = wasTrainer && !willTrainer ? conns.filter((c) => c.status === 'active' && c.trainerUid === u.uid) : []
     // [2026-11-10] A-4: 끊기는 연결의 예정 PT도 함께 지운다(옮기려면 퇴사 처리)
     let sch = []
     if (mine.length) {
       sch = (await Promise.all(mine.map((c) => futureSchedulesOf(c.memberUid, u.uid)))).flat()
-      if (!(await confirm(`${memberName(u)} 트레이너에게 담당 회원 ${mine.length}명(${mine.map((c) => c.memberName).join(', ')})이 연결돼 있어요. 역할을 '${role}'(으)로 바꾸면 이 연결을 모두 해제해요.${sch.length ? ` 잡아 둔 예정 PT ${sch.length}건도 지워요.` : ''} 다른 트레이너에게 옮기려면 '트레이너 프로필'의 퇴사 처리를 써 주세요.`, { okLabel: '연결 해제하고 바꾸기', cancelLabel: '취소' }))) return
-    } else if (!(await confirm(`${u.signupInfo?.name || u.nickname || '이 회원'}님의 역할을 '${role}'(으)로 바꿀까요?`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
+      if (!(await confirm(`${memberName(u)} 트레이너에게 담당 회원 ${mine.length}명(${mine.map((c) => c.memberName).join(', ')})이 연결돼 있어요. 역할을 '${choice}'(으)로 바꾸면 이 연결을 모두 해제해요.${sch.length ? ` 잡아 둔 예정 PT ${sch.length}건도 지워요.` : ''} 다른 트레이너에게 옮기려면 '트레이너 프로필'의 퇴사 처리를 써 주세요.`, { okLabel: '연결 해제하고 바꾸기', cancelLabel: '취소' }))) return
+    } else if (!(await confirm(`${u.signupInfo?.name || u.nickname || '이 회원'}님의 역할을 '${choice}'(으)로 바꿀까요?${choice === ADMIN_TRAINER ? ' 관리자 권한은 그대로이고, 담당 회원 연결·기록 확인·PT 일정·운동 계획(MY \'내 회원\')을 쓸 수 있어요.' : ''}`, { okLabel: '바꾸기', cancelLabel: '취소' }))) return
     if (!(await stillSame(u))) return
     setBusy(u.uid)
     try {
       if (mine.length) {
-        await adminEndTrainerAndSetRole(u.uid, mine.map((c) => c.id), role, uid, sch)
+        await adminEndTrainerAndSetRole(u.uid, mine.map((c) => c.id), role, uid, sch, extra)
         setConns((list) => list.map((c) => (mine.some((x) => x.id === c.id) ? { ...c, status: 'ended' } : c)))
-        await log('role', u, `${u.role || '일반회원'} → ${role} · 담당 회원 ${mine.length}명 연결 해제${sch.length ? ` · 예정 PT ${sch.length}건 삭제` : ''}`)
+        await log('role', u, `${cur} → ${choice} · 담당 회원 ${mine.length}명 연결 해제${sch.length ? ` · 예정 PT ${sch.length}건 삭제` : ''}`)
       } else {
-        await adminUpdateMember(u.uid, { role }, uid)
-        await log('role', u, `${u.role || '일반회원'} → ${role}`)
+        await adminUpdateMember(u.uid, { role, ...extra }, uid)
+        await log('role', u, `${cur} → ${choice}`)
       }
     } catch (err) {
       await fail(err, '역할 변경')
@@ -357,6 +382,7 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
                   <Icon size={17} strokeWidth={2} aria-hidden="true" />
                   {t.label}
                   {k === 'pending' && pending.length > 0 && <span className="adm-count">{pending.length}</span>}
+                  {k === 'care' && careCount > 0 && <span className="adm-count">{careCount}</span>}
                 </button>
               )
             })}
@@ -414,6 +440,8 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
             pending={pending}
             matchOf={matchOf}
             settings={settings}
+            notes={notes}
+            onContact={openContact}
             onGo={go}
             onOpenMember={openMember}
             onApprove={approve}
@@ -433,11 +461,18 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
             onBack={() => setDetailUid('')}
             onUserChanged={refreshUser}
             onNotePatched={patchNote}
+            onContact={openContact}
             onEditMembership={() => {
               setEditUid(detailUid)
               setDetailUid('')
             }}
           />
+        ) : tab === 'care' ? (
+          <CareTab users={users} conns={conns} notes={notes} onContact={openContact} onOpenMember={openMember} />
+        ) : tab === 'retention' ? (
+          <RetentionTab users={users} conns={conns} notes={notes} onGo={go} onOpenMember={openMember} />
+        ) : tab === 'notices' ? (
+          <NoticesTab users={users} admin={admin} />
         ) : tab === 'renewal' ? (
           <RenewalTab users={users} notes={notes} admin={admin} onOpenMember={openMember} onSaved={patchNote} />
         ) : tab === 'pt' ? (
@@ -464,6 +499,7 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
         ) : tab === 'members' ? (
           <MembersTab
             users={users}
+            notes={notes}
             matchOf={matchOf}
             busy={busy}
             onStatus={setStatus}
@@ -641,6 +677,17 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
         )}
         </div>
       </div>
+      {contact && (
+        <ContactDialog
+          u={contact.u}
+          note={notes[contact.u.uid]}
+          admin={admin}
+          check={contact.check}
+          reason={contact.reason}
+          onSaved={patchNote}
+          onClose={() => setContact(null)}
+        />
+      )}
     </div>
   )
 }
@@ -826,16 +873,30 @@ const STATUS_FILTERS = [
   { key: 'soon', label: '만료 임박' },
   { key: 'expired', label: '만료' },
   { key: 'rejected', label: '거절' },
+  // [2026-11-11] 회원 관리 필터(이탈 위험·신규·뜸해짐/휴면)
+  { key: 'risk', label: '이탈 위험' },
+  { key: 'new', label: '신규 90일' },
+  { key: 'away', label: '뜸해짐·휴면' },
 ]
-function filterOf(u, key, today) {
+function filterOf(u, key, today, note = null) {
   if (key === 'all') return true
+  if (key === 'risk' || key === 'new' || key === 'away') {
+    if (!isGymMember(u) || !isCareTarget(u)) return false
+    const st = activityStats(u, today)
+    if (key === 'risk') return ['high', 'mid'].includes(riskOf(u, today, note, st)?.level)
+    const seg = segmentOf(u, today, st)
+    return key === 'new' ? seg === 'new' : seg === 'cooling' || seg === 'dormant'
+  }
   const ms = membershipState(u, today).kind
   if (key === 'soon') return statusOf(u) === 'approved' && ms === 'soon'
   if (key === 'expired') return statusOf(u) === 'expired' || (statusOf(u) === 'approved' && ms === 'expired')
   return statusOf(u) === key
 }
 
-function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, onMembership, onOpen, onCsv, initialEditing = '', q = '', onQ, hashOf, loadPrivates, admin, onBulkDone }) {
+// [2026-11-11] 역할 칸에 '관리자 + 트레이너'(관리자이면서 트레이너 일 켜짐, users.trainerEnabled)를 함께 고를 수 있게
+export const ADMIN_TRAINER = '관리자 + 트레이너'
+export const roleValueOf = (u) => (u.role === '관리자' && u.trainerEnabled === true ? ADMIN_TRAINER : MEMBER_ROLES.includes(u.role) ? u.role : '일반회원')
+function MembersTab({ users, notes = {}, conns, matchOf, busy, onStatus, onRole, selfUid, onMembership, onOpen, onCsv, initialEditing = '', q = '', onQ, hashOf, loadPrivates, admin, onBulkDone }) {
   const confirm = useConfirm()
   const [filter, setFilter] = useState('all')
   const [editing, setEditing] = useState(initialEditing)
@@ -862,8 +923,11 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [digits])
+  const [tagF, setTagF] = useState('')
+  const allTags = [...new Set(Object.values(notes || {}).flatMap((n) => normalizeTags(n?.tags)))].sort((a, b) => a.localeCompare(b, 'ko'))
   const list = users
-    .filter((u) => filterOf(u, filter, today))
+    .filter((u) => filterOf(u, filter, today, notes[u.uid]))
+    .filter((u) => !tagF || normalizeTags(notes[u.uid]?.tags).includes(tagF))
     .filter((u) => {
       const s = q.replace(/\s/g, '')
       if (!s) return true
@@ -887,9 +951,15 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {STATUS_FILTERS.map((f) => (
           <Chip key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)} style={{ padding: '6px 12px', fontSize: 14.5 }}>
-            {f.label} <span className="bt-num">{users.filter((u) => filterOf(u, f.key, today)).length}</span>
+            {f.label} <span className="bt-num">{users.filter((u) => filterOf(u, f.key, today, notes[u.uid])).length}</span>
           </Chip>
         ))}
+        {allTags.length > 0 && (
+          <select aria-label="태그로 거르기" value={tagF} onChange={(e) => setTagF(e.target.value)} style={selectStyle}>
+            <option value="">모든 태그</option>
+            {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {q && <button type="button" className="adm-act" onClick={() => onQ('')}>검색 지우기: {q}</button>}
           <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 14, color: 'var(--color-label-neutral)' }}>
@@ -919,6 +989,7 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
               <tr>
                 <th style={{ width: 36 }}><input type="checkbox" aria-label="보이는 회원 모두 선택" checked={allOn} onChange={() => setPicked(allOn ? new Set() : new Set(list.map((u) => u.uid)))} /></th>
                 <th>회원</th>
+                <th>관리 상태</th>
                 <th>승인 상태</th>
                 <th>역할</th>
                 <th>회원권</th>
@@ -942,6 +1013,19 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
                         <span style={{ display: 'block', fontSize: 13.5, color: 'var(--color-label-neutral)' }}>
                           {u.nickname || '닉네임 없음'}{u.signupInfo?.phoneLast4 ? ` · ${u.signupInfo.phoneLast4}` : ''}{m ? (m.nameOk ? ' · 명단 일치' : ' · 번호만 일치') : u.rosterId ? ' · 명단 연결' : ''}
                         </span>
+                        {normalizeTags(notes[u.uid]?.tags).length > 0 && (
+                          <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
+                            {normalizeTags(notes[u.uid]?.tags).slice(0, 3).map((t) => <span key={t} style={{ fontSize: 12.5, padding: '1px 7px', borderRadius: 999, background: 'var(--color-bg-elevated)', color: 'var(--color-label-normal)' }}>{t}</span>)}
+                          </span>
+                        )}
+                      </td>
+                      <td data-label="관리 상태" style={{ whiteSpace: 'nowrap' }}>
+                        {isGymMember(u) && isCareTarget(u) ? (() => {
+                          const st = activityStats(u, today)
+                          const rk = riskOf(u, today, notes[u.uid], st)
+                          const sg = SEGMENTS.find((x) => x.key === segmentOf(u, today, st))
+                          return rk && rk.level !== 'low' ? <RiskBadge risk={rk} /> : <span style={{ fontSize: 14, color: 'var(--color-label-normal)' }}>{sg?.label}</span>
+                        })() : <span style={{ color: 'var(--color-label-neutral)' }}>-</span>}
                       </td>
                       <td onClick={stop} data-label="승인 상태">
                         <select aria-label="승인 상태" value={statusOf(u)} disabled={busy === u.uid || u.role === '관리자'} onChange={(e) => onStatus(u, e.target.value)} style={selectStyle}>
@@ -949,8 +1033,8 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
                         </select>
                       </td>
                       <td onClick={stop} data-label="역할">
-                        <select aria-label="역할" value={MEMBER_ROLES.includes(u.role) ? u.role : '일반회원'} disabled={busy === u.uid} onChange={(e) => onRole(u, e.target.value)} style={selectStyle}>
-                          {MEMBER_ROLES.map((r) => <option key={r} value={r}>{r}{u.uid === selfUid && r === '관리자' ? ' (나)' : ''}</option>)}
+                        <select aria-label="역할" value={roleValueOf(u)} disabled={busy === u.uid} onChange={(e) => onRole(u, e.target.value)} style={selectStyle}>
+                          {[...MEMBER_ROLES, ADMIN_TRAINER].map((r) => <option key={r} value={r}>{r}{u.uid === selfUid && (r === '관리자' || r === ADMIN_TRAINER) ? ' (나)' : ''}</option>)}
                         </select>
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }} data-label="회원권">
@@ -973,7 +1057,7 @@ function MembersTab({ users, conns, matchOf, busy, onStatus, onRole, selfUid, on
                     </tr>
                     {editing === u.uid && (
                       <tr className="adm-edit-row">
-                        <td colSpan={9} style={{ background: '#fafbfc' }}>
+                        <td colSpan={10} style={{ background: '#fafbfc' }}>
                           {/* [2026-11-01] 휴대폰에서 표가 가로로 넓어도 편집 창은 화면 폭 안에 머물게(왼쪽 고정) */}
                           <div style={{ position: 'sticky', left: 0, maxWidth: 'min(100%, calc(100vw - 48px))' }}>
                             <MembershipEditor

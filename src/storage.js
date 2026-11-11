@@ -1570,11 +1570,12 @@ export async function adminConnect(member, trainer, adminUid, opts = {}) {
 }
 // [2026-11-01] 트레이너 역할 해제(A6): 활성 연결 모두 종료 + 역할 변경을 한 번에
 // [2026-11-10] A-4: schedules = 끊기는 연결의 예정 일정(같이 지움)
-export async function adminEndTrainerAndSetRole(trainerUid, connIds, role, adminUid, schedules = []) {
+// [2026-11-11] extra: 역할과 함께 바꿀 필드(관리자 겸 트레이너를 끌 때 { trainerEnabled: false })
+export async function adminEndTrainerAndSetRole(trainerUid, connIds, role, adminUid, schedules = [], extra = {}) {
   const batch = writeBatch(db)
   schedules.slice(0, 400).forEach((sc) => batch.delete(doc(db, 'ptSchedules', sc.id)))
   connIds.forEach((id) => batch.update(doc(db, 'connections', id), { status: 'ended', endedAt: serverTimestamp(), endedBy: adminUid }))
-  batch.update(doc(db, 'users', trainerUid), { role, statusUpdatedAt: serverTimestamp() })
+  batch.update(doc(db, 'users', trainerUid), { role, ...extra, statusUpdatedAt: serverTimestamp() })
   await batch.commit()
 }
 // [2026-11-01] 퇴사 트레이너의 남은 예정 일정(오늘 이후, A3) - 관리자만 읽기
@@ -1738,6 +1739,13 @@ export async function deleteMyAccountData(uid, onProgress) {
   leaderboardCache.clear()
   const inq = await getDocs(query(collection(db, 'inquiries'), where('uid', '==', uid)))
   await Promise.all(inq.docs.map((d) => deleteDoc(d.ref)))
+  // [2026-11-11] 설문 응답(새 규칙 게시 전에는 거부될 수 있어 건너뛴다)
+  try {
+    const sv = await getDocs(query(collection(db, 'surveyResponses'), where('uid', '==', uid)))
+    await Promise.all(sv.docs.map((d) => deleteDoc(d.ref)))
+  } catch (e) {
+    console.warn('설문 응답 삭제 건너뜀:', e?.code || e)
+  }
   // 회원으로서의 연결과 트레이너로서의 연결 모두 종료
   const [asMember, asTrainer] = await Promise.all([
     getDocs(query(collection(db, 'connections'), where('memberUid', '==', uid), where('status', '==', 'active'))),
@@ -1841,4 +1849,50 @@ export function getLeaderboard(group, period, count = 100) {
     })
   leaderboardCache.set(key, { count, at: Date.now(), promise })
   return promise
+}
+
+// ───────── [2026-11-11] 앱 안 공지·만족도 설문(notices, surveyResponses) ─────────
+// 회원 화면은 켜진 공지만 한 번 읽고 10분 캐시(Spark 하루 읽기 절약). 대상(all·pt·general·new)은 화면에서 거른다.
+let noticeCache = { at: 0, list: null }
+export async function listActiveNotices({ force = false } = {}) {
+  if (!force && noticeCache.list && Date.now() - noticeCache.at < 10 * 60 * 1000) return noticeCache.list
+  const snap = await getDocs(query(collection(db, 'notices'), where('active', '==', true)))
+  noticeCache = { at: Date.now(), list: snap.docs.map((d) => ({ id: d.id, ...d.data() })) }
+  return noticeCache.list
+}
+export async function adminListNotices() {
+  const snap = await getDocs(collection(db, 'notices'))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))
+}
+export async function adminSaveNotice(n, admin) {
+  const data = {
+    kind: n.kind === 'survey' ? 'survey' : 'notice',
+    title: String(n.title || '').trim().slice(0, 40),
+    body: String(n.body || '').trim().slice(0, 500),
+    target: ['all', 'pt', 'general', 'new'].includes(n.target) ? n.target : 'all',
+    startDate: String(n.startDate || '').slice(0, 10),
+    endDate: String(n.endDate || '').slice(0, 10),
+    active: n.active !== false,
+    byName: String(admin?.name || '').slice(0, 30),
+  }
+  if (n.id) {
+    await updateDoc(doc(db, 'notices', n.id), data)
+    return n.id
+  }
+  const ref = await addDoc(collection(db, 'notices'), { ...data, createdAt: serverTimestamp(), createdBy: admin?.uid || '' })
+  return ref.id
+}
+export async function adminDeleteNotice(id) {
+  await deleteDoc(doc(db, 'notices', id))
+}
+export async function adminListSurveyResponses(noticeId) {
+  const snap = await getDocs(query(collection(db, 'surveyResponses'), where('noticeId', '==', noticeId)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+export async function getMySurveyResponse(noticeId, uid) {
+  const snap = await getDoc(doc(db, 'surveyResponses', `${noticeId}_${uid}`))
+  return snap.exists() ? snap.data() : null
+}
+export async function submitSurveyResponse(noticeId, uid, score, comment = '') {
+  await setDoc(doc(db, 'surveyResponses', `${noticeId}_${uid}`), { noticeId, uid, score: Math.max(0, Math.min(10, Math.round(Number(score) || 0))), comment: String(comment || '').trim().slice(0, 200), at: serverTimestamp() })
 }

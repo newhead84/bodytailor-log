@@ -95,7 +95,16 @@
 .adm-split { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .adm-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .adm-page-intro { margin: 0 0 14px; font-size: 14.5px; color: var(--color-label-neutral); }
+/* [2026-11-11] 첫 화면 건강 지표 4칸·운영 현황 작은 카드 */
+.adm-kpis.adm-kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.adm-kpis.adm-kpis-4 .adm-kpi .v { font-size: 34px; }
+.adm-kpis.adm-kpis-sm { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.adm-kpis.adm-kpis-sm .adm-kpi { padding: 10px 12px; gap: 4px; }
+.adm-kpis.adm-kpis-sm .adm-kpi .v { font-size: 22px; }
+.adm-q-row:hover { background: #fafbfc; }
+.adm-link { color: var(--color-primary-normal); font-weight: 700; }
 @media (max-width: 1100px) { .adm-split { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { .adm-kpis.adm-kpis-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) {
   .adm { grid-template-columns: minmax(0, 1fr); }
   .adm-side { position: fixed; z-index: 30; top: 0; bottom: 0; left: 0; width: 260px; transform: translateX(-100%); transition: transform 0.2s ease; box-shadow: var(--shadow-card); padding-top: calc(var(--safe-top, 0px) + 18px); }
