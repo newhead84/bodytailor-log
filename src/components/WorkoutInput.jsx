@@ -30,6 +30,8 @@ import {
   bestE1rmOfSets,
   hasWarmupRamp,
   planSetTargets,
+  planSetWeights,
+  canUseTopSet,
   recommendedSetCount,
   getProgramRx,
   cleanTrainerRx,
@@ -155,7 +157,7 @@ function BodyweightPlanCard({ plan, onApply, onDismiss, onOpenHarder }) {
   )
 }
 
-function CoachPlanSummary({ exName, suggestion, label, weight, targets, unit }) {
+function CoachPlanSummary({ exName, suggestion, label, weight, targets, weights, unit }) {
   const fmt = (n) => (Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(2).replace(/0+$/, '').replace(/\.$/, ''))
   const assisted = isAssistedExercise(exName)
   const zeroOk = allowsZeroWeight(exName) && !assisted
@@ -163,6 +165,51 @@ function CoachPlanSummary({ exName, suggestion, label, weight, targets, unit }) 
   const lastW = suggestion.lastWeight
   const lastReps = Array.isArray(suggestion.lastReps) ? suggestion.lastReps : null
   const today = targets?.length ? targets : [suggestion.reps]
+  // [2026-11-11] 탑세트 방식: 무거운 1세트 + 가볍게 이어 하는 세트를 두 줄로(용어는 괄호로 풀어 씀)
+  if (suggestion.setStyle === 'top' && suggestion.backoff && Array.isArray(weights) && weights.length > 1 && weights[1] !== weights[0]) {
+    const kindTone = suggestion.kind === 'increase' ? 'up' : suggestion.kind === 'decrease' || label === '쉬어 가기' ? 'down' : 'same'
+    const toneColor = kindTone === 'up' ? 'var(--color-success)' : kindTone === 'down' ? 'var(--color-danger)' : 'var(--color-label-strong)'
+    const rest = today.slice(1)
+    const row = { display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'baseline', padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg-card)', border: '1px solid var(--color-line)' }
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 9px', borderRadius: 'var(--radius-pill)', background: kindTone === 'up' ? 'var(--color-fill-strong)' : 'var(--color-bg-card)', color: kindTone === 'up' ? 'var(--color-on-fill)' : toneColor, border: kindTone === 'up' ? 'none' : '1px solid var(--color-line)' }}>
+            {kindTone === 'up' ? '▲ ' : kindTone === 'down' ? '▼ ' : ''}
+            {label}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>무거운 세트 먼저</span>
+        </div>
+        <div style={row}>
+          <span className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
+            <b style={{ color: 'var(--color-label-strong)' }}>1세트 무겁게</b> (탑세트)
+            {lastW != null && lastReps?.[0] != null && (
+              <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>
+                지난번 <span className="bt-num">{wText(lastW)} × {lastReps[0]}</span>
+                {unit}
+              </span>
+            )}
+          </span>
+          <span className="bt-num" style={{ fontSize: 17, fontWeight: 800, color: toneColor, whiteSpace: 'nowrap' }}>
+            {wText(weights[0])} × {today[0]}
+            {unit}
+          </span>
+        </div>
+        {rest.length > 0 && (
+          <div style={row}>
+            <span className="text-keep-all" style={{ fontSize: 13, color: 'var(--color-label-normal)' }}>
+              <b style={{ color: 'var(--color-label-strong)' }}>{rest.length}세트 가볍게</b> (백오프세트)
+              <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-label-neutral)' }}>무거운 세트보다 10%쯤 가볍게 이어 해요</span>
+            </span>
+            <span className="bt-num" style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-label-strong)', whiteSpace: 'nowrap' }}>
+              {wText(weights[1])} × {rest.join('·')}
+              {unit}
+            </span>
+          </div>
+        )}
+      </div>
+    )
+  }
   // [2026-11-08] 쉬었다 다시 시작해도 무게가 같으면 '내림'(빨강)으로 보이지 않게 - 실제로 가벼워질 때만 down
   const kindTone = suggestion.kind === 'increase' ? 'up' : suggestion.kind === 'decrease' || label === '쉬어 가기' ? 'down' : 'same'
   const toneColor = kindTone === 'up' ? 'var(--color-success)' : kindTone === 'down' ? 'var(--color-danger)' : 'var(--color-label-strong)'
@@ -1365,7 +1412,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
     // [2026-11-07] 트레이너 처방 종목은 세트 수를 코치가 바꾸지 않는다(쉬어 가는 주·주간 세트 채우기 없음) - 신호만 알림
     if (settingFor(key)?.trainerRx) {
       if (deload && sug.kind !== 'decrease' && !sug.comeback) notes.push({ text: `${deload.hardWeeks}주 넘게 세게 이어 왔어요. 처방대로 하되 몸이 무거우면 트레이너와 상의해요` })
-      return { ...sug, weight, targets, notes, deload: false }
+      return { ...sug, weight, targets, weights: planSetWeights(sug, name, weight, targets.length), notes, deload: false }
     }
     // 이미 내리기·다시 시작(복귀) 판단이면 무게가 가벼워졌으므로 쉬어 가는 주를 겹치지 않는다
     if (deload && sug.kind !== 'decrease' && !sug.comeback) {
@@ -1387,7 +1434,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
         notes.push({ text: `이번 주 ${short.atom} ${short.cur}세트 · 목표 ${short.min}세트까지 ${short.short}세트 남아서 오늘 1세트 더 넣었어요${sug.kind === 'reps' ? '(이 날은 +1회를 첫 세트에만)' : ''}` })
       }
     }
-    return { ...sug, weight, targets, notes, deload: !!deload }
+    return { ...sug, weight, targets, weights: planSetWeights(sug, name, weight, targets.length), notes, deload: !!deload }
   }
   function plannedCountFor(key) {
     return coachPlans[key]?.count || defaultPlannedCount(suggestionFor(key), parseExerciseKey(key).name, settingFor(key))
@@ -1525,9 +1572,11 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       const next = sets.map((st) => {
         if (st.saved || st.type === 'warmup' || t >= targets.length) return st
         // 추천으로 채운 행은 아직 안 한 세트(planned) - 체크(V)하면 기록, 안 하면 완료 때 포함 여부를 묻는다
-        return { ...st, weight: String(sug.weight), reps: String(targets[t++]), auto: false, planned: true }
+        // [2026-11-11] 탑세트 방식이면 세트마다 무게가 다르다(sug.weights)
+        const w = sug.weights?.[t] ?? sug.weight
+        return { ...st, weight: String(w), reps: String(targets[t++]), auto: false, planned: true }
       })
-      for (; t < targets.length; t++) next.push({ weight: String(sug.weight), reps: String(targets[t]), planned: true })
+      for (; t < targets.length; t++) next.push({ weight: String(sug.weights?.[t] ?? sug.weight), reps: String(targets[t]), planned: true })
       return { ...r, [key]: next }
     })
     dismissSuggestion(key)
@@ -1614,6 +1663,9 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       plannedCount: plannedCountFor(key),
       planTargets: coachPlanFor(key)?.targets || [],
       planWeight: coachPlanFor(key)?.weight,
+      planWeights: coachPlanFor(key)?.weights || [],
+      canTopSet: canUseTopSet(name, setting),
+      setStyle: setting?.setStyle === 'top' ? 'top' : 'straight',
       planNotes: coachPlanFor(key)?.notes || [],
       cardioCoach: coachEnabled && getExerciseInputType(name) === 'cardio' ? programCardioCoach(name) || cardioCoach(coachLogs, liveExercises) : null,
       recommendedSets: recommendedSetCount(name, setting),
@@ -3367,6 +3419,7 @@ export function ExerciseCard({
                 label={ext.planWeight != null && ext.planWeight !== suggestion.weight ? '쉬어 가기' : coachKindLabel(suggestion)}
                 weight={ext.planWeight ?? suggestion.weight}
                 targets={ext.planTargets}
+                weights={ext.planWeights}
                 unit={repsUnit(exName)}
               />
               {/* [2026-11-03 로그 코치 강화] 쉬어 가는 주·주간 세트 채우기 안내 */}
@@ -3423,8 +3476,9 @@ export function ExerciseCard({
                   `휴식: ${COACH_EVIDENCE.rest.text}`,
                   `자세·컨디션: ${COACH_EVIDENCE.form.text}`,
                   suggestion.style && suggestion.style !== 'load' ? `진행 방식: ${COACH_EVIDENCE.style.text}` : null,
+                  suggestion.setStyle === 'top' ? `무거운 세트 먼저: ${COACH_EVIDENCE.topset.text}` : null,
                 ].filter(Boolean)
-                const all = [why, COACH_EVIDENCE.sets, COACH_EVIDENCE.intensity, COACH_EVIDENCE.rest, COACH_EVIDENCE.form, suggestion.style && suggestion.style !== 'load' ? COACH_EVIDENCE.style : null]
+                const all = [why, COACH_EVIDENCE.sets, COACH_EVIDENCE.intensity, COACH_EVIDENCE.rest, COACH_EVIDENCE.form, suggestion.style && suggestion.style !== 'load' ? COACH_EVIDENCE.style : null, suggestion.setStyle === 'top' ? COACH_EVIDENCE.topset : null]
                 const src = [...new Set(all.flatMap((e) => e?.src || []))]
                 const recent = [...new Set(all.flatMap((e) => e?.recent || []))]
                 return (
@@ -3581,6 +3635,8 @@ export function ExerciseCard({
               history={ext.recHistory || []}
               rxLocked={ext.programRx?.source === 'trainer'}
               ownRange={ext.ownRange}
+              setStyle={ext.setStyle}
+              canTopSet={ext.canTopSet}
               onChange={ext.onSettingChange}
               onClose={() => setShowSetting(false)}
             />

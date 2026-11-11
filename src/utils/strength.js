@@ -581,8 +581,83 @@ function holdUnitText(name, res) {
   const fix = (t) => (typeof t === 'string' ? t.replace(/(\d+(?:\.\d+)?(?:–\d+)?)회(?! 평균)/g, '$1초') : t)
   return { ...res, reason: fix(res.reason), ...(res.stall ? { stall: { ...res.stall, options: res.stall.options.map(fix) } } : {}) }
 }
+// [2026-11-11] 세트 짜는 방식(종목 설정 setStyle): 'straight' 같은 무게(기본) / 'top' 무거운 세트 먼저(탑세트 + 백오프세트).
+// 탑세트 = 그날 가장 무거운 본세트(웜업 바로 뒤, 가장 힘이 남았을 때 1세트), 백오프세트 = 이어서 10%쯤 가볍게 하는 나머지 세트.
+// 총 운동량이 같으면 같은 무게 세트와 근육·근력 증가가 비슷하고(Angleri 외 2017), 백오프는 피로를 줄이며 운동량을 채우는 방법(2021 개관).
+// 증량은 탑세트 결과로만 판단하고(지난번 탑세트 1세트 = 이중 진행), 백오프 무게는 오늘 탑세트에서 계산한다.
+export const TOPSET_BACKOFF_RATIO = 0.1
+export const TOPSET_BACKOFF_EXTRA_REPS = 2
+export function canUseTopSet(name, setting = null) {
+  return getExerciseInputType(name) === 'sets' && !isHoldExercise(name) && !setting?.trainerRx
+}
+export function isTopSetStyle(name, setting = null) {
+  return setting?.setStyle === 'top' && canUseTopSet(name, setting)
+}
+// 백오프 무게(오늘 탑세트 무게 기준, 기구 단위 반올림·최소 한 칸). 0kg가 안 되는 종목에서 0이 되면 null(같은 무게로)
+export function backoffWeight(name, topWeight) {
+  const w = Number(topWeight)
+  if (!Number.isFinite(w)) return null
+  const bw = lighterBy(name, w, TOPSET_BACKOFF_RATIO)
+  if (bw === w || (!(bw > 0) && !allowsZeroWeight(name) && !isAssistedExercise(name))) return null
+  return bw
+}
+// 기록에서 탑세트 1세트만(웜업·드롭 제외, 가장 무거운 무게의 첫 세트 - 어시스트는 보조가 가장 적은 세트)
+function topSetOnly(name, sets) {
+  const zeroOk = allowsZeroWeight(name)
+  const ws = (sets || []).filter(
+    (st) => !isWarmupSet(st) && st.type !== 'drop' && st.weight !== '' && st.weight != null && (zeroOk ? Number(st.weight) >= 0 : Number(st.weight) > 0) && Number(st.reps) > 0
+  )
+  if (!ws.length) return sets || []
+  const assisted = isAssistedExercise(name)
+  const best = ws.reduce((b, st) => (b == null || (assisted ? Number(st.weight) < Number(b.weight) : Number(st.weight) > Number(b.weight)) ? st : b), null)
+  return [best]
+}
+function workingCount(name, sets) {
+  const zeroOk = allowsZeroWeight(name)
+  return (sets || []).filter((st) => !isWarmupSet(st) && st.type !== 'drop' && (zeroOk ? Number(st.weight) >= 0 : Number(st.weight) > 0) && Number(st.reps) > 0).length
+}
+function suggestTopSet(name, lastRecord, setting, opts) {
+  const strip = (r) => (r ? { ...r, sets: topSetOnly(name, r.sets) } : r)
+  const rec = { ...lastRecord, sets: topSetOnly(name, lastRecord.sets), prev: strip(lastRecord.prev), history: Array.isArray(lastRecord.history) ? lastRecord.history.map(strip) : lastRecord.history }
+  const res = suggestNextSetRaw(name, rec, setting, opts)
+  if (!res) return res
+  const [repMin, repMax] = getRepRange(name, setting)
+  const n = Math.max(1, workingCount(name, lastRecord.sets))
+  const topReps = res.setTargets?.[0] ?? res.reps
+  // 쉬었다 다시 시작·통증 반복 날은 백오프도 탑세트 횟수까지만(+2회 없이)
+  const backReps = res.comeback || res.painRepeat ? topReps : Math.max(repMin, Math.min(repMax, topReps + TOPSET_BACKOFF_EXTRA_REPS))
+  const bw = backoffWeight(name, res.weight)
+  const lastTop = topSetOnly(name, lastRecord.sets)[0]
+  const out = {
+    ...res,
+    setStyle: 'top',
+    setTargets: [topReps, ...Array(Math.max(0, n - 1)).fill(bw == null ? topReps : backReps)],
+    backoff: bw == null ? null : { reps: backReps },
+    lastSetCount: Math.max(n, res.lastSetCount || 0),
+    // 코치 카드 '지난번' 칸: 지난번 세트별 횟수(탑세트 + 나머지) 그대로
+    lastReps: (lastRecord.sets || []).filter((st) => !isWarmupSet(st) && st.type !== 'drop' && Number(st.reps) > 0).map((st) => Number(st.reps)),
+    lastWeight: lastTop ? Number(lastTop.weight) : res.lastWeight,
+  }
+  // 탑세트 1세트만 보고 정한 것이라 '모든 세트'·'세트마다' 문구를 탑세트 기준으로 바꾼다(유지·내리기·복귀·통증 문구는 그대로)
+  const lastTopText = lastTop ? `${loadLabel(name, Number(lastTop.weight))} × ${Number(lastTop.reps)}회` : ''
+  const need = res.progress?.need
+  if (res.kind === 'increase' && !res.comeback && !res.painRepeat && !res.issueHold && lastTop) {
+    out.reason = `지난번 탑세트 ${lastTopText} · 목표 상한(${progressionRepMax(name, setting, Number(lastTop.weight))}회) 가까이 채웠어요 → 오늘 탑세트 ${loadLabel(name, res.weight)} ${topReps}회부터`
+  } else if (res.kind === 'reps' && lastTop) {
+    out.reason = `지난번 탑세트 ${lastTopText} · 목표 ${repMin}–${repMax}회 · 오늘 탑세트 ${topReps}회 도전${need ? ` · ${need}회 이상이면 다음엔 올리기` : ''}`
+  }
+  return out
+}
 export function suggestNextSet(name, lastRecord, setting, opts = {}) {
+  if (isTopSetStyle(name, setting) && lastRecord?.sets?.length) return holdUnitText(name, suggestTopSet(name, lastRecord, setting, opts))
   return holdUnitText(name, suggestNextSetRaw(name, lastRecord, setting, opts))
+}
+// 오늘 세트별 무게: 탑세트 방식이면 [탑세트, 백오프, 백오프…], 아니면 모두 같은 무게
+export function planSetWeights(sug, name, weight, count) {
+  const w = weight ?? sug?.weight
+  if (!sug || sug.setStyle !== 'top' || !sug.backoff) return Array(count).fill(w)
+  const bw = backoffWeight(name, w)
+  return Array.from({ length: count }, (_, i) => (i === 0 || bw == null ? w : bw))
 }
 function suggestNextSetRaw(name, lastRecord, setting, opts = {}) {
   const res = suggestByLastSession(name, lastRecord, setting)
@@ -729,7 +804,8 @@ export function planSetTargets(sug, name, setting = null) {
   // 지난번 본세트 수보다 줄이지 않는다(권장 세트 수가 더 적다고 지난번 5세트를 4세트로 깎던 '하향' 문제, 사용자 지적)
   const n = getProgramRx(name, setting)?.sets ? Math.max(1, recommendedSetCount(name, setting) - (Number(sug.setCut) || 0)) : defaultPlannedCount(sug, name, setting)
   if (base.length >= n) return base.slice(0, n)
-  return [...base, ...Array(n - base.length).fill(base[base.length - 1])]
+  // [2026-11-11] 탑세트 방식이면 늘어난 세트는 백오프 횟수로
+  return [...base, ...Array(n - base.length).fill(sug.backoff?.reps ?? base[base.length - 1])]
 }
 
 // [2026-11-08] 플랜을 적용하지 않았을 때 오늘 세트 수: 지난번 본세트 수와 권장 세트 수 중 많은 쪽(쉬었다 다시 시작하면 하나 덜).
@@ -746,6 +822,10 @@ export function defaultPlannedCount(sug, name, setting = null) {
 //  - 피로 감지: 목표 하한보다 적고 같은 무게 첫 세트보다 30% 넘게 줄면(속도 20–40% 손실 연구를 반복 수로 옮긴 근사, Pareja-Blanco 외 2017) 낮추거나 마무리
 //  - 실패(F) 세트 뒤: 다음 세트는 RIR 1, 휴식 30초 더(실패까지 하는 것이 더 낫지 않음, Grgic 외 2022)
 //  - 드롭(D) 세트 뒤: 마무리 안내(드롭은 종목 마지막에, Sødal 외 2023)
+function failNoteFor(set, it) {
+  const failure = set.type === 'failure' || (set.rir !== '' && set.rir != null && Number(set.rir) === 0)
+  return set.type === 'failure' || (failure && it.id !== 'hard' && it.id !== 'max')
+}
 export function adviseAfterSet(name, set, setting, ctx = {}) {
   return holdUnitText(name, adviseAfterSetRaw(name, set, setting, ctx))
 }
@@ -767,13 +847,20 @@ function adviseAfterSetRaw(name, set, setting, ctx = {}) {
   const done = prev.length + 1
   const validDown = (nw) => nw !== w && (isAssistedExercise(name) || nw > 0 || allowsZeroWeight(name))
 
-  const failNote = set.type === 'failure' || (failure && it.id !== 'hard' && it.id !== 'max')
+  const failNote = failNoteFor(set, it)
   // [2026-11-08] T-3: 늘어난 구간 부분 반복 안내는 머신·케이블·고립 종목만(연구가 그쪽 위주). 스쿼트·힌지·런지·바벨 종목과 트레이너 처방 종목은 빼요
   const partialOk =
     !setting?.trainerRx &&
     !['squat', 'hinge', 'lunge'].includes(getExerciseMovementPattern(name)) &&
     !/바벨|스미스|데드리프트|굿모닝|스쿼트/.test(String(name)) &&
     (!isCompoundExercise(name) || /케이블|머신|펙덱|레그프레스|레그익스텐션|레그컬|어브덕션|어덕션/.test(String(name)))
+  // [2026-11-11] 탑세트 방식: 첫 본세트(탑세트) 뒤에는 무게를 올리라 하지 않고 백오프로 안내
+  if (isTopSetStyle(name, setting) && prev.length === 0 && !(planned && done >= planned)) {
+    const bw = backoffWeight(name, w)
+    if (bw != null && !failNoteFor(set, it)) {
+      return { kind: 'info', reason: `탑세트 끝${reps >= repMax ? `(상한 ${repMax}회 달성 · 다음 운동에서 탑세트 무게를 올려요)` : ''} → 나머지는 ${loadWith(name, bw)} 가볍게 이어 해요(백오프세트)` }
+    }
+  }
   if (planned && done >= planned) {
     return { kind: 'done', reason: `오늘 플랜 ${planned}세트 끝! ${failNote ? '한계까지 갔으니 여기서 마무리해요' : '더 해도 되지만 여기서 마무리해도 충분해요'}${reps >= repMax ? ' · 상한을 채웠으니 다음엔 올리기가 나올 거예요' : ''}` }
   }
@@ -847,6 +934,9 @@ const SRC = {
   // [2026-11-09] 원문: Hickmott 외 2022(무게·운동량 자기조절과 근력·근육 성장 종합 분석), Sødal 외 2023(드롭세트)
   autoreg: '2022년 컨디션 맞춤(자기조절) 훈련 연구 종합 분석',
   drop: '2023년 드롭세트 연구 종합 분석',
+  // [2026-11-11] 원문: Angleri 외 2017(같은 무게·피라미드·드롭세트 비교, 운동량 맞춤 12주), 2021 Strength Cond J 백오프세트 개관
+  topset: '2017년 세트 방식(같은 무게·피라미드) 비교 연구',
+  backoff: '2021년 백오프세트 개관 논문',
 }
 // 최근 연구(학술지 심사 전 사전공개·소규모) - 화면에 '최근 연구(검증 중)'으로 따로 표시. 1년에 한 번 다시 점검(CLAUDE.md)
 // 원문: Pelland 외 2024(운동량·빈도), Remmert 외 2025(한 번 운동량), Wolf 외 2024(늘어난 구간 부분 반복)
@@ -872,6 +962,7 @@ export const COACH_EVIDENCE = {
   // [2026-11-09] 자세 우선·컨디션 맞춤·진행 방식(사용자 요청: 무리하게 채우기보다 컨디션에 맞게 정확한 자세)
   form: { text: '마지막 몇 개가 힘든 건 정상이에요. 기준은 힘듦이 아니라 자세예요. 자세가 무너진 반복은 목표 근육 대신 관절·허리에 부담이 가고 자극도 줄어서, 무너지기 전에 멈추는 게 맞아요. 그날 컨디션·통증에 맞춰 무게를 조절하는 방식은 정해진 계획만큼, 또는 더 잘 늘었어요.', src: [SRC.acsm, SRC.autoreg] },
   style: { text: '작은 근육 운동은 무게 한 칸이 커서(예: 덤벨 6→8kg은 33%) 바로 올리면 자세가 무너지기 쉬워요. 그래서 횟수를 몇 개 더 쌓은 뒤 올려요. 정체되면 마지막 세트 뒤 무게를 20%쯤 낮춰 바로 이어 하는 드롭세트가 짧은 시간에 자극을 더해 줘요(근력보다 근육 성장용, 바벨 다관절 종목에는 쓰지 않아요).', src: [SRC.acsm, SRC.drop] },
+  topset: { text: '탑세트는 그날 가장 무거운 세트예요. 웜업 바로 뒤, 힘이 가장 남았을 때 한 번 하고, 나머지는 10%쯤 가볍게 이어 해요(백오프세트). 총 운동량이 같으면 같은 무게로 하는 것과 근육·근력이 비슷하게 늘어서 더 좋은 방식은 아니지만, 무거운 무게를 지치기 전에 들고 뒤 세트는 덜 지치게 채울 수 있어요. 무게는 탑세트가 상한을 채우면 올려요.', src: [SRC.topset, SRC.backoff] },
   partials: { text: '더 이상 안 될 때 근육이 늘어난 쪽(내려간 자리)에서 반만 몇 개 더 하는 방법도 전체 동작과 비슷하게 근육을 키웠다는 연구가 있어요. 아직 초기 연구라 선택 사항이고, 머신·가벼운 고립 종목에서만 권해요(바벨 스쿼트·데드리프트처럼 허리에 부담이 큰 종목은 빼요).', recent: [RECENT.partials] },
 }
 
@@ -883,7 +974,8 @@ export function recommendationHistory(name, lastRecord, setting) {
   for (let i = 0; i < hist.length - 1 && rows.length < 5; i++) {
     const base = hist.slice(i + 1)
     const sug = suggestNextSet(name, { date: base[0].date, sets: base[0].sets, prev: base[1], history: base }, setting, { today: hist[i].date })
-    const actual = workingTop(name, hist[i].sets)
+    // [2026-11-11] 탑세트 방식이면 실제도 탑세트 1세트로 비교
+    const actual = workingTop(name, isTopSetStyle(name, setting) ? topSetOnly(name, hist[i].sets) : hist[i].sets)
     if (!sug || !actual) continue
     const assisted = isAssistedExercise(name)
     const heavyEnough = assisted ? actual.topW <= sug.weight : actual.topW >= sug.weight
