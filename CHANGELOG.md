@@ -2,6 +2,7 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-12] Firestore 읽기 줄이기·홍보 캡처 최신화(사용자 요청): ① 전체 운동 기록을 이 기기(localStorage bt-logs:{uid})에 보관하고 다음부터는 새로 만들었거나 고친 기록만 읽음(createdAt·updatedAt, 서버·기기 시각 차이 10분 겹쳐 읽기), 다른 기기에서 지운 기록은 하루 한 번 전체를 다시 읽어 맞춤, 오프라인 결과는 보관하지 않음. 최근 N개·날짜 범위 조회(HOME·NOTE·캘린더·로그 코치)도 보관본이 있으면 거기서 거름(트레이너가 보는 회원 기록은 그대로 조회). 기록을 고치면 updatedAt 저장. 로그아웃·계정 삭제 때 보관본 삭제. 하네스 기준 앱 한 번 열 때 운동 기록 읽기 약 56건 → 2건(기록 27개) ② 홍보 페이지 캡처 3장(휴식 타이머·운동 완료 요약·캘린더)을 지금 화면으로 다시 찍음 | storage.js getAllWorkoutLogs·loadAllLogs·localLogs·patchAllLogsCache·getRecentWorkoutLogs·getWorkoutLogsInRange·updateWorkoutLog·deleteMyAccountData, firebase.js logout, public/intro/img/cap-rest·cap-done·cap-calendar.webp
 [2026-11-12] 근육 그림 인체 모형 비율로 다듬기(사용자 요청: 손발이 없어 어색함, 머리 작음): 머리 약 8등신·목·마네킹형 얼굴, 손가락 있는 손·발가락 선 있는 발, 무릎뼈·쇄골·발목 윤곽, 근육 좌우 명암, 허리 곡선. 여성은 머리카락 없이 몸매로 구분(사용자 확인). PC 폴더에서 GPT가 고친 옛 버전 파일을 최신 코드에 옮기고 11-11 기능(MuscleFigures·ATOM_FIGURE_IDS·targetsForExercises·height)을 다시 붙임 | MuscleMap.jsx
 [2026-11-11] 담당 트레이너 카드에 트레이너 프로필 표시(사용자 요청): 사진·직함·전문 분야·소개 3줄·경력 2줄·레슨 시간·프로필 전체 보기·인스타그램, 연결 해제는 아래 줄로. 프로필이 계정과 연결 안 됐으면 같은 이름 프로필(하나뿐일 때) | MyPageTab.jsx 담당 트레이너 카드, App.jsx onShowTrainerDirectory profileId
 [2026-11-11] 홍보 페이지 캡처 최신화: 트레이너 회원 화면·회원 처방 화면을 지금 버튼 문구로 다시 찍고, 06 근육 그림·07 체중 추이 기능 소개 추가(목업 데이터) | public/intro/index.html, public/intro/img/cap-trainer·cap-ptplan(교체)·cap-muscle·cap-weight(새).webp

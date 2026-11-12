@@ -48,6 +48,12 @@ export function loginWithGoogle() {
 // 기록 중이던 운동 초안(localStorage)은 그대로 둔다. 캐시를 지운 Firestore는 다시 쓸 수 없어 첫 화면으로 새로 연다.
 export async function logout() {
   await signOut(auth)
+  // [2026-11-12] 이 기기에 보관한 운동 기록(storage.js getAllWorkoutLogs의 bt-logs:{uid})도 지운다
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('bt-logs:'))
+      .forEach((k) => localStorage.removeItem(k))
+  } catch {}
   try {
     await terminate(db)
     await clearIndexedDbPersistence(db)

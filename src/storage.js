@@ -818,7 +818,8 @@ export async function updateWorkoutLog(uid, logId, partial) {
   recentLogsCache = null
   patchAllLogsCache(uid, (list) => list.map((l) => (l.id === logId ? readLogDoc({ id: logId, data: () => ({ ...l, ...partial }) }) : l)))
   // [2026-11-01] 오프라인에서 '저장 중'에 멈추지 않게(전체 점검 U3)
-  await settleOrTimeout(updateDoc(doc(db, 'workoutLogs', uid, 'logs', logId), partial))
+  // [2026-11-12] 다른 기기가 고친 기록만 골라 읽을 수 있게 updatedAt을 남긴다(getAllWorkoutLogs)
+  await settleOrTimeout(updateDoc(doc(db, 'workoutLogs', uid, 'logs', logId), { ...partial, updatedAt: serverTimestamp() }))
   rebuildPersonalRecords(uid, { withActivity: 'date' in (partial || {}) || 'exercises' in (partial || {}) }).catch(() => {})
 }
 
@@ -861,6 +862,9 @@ export async function deleteWorkoutLogAndRevertXp(uid, logId, xp) {
 }
 
 export async function getWorkoutLogsInRange(uid, fromDateStr, toDateStr) {
+  // [2026-11-12] 이 기기에 전체 기록 보관본이 있으면 거기서 거른다(새 기록만 읽어 맞춘 목록, 본인 기록만 - 트레이너가 보는 회원 기록은 그대로 조회)
+  const local = await localLogs(uid)
+  if (local) return local.filter((l) => l.date >= fromDateStr && l.date <= toDateStr)
   const col = collection(db, 'workoutLogs', uid, 'logs')
   const q = query(
     col,
@@ -879,23 +883,106 @@ function readLogDoc(d) {
 
 // [2026-10-27 신규] 전체 운동 기록(CSV 내보내기·성취·PR 재계산), 날짜 오름차순
 // [2026-10-31] Spark 읽기 절약: 같은 탭(세션)에서는 한 번만 읽고, 이 기기에서 기록을 저장·수정·삭제하면
-// 비운다(invalidateRecentLogsCache). 다른 기기에서 쓴 기록은 앱을 다시 열면 반영된다.
+// 캐시에 그 자리에서 반영한다(patchAllLogsCache).
+// [2026-11-12] 앱을 열 때마다 전체 기록을 처음부터 읽지 않게, 이 기기(localStorage `bt-logs:{uid}`)에 보관하고
+// 다음부터는 새로 만들어졌거나(createdAt) 고친(updatedAt) 기록만 읽는다. 다른 기기에서 지운 기록은
+// 하루 한 번 전체를 다시 읽어 맞춘다. 서버 시각과 기기 시각 차이를 감안해 10분 겹쳐 읽는다(같은 ID는 하나로).
+// 저장 시 createdAt·updatedAt(Timestamp)은 빼고 보관한다(화면에서 쓰지 않음). 로그아웃·탈퇴 때 지운다(firebase.js logout).
 // 돌려받은 배열은 여러 화면이 함께 쓰므로 수정하지 말 것.
 let allLogsCache = null // { uid, at, promise }
+const ALL_LOGS_TTL_MS = 10 * 60 * 1000
+const LOGS_STORE_VERSION = 1
+const LOGS_FULL_REFRESH_MS = 24 * 60 * 60 * 1000
+const LOGS_SYNC_OVERLAP_MS = 10 * 60 * 1000
+const LOGS_STORE_MAX_CHARS = 3_500_000
+const logsStoreKey = (uid) => `bt-logs:${uid}`
+const logTsMs = (t) => (t?.toMillis ? t.toMillis() : typeof t?.seconds === 'number' ? t.seconds * 1000 : 0)
+// 같은 날짜는 문서 ID 순(Firestore 정렬과 같게 - 최근 N개를 뒤에서 자를 때 결과가 같도록)
+const byDateAsc = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+
+function readLogsStore(uid) {
+  try {
+    const s = JSON.parse(localStorage.getItem(logsStoreKey(uid)) || 'null')
+    if (!s || s.v !== LOGS_STORE_VERSION || s.uid !== uid || !Array.isArray(s.logs)) return null
+    return s
+  } catch {
+    return null
+  }
+}
+function writeLogsStore(uid, logs, mark, fullAt) {
+  try {
+    const clean = logs.map(({ createdAt, updatedAt, ...rest }) => rest)
+    const text = JSON.stringify({ v: LOGS_STORE_VERSION, uid, mark, fullAt, logs: clean })
+    if (text.length > LOGS_STORE_MAX_CHARS) throw new Error('too big')
+    localStorage.setItem(logsStoreKey(uid), text)
+  } catch {
+    // 용량이 넘치거나 저장할 수 없으면 보관하지 않는다(다음에 전체를 읽음)
+    try {
+      localStorage.removeItem(logsStoreKey(uid))
+    } catch {}
+  }
+}
+// 문서들 가운데 가장 늦은 서버 시각(createdAt·updatedAt)
+function latestMark(docs, prev = 0) {
+  let m = prev
+  docs.forEach((d) => {
+    const data = d.data()
+    m = Math.max(m, logTsMs(data.createdAt), logTsMs(data.updatedAt))
+  })
+  return m
+}
+
+async function loadAllLogs(uid) {
+  const col = collection(db, 'workoutLogs', uid, 'logs')
+  const stored = readLogsStore(uid)
+  const now = Date.now()
+  if (stored && stored.mark && now - (stored.fullAt || 0) < LOGS_FULL_REFRESH_MS) {
+    const since = Timestamp.fromMillis(Math.max(0, stored.mark - LOGS_SYNC_OVERLAP_MS))
+    const [created, updated] = await Promise.all([
+      getDocs(query(col, where('createdAt', '>', since))),
+      getDocs(query(col, where('updatedAt', '>', since))),
+    ])
+    const fresh = new Map()
+    ;[...created.docs, ...updated.docs].forEach((d) => fresh.set(d.id, readLogDoc(d)))
+    const logs = [...stored.logs.filter((l) => !fresh.has(l.id)), ...fresh.values()].sort(byDateAsc)
+    // 오프라인이라 기기 캐시에서 온 결과면 기준 시각을 옮기지 않는다(연결되면 다시 맞춤)
+    const offline = created.metadata?.fromCache || updated.metadata?.fromCache
+    writeLogsStore(uid, logs, offline ? stored.mark : latestMark([...created.docs, ...updated.docs], stored.mark), stored.fullAt)
+    return logs
+  }
+  const snap = await getDocs(query(col, orderBy('date', 'asc')))
+  const logs = snap.docs.map(readLogDoc)
+  // 기록이 없거나 서버 시각이 없는 옛 기록뿐이면 지금 시각을 기준으로(겹쳐 읽기 10분이 있어 놓치지 않음)
+  // 오프라인이면 일부만 받았을 수 있어 보관하지 않는다
+  if (!snap.metadata?.fromCache) writeLogsStore(uid, logs, latestMark(snap.docs) || now - LOGS_SYNC_OVERLAP_MS, now)
+  return logs
+}
+
+// 본인 기록 보관본(또는 이번 세션 캐시)이 있으면 전체 기록 목록, 없거나 실패하면 null(호출한 쪽이 직접 조회)
+async function localLogs(uid) {
+  if (!uid) return null
+  if (!(allLogsCache && allLogsCache.uid === uid) && !readLogsStore(uid)) return null
+  try {
+    return await getAllWorkoutLogs(uid)
+  } catch {
+    return null
+  }
+}
+
 export function getAllWorkoutLogs(uid) {
-  // 오프라인 때 받은 일부 결과가 오래 고정되지 않게 10분이 지나면 다시 읽는다
-  if (allLogsCache && allLogsCache.uid === uid && Date.now() - allLogsCache.at < 10 * 60 * 1000) return allLogsCache.promise
-  const promise = getDocs(query(collection(db, 'workoutLogs', uid, 'logs'), orderBy('date', 'asc')))
-    .then((snap) => snap.docs.map(readLogDoc))
-    .catch((err) => {
-      if (allLogsCache?.promise === promise) allLogsCache = null
-      throw err
-    })
+  // 오프라인 때 받은 일부 결과가 오래 고정되지 않게 10분이 지나면 다시 맞춘다(보관본이 있으면 새 기록만 읽음)
+  if (allLogsCache && allLogsCache.uid === uid && Date.now() - allLogsCache.at < ALL_LOGS_TTL_MS) return allLogsCache.promise
+  const promise = loadAllLogs(uid).catch((err) => {
+    if (allLogsCache?.promise === promise) allLogsCache = null
+    throw err
+  })
   allLogsCache = { uid, at: Date.now(), promise }
   return promise
 }
 
 export async function getRecentWorkoutLogs(uid, count = 10) {
+  const local = await localLogs(uid)
+  if (local) return local.slice(-count).reverse()
   const col = collection(db, 'workoutLogs', uid, 'logs')
   const q = query(col, orderBy('date', 'desc'), limit(count))
   const snap = await getDocs(q)
@@ -912,10 +999,20 @@ function invalidateRecentLogsCache() {
 }
 // [2026-11-10] 이 기기에서 저장·수정·삭제한 기록을 전체 기록 캐시에 바로 반영(다시 읽지 않음). 캐시가 없으면 아무것도 안 함.
 // 날짜 오름차순 유지, 배열은 새로 만든다(여러 화면이 같은 배열을 읽으므로 고치지 않음).
+// [2026-11-12] 이 기기 보관본(bt-logs)도 같이 고친다. 메모리 캐시가 없으면 보관본만 고친다(다음 동기화 기준 시각은 그대로).
 function patchAllLogsCache(uid, fn) {
-  if (!allLogsCache || allLogsCache.uid !== uid) return
+  if (!allLogsCache || allLogsCache.uid !== uid) {
+    const stored = readLogsStore(uid)
+    if (stored) writeLogsStore(uid, fn(stored.logs).sort(byDateAsc), stored.mark, stored.fullAt)
+    return
+  }
   const prev = allLogsCache.promise
-  const promise = prev.then((list) => fn(list).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)))
+  const promise = prev.then((list) => {
+    const next = fn(list).sort(byDateAsc)
+    const stored = readLogsStore(uid)
+    if (stored) writeLogsStore(uid, next, stored.mark, stored.fullAt)
+    return next
+  })
   promise.catch(() => {
     if (allLogsCache?.promise === promise) allLogsCache = null
   })
@@ -1737,6 +1834,9 @@ function recentSeasonKeys(years = 3) {
 }
 export async function deleteMyAccountData(uid, onProgress) {
   invalidateRecentLogsCache()
+  try {
+    localStorage.removeItem(logsStoreKey(uid))
+  } catch {}
   onProgress?.('운동 기록을 지우는 중…')
   await deleteAllDocs(collection(db, 'workoutLogs', uid, 'logs'), onProgress, '운동 기록')
   onProgress?.('루틴을 지우는 중…')
