@@ -166,10 +166,19 @@ export function buildDayPlan(mealTargets, prefs, { date, history = {}, saved = {
 export const SCALE_LABEL = { 0.75: '3/4인분', 1: '1인분', 1.25: '1과 1/4인분', 1.5: '1.5인분' }
 
 // 재료 줄: '닭가슴살 1팩(100g)'처럼, 배율이 1이 아니면 g만
+// 단위 글이 이미 음식을 말하면('달걀 1개', '상추쌈', '밥 2/3', '고기 반찬') 단위만 보여 준다(이름 겹침 방지)
+function unitNamesFood(item, name) {
+  const u = item.unit || ''
+  const words = name.replace(/\(.*?\)/g, '').split(/[ ·]/).filter((w) => w.length >= 2)
+  if (words.some((w) => u.includes(w) || u.includes(w.slice(0, 2)))) return true
+  if (/^rice_|_rice$|boribap/.test(item.food) && u.includes('밥')) return true
+  return /반찬|고기|고명|샐러드|나물|쌈/.test(u)
+}
+
 export function itemLine(item, scale = 1) {
   const f = FOODS[item.food]
   const name = f?.name || item.food
-  if (item.unit && (!isScalable(item) || scale === 1)) return `${name} ${item.unit}`
+  if (item.unit && (!isScalable(item) || scale === 1)) return unitNamesFood(item, name) ? item.unit : `${name} ${item.unit}`
   return `${name} ${Math.round(itemGrams(item, scale) / 5) * 5}g`
 }
 

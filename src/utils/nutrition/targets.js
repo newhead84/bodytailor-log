@@ -21,6 +21,23 @@ export function bmrMifflin({ gender, age, weightKg, heightCm }) {
   return base - 78
 }
 
+// [2026-11-12] 인바디 체지방률이 있으면 제지방량 기준 캐치-맥아들 공식(근육량이 반영됨), 없거나 6개월 넘게 지났으면 미플린.
+export const INBODY_FRESH_DAYS = 183
+export function bmrInfo(profile, today = new Date()) {
+  const w = num(profile.weightKg), bf = num(profile.bodyFatPct)
+  let stale = false
+  if (w && bf && bf >= 3 && bf <= 60) {
+    const at = profile.inbodyAt ? new Date(`${profile.inbodyAt}T00:00:00`) : null
+    stale = !!(at && !Number.isNaN(at.getTime()) && (today - at) / 86400000 > INBODY_FRESH_DAYS)
+    if (!stale) {
+      const lbm = w * (1 - bf / 100)
+      return { bmr: 370 + 21.6 * lbm, method: 'inbody', bodyFatPct: bf, lbm: Math.round(lbm * 10) / 10 }
+    }
+  }
+  const bmr = bmrMifflin(profile)
+  return bmr ? { bmr, method: 'basic', staleInbody: stale } : null
+}
+
 export const ACTIVITY_FACTORS = { sit: 1.3, move: 1.45 } // 운동 제외 일상 활동(앉아서 일함 / 많이 걷는 일)
 
 // 최근 28일 운동 기록의 소모 칼로리 하루 평균(기록에 저장된 caloriesKcal)
@@ -76,10 +93,11 @@ export function trendAdjustment(direction, ratePct, prevAdj = 0) {
 }
 
 // 하루 목표
-// profile: { gender, age, weightKg, heightCm, bodyFatPct?, goals, beginner }, diet: { activity, adj }
+// profile: { gender, age, weightKg, heightCm, bodyFatPct?, inbodyAt?, goals, beginner }, diet: { activity, adj }
 export function dailyTargets(profile, diet = {}, { exerciseKcal = 0 } = {}) {
-  const bmr = bmrMifflin(profile)
-  if (!bmr) return null
+  const info = bmrInfo(profile)
+  if (!info) return null
+  const bmr = info.bmr
   const kg = num(profile.weightKg)
   const hm = num(profile.heightCm) / 100
   const age = num(profile.age) || 30
@@ -114,6 +132,9 @@ export function dailyTargets(profile, diet = {}, { exerciseKcal = 0 } = {}) {
   const pct = (g, k) => Math.round(((g * k) / kcal) * 100)
   return {
     bmr: Math.round(bmr),
+    bmrMethod: info.method,
+    bmrBodyFat: info.bodyFatPct || null,
+    staleInbody: !!info.staleInbody,
     maintain: Math.round(maintain),
     kcal,
     direction,

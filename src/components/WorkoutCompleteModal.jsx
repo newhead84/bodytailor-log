@@ -10,7 +10,9 @@ import { getLevelInfo } from '../utils/tier'
 // 배경을 눌러도 닫히지 않게(다음 행동 유도) 버튼으로만 닫는다.
 // [2026-10-29 등급 리뉴얼] 운동 완료 요약 카드: 오늘 운동 요약(시간·볼륨·본세트·PR) + 받은 XP +
 // Lv 진행 막대(저장 전 → 후로 차오름). Lv이 오르면 "레벨 업", 단계가 바뀌면 "OO 달성" 표시.
-export default function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateForAdd, onAddToRoutine, onClose }) {
+import PostWorkoutMeal from './PostWorkoutMeal'
+
+export default function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateForAdd, onAddToRoutine, onClose, uid = null, userDoc = null }) {
   const [addState, setAddState] = useState('idle') // idle | adding | done
   const hasPendingCandidates = !!(templateForAdd && pendingRoutineAdd?.length)
   const before = getLevelInfo(summary?.xpBefore || 0)
@@ -161,6 +163,8 @@ export default function WorkoutCompleteModal({ xpEarned, summary, pendingRoutine
           </div>
         )}
         {/* [2026-10-30] 오늘 쓴 부위 쿨다운(정적) 스트레칭 3개 */}
+        {/* [2026-11-12] 식단 제안을 켠 회원: 운동 후 다음 끼니 한 줄 */}
+        <PostWorkoutMeal uid={uid} userDoc={userDoc} />
         {summary?.atoms?.length > 0 && <StretchSuggest atoms={summary.atoms} phase="after" title="오늘 쓴 부위 쿨다운 스트레칭" style={{ marginBottom: 12 }} />}
         {/* [2026-08-02 신규] 자유 추가 운동으로 기록한 오늘의 종목을, 화면 이동 없이 바로
             "내 루틴"에 반영할 수 있는 버튼(⑫). 이미 루틴에 있는 종목이나 부위가 애매한 종목은

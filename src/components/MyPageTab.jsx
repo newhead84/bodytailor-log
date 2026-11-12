@@ -187,7 +187,7 @@ function ProfileNumbers({ userDoc, onEdit }) {
 // [2026-11-10] 프로필 목표 칩 짧은 이름(한 줄에 3개가 들어가게) - 전체 이름은 '적용 중인 맞춤 설정'에
 const GOAL_SHORT = { '근육·근력 키우기': '근육·근력', '체지방 줄이기': '체지방', '체력·건강 관리': '체력·건강', '뼈·관절 건강': '뼈·관절', '자세·코어': '자세·코어' }
 
-export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onOpenCoachProgram = null, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, onShowTrainerDirectory, isActive = true }) {
+export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoURL, onManageRoutines, onOpenCoachProgram = null, onOpenDiet = null, onRoutineUpdated, onProfileUpdated, onShowTierInfo, onShowDesignPreview, onShowInquiries, onShowInquiryAdmin, onShowOnboardingPreview, onShowAdmin, onShowTrainees, onShowTrainerDirectory, isActive = true }) {
   const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
@@ -1159,6 +1159,18 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
 
       {/* [2026-11-07] 로그 코치 '내 프로그램 만들기' */}
       {onOpenCoachProgram && <CoachProgramCard templates={routineTemplates} onOpen={onOpenCoachProgram} style={{ marginBottom: 20 }} />}
+      {/* [2026-11-12] 식단 제안 바로가기(HOME 카드를 '나중에'로 숨겨도 여기서 시작) */}
+      {onOpenDiet && userDoc?.role !== '트레이너' && (
+        <Card onClick={onOpenDiet} style={{ marginBottom: 20, cursor: 'pointer' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800 }}>{userDoc?.diet ? '오늘 식단' : '식단 제안 받기'}</div>
+              <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', marginTop: 2 }}>{userDoc?.diet ? '칼로리·단백질 목표와 끼니 · 설정 바꾸기' : '운동·체중 기록으로 하루 식단을 골라 드려요'}</div>
+            </div>
+            <span style={{ fontSize: 20, color: 'var(--color-label-alternative)' }}>›</span>
+          </div>
+        </Card>
+      )}
 
       <SectionTitle
         action={

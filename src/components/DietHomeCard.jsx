@@ -1,7 +1,7 @@
 // DietHomeCard.jsx - [2026-11-12] HOME '오늘 식단' 카드: 하루 칼로리·단백질 + 지금 시간에 맞는 다음 끼니 하나
 // 계산은 DietScreen과 같은 utils/nutrition/dietState(기기 보관 운동 기록 사용, 추가 읽기 거의 없음).
 import React, { useEffect, useMemo, useState } from 'react'
-import { Card } from './ui'
+import { Button, Card } from './ui'
 import { getAllWorkoutLogs } from '../storage'
 import { todayStr } from '../utils/date'
 import { computeDiet, rememberPlan } from '../utils/nutrition/dietState'
@@ -10,6 +10,20 @@ const ORDER = { breakfast: 10, lunch: 14, snack: 17, dinner: 21 }
 
 export default function DietHomeCard({ uid, userDoc, isActive, onOpen, style }) {
   const [logs, setLogs] = useState(null)
+  // '나중에'는 이 기기에서만 숨김(MY의 식단 카드로 언제든 시작)
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem('bt-diet-card-hidden') === '1'
+    } catch {
+      return false
+    }
+  })
+  const hide = () => {
+    try {
+      localStorage.setItem('bt-diet-card-hidden', '1')
+    } catch {}
+    setHidden(true)
+  }
   const date = todayStr()
   useEffect(() => {
     if (!uid || !isActive || !userDoc?.diet) return
@@ -28,10 +42,15 @@ export default function DietHomeCard({ uid, userDoc, isActive, onOpen, style }) 
 
   if (!userDoc?.onboarding?.weightKg) return null
   if (!userDoc?.diet) {
+    if (hidden) return null
     return (
-      <Card onClick={onOpen} style={{ marginBottom: 16, cursor: 'pointer', ...style }}>
+      <Card style={{ marginBottom: 16, ...style }}>
         <div style={{ fontSize: 16, fontWeight: 800 }}>오늘 식단 받기</div>
         <div style={{ fontSize: 14, color: 'var(--color-label-alternative)', marginTop: 4 }}>운동·체중 기록으로 칼로리·단백질을 맞추고, 편의점으로도 되는 끼니를 골라 드려요</div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <Button onClick={onOpen} style={{ flex: 1 }}>시작하기</Button>
+          <Button variant="ghost" onClick={hide}>나중에</Button>
+        </div>
       </Card>
     )
   }

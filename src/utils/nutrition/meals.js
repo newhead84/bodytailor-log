@@ -201,7 +201,7 @@ export const MEALS = [
   m('o_yukgaejang', '육개장', ['lunch', 'dinner'], 'out', 0, [i('d_yukgaejang', 500, '1그릇'), i('rice_white', 210, '1공기'), i('egg', 50, '1개')], { tip: '국물은 반만, 건더기는 다 먹어요' }),
   m('o_bunsik', '분식(떡볶이 + 순대 + 달걀)', ['lunch'], 'out', 0, [i('d_tteokbokki', 150, '반 인분'), i('d_sundae', 100, '반 인분'), i('egg', 100, '삶은 달걀 2개')], { tip: '튀김 대신 달걀·순대로 단백질을 채워요' }),
   m('o_rabokki', '라볶이 + 삶은 달걀', ['lunch'], 'out', 0, [i('d_rabokki', 250, '1인분'), i('egg', 100, '2개')]),
-  m('o_burger_bulgogi', '불고기버거 + 샐러드', ['lunch'], 'out', 0, [i('d_burger_bulgogi', 200, '1개'), i('salad_green', 150, '샐러드'), i('milk', 200, '우유')], { tip: '감자튀김 대신 샐러드, 탄산 대신 우유나 물' }),
+  m('o_burger_bulgogi', '불고기버거 + 샐러드', ['lunch'], 'out', 0, [i('d_burger_bulgogi', 200, '1개'), i('salad_green', 150, '샐러드 1팩'), i('milk', 200, '우유 1팩')], { tip: '감자튀김 대신 샐러드, 탄산 대신 우유나 물' }),
   m('o_burger_cheese', '치즈버거 단품 + 우유', ['lunch'], 'out', 0, [i('d_burger_cheese', 220, '1개'), i('lowfat_milk', 200, '1팩')], { tip: '세트 말고 단품, 패티 두 장보다 한 장' }),
   m('o_malatang', '마라탕(고기·두부 많이)', ['lunch', 'dinner'], 'out', 0, [i('d_malatang', 500, '1그릇'), i('beef_round', 80, '고기 추가'), i('tofu', 100, '두부')], { tip: '면·당면 대신 고기·두부·채소를, 국물은 조금만' }),
   m('o_omurice', '오므라이스(밥 반)', ['lunch'], 'out', 0, [i('d_omurice', 300, '3/4그릇'), i('chicken_breast', 60, '닭가슴살 추가')], { tip: '소스는 반만, 밥을 조금 남겨요' }),
@@ -229,5 +229,5 @@ export const MEALS = [
   m('o_ssambap', '우렁·고기 쌈밥 정식', ['lunch', 'dinner'], 'out', 0, [i('pork_ham', 120, '불고기'), i('red_lettuce', 60, '쌈 채소'), i('perilla_leaf', 20), i('rice_multi', 210, '1공기'), i('doenjang', 15, '쌈장')], { tip: '쌈 채소를 넉넉히, 쌈장은 조금씩', src: '재료 합산(음식 DB에 쌈밥 값이 없음)' }),
   m('o_cafeteria', '구내식당 식판 채우는 법', ['lunch'], 'out', 0, [i('rice_multi', 150, '밥 2/3'), i('pork_ham', 100, '고기·생선 반찬 손바닥 1장'), i('spinach', 70, '나물 두 가지'), i('kimchi', 40, '1접시'), i('soup_miyeok', 200, '국 건더기 위주')], { tip: '단백질 반찬부터 담고, 튀김·전은 하나만, 국물은 반', src: '재료 합산(메뉴가 날마다 바뀌어 대표 구성으로 계산)' }),
   m('o_korean_buffet', '한식뷔페 고르는 법', ['lunch'], 'out', 0, [i('rice_multi', 150, '잡곡밥 2/3'), i('chicken_breast', 80, '고기 반찬'), i('egg', 50, '달걀 반찬'), i('bean_sprout', 70, '나물'), i('kimchi', 40, '1접시')], { tip: '접시 반은 채소, 1/4은 고기·달걀·두부, 1/4은 밥', src: '재료 합산(대표 구성)' }),
-  m('o_poke_bowl', '포케 가게(현미·연어·두부)', ['lunch', 'dinner'], 'out', 0, [i('salmon', 100, '연어'), i('tofu', 80, '두부'), i('rice_brown', 150, '현미밥'), i('lettuce', 80), i('avocado', 35, '아보카도 조금'), i('soy_sauce', 10)], { tip: '소스는 따로 달라고 해서 반만', src: '재료 합산(대표 구성)' }),
+  m('o_poke_bowl', '포케 가게(현미·연어·두부)', ['lunch', 'dinner'], 'out', 0, [i('salmon', 100, '연어 100g'), i('tofu', 80, '두부 80g'), i('rice_brown', 150, '현미밥 2/3공기'), i('lettuce', 80), i('avocado', 35, '아보카도 1/4개'), i('soy_sauce', 10)], { tip: '소스는 따로 달라고 해서 반만', src: '재료 합산(대표 구성)' }),
 ]

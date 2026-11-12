@@ -34,6 +34,7 @@ const LogTab = forwardRef(function LogTab(
     workoutGuideSeen,
     membershipEnd,
     gender, // [2026-11-08] 운동명 → HOWTO 상세의 근육 그림 체형
+    userDoc, // [2026-11-12] 운동 완료 요약의 '운동 후 끼니'(식단 제안)
   },
   ref
 ) {
@@ -65,6 +66,7 @@ const LogTab = forwardRef(function LogTab(
       workoutGuideSeen={workoutGuideSeen}
       membershipEnd={membershipEnd}
       gender={gender}
+      userDoc={userDoc}
     />
   )
 })

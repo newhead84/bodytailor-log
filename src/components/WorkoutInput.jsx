@@ -465,6 +465,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           templateForAdd={celebration.templateForAdd}
           onAddToRoutine={handleAddTodayToRoutine}
           onClose={() => setCelebration(null)}
+          uid={uid}
+          userDoc={props.userDoc}
         />
       )}
 

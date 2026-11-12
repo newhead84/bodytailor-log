@@ -1,8 +1,8 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-12] 식단 제안 1·2단계(HOME 오늘 식단·식단 화면, 식약처 영양 DB 재료 177·메뉴 192, 직장인 외식 68개).
+ * 최신 변경: [2026-11-12] 식단 4단계·마무리(운동 시간 맞춤·정체 안내·운동 후 끼니·트레이너 식단 목표·치킨·피자·회식 날 요령·용어 뜻).
+ *            직전: [2026-11-12] 식단 제안 1–3단계(HOME 오늘 식단·식단 화면, 식약처 영양 DB 재료 177·메뉴 192).
  *            직전: [2026-11-12] 운동 기록을 기기에 보관하고 새 기록만 읽기(Firestore 읽기 절약), 홍보 캡처 3장 최신화.
- *            직전: [2026-11-12] 근육 그림 인체 모형 비율·손발, 담당 트레이너 카드 프로필 표시.
  *            직전: [2026-11-11] 용어 뜻 보기(점선 말풍선 Term), 관리자 거절 사유 확인창, 옛 종목명 처방 키 정규화.
  *            그 전: [2026-11-11] 체중 추이(REPORT·MY), 근육 그림(REPORT·코치 프로그램), WorkoutInput 화면·훅 분리.
  *            직전: [2026-11-11] 남겨둔 작업: 트레이너 처방 무거운 세트 먼저·이탈 위험 기준·연락 문구·오늘 처리함·랭킹 100위 밖·WorkoutInput 분리.
@@ -878,6 +878,7 @@ export default function App() {
         <LogTab
           ref={logTabRef}
           uid={authUser.uid}
+          userDoc={userDoc}
           routineTemplates={routineTemplates}
           weightKg={userDoc.onboarding?.weightKg}
           restNotificationEnabled={!!userDoc.restTimerNotificationPermission}
@@ -927,6 +928,7 @@ export default function App() {
           routineTemplates={routineTemplates}
           onManageRoutines={() => setManagingRoutines(true)}
           onOpenCoachProgram={() => setShowCoachProgram(true)}
+          onOpenDiet={() => setShowDiet(true)}
           onRoutineUpdated={refreshRoutineTemplates}
           onProfileUpdated={refreshUserDoc}
           onShowTierInfo={() => setShowTierInfo(true)}

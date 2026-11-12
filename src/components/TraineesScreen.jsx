@@ -16,6 +16,8 @@ import { TrainerGoalEditor } from './TrainerGoal'
 import { useBackableScreen } from '../hooks/useBackableScreen'
 import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerMoveSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, trainerListOverdueSchedules, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS, getTraineeSummaries, invalidateTraineeSummary, getTrainerNote, saveTrainerNote, getLatestFitnessTests } from '../storage'
 import { fitnessDerived } from '../utils/fitnessCheck'
+import { dailyTargets, exerciseKcalPerDay } from '../utils/nutrition/targets'
+import { dietPrefs, dietProfile } from '../utils/nutrition/dietState'
 import { toLocalDateStr, weekStartStr } from '../utils/date'
 import { membershipState, isPausedOn, pausesOf, addDays } from '../utils/member'
 import { normalizeGoals } from '../utils/goals'
@@ -405,7 +407,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = fa
   // [2026-11-02] 태블릿(넓은 화면): 왼쪽 회원 정보·PT·메모·계획, 오른쪽 진행 요약·기록(기록은 펼친 채로 시작)
   const info = (
     <>
-      <MemberBody member={member} memberUid={conn.memberUid} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} memberName={conn.memberName} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
+      <MemberBody member={member} memberUid={conn.memberUid} logs={logs} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} memberName={conn.memberName} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
       <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={() => { invalidateTraineeSummary(conn.memberUid); loadMember() }} />
       <TrainerNoteCard uid={uid} memberUid={conn.memberUid} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} onLoaded={setMyPlans} />
@@ -976,7 +978,7 @@ function MemberPlans({ conn, uid, onNew, onEdit, onLoaded }) {
 
 // [2026-10-31] 회원 신체정보·목표 - 온보딩/MY 프로필 값 그대로
 // [2026-10-31] goalEditor: 트레이너 목표 제안·바로 바꾸기(TrainerGoal.jsx)
-function MemberBody({ member, memberUid, goalEditor }) {
+function MemberBody({ member, memberUid, goalEditor, logs = null }) {
   // [2026-11-07] 회원이 적은 체력 점검(최근 2개, 읽기 전용 - 신체 정보와 같은 공유 범위)
   const [tests, setTests] = useState(null)
   useEffect(() => {
@@ -1016,6 +1018,12 @@ function MemberBody({ member, memberUid, goalEditor }) {
         {metric.length > 0 && row('신체 지표', `${metric.join(' · ')}${bm.fat && bm.inbodyAt ? ` (인바디 ${bm.inbodyAt})` : ''}`)}
         {row('운동 목표', goals.length ? goals.map((g, i) => `${i + 1}. ${g}`).join('  ') : '입력 안 함')}
         {row('주간 목표', `주 ${member.weeklyTargetDays || 3}일`)}
+        {/* [2026-11-12] 회원이 식단 제안을 켰으면 하루 목표(최근 8주 기록으로 운동 소모 계산, 회원 화면과 같은 계산) */}
+        {member.diet &&
+          (() => {
+            const t = dailyTargets(dietProfile(member), dietPrefs(member), { exerciseKcal: exerciseKcalPerDay(logs || []) })
+            return t ? row('식단 목표', `${t.kcal.toLocaleString('ko-KR')}kcal · 단백질 ${t.protein}g (${{ loss: '감량', gain: '증량', keep: '유지' }[t.direction]})`) : null
+          })()}
         {tests?.length > 0 &&
           row(
             '체력 점검',
