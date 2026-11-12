@@ -52,15 +52,29 @@ export function setCoachIntensity(id) {
 export function getCoachIntensity() {
   return coachIntensity
 }
-// [2026-11-03] 강도는 MY 설정 하나로 전체 적용(종목별 강도는 번거로워 없앰 - 사용자 결정). 예전에 저장한 종목별 intensity는 무시.
+// [2026-11-12] 오늘 운동 강도(사용자 요청: MY가 아니라 기록 화면에서 컨디션과 함께 고름). 운동 중에만 기본 강도보다 먼저.
+// 기록 화면(useWorkoutSession)이 렌더 중 세팅하고, 운동이 끝나면 null.
+let sessionIntensity = null
+export function setSessionIntensity(id) {
+  sessionIntensity = INTENSITY_BY_ID[id] ? id : null
+}
+export function getTodayIntensity() {
+  return sessionIntensity || coachIntensity
+}
+// 컨디션 나쁨이면 한 단계 낮게(살살 아래는 없음)
+export function lowerIntensity(id) {
+  const i = COACH_INTENSITIES.findIndex((x) => x.id === normalizeIntensity(id))
+  return COACH_INTENSITIES[Math.max(0, i - 1)].id
+}
+// [2026-11-03] 강도는 하나로 전체 적용(종목별 강도는 번거로워 없앰 - 사용자 결정). 예전에 저장한 종목별 intensity는 무시. [2026-11-12] 고르는 곳은 기록 화면(웜업 카드).
 // eslint-disable-next-line no-unused-vars
 // [2026-11-07] 트레이너 처방에 강도가 있으면 그 종목은 처방 강도(트레이너 처방 > 로그 코치)
 export function intensityOf(setting) {
   const t = setting?.trainerRx?.intensity
-  return INTENSITY_BY_ID[t] || INTENSITY_BY_ID[coachIntensity]
+  return INTENSITY_BY_ID[t] || INTENSITY_BY_ID[sessionIntensity || coachIntensity]
 }
 // [2026-11-03 최근 연구] 목표에 맞춘 강도 안내: 근육 성장은 한계에 가까울수록 커지지만 근력은 거의 차이가 없다(2024 종합 분석).
-export function intensityGoalHint(primary, id = coachIntensity) {
+export function intensityGoalHint(primary, id = sessionIntensity || coachIntensity) {
   if (primary === 'muscle') {
     if (id === 'easy2' || id === 'easy') return '근육을 키우려면 보통~세게가 효율적이에요(한계에 가까울수록 근육이 더 자라요).'
     if (id === 'max') return '근육엔 효과적이지만 피로가 커요. 힘(근력)만 보면 한계까지 갈 필요는 적어요.'
@@ -1084,7 +1098,7 @@ export function fractionalSetsByAtom(logs) {
           add(LEG_BACK, n * legs[LEG_BACK])
         } else add(LEG_FRONT, n) // 메타가 없는 커스텀 하체 종목
       } else add(atom, n)
-      getSynergistAtoms(ex.name)
+      getSynergistAtoms(ex.name, ex.grip)
         .filter((a) => a !== atom && a !== '유산소')
         .forEach((a) => {
           if (a !== '하체') add(a, n * 0.5)

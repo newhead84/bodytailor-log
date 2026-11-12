@@ -147,7 +147,7 @@ function swapCandidates(name, guide, exclude = []) {
 }
 
 // swap: { from: 바꿀 종목명, exclude: 오늘 목록, onPick(name) } - 기록 중에 열었을 때만(운동명 누르기)
-export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor, backLabel = '부위별 목록으로', gender = null, swap = null }) {
+export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor, backLabel = '부위별 목록으로', gender = null, swap = null, grip = null }) {
   const atom = getExerciseAtom(name)
   // [2026-10-31] 구조화 가이드 + 트레이너 수정본 병합 + 기구 태그(전 종목)
   const overrides = useGuideOverrides()
@@ -158,7 +158,9 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
   const desc = getExerciseDescription(name)
   const gripOptions = getGripOptions(name)
   const gripOptionNotes = getGripOptionNotes(name)
-  const muscleRoles = getMuscleRoles(name)
+  // [2026-11-12] 그립을 고르면 근육 그림·역할이 그 그립 기준(오버핸드 컬 = 아래팔 위주). 기록 중 열면 그 종목의 그립으로 시작
+  const [pickedGrip, setPickedGrip] = useState(gripOptions && grip && gripOptions.includes(grip) ? grip : gripOptions?.[0] || null)
+  const muscleRoles = getMuscleRoles(name, pickedGrip)
   const comparisonGroup = getComparisonGroupForExercise(name)
   const color = getPartColor(atom)
   const [adding, setAdding] = useState(false)
@@ -240,7 +242,7 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
       })()}
 
       {/* [2026-11-08] 근육 그림(프로필 성별 체형, 주로·같이 쓰는 근육 이름표) */}
-      <MuscleMap name={name} gender={gender} style={{ marginBottom: 14 }} />
+      <MuscleMap name={name} grip={pickedGrip} gender={gender} style={{ marginBottom: 14 }} />
 
       {/* [2026-10-28] GIF 이미지 삭제 → YouTube 영상 검색 링크 */}
       <div style={{ marginBottom: 14 }}>
@@ -288,9 +290,9 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
           <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: 'var(--color-label-strong)' }}>그립 옵션</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {gripOptions.map((g) => (
-              <span key={g} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)' }}>
+              <Chip key={g} active={pickedGrip === g} onClick={() => setPickedGrip(g)} style={{ padding: '5px 12px', fontSize: 12.5 }}>
                 {g}
-              </span>
+              </Chip>
             ))}
           </div>
           {gripOptionNotes && (
@@ -308,7 +310,7 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
             </div>
           )}
           <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
-            NOTE 탭 기록 시 세트마다 그립을 다르게 선택할 수 있어요.
+            그립을 누르면 위 근육 그림이 그 그립 기준으로 바뀌어요. 기록할 때는 그립별로 따로 쌓여요.
           </p>
         </Card>
       )}

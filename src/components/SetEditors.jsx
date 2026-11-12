@@ -48,8 +48,10 @@ export function SetTypeBadge({ type, index, onClick, onLongPress, size = 30, gui
   const label = t === 'working' ? String(index) : SET_TYPE_SHORT[t]
   const timer = React.useRef(null)
   const fired = React.useRef(false)
-  const startPress = () => {
+  const startAt = React.useRef(null)
+  const startPress = (e) => {
     if (!onLongPress) return
+    startAt.current = { x: e?.clientX ?? 0, y: e?.clientY ?? 0 }
     fired.current = false
     clearTimeout(timer.current)
     timer.current = setTimeout(() => {
@@ -67,6 +69,11 @@ export function SetTypeBadge({ type, index, onClick, onLongPress, size = 30, gui
     <button
       type="button"
       onPointerDown={startPress}
+      onPointerMove={(e) => {
+        // [2026-11-12] 스크롤하며 손가락이 움직이면 길게 누르기(세트 삭제)로 보지 않음
+        const s0 = startAt.current
+        if (s0 && (Math.abs(e.clientX - s0.x) > 8 || Math.abs(e.clientY - s0.y) > 8)) cancelPress()
+      }}
       onPointerUp={cancelPress}
       onPointerLeave={cancelPress}
       onPointerCancel={cancelPress}
@@ -417,7 +424,7 @@ const REST_CHOICES = [
 ]
 
 // [2026-11-02 로그 코치] 증량 단위 칸은 없앴다(기구별 자동). 예전에 저장한 step 값은 다음 저장 때 지운다(null).
-// [2026-11-03] 종목별 강도도 없앴다(번거로움 - 사용자 결정). 강도는 MY › 설정 하나로 전체 적용.
+// [2026-11-03] 종목별 강도도 없앴다(번거로움 - 사용자 결정). 강도는 하나로 전체 적용(2026-11-12부터 기록 화면에서 고름).
 // [2026-11-07] rxLocked: 트레이너 처방 종목 - 목표 횟수는 처방을 따르므로 조절 버튼 대신 안내만, 휴식을 바꿀 때 내 목표 횟수(ownRange)는 그대로 둔다
 // [2026-11-11] setStyle: 세트 짜는 방식(같은 무게 / 무거운 세트 먼저 = 탑세트 + 백오프세트), canTopSet: 고를 수 있는 종목인지(무게 종목·트레이너 처방 아님)
 export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, history = [], onChange, onClose, unit = '회', rxLocked = false, ownRange = null, setStyle = 'straight', canTopSet = false }) {
@@ -531,7 +538,7 @@ export function ExerciseSettingEditor({ repRange, restSec, defaultRestSec, histo
         </div>
       )}
       <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-        증량 폭은 기구에 맞춰 자동으로 정해져요(덤벨 2kg·머신 5kg·바벨 2.5kg). 로그 코치 강도는 MY › 설정에서 한 번에 바꿔요.
+        증량 폭은 기구에 맞춰 자동으로 정해져요(덤벨 2kg·머신 5kg·바벨 2.5kg). 로그 코치 강도는 운동 시작 때 컨디션과 함께 기록 화면에서 바꿔요.
       </span>
       <span className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>
         보통 강도에서는 첫 세트가 상한을, 나머지 세트가 하한 이상을 채우거나 총 반복이 상한×세트 수의 90% 이상이면 다음 운동에서 올리기를 추천해요. 그 전까지는 최근 평균보다 세트마다 1회씩 늘리는 목표를 보여 줘요. 기본값은 MY 프로필의 운동 목표에 맞춰져요.

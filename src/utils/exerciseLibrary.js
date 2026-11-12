@@ -2562,8 +2562,22 @@ function baseWeightStep(name) {
 }
 
 // [2026-08-05 신규] 종목명 → 근육 역할 4단계(주동/보조/안정/길항). 없으면 null.
-export function getMuscleRoles(name) {
-  return EXERCISE_META[name]?.muscleRoles || null
+export function getMuscleRoles(name, grip = null) {
+  return (grip && GRIP_MUSCLE_ROLES[name]?.[grip]) || EXERCISE_META[name]?.muscleRoles || null
+}
+// [2026-11-12] 그립에 따라 쓰는 근육이 크게 바뀌는 종목(사용자 지적: 이지바컬 오버핸드인데 이두로 표시).
+// 컬을 오버핸드(리버스)로 잡으면 상완요골근·상완근(팔 바깥·아래팔)이 주로 일하고 이두근은 돕는 쪽으로 바뀐다.
+// 기록은 이미 '이름::그립'으로 따로 집계하므로, 근육 그림·보조 부위 계산만 그립을 따른다. 리포트 부위(atom)는 그대로 '이두'(아래팔 부위가 따로 없음).
+const REVERSE_CURL_ROLES = {
+  primary: ['상완요골근', '상완근'],
+  synergist: ['상완이두근-단두', '전완근(손목 펴는 근육)'],
+  stabilizer: [],
+  antagonist: ['삼두근'],
+}
+const GRIP_MUSCLE_ROLES = {
+  '바벨컬': { '오버핸드': REVERSE_CURL_ROLES },
+  '이지바컬': { '오버핸드': REVERSE_CURL_ROLES },
+  '케이블컬': { '오버핸드': REVERSE_CURL_ROLES },
 }
 
 // [2026-08-12 신규] 종목명 → 동작 패턴(pattern 필드: isometric/flexion/rotation 등).
@@ -2621,8 +2635,8 @@ const SYNERGIST_MUSCLE_TO_ATOM = [
   ['장요근', '코어'],
 ]
 
-export function getSynergistAtoms(name) {
-  const synergists = getMuscleRoles(name)?.synergist
+export function getSynergistAtoms(name, grip = null) {
+  const synergists = getMuscleRoles(name, grip)?.synergist
   if (!synergists || synergists.length === 0) return []
   const atoms = new Set()
   synergists.forEach((muscle) => {
@@ -2670,6 +2684,10 @@ export const EXERCISE_GRIP_NOTES = {
   "바벨컬": {
     "언더핸드": "기본 그립. 이두근 단두 위주로 자극이 집중됩니다.",
     "오버핸드": "오버핸드(리버스)로 잡으면 이두근보다 상완요골근·전완 쪽 자극이 커집니다.",
+  },
+  "이지바컬": {
+    "언더핸드": "기본 그립. 꺾인 부분을 잡아 손목이 편하고, 이두근 위주로 자극됩니다.",
+    "오버핸드": "오버핸드(리버스)로 잡으면 이두근보다 상완요골근·전완근(아래팔) 쪽 자극이 커집니다. 무게는 언더핸드보다 가볍게 시작하세요.",
   },
   "케이블컬": {
     "언더핸드": "기본 그립. 이두근 위주로 자극되며, 케이블 특성상 동작 내내 장력이 일정하게 유지됩니다.",

@@ -37,6 +37,10 @@ import {
   suggestBodyweight,
   adviseBodyweightSet,
   isBodyweightCoached,
+  COACH_INTENSITIES,
+  getCoachIntensity,
+  setSessionIntensity,
+  lowerIntensity,
 } from '../utils/strength'
 import { autoFillCardio, cardioTimerMinutes, cardioStats, makeCardioSet } from '../utils/cardioFields'
 import { allowsZeroWeight, isAssistedExercise, formatLoad, isHoldExercise } from '../utils/load'
@@ -156,6 +160,9 @@ export function useWorkoutSession(props, ref) {
   // [2026-11-09] 운동 시작 전 컨디션(좋음·보통·나쁨, 건너뛰기 가능) - 나쁨이면 오늘 플랜은 올리지 않고 지난번만큼(sessionCoach.js)
   const [condition, setCondition] = useState(null)
   const [conditionLight, setConditionLight] = useState(false) // 컨디션 나쁨일 때 '세트도 하나 덜'
+  // [2026-11-12] 오늘 강도(기록 화면에서 컨디션과 함께, 사용자 요청). null = 평소 강도. auto = 컨디션 나쁨으로 자동으로 한 단계 낮춘 것(오늘만)
+  const [sessionIntensity, setSessionIntensityState] = useState(null)
+  const [intensityAuto, setIntensityAuto] = useState(false)
   const [lastRecords, setLastRecords] = useState({}) // { [exerciseKey]: {sets, date} }
   const [restSeconds, setRestSeconds] = useState(REST_AUTO)
   const [restKey, setRestKey] = useState(0)
@@ -220,6 +227,35 @@ export function useWorkoutSession(props, ref) {
 
   // 전체 세션 진행 단계: idle(시작 전) → warmup(웜업 중) → main(본운동)
   const [sessionPhase, setSessionPhase] = useState('idle')
+  // [2026-11-12] 오늘 강도: 운동 중에만 평소 강도보다 먼저(렌더 중 세팅 - App의 setCoachIntensity와 같은 방식)
+  setSessionIntensity(sessionPhase !== 'idle' ? sessionIntensity : null)
+  const baseIntensity = getCoachIntensity()
+  const todayIntensity = sessionIntensity || baseIntensity
+  // 컨디션 고르기: 나쁨이면 (직접 고른 강도가 없을 때) 오늘만 한 단계 낮게, 나쁨을 풀면 자동으로 낮춘 것도 되돌림
+  function chooseCondition(id) {
+    setCondition(id)
+    if (id === 'bad') {
+      if (!sessionIntensity || intensityAuto) {
+        const low = lowerIntensity(baseIntensity)
+        setSessionIntensityState(low === baseIntensity ? null : low)
+        setIntensityAuto(low !== baseIntensity)
+      }
+    } else if (intensityAuto) {
+      setSessionIntensityState(null)
+      setIntensityAuto(false)
+    }
+  }
+  // 강도 직접 고르기: 오늘 적용 + 컨디션이 나쁨이 아니면 다음 운동 기본값으로도 저장(나쁨이면 오늘만 - 사용자 결정)
+  function chooseIntensity(id) {
+    if (!COACH_INTENSITIES.some((c) => c.id === id)) return
+    setSessionIntensityState(id === baseIntensity ? null : id)
+    setIntensityAuto(false)
+    if (condition !== 'bad' && id !== baseIntensity) {
+      updateUserProfile(uid, { coachIntensity: id })
+        .then(() => onProfileUpdated?.())
+        .catch(() => {})
+    }
+  }
   useEffect(() => {
     if (workoutGuideSeen || guideShownRef.current || sessionPhase !== 'main' || !expandedExercise) return
     let seenLocal = false
@@ -394,6 +430,8 @@ export function useWorkoutSession(props, ref) {
     setTipUps(draft.tipUps || {})
     setCondition(normalizeCondition(draft.condition))
     setConditionLight(!!draft.conditionLight)
+    setSessionIntensityState(draft.sessionIntensity && COACH_INTENSITIES.some((c) => c.id === draft.sessionIntensity) ? draft.sessionIntensity : null)
+    setIntensityAuto(!!draft.intensityAuto)
   }
 
   // 세션 상태를 초기(idle)로 되돌린다(운동 완료·취소·자동 저장 공통).
@@ -406,6 +444,8 @@ export function useWorkoutSession(props, ref) {
     setCapWarned({})
     setCondition(null)
     setConditionLight(false)
+    setSessionIntensityState(null)
+    setIntensityAuto(false)
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -635,6 +675,8 @@ export function useWorkoutSession(props, ref) {
       tipUps,
       condition, // [2026-11-09] 운동 시작 전 컨디션
       conditionLight,
+      sessionIntensity, // [2026-11-12] 오늘 강도
+      intensityAuto,
       updatedAt: Date.now(),
     }
     // [2026-11-07] 활동 시각: 세트 저장·단계 변경·일시정지/재개가 있을 때만 갱신(무게·횟수 입력만으로는 갱신 안 함).
@@ -687,6 +729,8 @@ export function useWorkoutSession(props, ref) {
     supersets,
     condition,
     conditionLight,
+    sessionIntensity,
+    intensityAuto,
   ])
 
   // [2026-07-30] 세션 진행 단계가 바뀔 때마다 상위(App.jsx → HomeTab)에 알려
@@ -741,6 +785,8 @@ export function useWorkoutSession(props, ref) {
     setCapWarned({})
     setCondition(null)
     setConditionLight(false)
+    setSessionIntensityState(null)
+    setIntensityAuto(false)
     setCompletedExercises({})
     setHiddenToday([])
     setFreeExercises([])
@@ -1892,6 +1938,8 @@ export function useWorkoutSession(props, ref) {
     setCapWarned({})
     setCondition(null)
     setConditionLight(false)
+    setSessionIntensityState(null)
+    setIntensityAuto(false)
     setCompletedExercises({})
     setSessionPhase('idle')
     setSessionStartAt(null)
@@ -1971,6 +2019,6 @@ export function useWorkoutSession(props, ref) {
   }
 
   return {
-    activeRestSec, addExerciseToRoutine, addFreeExercise, addingExercise, addingFreeExercise, cardExt, celebration, comeback, completeExercise, completedExercises, condition, conditionLight, confirmRemoveSet, copyLastSet, customExercises, dismissingGuideHint, elapsedSeconds, expandedExercise, finishWorkoutGuide, freeCategory, freeExercises, freePickerGuideName, gender, guideEl, guideSkipKeys, handleAddTodayToRoutine, handleCancelSession, handleDismissGuideHint, handleFinishWorkout, handleReorder, handleStartMain, handleStartWorkout, hasAnyRecord, hiddenToday, hideExerciseToday, howto, lastRecords, layoutEnabled, onGoToRoutineSetup, openExercise, partOrder, persistPartExercises, pickerGuideName, records, removeExerciseFromRoutine, removeFreeExercise, restActive, restKey, restNotificationEnabled, restSeconds, restSoundId, restWakeLockEnabled, rootRef, saving, selectPart, selectRoutine, selectedPart, selectedPartName, selectedTemplate, selectedTemplateId, sessionHeaderOpen, sessionPhase, sessionType, setAddingExercise, setAddingFreeExercise, setCelebration, setCondition, setConditionLight, setFreeCategory, setFreePickerGuideName, setHowto, setPickerGuideName, setRestActive, setRestSeconds, setSessionHeaderOpen, setSessionType, setToast, showGuideHint, swapExercise, templates, todayAtoms, toggleUncompleteExercise, totalVolume, trySaveSet, uid, updateSet, visibleExercises,
+    activeRestSec, addExerciseToRoutine, addFreeExercise, addingExercise, addingFreeExercise, cardExt, celebration, comeback, completeExercise, completedExercises, condition, conditionLight, chooseCondition, chooseIntensity, todayIntensity, intensityAuto, confirmRemoveSet, copyLastSet, customExercises, dismissingGuideHint, elapsedSeconds, expandedExercise, finishWorkoutGuide, freeCategory, freeExercises, freePickerGuideName, gender, guideEl, guideSkipKeys, handleAddTodayToRoutine, handleCancelSession, handleDismissGuideHint, handleFinishWorkout, handleReorder, handleStartMain, handleStartWorkout, hasAnyRecord, hiddenToday, hideExerciseToday, howto, lastRecords, layoutEnabled, onGoToRoutineSetup, openExercise, partOrder, persistPartExercises, pickerGuideName, records, removeExerciseFromRoutine, removeFreeExercise, restActive, restKey, restNotificationEnabled, restSeconds, restSoundId, restWakeLockEnabled, rootRef, saving, selectPart, selectRoutine, selectedPart, selectedPartName, selectedTemplate, selectedTemplateId, sessionHeaderOpen, sessionPhase, sessionType, setAddingExercise, setAddingFreeExercise, setCelebration, setCondition, setConditionLight, setFreeCategory, setFreePickerGuideName, setHowto, setPickerGuideName, setRestActive, setRestSeconds, setSessionHeaderOpen, setSessionType, setToast, showGuideHint, swapExercise, templates, todayAtoms, toggleUncompleteExercise, totalVolume, trySaveSet, uid, updateSet, visibleExercises,
   }
 }

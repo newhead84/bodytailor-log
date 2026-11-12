@@ -9,7 +9,7 @@ import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerAvatar, TrainerTags } from './TrainerProfileView'
 import { instagramUrl } from '../utils/trainerProfile'
 import { membershipState, fmtYmd, isTrainerAccount, saveFailText } from '../utils/member'
-import { COACH_INTENSITIES, normalizeIntensity, intensityGoalHint } from '../utils/strength'
+import { COACH_INTENSITIES, normalizeIntensity } from '../utils/strength'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
 import AccountLegalSection from './AccountLegalSection'
@@ -534,9 +534,6 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     }
     setSfxEnabled(on)
   }
-  async function selectCoachIntensity(id) {
-    await saveSetting(setCoachIntensityState, coachIntensity, id, { coachIntensity: id })
-  }
   async function selectLogMode(mode) {
     await saveSetting(setLogModeState, logMode, mode, { logMode: mode })
   }
@@ -725,22 +722,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </span>
         </div>
         {coachEnabled && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>강도 (모든 운동에 적용)</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
-            {COACH_INTENSITIES.map((c) => (
-              <Chip key={c.id} active={coachIntensity === c.id} onClick={() => selectCoachIntensity(c.id)} style={{ justifyContent: 'center', minWidth: 0, whiteSpace: 'nowrap' }}>
-                {c.label}
-              </Chip>
-            ))}
-          </div>
+          // [2026-11-12] 강도는 기록 화면(운동 시작 때 컨디션과 함께)에서 고른다(사용자 요청). 여기서는 지금 기본값만 보여 준다.
           <span className="text-keep-all" style={{ fontSize: 12, color: 'var(--color-label-neutral)' }}>
-            {(() => {
-              const c = COACH_INTENSITIES.find((x) => x.id === coachIntensity)
-              return `${c.label}: ${c.rirText} 정도로 모든 운동의 플랜을 짜요. ${intensityGoalHint(getTrainingProfile().primary, c.id)}`
-            })()}
+            강도: {(COACH_INTENSITIES.find((x) => x.id === coachIntensity) || COACH_INTENSITIES[2]).label} · 운동 시작 때 컨디션과 함께 기록 화면에서 바꿔요
           </span>
-        </div>
         )}
       </Card>
 

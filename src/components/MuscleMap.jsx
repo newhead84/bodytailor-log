@@ -69,8 +69,8 @@ function toIds(list) {
   })
   return out
 }
-export function muscleTargets(name) {
-  const r = getMuscleRoles(name)
+export function muscleTargets(name, grip = null) {
+  const r = getMuscleRoles(name, grip)
   if (!r) return null
   const p = toIds(r.primary)
   const s = toIds(r.synergist).filter((x) => !p.includes(x))
@@ -366,7 +366,8 @@ export function targetsForExercises(names) {
   const p = []
   const s = []
   ;(names || []).forEach((n) => {
-    const t = muscleTargets(n)
+    const [nm, gp] = String(n).split('::')
+    const t = muscleTargets(nm, gp || null)
     if (!t) return
     t.p.forEach((id) => { if (!p.includes(id)) p.push(id) })
     t.s.forEach((id) => { if (!s.includes(id)) s.push(id) })
@@ -401,8 +402,8 @@ export function MuscleFigures({ target, gender, height = 160, labels = true, sty
   )
 }
 
-export default function MuscleMap({ name, gender, style }) {
-  const target = useMemo(() => muscleTargets(name), [name])
+export default function MuscleMap({ name, grip = null, gender, style }) {
+  const target = useMemo(() => muscleTargets(name, grip), [name, grip])
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
   const P = useMemo(() => body(gender === '여성'), [gender])
   if (!target) return null

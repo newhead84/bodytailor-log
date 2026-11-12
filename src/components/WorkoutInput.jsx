@@ -9,6 +9,7 @@ import RestTimer from './RestTimer'
 import WorkoutGuide from './WorkoutGuide'
 import { StretchSuggest } from './StretchGuide'
 import { CONDITIONS } from '../utils/sessionCoach'
+import IntensityPicker from './IntensityPicker'
 import { ExerciseGuidePanel } from './ExerciseGuideToggle'
 import logoMarkTransparent from '../assets/logo-mark-transparent.png'
 import { getAtomsForPart, getExercisesForPart, getCustomExercisesForPart } from '../utils/exerciseLibrary'
@@ -23,7 +24,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   ref
 ) {
   const {
-    activeRestSec, addExerciseToRoutine, addFreeExercise, addingExercise, addingFreeExercise, cardExt, celebration, comeback, completeExercise, completedExercises, condition, conditionLight, confirmRemoveSet, copyLastSet, customExercises, dismissingGuideHint, elapsedSeconds, expandedExercise, finishWorkoutGuide, freeCategory, freeExercises, freePickerGuideName, gender, guideEl, guideSkipKeys, handleAddTodayToRoutine, handleCancelSession, handleDismissGuideHint, handleFinishWorkout, handleReorder, handleStartMain, handleStartWorkout, hasAnyRecord, hiddenToday, hideExerciseToday, howto, lastRecords, layoutEnabled, onGoToRoutineSetup, openExercise, partOrder, persistPartExercises, pickerGuideName, records, removeExerciseFromRoutine, removeFreeExercise, restActive, restKey, restNotificationEnabled, restSeconds, restSoundId, restWakeLockEnabled, rootRef, saving, selectPart, selectRoutine, selectedPart, selectedPartName, selectedTemplate, selectedTemplateId, sessionHeaderOpen, sessionPhase, sessionType, setAddingExercise, setAddingFreeExercise, setCelebration, setCondition, setConditionLight, setFreeCategory, setFreePickerGuideName, setHowto, setPickerGuideName, setRestActive, setRestSeconds, setSessionHeaderOpen, setSessionType, setToast, showGuideHint, swapExercise, templates, todayAtoms, toggleUncompleteExercise, totalVolume, trySaveSet, uid, updateSet, visibleExercises,
+    activeRestSec, addExerciseToRoutine, addFreeExercise, addingExercise, addingFreeExercise, cardExt, celebration, comeback, completeExercise, completedExercises, condition, conditionLight, chooseCondition, chooseIntensity, todayIntensity, intensityAuto, confirmRemoveSet, copyLastSet, customExercises, dismissingGuideHint, elapsedSeconds, expandedExercise, finishWorkoutGuide, freeCategory, freeExercises, freePickerGuideName, gender, guideEl, guideSkipKeys, handleAddTodayToRoutine, handleCancelSession, handleDismissGuideHint, handleFinishWorkout, handleReorder, handleStartMain, handleStartWorkout, hasAnyRecord, hiddenToday, hideExerciseToday, howto, lastRecords, layoutEnabled, onGoToRoutineSetup, openExercise, partOrder, persistPartExercises, pickerGuideName, records, removeExerciseFromRoutine, removeFreeExercise, restActive, restKey, restNotificationEnabled, restSeconds, restSoundId, restWakeLockEnabled, rootRef, saving, selectPart, selectRoutine, selectedPart, selectedPartName, selectedTemplate, selectedTemplateId, sessionHeaderOpen, sessionPhase, sessionType, setAddingExercise, setAddingFreeExercise, setCelebration, setCondition, setConditionLight, setFreeCategory, setFreePickerGuideName, setHowto, setPickerGuideName, setRestActive, setRestSeconds, setSessionHeaderOpen, setSessionType, setToast, showGuideHint, swapExercise, templates, todayAtoms, toggleUncompleteExercise, totalVolume, trySaveSet, uid, updateSet, visibleExercises,
   } = useWorkoutSession(props, ref)
   if (templates.length === 0) {
     return (
@@ -235,7 +236,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
             <p style={{ margin: '0 0 8px', fontSize: 13.5, fontWeight: 700, color: 'var(--color-label-strong)' }}>오늘 컨디션은요?</p>
             <div role="group" aria-label="오늘 컨디션" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {CONDITIONS.map((c) => (
-                <Chip key={c.id} active={condition === c.id} onClick={() => setCondition(condition === c.id ? null : c.id)}>
+                <Chip key={c.id} active={condition === c.id} onClick={() => chooseCondition(condition === c.id ? null : c.id)}>
                   {c.label}
                 </Chip>
               ))}
@@ -254,6 +255,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 ? '좋아요. 그래도 기준은 자세예요. 무너지기 전에 멈춰요'
                 : '안 골라도 괜찮아요. 고르면 오늘 플랜에 반영해요'}
             </p>
+            {props.coachEnabled !== false && <IntensityPicker value={todayIntensity} auto={intensityAuto} condition={condition} onPick={chooseIntensity} />}
           </div>
           {comeback && (
             <p className="text-keep-all" role="status" style={{ margin: '12px 0 0', padding: '8px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg)', fontSize: 12.5, color: 'var(--color-label-strong)', textAlign: 'left' }}>
@@ -269,6 +271,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
       {/* ── main: 본운동 ── */}
       {sessionPhase === 'main' && (
         <>
+          {props.coachEnabled !== false && <IntensityPicker compact value={todayIntensity} auto={intensityAuto} condition={condition} onPick={chooseIntensity} />}
           {sessionType === 'routine' ? (
             <Reorder.Group
               as="div"
@@ -524,6 +527,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
               key={howto.name}
               uid={uid}
               name={howto.name}
+              grip={howto.name === parseExerciseKey(howto.from).name ? parseExerciseKey(howto.from).grip || null : null}
               routineTemplates={templates}
               onBack={() => (howto.name !== parseExerciseKey(howto.from).name ? setHowto((h) => ({ ...h, name: parseExerciseKey(h.from).name })) : setHowto(null))}
               onOpenExercise={(n) => setHowto((h) => ({ ...h, name: n }))}
