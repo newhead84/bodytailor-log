@@ -4,7 +4,7 @@ import { FOODS } from './foods'
 import { MEALS, FOOD_TAGS } from './meals'
 
 const KEYS = ['kcal', 'p', 'f', 'c', 'fiber', 'na']
-const SCALES = [0.75, 1, 1.25, 1.5]
+const SCALES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 const NO_REPEAT_DAYS = 14
 
 export function foodTagsOf(foodId) {
@@ -50,8 +50,11 @@ const ADDONS = [
   { food: 'protein_drink', g: 250, unit: '단백질 음료 1팩' },
   { food: 'soymilk', g: 190, unit: '두유 1팩' },
 ]
-function pickAddon(shortG, avoid) {
-  const ok = ADDONS.filter((a) => !foodTagsOf(a.food).some((t) => avoid.includes(t)))
+// 같은 종류가 이미 있는 메뉴(달걀 2개 + 구운란 2개 같은)에는 다른 걸 덧붙인다
+const SAME_KIND = { egg: 'egg', egg_roasted: 'egg', egg_white: 'egg', greek_yogurt: 'yogurt', chicken_pack: 'chicken', chicken_breast: 'chicken', chicken_sausage: 'chicken', chicken_steak: 'chicken', chicken_hotbar: 'chicken', protein_drink: 'drink', soymilk: 'drink', milk: 'drink', lowfat_milk: 'drink' }
+function pickAddon(shortG, avoid, meal = null) {
+  const kinds = new Set((meal?.items || []).map((x) => SAME_KIND[x.food] || x.food))
+  const ok = ADDONS.filter((a) => !foodTagsOf(a.food).some((t) => avoid.includes(t)) && !kinds.has(SAME_KIND[a.food] || a.food))
   const withP = ok.map((a) => ({ ...a, p: (FOODS[a.food].p * a.g) / 100, kcal: (FOODS[a.food].kcal * a.g) / 100 }))
   return withP.find((a) => a.p >= shortG) || withP.sort((a, b) => b.p - a.p)[0] || null
 }
@@ -94,8 +97,6 @@ export function chooseMeal(slotTarget, prefs = {}, ctx = {}) {
       !exclude.has(meal.id)
   )
   if (!pool.length) return null
-  const fresh = pool.filter((meal) => !recent.has(meal.id))
-  if (fresh.length >= 2) pool = fresh
 
   // 한 끼 나트륨 몫: 하루 2300mg을 끼니 칼로리 비율로 나눔
   const naBudget = (2300 * slotTarget.kcal) / Math.max(1, ctx.dayKcal || slotTarget.kcal * 3.3)
@@ -106,12 +107,12 @@ export function chooseMeal(slotTarget, prefs = {}, ctx = {}) {
     scales.forEach((s) => {
       const base = mealNutrition(meal, s)
       const short = slotTarget.protein - base.p
-      const addon = slotTarget.slot !== 'snack' && short >= 8 ? pickAddon(short, avoid) : null
+      const addon = slotTarget.slot !== 'snack' && short >= 8 ? pickAddon(short, avoid, meal) : null
       const n = addon ? mealNutrition(meal, s, addon) : base
       const kcalOff = Math.abs(n.kcal - slotTarget.kcal) / slotTarget.kcal
       const pShort = Math.max(0, slotTarget.protein - n.p) / Math.max(1, slotTarget.protein)
       const naOver = Math.max(0, n.na - naBudget) / naBudget
-      const score = kcalOff + pShort * 1.5 + naOver * 0.35 + (addon ? 0.15 : 0)
+      const score = kcalOff + pShort * 1.5 + naOver * 0.6 + (addon ? 0.15 : 0)
       if (!best || score < best.score) best = { s, n, base, addon, score }
     })
     let score = best.score + (style[meal.mode] || 0)
@@ -121,8 +122,11 @@ export function chooseMeal(slotTarget, prefs = {}, ctx = {}) {
     return { meal, scale: best.s, nutrition: best.n, mealOnly: best.base, addon: best.addon, score }
   })
   scored.sort((a, b) => a.score - b.score)
+  // 14일 안에 나온 메뉴는 빼되, 남은 메뉴가 목표에서 많이 벗어나면(점수 +0.45 넘게) 반복을 허용
+  const freshScored = scored.filter((x) => !recent.has(x.meal.id))
+  const ranked = freshScored.length >= 2 && freshScored[0].score <= scored[0].score + 0.45 ? freshScored : scored
   // 상위 후보 몇 개 안에서 날짜로 고정된 순서로 돌린다(같은 날엔 같은 메뉴, '바꾸기'는 다음 후보)
-  const top = scored.filter((x) => x.score <= scored[0].score + 0.25).slice(0, 4)
+  const top = ranked.filter((x) => x.score <= ranked[0].score + 0.25).slice(0, 4)
   const r = seeded(`${ctx.date}|${slotTarget.key}`)
   const pick = top[(Math.floor(r * top.length) + (ctx.reroll || 0)) % top.length]
   return { ...pick, candidates: scored.length, topCount: top.length }
@@ -141,7 +145,7 @@ export function buildDayPlan(mealTargets, prefs, { date, history = {}, saved = {
         const scale = keep.scale || 1
         const base = mealNutrition(meal, scale)
         const short = t.protein - base.p
-        const addon = t.slot !== 'snack' && short >= 8 ? pickAddon(short, prefs.avoid || []) : null
+        const addon = t.slot !== 'snack' && short >= 8 ? pickAddon(short, prefs.avoid || [], meal) : null
         pick = { meal, scale, mealOnly: base, addon, nutrition: addon ? mealNutrition(meal, scale, addon) : base }
       }
     }
