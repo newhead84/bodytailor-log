@@ -6,7 +6,8 @@ import { CountUp } from '../hooks/useCountUp'
 import { FONT_OPTIONS, ACCENT_OPTIONS, normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE } from '../utils/fonts'
 import { getMyTrainerConnection, memberEndConnection, listTrainerProfiles, getAllWorkoutLogs, getEffectiveSeasonXp, updateUserProfile, saveRoutineTemplate, MAX_ROUTINE_TEMPLATES, isOwnRoutine, addCustomExercise, removeCustomExercise } from '../storage'
 import TrainerPlanBadge from './TrainerPlanBadge'
-import { TrainerAvatar } from './TrainerProfileView'
+import { TrainerAvatar, TrainerTags } from './TrainerProfileView'
+import { instagramUrl } from '../utils/trainerProfile'
 import { membershipState, fmtYmd, isTrainerAccount, saveFailText } from '../utils/member'
 import { COACH_INTENSITIES, normalizeIntensity, intensityGoalHint } from '../utils/strength'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
@@ -212,7 +213,10 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         setTrainerConn(c)
         if (c?.trainerUid) {
           const l = await listTrainerProfiles().catch(() => [])
-          if (alive) setTrainerProfile(l.find((x) => x.linkedUid === c.trainerUid && x.active !== false) || null)
+          // [2026-11-11] 프로필이 앱 계정과 연결돼 있지 않으면 이름이 같은 프로필(하나뿐일 때만)로 대신 보여 준다
+          const act = l.filter((x) => x.active !== false)
+          const byName = act.filter((x) => x.name && x.name === c.trainerName)
+          if (alive) setTrainerProfile(act.find((x) => x.linkedUid === c.trainerUid) || (byName.length === 1 ? byName[0] : null))
         }
       })
       .catch(() => {})
@@ -1374,34 +1378,59 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       {trainerConn && (
         <>
           <SectionTitle>담당 트레이너</SectionTitle>
-          <Card style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            {trainerProfile && (
-              <button type="button" onClick={() => onShowTrainerDirectory?.(trainerConn.trainerUid)} aria-label="담당 트레이너 프로필 보기" style={{ padding: 0, flexShrink: 0 }}>
-                <TrainerAvatar p={trainerProfile} size={48} />
-              </button>
-            )}
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
-                {trainerConn.trainerName} 트레이너
-                {trainerProfile && <button type="button" onClick={() => onShowTrainerDirectory?.(trainerConn.trainerUid)} style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: 'var(--color-primary-strong)', padding: 0 }}>프로필 ›</button>}
-              </p>
-              <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>담당 트레이너가 내 운동 기록(컨디션·통증 포함)·신체 정보·목표·체력 점검을 보고 계획을 보내 줘요.</p>
+          {/* [2026-11-11] 사용자 요청: 연결된 트레이너 프로필(직함·전문 분야·소개·경력·레슨 시간·인스타그램)을 카드에 바로 보여 준다 */}
+          <Card style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {trainerProfile && (
+                <button type="button" onClick={() => onShowTrainerDirectory?.(trainerConn.trainerUid, trainerProfile.id)} aria-label="담당 트레이너 프로필 보기" style={{ padding: 0, flexShrink: 0 }}>
+                  <TrainerAvatar p={trainerProfile} size={56} />
+                </button>
+              )}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                {trainerProfile?.title && <p className="text-keep-all" style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: 'var(--color-primary-normal)' }}>{trainerProfile.title}</p>}
+                <p className="text-keep-all" style={{ margin: trainerProfile?.title ? '2px 0 0' : 0, fontSize: 16, fontWeight: 800 }}>{trainerConn.trainerName} 트레이너</p>
+                {trainerProfile && <TrainerTags list={(trainerProfile.specialties || []).slice(0, 3)} />}
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={async () => {
-                if (!(await confirm(`${trainerConn.trainerName} 트레이너와의 연결을 해제할까요? 트레이너가 더 이상 내 기록을 볼 수 없어요. 기록은 그대로 남아요.`, { okLabel: '해제', cancelLabel: '취소' }))) return
-                try {
-                  await memberEndConnection(trainerConn, uid) // [2026-11-01] B8: 관리 이력 + 예정 일정 정리
-                  setTrainerConn(null)
-                } catch (err) {
-                  console.error('연결 해제 실패:', err)
-                }
-              }}
-              style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-danger)', padding: '6px 4px', flexShrink: 0 }}
-            >
-              연결 해제
-            </button>
+            {trainerProfile?.intro && (
+              <p className="text-keep-all" style={{ margin: '12px 0 0', fontSize: 13.5, lineHeight: 1.55, color: 'var(--color-label-normal)', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{trainerProfile.intro}</p>
+            )}
+            {(trainerProfile?.career || []).length > 0 && (
+              <ul style={{ margin: '10px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {trainerProfile.career.slice(0, 2).map((c, i) => (
+                  <li key={i} className="text-keep-all" style={{ fontSize: 12.5, color: 'var(--color-label-neutral)' }}>· {c}</li>
+                ))}
+              </ul>
+            )}
+            {trainerProfile?.hours && (
+              <p className="text-keep-all" style={{ margin: '10px 0 0', fontSize: 12.5, color: 'var(--color-label-normal)' }}><b>레슨 가능 시간</b> · {trainerProfile.hours}</p>
+            )}
+            {trainerProfile && (
+              <div style={{ margin: '10px 0 0', display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 13 }}>
+                <button type="button" onClick={() => onShowTrainerDirectory?.(trainerConn.trainerUid, trainerProfile.id)} style={{ fontWeight: 700, color: 'var(--color-primary-strong)', padding: '4px 0' }}>프로필 전체 보기 ›</button>
+                {instagramUrl(trainerProfile.instagram) && (
+                  <a href={instagramUrl(trainerProfile.instagram)} target="_blank" rel="noreferrer" style={{ fontWeight: 700, color: 'var(--color-primary-strong)', padding: '4px 0' }}>인스타그램 ›</a>
+                )}
+              </div>
+            )}
+            <div style={{ margin: '12px 0 0', paddingTop: 10, borderTop: '1px solid var(--color-line)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <p className="text-keep-all" style={{ margin: 0, flex: 1, fontSize: 12, color: 'var(--color-label-neutral)' }}>내 운동 기록(컨디션·통증 포함)·신체 정보·목표·체력 점검을 보고 계획을 보내 줘요.</p>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!(await confirm(`${trainerConn.trainerName} 트레이너와의 연결을 해제할까요? 트레이너가 더 이상 내 기록을 볼 수 없어요. 기록은 그대로 남아요.`, { okLabel: '해제', cancelLabel: '취소' }))) return
+                  try {
+                    await memberEndConnection(trainerConn, uid) // [2026-11-01] B8: 관리 이력 + 예정 일정 정리
+                    setTrainerConn(null)
+                  } catch (err) {
+                    console.error('연결 해제 실패:', err)
+                  }
+                }}
+                style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-danger)', padding: '6px 4px', flexShrink: 0 }}
+              >
+                연결 해제
+              </button>
+            </div>
           </Card>
         </>
       )}
