@@ -143,6 +143,16 @@ service cloud.firestore {
         (!keys.hasAny(['customExercises']) || (d.customExercises is map && d.customExercises.size() <= 12)) &&
         // [2026-11-11] 체중 기록(날짜별, 최대 120개)
         (!keys.hasAny(['weightLog']) || (d.weightLog is list && d.weightLog.size() <= 120)) &&
+        // [2026-11-12] 식단 제안 취향(안 먹는 것은 취향 태그만, 체중 보정 ±300kcal)
+        (!keys.hasAny(['diet']) || (d.diet is map &&
+          d.diet.keys().hasOnly(['v', 'style', 'meals', 'activity', 'cookMin', 'avoid', 'adj', 'adjAt']) &&
+          d.diet.get('style', 'easy') in ['easy', 'mix', 'cook'] &&
+          d.diet.get('meals', 4) in [2, 3, 4, 5] &&
+          d.diet.get('activity', 'sit') in ['sit', 'move'] &&
+          d.diet.get('cookMin', 15) in [5, 15, 30] &&
+          d.diet.get('avoid', []) is list && d.diet.get('avoid', []).size() <= 10 &&
+          d.diet.get('adj', 0) is int && d.diet.get('adj', 0) >= -300 && d.diet.get('adj', 0) <= 300 &&
+          d.diet.get('adjAt', 0) is int)) &&
         // S3: 문의 간격 기록은 서버 시각으로만
         (!keys.hasAny(['lastInquiryAt']) || d.lastInquiryAt == request.time);
     }

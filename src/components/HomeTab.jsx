@@ -6,6 +6,7 @@ import MembershipNotice from './MembershipNotice'
 import { TrainerGoalNotice } from './TrainerGoal'
 import HomePtCards from './HomePtCards'
 import { CoachProgramCard } from './CoachProgramCard'
+import DietHomeCard from './DietHomeCard'
 import { findCoachProgramTemplate } from '../utils/programBuilder'
 import { getRecentWorkoutLogs, getWorkoutLogsInRange, listPtSchedules, listPtSessions, lastRecordFromLogs } from '../storage'
 import { MuscleSetsCard, PrCard, startOfWeekStr } from './InsightCards'
@@ -53,6 +54,7 @@ export default function HomeTab({
   onUndoAutoNotice,
   onProfileUpdated,
   onOpenCoachProgram = null,
+  onOpenDiet = null,
   isActive = true,
   targetDays = 3,
 }) {
@@ -356,6 +358,8 @@ export default function HomeTab({
           </div>
         )}
       </section>
+      {/* [2026-11-12] 식단 제안(Phase2) - 오늘 칼로리·단백질과 다음 끼니 */}
+      {onOpenDiet && !isStaff && <DietHomeCard uid={uid} userDoc={userDoc} isActive={isActive} onOpen={onOpenDiet} />}
 
       {/* [2026-10-27 리뉴얼 W2] 이번 주 요약 + 근육별 세트(상위 5) + 최근 PR */}
       <div

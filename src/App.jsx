@@ -1,6 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-12] 운동 기록을 기기에 보관하고 새 기록만 읽기(Firestore 읽기 절약), 홍보 캡처 3장 최신화.
+ * 최신 변경: [2026-11-12] 식단 제안 1단계(HOME 오늘 식단·식단 화면, 식약처 영양 DB·메뉴 42개).
+ *            직전: [2026-11-12] 운동 기록을 기기에 보관하고 새 기록만 읽기(Firestore 읽기 절약), 홍보 캡처 3장 최신화.
  *            직전: [2026-11-12] 근육 그림 인체 모형 비율·손발, 담당 트레이너 카드 프로필 표시.
  *            직전: [2026-11-11] 용어 뜻 보기(점선 말풍선 Term), 관리자 거절 사유 확인창, 옛 종목명 처방 키 정규화.
  *            그 전: [2026-11-11] 체중 추이(REPORT·MY), 근육 그림(REPORT·코치 프로그램), WorkoutInput 화면·훅 분리.
@@ -70,6 +71,7 @@ const TraineesScreen = lazy(() => import('./components/TraineesScreen'))
 const TrainerDirectory = lazy(() => import('./components/TrainerDirectory'))
 const CoachProgramWizard = lazy(() => import('./components/CoachProgramWizard'))
 const FitnessCheckScreen = lazy(() => import('./components/FitnessCheckScreen'))
+const DietScreen = lazy(() => import('./components/DietScreen')) // [2026-11-12] 식단 제안
 import MembershipNotice from './components/MembershipNotice'
 import MemberPendingScreen from './components/MemberPendingScreen'
 import ConsentScreen from './components/ConsentScreen'
@@ -156,6 +158,7 @@ export default function App() {
   const [minSplashElapsed, setMinSplashElapsed] = useState(false)
   const [managingRoutines, setManagingRoutines] = useState(false) // MY탭 "운동조합 변경" 진입 여부
   const [showCoachProgram, setShowCoachProgram] = useState(false) // [2026-11-07] 로그 코치 '내 프로그램 만들기'
+  const [showDiet, setShowDiet] = useState(false) // [2026-11-12] 식단 제안(HOME 카드에서)
   const [showFitness, setShowFitness] = useState(false) // [2026-11-07] 체력 점검(REPORT '건강 체력 4가지'에서)
   const [showDesignPreview, setShowDesignPreview] = useState(false) // [2026-10-28] MY "디자인" → 기록 화면 미리보기
   const [showTierInfo, setShowTierInfo] = useState(false) // MY탭 "등급" 카드 탭 시 티어/XP 설명 전체화면 진입 여부
@@ -568,6 +571,8 @@ export default function App() {
   const closeCoachProgram = useCallback(() => setShowCoachProgram(false), [])
   useBackableScreen(showCoachProgram, closeCoachProgram, stepBack(coachBackRef))
   const closeFitness = useCallback(() => setShowFitness(false), [])
+  const closeDiet = useCallback(() => setShowDiet(false), [])
+  useBackableScreen(showDiet, closeDiet)
   useBackableScreen(showFitness, closeFitness, stepBack(fitnessBackRef))
 
   async function handleOnboardingComplete(onboardingData) {
@@ -850,6 +855,7 @@ export default function App() {
           onUndoAutoNotice={undoAutoNotice}
           onProfileUpdated={refreshUserDoc}
           onOpenCoachProgram={() => setShowCoachProgram(true)}
+          onOpenDiet={() => setShowDiet(true)}
         />
       </div>
       <div ref={howtoScrollRef} style={tabWrapperStyle('howto')} className={revealedTabs.has('howto') ? 'bt-reveal' : ''}>
@@ -940,13 +946,17 @@ export default function App() {
       </div>
       <BottomNav active={activeTab} onChange={handleTabPress} />
       {/* [2026-11-07] 체력 점검·코치 프로그램은 탭 위에 겹쳐 띄운다(탭을 내리지 않아 운동 중 타이머가 유지됨) */}
-      {(showFitness || coachWizard) && (
+      {(showFitness || coachWizard || showDiet) && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'var(--color-bg)', paddingBottom: 'var(--safe-bottom, 0px)' }}>
-          {coachWizard || (
+          {coachWizard || (showDiet ? (
+            <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}>
+              <DietScreen uid={authUser.uid} userDoc={userDoc} onClose={closeDiet} onSaved={refreshUserDoc} />
+            </Suspense>
+          ) : (
             <Suspense fallback={<CenteredMessage>불러오는 중...</CenteredMessage>}>
               <FitnessCheckScreen uid={authUser.uid} weightKg={Number(userDoc.onboarding?.weightKg) || 0} onClose={closeFitness} backRef={fitnessBackRef} />
             </Suspense>
-          )}
+          ))}
         </div>
       )}
       {/* [2026-11-01] 루트에서 기기 뒤로가기 1회: 앱 닫기 안내 */}
