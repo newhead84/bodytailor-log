@@ -127,6 +127,7 @@ function MealCard({ entry, onSwap }) {
         {num(nutrition.kcal)}kcal · 단백질 {Math.round(nutrition.p)}g · 나트륨 {num(nutrition.na)}mg
       </div>
       {meal.tip && <div style={{ fontSize: 13, marginTop: 6, color: 'var(--color-label-normal)' }}>{meal.tip}</div>}
+      {meal.src && <div style={{ fontSize: 12, marginTop: 4, color: 'var(--color-label-alternative)' }}>영양값: {meal.src}</div>}
       {meal.steps && (
         <Disclosure label="만드는 법" style={{ marginTop: 8 }}>
           <ol style={{ margin: 0, paddingLeft: 18, fontSize: 14, lineHeight: 1.7 }}>
@@ -267,7 +268,7 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
               <p style={{ margin: '0 0 8px' }}>
                 단백질은 몸무게 1kg당 {t.proteinPerKg}g이에요. 근력 운동하며 감량할 때는 근육을 지키려고 국민 영양 기준 비율(하루 칼로리의 10–20%)보다 높게 잡았어요(스포츠영양 기준).
               </p>
-              <p style={{ margin: '0 0 8px' }}>메뉴 영양값은 재료 무게로 계산했고, 편의점 제품은 같은 종류 여러 제품의 중간값이에요.</p>
+              <p style={{ margin: '0 0 8px' }}>메뉴 영양값은 재료 무게로 계산했고, 식당 음식은 식약처 음식 자료의 1인분 값, 편의점 제품은 같은 종류 여러 제품의 중간값이에요. 자료에 없는 메뉴(돼지국밥·규동 등)는 재료를 합산했다고 카드에 적었어요.</p>
               <div style={{ fontSize: 13, color: 'var(--color-label-alternative)' }}>
                 출처 · 2025 한국인 영양소 섭취기준(보건복지부·한국영양학회) · 기초대사량 공식 비교 체계적 문헌고찰(2005) · 국제스포츠영양학회 체중 감량 식단 입장문(2026)·단백질 입장문(2017) · 근력 운동 중 칼로리 부족 메타분석(2022) · 근육 증가기 영양 리뷰(2019) · 끼니별 단백질 배분 리뷰(2018) · 영양값: {FOOD_SOURCE}
               </div>
