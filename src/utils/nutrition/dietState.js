@@ -1,6 +1,7 @@
 // [2026-11-12] 식단 제안: 사용자 문서·운동 기록 → 오늘 목표·식단. 고른 메뉴는 이 기기에만 보관(localStorage bt-diet:{uid}).
 import { dailyTargets, splitMeals, exerciseKcalPerDay, weeklyWeightChangePct, trendAdjustment, dietDirection } from './targets'
 import { buildDayPlan } from './plan'
+import { OUT_KINDS, OUT_MIN_SHARE, OUT_PLAN_MAX_EXTRA, OUT_PLAN_RATIO, eatenNutrition, eatingOutPortions, walkKcalPerMin } from './eatingOut'
 import { isBeginnerAccount } from '../goals'
 
 export const DIET_DEFAULTS = { v: 1, style: 'easy', meals: 4, activity: 'sit', cookMin: 15, avoid: [], adj: 0, adjAt: 0, plateauAskedAt: 0 }
@@ -122,8 +123,70 @@ export function computeDiet(userDoc, logs, { uid, date, history } = {}) {
   const timing = workoutTiming(logs, date)
   const mealTargets = applyWorkoutTiming(splitMeals(targets, prefs.meals, Number(profile.weightKg) || 70), timing, targets.kcal)
   const hist = history || (uid ? readDietHistory(uid) : {})
-  const plan = buildDayPlan(mealTargets, prefs, { date, history: hist, saved: hist[date] || {} })
-  return { prefs, profile, targets, mealTargets, plan, history: hist, timing }
+  const out = applyEatingOut(mealTargets, hist[date]?._out, profile)
+  const rest = out ? out.targets.filter((t) => t.key !== out.slotKey) : mealTargets
+  const plan = buildDayPlan(rest, prefs, { date, history: hist, saved: hist[date] || {} })
+  if (out) {
+    // 회식 끼니를 제자리에 넣고 하루 합계에 더한다
+    const idx = out.targets.findIndex((t) => t.key === out.slotKey)
+    plan.meals.splice(idx, 0, out.entry)
+    plan.total.kcal += out.entry.nutrition.kcal
+    plan.total.p += out.entry.nutrition.p
+  }
+  return { prefs, profile, targets, mealTargets, plan, history: hist, timing, out }
+}
+
+// [2026-11-12] 회식 날: out = { mode: 'plan'|'ate', kind, slotKey, amount, drinks }
+// 계획 = 그 끼니에 1.4배(최대 +400kcal)를 주고 늘린 만큼, 먹은 뒤 = 넘친 만큼 다른 끼니에서 줄인다.
+// 다른 끼니는 단백질 목표를 그대로 두고 칼로리만 원래의 70%까지 줄인다. 못 줄인 몫은 '오늘 억지로 맞추지 않기' + 선택 걷기.
+export function applyEatingOut(mealTargets, out, profile = {}) {
+  if (!out || !OUT_KINDS[out.kind]) return null
+  const slot = mealTargets.find((t) => t.key === out.slotKey)
+  if (!slot || slot.slot === 'snack') return null
+  let slotKcal
+  let eaten = null
+  if (out.mode === 'ate') {
+    eaten = eatenNutrition(out.kind, out.amount, out.drinks)
+    slotKcal = eaten.kcal
+  } else {
+    slotKcal = Math.round(Math.min(slot.kcal * OUT_PLAN_RATIO, slot.kcal + OUT_PLAN_MAX_EXTRA) / 10) * 10
+  }
+  const extra = Math.max(0, slotKcal - slot.kcal)
+  const others = mealTargets.filter((t) => t.key !== slot.key)
+  const room = others.reduce((sum, t) => sum + t.kcal * (1 - OUT_MIN_SHARE), 0)
+  const cut = Math.min(extra, room)
+  const ratio = room > 0 ? cut / room : 0
+  const targets = mealTargets.map((t) =>
+    t.key === slot.key ? { ...t, kcal: slotKcal } : { ...t, kcal: Math.round((t.kcal - t.kcal * (1 - OUT_MIN_SHARE) * ratio) / 10) * 10, cutBy: Math.round(t.kcal * (1 - OUT_MIN_SHARE) * ratio) }
+  )
+  const leftover = Math.max(0, extra - cut)
+  const perMin = walkKcalPerMin(profile.weightKg)
+  const walkMin = leftover >= 100 ? Math.min(40, Math.max(10, Math.round(leftover / perMin / 5) * 5)) : 0
+  const portions = out.mode === 'plan' ? eatingOutPortions(slotKcal) : null
+  const entry = {
+    target: { ...slot, kcal: slotKcal },
+    out: { ...out, label: OUT_KINDS[out.kind].label, portions, eaten, cut: Math.round(cut), leftover: Math.round(leftover), walkMin, walkKcal: Math.round(walkMin * perMin) },
+    nutrition: { kcal: eaten ? eaten.kcal : slotKcal, p: eaten ? eaten.p : 0, f: 0, c: 0, fiber: 0, na: 0 },
+  }
+  return { slotKey: slot.key, targets, entry }
+}
+
+export function setEatingOut(uid, date, out, history) {
+  const day = { ...(history[date] || {}) }
+  if (out) day._out = out
+  else delete day._out
+  const next = { ...history, [date]: day }
+  writeDietHistory(uid, next)
+  return next
+}
+
+// [2026-11-12] '직접 고르기': 고른 메뉴를 그 끼니에 고정(양은 buildDayPlan이 목표에 맞춰 다시 계산)
+export function pickSlot(uid, date, slotKey, mealId, history) {
+  const day = { ...(history[date] || {}) }
+  day[slotKey] = { id: mealId, picked: true, reroll: day[slotKey]?.reroll || 0 }
+  const next = { ...history, [date]: day }
+  writeDietHistory(uid, next)
+  return next
 }
 
 // 오늘 고른 메뉴를 기기에 남김(같은 날 다시 열어도 같은 식단, 14일 안 반복 피하기에 쓰임)
@@ -133,9 +196,10 @@ export function rememberPlan(uid, date, plan, history) {
   let changed = false
   plan.meals.forEach((x) => {
     if (!x.meal) return
+    if (!x.meal || x.out) return
     const prev = day[x.target.key]
     if (!prev || prev.id !== x.meal.id || prev.scale !== x.scale) {
-      day[x.target.key] = { id: x.meal.id, scale: x.scale, reroll: prev?.reroll || 0, ...(prev?.exclude ? { exclude: prev.exclude } : {}) }
+      day[x.target.key] = { id: x.meal.id, scale: x.scale, reroll: prev?.reroll || 0, ...(prev?.exclude ? { exclude: prev.exclude } : {}), ...(prev?.picked && prev.id === x.meal.id ? { picked: true } : {}) }
       changed = true
     }
   })

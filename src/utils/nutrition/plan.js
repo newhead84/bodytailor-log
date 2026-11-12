@@ -77,6 +77,44 @@ function daysBetween(a, b) {
   return Math.round((new Date(`${b}T00:00:00`) - new Date(`${a}T00:00:00`)) / 86400000)
 }
 
+// 한 끼 나트륨 몫: 하루 2300mg을 끼니 칼로리 비율로 나눔
+function slotNaBudget(slotTarget, dayKcal) {
+  return (2300 * slotTarget.kcal) / Math.max(1, dayKcal || slotTarget.kcal * 3.3)
+}
+
+// 메뉴 하나를 끼니 목표에 맞춰 점수 매기기(작을수록 잘 맞음). 끼니 목표에 가장 가까운 배율 +
+// 단백질이 8g 넘게 모자라면 덧붙임까지 넣고 계산한다.
+function scoreMeal(meal, slotTarget, avoid, naBudget, style = {}, usedFoods = null) {
+  let best = null
+  const scales = meal.items.some(isScalable) ? SCALES : [1]
+  scales.forEach((s) => {
+    const base = mealNutrition(meal, s)
+    const short = slotTarget.protein - base.p
+    const addon = slotTarget.slot !== 'snack' && short >= 8 ? pickAddon(short, avoid, meal) : null
+    const n = addon ? mealNutrition(meal, s, addon) : base
+    const kcalOff = Math.abs(n.kcal - slotTarget.kcal) / slotTarget.kcal
+    const pShort = Math.max(0, slotTarget.protein - n.p) / Math.max(1, slotTarget.protein)
+    const naOver = Math.max(0, n.na - naBudget) / naBudget
+    const score = kcalOff + pShort * 1.5 + naOver * 0.6 + (addon ? 0.15 : 0)
+    if (!best || score < best.score) best = { s, n, base, addon, score, kcalOff }
+  })
+  let score = best.score + (style[meal.mode] || 0)
+  // 하루 안 같은 주재료 반복 감점
+  const main = meal.items[0]?.food
+  if (usedFoods && usedFoods.includes(main)) score += 0.3
+  return { meal, scale: best.s, nutrition: best.n, mealOnly: best.base, addon: best.addon, score, fit: best.score, kcalOff: best.kcalOff }
+}
+
+// [2026-11-12] '직접 고르기': 이 끼니에 맞는 메뉴 전체를 목표에 가까운 순서로(취향 가중·반복 감점 없이)
+// 안 먹는 것만 빼고, 요리 시간 제한도 두지 않는다(본인이 고르는 것이라 카드에 분만 보여 줌)
+export function rankMealsForSlot(slotTarget, prefs = {}, { dayKcal } = {}) {
+  const avoid = prefs.avoid || []
+  const naBudget = slotNaBudget(slotTarget, dayKcal)
+  return MEALS.filter((meal) => meal.slot.includes(slotTarget.slot) && !mealAvoidTags(meal).some((t) => avoid.includes(t)))
+    .map((meal) => scoreMeal(meal, slotTarget, avoid, naBudget))
+    .sort((a, b) => a.fit - b.fit)
+}
+
 // 한 끼 고르기
 // slotTarget: { slot, kcal, protein }, prefs: { style, avoid[], cookMin }, ctx: { date, history, usedFoods, reroll }
 export function chooseMeal(slotTarget, prefs = {}, ctx = {}) {
@@ -98,29 +136,8 @@ export function chooseMeal(slotTarget, prefs = {}, ctx = {}) {
   )
   if (!pool.length) return null
 
-  // 한 끼 나트륨 몫: 하루 2300mg을 끼니 칼로리 비율로 나눔
-  const naBudget = (2300 * slotTarget.kcal) / Math.max(1, ctx.dayKcal || slotTarget.kcal * 3.3)
-  const scored = pool.map((meal) => {
-    // 끼니 목표에 가장 가까운 배율(+ 단백질이 8g 넘게 모자라면 덧붙임까지 넣고 계산)
-    let best = null
-    const scales = meal.items.some(isScalable) ? SCALES : [1]
-    scales.forEach((s) => {
-      const base = mealNutrition(meal, s)
-      const short = slotTarget.protein - base.p
-      const addon = slotTarget.slot !== 'snack' && short >= 8 ? pickAddon(short, avoid, meal) : null
-      const n = addon ? mealNutrition(meal, s, addon) : base
-      const kcalOff = Math.abs(n.kcal - slotTarget.kcal) / slotTarget.kcal
-      const pShort = Math.max(0, slotTarget.protein - n.p) / Math.max(1, slotTarget.protein)
-      const naOver = Math.max(0, n.na - naBudget) / naBudget
-      const score = kcalOff + pShort * 1.5 + naOver * 0.6 + (addon ? 0.15 : 0)
-      if (!best || score < best.score) best = { s, n, base, addon, score }
-    })
-    let score = best.score + (style[meal.mode] || 0)
-    // 하루 안 같은 주재료 반복 감점
-    const main = meal.items[0]?.food
-    if (ctx.usedFoods && ctx.usedFoods.includes(main)) score += 0.3
-    return { meal, scale: best.s, nutrition: best.n, mealOnly: best.base, addon: best.addon, score }
-  })
+  const naBudget = slotNaBudget(slotTarget, ctx.dayKcal)
+  const scored = pool.map((meal) => scoreMeal(meal, slotTarget, avoid, naBudget, style, ctx.usedFoods))
   scored.sort((a, b) => a.score - b.score)
   // 14일 안에 나온 메뉴는 빼되, 남은 메뉴가 목표에서 많이 벗어나면(점수 +0.45 넘게) 반복을 허용
   const freshScored = scored.filter((x) => !recent.has(x.meal.id))
@@ -141,12 +158,10 @@ export function buildDayPlan(mealTargets, prefs, { date, history = {}, saved = {
     let pick = null
     if (keep?.id) {
       const meal = MEALS.find((x) => x.id === keep.id)
-      if (meal && !mealAvoidTags(meal).some((tag) => (prefs.avoid || []).includes(tag))) {
-        const scale = keep.scale || 1
-        const base = mealNutrition(meal, scale)
-        const short = t.protein - base.p
-        const addon = t.slot !== 'snack' && short >= 8 ? pickAddon(short, prefs.avoid || [], meal) : null
-        pick = { meal, scale, mealOnly: base, addon, nutrition: addon ? mealNutrition(meal, scale, addon) : base }
+      // 직접 고른 메뉴(picked)와 앞서 고른 메뉴 모두 양은 지금 끼니 목표로 다시 맞춘다(회식 날 조정 등으로 목표가 바뀌어도 맞게).
+      // 같은 목표면 처음 고를 때와 같은 배율이 나온다. 직접 고른 메뉴는 '안 먹는 것' 확인을 고를 때 했다.
+      if (meal && (keep.picked || !mealAvoidTags(meal).some((tag) => (prefs.avoid || []).includes(tag)))) {
+        pick = scoreMeal(meal, t, prefs.avoid || [], slotNaBudget(t, dayKcal))
       }
     }
     if (!pick) pick = chooseMeal(t, prefs, { date, history, usedFoods, reroll: keep?.reroll || 0, exclude: keep?.exclude || [], dayKcal })

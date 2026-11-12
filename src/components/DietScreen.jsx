@@ -7,11 +7,12 @@ import { getAllWorkoutLogs, updateUserProfile } from '../storage'
 import { todayStr } from '../utils/date'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { saveFailText } from '../utils/member'
-import { computeDiet, dietPrefs, pendingAdjustment, plateauInfo, readDietHistory, rememberPlan, rerollSlot } from '../utils/nutrition/dietState'
-import { itemLine, dayGapTip } from '../utils/nutrition/plan'
+import { computeDiet, dietPrefs, pendingAdjustment, pickSlot, plateauInfo, readDietHistory, rememberPlan, rerollSlot, setEatingOut } from '../utils/nutrition/dietState'
+import { itemLine, dayGapTip, rankMealsForSlot } from '../utils/nutrition/plan'
 import { AVOID_LABEL, MODE_LABEL } from '../utils/nutrition/meals'
 import { FOOD_SOURCE } from '../utils/nutrition/foods'
-import { EATING_OUT, eatingOutPortions } from '../utils/nutrition/eatingOut'
+import { DRINKS, EATING_OUT, OUT_KINDS, eatenNutrition, eatingOutPortions } from '../utils/nutrition/eatingOut'
+import { useBackableScreen } from '../hooks/useBackableScreen'
 
 const STYLE_OPTIONS = [
   ['easy', '편의점·간편식 위주'],
@@ -83,8 +84,11 @@ function Setup({ initial, onSave, saving, error }) {
   )
 }
 
-function MealCard({ entry, onSwap }) {
+const pillBtn = { flexShrink: 0, padding: '6px 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', background: 'transparent', color: 'var(--color-label-normal)', fontSize: 13, fontWeight: 700 }
+
+function MealCard({ entry, onSwap, onPick }) {
   const { target, meal, scale, nutrition, addon } = entry
+  if (entry.out) return <OutMealCard entry={entry} />
   if (!meal) {
     return (
       <Card style={{ marginBottom: 12 }}>
@@ -103,9 +107,11 @@ function MealCard({ entry, onSwap }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <div style={{ fontSize: 18, fontWeight: 800, flex: 1, wordBreak: 'keep-all' }}>{meal.name}</div>
-        <button onClick={onSwap} style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', background: 'transparent', color: 'var(--color-label-normal)', fontSize: 13, fontWeight: 700 }}>
-          바꾸기
-        </button>
+      </div>
+      {/* [2026-11-12] 바꾸기를 '다른 메뉴'(자동)와 '직접 고르기'로 나눔(사용자 요청) */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+        <button onClick={onSwap} style={pillBtn}>다른 메뉴</button>
+        <button onClick={onPick} style={pillBtn}>직접 고르기</button>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
         {target.timing && (
@@ -160,6 +166,8 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [adjNote, setAdjNote] = useState(null)
+  const [pickFor, setPickFor] = useState(null) // 직접 고르기를 연 끼니 목표
+  useBackableScreen(!!pickFor, () => setPickFor(null))
 
   useEffect(() => {
     let alive = true
@@ -314,12 +322,16 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
             <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', marginBottom: 12 }}>체중을 주 2번 이상 적으면(REPORT 체중 추이) 2주마다 칼로리를 맞춰 드려요.</div>
           )}
           {diet.plan.meals.map((entry) => (
-            <MealCard key={entry.target.key} entry={entry} onSwap={() => setHistory((h) => rerollSlot(uid, date, entry.target.key, h))} />
+            <MealCard key={entry.target.key} entry={entry} onSwap={() => setHistory((h) => rerollSlot(uid, date, entry.target.key, h))} onPick={() => setPickFor(entry.target)} />
           ))}
           <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', margin: '4px 0 12px' }}>
             눈대중: 고기·생선 손바닥 크기 ≈ 단백질 20–25g · 밥 1공기 ≈ 300kcal · 제품마다 다르니 라벨을 확인하세요
           </div>
-          <EatingOutTips meals={diet.plan.meals} />
+          <EatingOutCard
+            meals={diet.mealTargets}
+            out={diet.out}
+            onApply={(o) => setHistory((h) => setEatingOut(uid, date, o, h))}
+          />
           <Disclosure label="이렇게 정한 이유">
             <div style={{ fontSize: 14, lineHeight: 1.7 }}>
               <p style={{ margin: '0 0 8px' }}>
@@ -339,13 +351,228 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
           </Disclosure>
         </>
       )}
+      {pickFor && diet && (
+        <MealPicker
+          target={diet.plan.meals.find((e) => e.target.key === pickFor.key)?.target || pickFor}
+          prefs={diet.prefs}
+          dayKcal={diet.targets.kcal}
+          currentId={diet.plan.meals.find((e) => e.target.key === pickFor.key)?.meal?.id}
+          onClose={() => setPickFor(null)}
+          onPick={(id) => {
+            setHistory((h) => pickSlot(uid, date, pickFor.key, id, h))
+            setPickFor(null)
+          }}
+        />
+      )}
     </div>
   )
 }
 
+// [2026-11-12 신규] '직접 고르기': 이 끼니 목표에 가까운 순서로 메뉴 목록 + 종류 칩 + 이름 검색. 고르면 양은 자동으로 맞춤
+const MODE_FILTERS = [['all', '전체'], ['cvs', '편의점'], ['quick', '간편'], ['out', '외식'], ['cook', '요리']]
+function MealPicker({ target, prefs, dayKcal, currentId, onClose, onPick }) {
+  const [mode, setMode] = useState('all')
+  const [q, setQ] = useState('')
+  const ranked = useMemo(() => rankMealsForSlot(target, prefs, { dayKcal }), [target, prefs, dayKcal])
+  const query = q.trim().replace(/\s+/g, '')
+  const list = ranked.filter((x) => (mode === 'all' || x.meal.mode === mode) && (!query || x.meal.name.replace(/\s+/g, '').includes(query)))
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 85, background: 'var(--color-bg)', overflowY: 'auto', padding: '0 20px 40px', paddingBottom: 'calc(40px + var(--safe-bottom, 0px))' }}>
+      <ScreenHeader title={`${target.label} 고르기`} onBack={onClose} />
+      <div className="bt-num" style={{ fontSize: 13, color: 'var(--color-label-alternative)', margin: '4px 0 10px' }}>
+        목표 {num(target.kcal)}kcal · 단백질 {target.protein}g · 목표에 가까운 순서 · 양은 고르면 맞춰 드려요
+      </div>
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="메뉴 이름 찾기"
+        maxLength={20}
+        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--card-bg)', color: 'var(--color-label-normal)', fontSize: 15, marginBottom: 10 }}
+      />
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12 }}>
+        {MODE_FILTERS.map(([k, l]) => (
+          <Chip key={k} active={mode === k} onClick={() => setMode(k)}>{l}</Chip>
+        ))}
+      </div>
+      {!list.length && <p style={{ fontSize: 14, color: 'var(--color-label-alternative)' }}>맞는 메뉴가 없어요. 다른 종류를 눌러 보세요.</p>}
+      {list.map((x, idx) => {
+        const off = x.kcalOff
+        const fitLabel = off <= 0.1 ? '잘 맞아요' : off <= 0.2 ? '조금 차이' : null
+        return (
+          <button
+            key={x.meal.id}
+            onClick={() => onPick(x.meal.id)}
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 14px', marginBottom: 8, borderRadius: 'var(--radius-md)', border: x.meal.id === currentId ? '1px solid var(--color-fill-strong)' : '1px solid var(--card-border, var(--color-line))', background: 'var(--card-bg)', color: 'var(--color-label-normal)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, flex: 1, wordBreak: 'keep-all' }}>{x.meal.name}</span>
+              {x.meal.id === currentId ? (
+                <span style={{ fontSize: 12, fontWeight: 700 }}>지금 메뉴</span>
+              ) : (
+                fitLabel && idx < 30 && <span style={{ fontSize: 12, color: 'var(--color-label-alternative)' }}>{fitLabel}</span>
+              )}
+            </div>
+            <div className="bt-num" style={{ fontSize: 13, marginTop: 3, color: 'var(--color-label-alternative)' }}>
+              {MODE_LABEL[x.meal.mode]}
+              {x.meal.minutes > 0 ? ` · ${x.meal.minutes}분` : ''} · {num(x.nutrition.kcal)}kcal · 단백질 {Math.round(x.nutrition.p)}g
+              {x.scale !== 1 ? ` · 양 ${x.scale}배` : ''}
+              {x.addon ? ` · + ${x.addon.unit}` : ''}
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// [2026-11-12] 회식 끼니 카드(계획 = 먹을 양, 먹은 뒤 = 먹은 칼로리와 남은 끼니 조정)
+function OutMealCard({ entry }) {
+  const { target, out } = entry
+  const big = (v) => <span className="bt-num" style={{ fontSize: 20, fontWeight: 800 }}>{v}</span>
+  const portionText = {
+    chicken: out.portions && `치킨 약 ${out.portions.chickenG}g`,
+    pizza: out.portions && `피자 ${out.portions.pizzaSlices}조각`,
+    samgyeop: out.portions && `삼겹살 약 ${out.portions.samgyeopG}g`,
+    jokbal: out.portions && `족발 약 ${out.portions.jokbalG}g`,
+  }[out.kind]
+  return (
+    <Card style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-label-alternative)' }}>{target.label} · {out.mode === 'plan' ? `${out.label} 계획` : `${out.label} 먹음`}</span>
+        <span className="bt-num" style={{ fontSize: 12, color: 'var(--color-label-alternative)' }}>{out.mode === 'plan' ? `이 끼니 ${num(target.kcal)}kcal까지` : `약 ${num(entry.nutrition.kcal)}kcal`}</span>
+      </div>
+      {out.mode === 'plan' ? (
+        <>
+          <div style={{ marginTop: 6 }}>{big(portionText)} <span style={{ fontSize: 14 }}>까지</span></div>
+          <div style={{ fontSize: 13, marginTop: 6, color: 'var(--color-label-normal)', whiteSpace: 'pre-line' }}>{'쌈·샐러드 먼저 · 볶음밥·면은 나눠서\n술은 줄이고 물을 같이'}</div>
+        </>
+      ) : (
+        <div style={{ fontSize: 14, marginTop: 6 }}>
+          {out.amount}
+          {OUT_KINDS[out.kind].unit}
+          {out.drinks?.soju ? ` · 소주 ${out.drinks.soju}병` : ''}
+          {out.drinks?.beer ? ` · 맥주 ${out.drinks.beer}잔` : ''} · 단백질 약 {entry.nutrition.p}g
+        </div>
+      )}
+      <div style={{ fontSize: 13, marginTop: 8, color: 'var(--color-label-alternative)' }}>
+        {out.cut > 0 ? `다른 끼니를 합쳐 ${num(out.cut)}kcal 줄였어요(단백질은 그대로)` : '다른 끼니는 그대로예요'}
+      </div>
+      {out.leftover > 0 && (
+        <div style={{ fontSize: 13, marginTop: 4, color: 'var(--color-label-normal)' }}>
+          남은 {num(out.leftover)}kcal는 오늘 억지로 맞추지 않아도 돼요. 내일은 굶지 말고 평소대로 먹어요.
+          {out.walkMin > 0 && ` 원하면 가볍게 걷기 ${out.walkMin}분(약 ${num(out.walkKcal)}kcal)도 좋아요.`}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// [2026-11-12 개편] 치킨·피자·회식 날: 한눈에 먹을 양 + '오늘 있어요(계획)' / '이미 먹었어요'(다른 끼니로 맞춤). 설명은 '자세히'에 접음
+function EatingOutCard({ meals, out, onApply }) {
+  const mains = (meals || []).filter((t) => t.slot !== 'snack')
+  const defaultSlot = (mains.find((t) => t.slot === 'dinner') || mains.slice().sort((a, b) => b.kcal - a.kcal)[0])?.key
+  const [mode, setMode] = useState(null) // 'plan' | 'ate'
+  const [kind, setKind] = useState('chicken')
+  const [slotKey, setSlotKey] = useState(defaultSlot)
+  const [amount, setAmount] = useState(4)
+  const [drinks, setDrinks] = useState({ soju: 0, beer: 0 })
+  const big = Math.max(0, ...mains.map((t) => t.kcal))
+  const q = eatingOutPortions(big)
+  const K = OUT_KINDS[kind]
+  const step = (setter, cur, d, max, st) => setter(Math.max(0, Math.min(max, Math.round((cur + d * st) * 10) / 10)))
+  const stepper = (label, value, onMinus, onPlus) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+      <span style={{ flex: 1, fontSize: 14 }}>{label}</span>
+      <button onClick={onMinus} style={{ ...pillBtn, width: 40, padding: '6px 0' }}>−</button>
+      <span className="bt-num" style={{ minWidth: 36, textAlign: 'center', fontSize: 16, fontWeight: 800 }}>{value}</span>
+      <button onClick={onPlus} style={{ ...pillBtn, width: 40, padding: '6px 0' }}>+</button>
+    </div>
+  )
+  const open = (m) => {
+    setMode(m)
+    setSlotKey(out?.slotKey || defaultSlot)
+    setKind(out?.kind || 'chicken')
+    setAmount(out?.mode === 'ate' && out.amount ? out.amount : 4)
+    setDrinks(out?.drinks || { soju: 0, beer: 0 })
+  }
+  const preview = mode === 'ate' ? eatenNutrition(kind, amount, drinks) : null
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 15, fontWeight: 700 }}>치킨·피자·회식 날</div>
+      <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', margin: '2px 0 10px' }}>한 끼 {num(big)}kcal 안이면 이만큼</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {[
+          ['치킨', `${q.chickenG}g`],
+          ['피자', `${q.pizzaSlices}조각`],
+          ['삼겹살', `${q.samgyeopG}g`],
+          ['족발', `${q.jokbalG}g`],
+        ].map(([l, v]) => (
+          <div key={l} style={{ padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)' }}>
+            <div style={{ fontSize: 12, color: 'var(--color-label-alternative)' }}>{l}</div>
+            <div className="bt-num" style={{ fontSize: 18, fontWeight: 800 }}>약 {v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 13, marginTop: 8, whiteSpace: 'pre-line' }}>{'쌈·샐러드 먼저 · 볶음밥·면은 나눠서\n술은 줄이고 물 같이 · 다음 날 굶지 않기'}</div>
+      {out ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>오늘 식단에 {out.mode === 'plan' ? '계획' : '먹은 것'}을 넣었어요</span>
+          <button onClick={() => open(out.mode)} style={pillBtn}>고치기</button>
+          <button onClick={() => { setMode(null); onApply(null) }} style={pillBtn}>빼기</button>
+        </div>
+      ) : (
+        !mode && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <Button variant="ghost" onClick={() => open('plan')}>오늘 있어요</Button>
+            <Button variant="ghost" onClick={() => open('ate')}>이미 먹었어요</Button>
+          </div>
+        )
+      )}
+      {mode && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-line)' }}>
+          <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', marginBottom: 6 }}>무엇을</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            {Object.entries(OUT_KINDS).map(([k, v]) => (
+              <Chip key={k} active={kind === k} onClick={() => setKind(k)}>{v.label}</Chip>
+            ))}
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', marginBottom: 6 }}>어느 끼니</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            {mains.map((t) => (
+              <Chip key={t.key} active={slotKey === t.key} onClick={() => setSlotKey(t.key)}>{t.label}</Chip>
+            ))}
+          </div>
+          {mode === 'ate' && (
+            <>
+              {stepper(`${K.label} (${K.unit})`, amount, () => step(setAmount, amount, -1, K.max, K.step), () => step(setAmount, amount, 1, K.max, K.step))}
+              <div style={{ fontSize: 12, color: 'var(--color-label-alternative)', margin: '-4px 0 8px' }}>{K.note}</div>
+              {Object.entries(DRINKS).map(([k, d]) => (
+                <React.Fragment key={k}>{stepper(`${d.label} (${d.unit})`, drinks[k], () => step((v) => setDrinks((x) => ({ ...x, [k]: v })), drinks[k], -1, d.max, d.step), () => step((v) => setDrinks((x) => ({ ...x, [k]: v })), drinks[k], 1, d.max, d.step))}</React.Fragment>
+              ))}
+              <div className="bt-num" style={{ fontSize: 14, fontWeight: 700, margin: '4px 0 10px' }}>약 {num(preview.kcal)}kcal · 단백질 약 {preview.p}g</div>
+            </>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              onClick={() => {
+                onApply(mode === 'ate' ? { mode, kind, slotKey, amount, drinks } : { mode, kind, slotKey })
+                setMode(null)
+              }}
+              disabled={mode === 'ate' && !amount}
+            >
+              {mode === 'plan' ? '이 끼니를 회식으로' : '다른 끼니 맞추기'}
+            </Button>
+            <Button variant="ghost" onClick={() => setMode(null)}>닫기</Button>
+          </div>
+        </div>
+      )}
+      <EatingOutTips big={big} />
+    </Card>
+  )
+}
+
 // [2026-11-12 신규] 치킨·피자·회식 날: 가장 큰 끼니 목표 칼로리 안에서 먹을 양을 숫자로(식약처 음식 자료 중간값)
-function EatingOutTips({ meals }) {
-  const big = Math.max(...(meals || []).map((e) => (e.target.slot === 'snack' ? 0 : e.target.kcal || 0)), 0)
+function EatingOutTips({ big }) {
   const q = eatingOutPortions(big)
   const E = EATING_OUT
   const row = (title, body) => (
@@ -355,9 +582,8 @@ function EatingOutTips({ meals }) {
     </div>
   )
   return (
-    <Disclosure label="치킨·피자·회식 날">
+    <Disclosure label="자세히" style={{ marginTop: 12 }}>
       <div style={{ fontSize: 14, lineHeight: 1.6 }}>
-        <div style={{ marginBottom: 10 }}>그 끼니 목표 {big.toLocaleString()}kcal 안에서 이만큼이면 돼요.</div>
         {row(`치킨 약 ${q.chickenG}g`, `후라이드 100g ≈ ${E.chicken.kcal100}kcal · 단백질 ${Math.round(E.chicken.p100)}g\n튀김옷·껍질을 조금 덜면 칼로리가 줄어요. 무나 샐러드를 곁들여요.`)}
         {row(`피자 ${q.pizzaSlices}조각`, `라지 1조각(약 ${E.pizzaSlice.g}g) ≈ ${E.pizzaSlice.kcal}kcal · 단백질 ${Math.round(E.pizzaSlice.p)}g\n도우 끝(엣지)을 남기고 샐러드를 먼저 먹어요.`)}
         {row(`고기 회식 · 삼겹살 약 ${q.samgyeopG}g / 족발 약 ${q.jokbalG}g`, `삼겹살구이 100g ≈ ${E.samgyeop.kcal100}kcal, 족발 100g ≈ ${E.jokbal.kcal100}kcal · 단백질 ${Math.round(E.jokbal.p100)}g\n쌈채소를 먼저 먹고, 볶음밥·면은 나눠 먹어요.`)}

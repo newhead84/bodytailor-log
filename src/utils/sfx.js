@@ -1,5 +1,5 @@
 // sfx.js - [2026-11-08] 완료 효과음(사용자 선택: A 아케이드). 소리 파일 없이 Web Audio 오실레이터로 만든다(저작권·용량 걱정 없음).
-// 세트 저장 'set' · 종목 완료 'ex' · 신기록 'pr' · 오늘 운동 완료 'done' · 레벨 업 'lv'.
+// 세트 저장 'set'(코인) · 기록 화면 버튼 'btn'(띠링) · 종목 완료 'ex' · 신기록 'pr' · 오늘 운동 완료 'done' · 레벨 업 'lv'.
 // 켜기·끄기는 MY › 설정 '효과음'(users.sfxEnabled, 기본 켜짐) - App이 렌더 중 setSfxEnabled로 넘긴다(setBodyweightKg와 같은 방식).
 import { audioCtx, audioOut } from './audioOut'
 
@@ -35,9 +35,15 @@ function tone(c, f, t0, dur, type, vol, f2) {
 const SOUNDS = {
   // [2026-11-10] 버튼 누름 '톡'(사용자 선택 B 물방울): 사인파 900Hz에서 500Hz로 빠르게 내려가는 70ms
   tap: (c) => tone(c, 900, 0, 0.07, 'sine', 0.22, 500),
-  set: (c) => {
+  // [2026-11-12] 기록 화면 버튼 '띠링'(예전 세트 완료음) - 세트 완료와 구분(사용자 요청)
+  btn: (c) => {
     tone(c, 988, 0, 0.08, 'square', 0.12)
     tone(c, 1319, 0.07, 0.16, 'square', 0.12)
+  },
+  // [2026-11-12] 세트 완료 = 'A 코인'(사용자 선택): 짧게 세 번 올라가고 반짝
+  set: (c) => {
+    ;[1319, 1760, 2349].forEach((f, i) => tone(c, f, i * 0.05, 0.09, 'square', 0.1))
+    tone(c, 3136, 0.15, 0.18, 'triangle', 0.08)
   },
   ex: (c) => [523, 659, 784, 1047].forEach((f, i) => tone(c, f, i * 0.07, 0.14, 'square', 0.1)),
   pr: (c) => {
@@ -72,7 +78,7 @@ export function playSfx(kind) {
 // 문서 전체 click 하나로 처리한다(click이라 스크롤하려고 손가락을 댄 것에는 소리가 나지 않음).
 // 끄기: MY › 설정 '효과음'(완료 효과음과 같은 설정). 소리를 빼고 싶은 요소는 data-sfx="off".
 // [2026-11-11] 운동 버튼과 일반 버튼 소리 구분(사용자 선택: 기록 화면 전체): 가장 가까운 조상의 data-sfx 값으로 고른다.
-//   'set' = 세트 완료음(기록 화면 WorkoutInput 루트) / 'tap' = 물방울(기록 화면 안의 완료 팝업·운동 가이드처럼 일반 화면) / 'off' = 소리 없음(자기 효과음을 내는 버튼)
+//   'set' = 띠링 'btn'(기록 화면 WorkoutInput 루트, 2026-11-12부터 세트 완료음과 다른 소리) / 'tap' = 물방울(기록 화면 안의 완료 팝업·운동 가이드처럼 일반 화면) / 'off' = 소리 없음(자기 효과음을 내는 버튼)
 const TAP_SELECTOR = 'button, [role="button"], [role="tab"], a[href], summary, input[type="checkbox"], input[type="radio"], select'
 let installed = false
 export function installTapSound() {
@@ -91,7 +97,7 @@ export function installTapSound() {
       const clickAt = Date.now()
       setTimeout(() => {
         if (lastOwnSfxAt >= clickAt) return
-        playSfx(kind === 'set' ? 'set' : 'tap')
+        playSfx(kind === 'set' ? 'btn' : 'tap')
       }, 0)
     },
     true

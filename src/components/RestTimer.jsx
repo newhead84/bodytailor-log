@@ -18,6 +18,29 @@ export const REST_SOUND_OPTIONS = [
 // [2026-11-10] 휴식 끝 10초 전 '곧 끝나요' 알림(사용자 요청): 끝 알림음과 헷갈리지 않게 짧고 높은 '띡' 한 번 + 짧은 진동 한 번.
 // 소리 크기·진동 세기 설정을 따르고, 폰 알림창은 띄우지 않는다(끝 알림과 두 번 쌓이지 않게).
 export const PRE_ALERT_SEC = 10
+// [2026-11-12] 끝 10초 카운트다운(사용자 요청): 10초에 '띡' + 진동, 9–4초 1초마다 작은 '틱', 3·2·1초는 조금 높고 길게
+export function playCountdownTick(n) {
+  try {
+    const ctx = audioCtx()
+    if (!ctx) return
+    const last = n <= 3
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(audioOut(ctx))
+    osc.type = 'sine'
+    osc.frequency.value = last ? 1760 : 1100
+    const t = ctx.currentTime
+    const dur = last ? 0.12 : 0.06
+    gain.gain.setValueAtTime(0.001, t)
+    gain.gain.exponentialRampToValueAtTime(last ? 0.4 : 0.22, t + 0.008)
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur)
+    osc.start(t)
+    osc.stop(t + dur + 0.02)
+  } catch (_) {
+    // 소리를 못 내도 타이머는 그대로
+  }
+}
 export function playPreAlert() {
   try {
     const ctx = audioCtx()
@@ -227,10 +250,13 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
     intervalRef.current = setInterval(() => {
       const r = computeSignedRemaining()
       setRemaining(r)
-      // [2026-11-10] 10초 전 알림 - 휴식이 20초 이하이면 생략, 화면을 다시 켰을 때 이미 지난 경우(5초 넘게 늦음)도 생략
-      if (!preAlertedRef.current && r <= PRE_ALERT_SEC && r > 0) {
-        preAlertedRef.current = true
-        if (sec > PRE_ALERT_SEC * 2 && r >= PRE_ALERT_SEC - 5) playPreAlert()
+      // [2026-11-10] 10초 전 알림 → [2026-11-12] 끝 10초 카운트다운으로 바뀜(아래)
+      // [2026-11-12] 끝 10초는 1초마다(카운트다운). 같은 초에 두 번 울리지 않게 마지막으로 울린 초를 기억한다.
+      // 10초는 '띡' + 진동(화면을 다시 켰을 때 이미 지났으면 진동 없이 틱만), 휴식이 20초 이하이면 생략.
+      if (sec > PRE_ALERT_SEC * 2 && r <= PRE_ALERT_SEC && r > 0 && preAlertedRef.current !== r) {
+        preAlertedRef.current = r
+        if (r === PRE_ALERT_SEC) playPreAlert()
+        else playCountdownTick(r)
       }
       if (r <= 0) {
         if (!finishedRef.current) {

@@ -1,6 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-12] 식단 4단계·마무리(운동 시간 맞춤·정체 안내·운동 후 끼니·트레이너 식단 목표·치킨·피자·회식 날 요령·용어 뜻).
+ * 최신 변경: [2026-11-12] 새 버전 자동 적용·식단 직접 고르기·회식 날 계획·세트 완료음·휴식 카운트다운.
+ *            직전: [2026-11-12] 식단 4단계·마무리(운동 시간 맞춤·정체 안내·운동 후 끼니·트레이너 식단 목표·치킨·피자·회식 날 요령·용어 뜻).
  *            직전: [2026-11-12] 식단 제안 1–3단계(HOME 오늘 식단·식단 화면, 식약처 영양 DB 재료 177·메뉴 192).
  *            직전: [2026-11-12] 운동 기록을 기기에 보관하고 새 기록만 읽기(Firestore 읽기 절약), 홍보 캡처 3장 최신화.
  *            직전: [2026-11-11] 용어 뜻 보기(점선 말풍선 Term), 관리자 거절 사유 확인창, 옛 종목명 처방 키 정규화.
@@ -84,6 +85,7 @@ import { showSystemNotification, closeSystemNotification } from './components/Re
 import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DEFAULT_ACCENT, DEFAULT_FONT, DESIGN_DEFAULTS_VERSION, LOG_MODE_DEFAULT_VERSION } from './utils/fonts'
 import { setSfxEnabled } from './utils/sfx'
 import { setAlertLevels } from './utils/audioOut'
+import { setUpdateBusy } from './utils/appUpdate'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
@@ -280,6 +282,8 @@ export default function App() {
   // 탭을 숨기면 브라우저가 잠금을 풀기 때문에 다시 보일 때 다시 요청한다.
   const wakeLockOn = userDoc?.screenWakeLock !== false
   const sessionActive = workoutPhase === 'warmup' || workoutPhase === 'main'
+  // [2026-11-12] 운동 중에는 새 버전 자동 새로고침을 미룬다(utils/appUpdate.js)
+  setUpdateBusy(sessionActive)
   useEffect(() => {
     if (!sessionActive || !wakeLockOn || typeof navigator === 'undefined' || !('wakeLock' in navigator)) return
     let lock = null

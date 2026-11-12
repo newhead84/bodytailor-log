@@ -7,6 +7,7 @@ import { ConfirmProvider } from './components/ui.jsx'
 import './styles/tokens.css'
 import './styles/designStyles.css'
 import { installTapSound } from './utils/sfx'
+import { startUpdateWatch } from './utils/appUpdate'
 
 // [2026-11-10] 버튼 누름 효과음(설정 '효과음'을 끄면 함께 꺼짐)
 installTapSound()
@@ -24,6 +25,9 @@ if ('serviceWorker' in navigator) {
 window.addEventListener('vite:preloadError', (e) => {
   if (reloadOnceForNewVersion()) e.preventDefault()
 })
+
+// [2026-11-12] 켜 둔 앱도 새 버전이 배포되면 다음에 돌아올 때 알아서 새로고침(운동 중·입력 중엔 미룸)
+startUpdateWatch()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
