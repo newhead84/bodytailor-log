@@ -2527,8 +2527,29 @@ export function getExerciseInputType(name) {
 // 바벨/스미스/이지바 등 플레이트 종목은 기존과 동일하게 2.5를 유지한다.
 // [2026-08-05 변경] EXERCISE_META의 equipment 필드를 우선 사용하고, 메타가 없는
 // 이름(커스텀 종목 등)은 기존 이름 문자열 휴리스틱으로 폴백한다.
+// [2026-11-12] 5kg 단위가 기본인 종목(머신·케이블·어시스트)이라도 이 사람 기록에 2.5kg 단위 무게(22.5 등)가 있으면
+// 그 기구는 2.5kg 단위로 본다(사용자 요청: 2.5 단위 기구도 있으면 유지). storage.getAllWorkoutLogs가 기록을 읽을 때 채운다.
+const FINE_STEP_NAMES = new Set()
+export function noteObservedWeights(logs) {
+  ;(logs || []).forEach((log) =>
+    (log?.exercises || []).forEach((ex) => {
+      if (!ex?.name || FINE_STEP_NAMES.has(ex.name) || baseWeightStep(ex.name) !== 5) return
+      if ((ex.sets || []).some((st) => {
+        const w = Number(st?.weight)
+        return w > 0 && Math.abs(w % 5) > 0.01 && Math.abs(w % 2.5) < 0.01
+      })) FINE_STEP_NAMES.add(ex.name)
+    })
+  )
+}
 export function getWeightStep(name) {
+  const base = baseWeightStep(name)
+  return base === 5 && FINE_STEP_NAMES.has(name) ? 2.5 : base
+}
+// [2026-11-12] 어시스트 풀업·친업 보조 무게는 보통 5kg 단위(사용자 지적: 2.5로 제안됨)
+const ASSIST_STEP_NAMES = ['어시스트풀업', '어시스트친업']
+function baseWeightStep(name) {
   if (!name) return 2.5
+  if (ASSIST_STEP_NAMES.includes(name)) return 5
   const equipment = EXERCISE_META[name]?.equipment
   if (equipment) {
     if (equipment === 'dumbbell') return 2

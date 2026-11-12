@@ -30,7 +30,7 @@ import {
   runTransaction,
   getCountFromServer,
 } from 'firebase/firestore'
-import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises, normalizeExerciseKeyMap } from './utils/exerciseLibrary'
+import { getExerciseAtom, normalizeExerciseNames, normalizeLogExercises, normalizeExerciseKeyMap, noteObservedWeights } from './utils/exerciseLibrary'
 import { mergePrsFromExercises, computePrsFromLogs, prsVersionKey, cleanTrainerRx } from './utils/strength'
 import { withWeight } from './utils/weightLog'
 import { getSeasonPeriod } from './utils/season'
@@ -972,7 +972,10 @@ async function localLogs(uid) {
 export function getAllWorkoutLogs(uid) {
   // 오프라인 때 받은 일부 결과가 오래 고정되지 않게 10분이 지나면 다시 맞춘다(보관본이 있으면 새 기록만 읽음)
   if (allLogsCache && allLogsCache.uid === uid && Date.now() - allLogsCache.at < ALL_LOGS_TTL_MS) return allLogsCache.promise
-  const promise = loadAllLogs(uid).catch((err) => {
+  const promise = loadAllLogs(uid).then((logs) => {
+    noteObservedWeights(logs) // [2026-11-12] 2.5kg 단위로 기록한 머신·어시스트 종목은 2.5 단위 유지
+    return logs
+  }).catch((err) => {
     if (allLogsCache?.promise === promise) allLogsCache = null
     throw err
   })
@@ -1009,6 +1012,7 @@ function patchAllLogsCache(uid, fn) {
   const prev = allLogsCache.promise
   const promise = prev.then((list) => {
     const next = fn(list).sort(byDateAsc)
+    noteObservedWeights(next)
     const stored = readLogsStore(uid)
     if (stored) writeLogsStore(uid, next, stored.mark, stored.fullAt)
     return next
