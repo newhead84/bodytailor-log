@@ -1,8 +1,9 @@
+// [2026-11-12] 성인 비율·손가락·발가락·관절 윤곽·근육 명암 개선.
 // MuscleMap.jsx - 종목별 근육 그림(앞·뒤, 남성·여성 체형). 직접 그린 SVG(저작권 문제 없음).
 // [2026-11-10] 해부도 방식으로 다시 그림(사용자 요청: 인체 모형·해부학 모형처럼):
 //  - 근육을 실제 덩어리대로 나눔(어깨 앞·옆·뒤, 가슴 위·아래, 승모근 위·가운데, 극하근·대원근, 넙다리 네 갈래, 종아리 두 갈래 등)
 //  - 근육마다 결(섬유 방향 선)을 넣고 근육 사이 경계선, 몸 윤곽선을 그림. 비주동 근육은 무채색, 주로 = 진한 빨강, 같이 = 옅은 빨강
-//  - 남성 기준 좌표를 그려 두고 여성은 몸통 높이별 폭 비율·팔 위치·다리 틀로 옮김(좁은 어깨·잘록한 허리·넓은 골반, 긴 머리)
+//  - 남성 기준 좌표를 그려 두고 여성은 몸통 높이별 폭 비율·팔 위치·다리 틀로 옮김(좁은 어깨·잘록한 허리·넓은 골반)
 // 근육 정보는 exerciseLibrary의 muscleRoles(주동근 primary·협력근 synergist) → 그림 조각 매핑 MAP. 이름은 그림 밖 칩.
 // 색은 테마 글자색·카드색을 섞어 만들어 다크·베이지·라이트 모두 맞는다.
 import React, { useId, useMemo } from 'react'
@@ -16,7 +17,6 @@ const C = {
   outline: mix(48),
   base: mix(17),
   edge: mix(40),
-  hair: mix(34),
   p: HOT,
   pEdge: '#9a3121',
   s: `color-mix(in srgb, ${HOT} 50%, var(--color-bg-card))`,
@@ -82,8 +82,8 @@ export function muscleTargets(name) {
 const SH = 58 // 남성 어깨 바깥
 function body(female) {
   return female
-    ? { f: true, sh: 50, armK: 0.86, legC: 22.6, legW: 18.6, head: [14, 19], prof: [[36, 0.74], [58, 0.8], [72, 0.86], [112, 0.86], [140, 0.84], [168, 0.8], [192, 0.98], [214, 1.05], [250, 1.05]] }
-    : { f: false, sh: SH, armK: 1, legC: 21, legW: 18, head: [15, 20], prof: null }
+    ? { f: true, sh: 50, armK: 0.86, legC: 22.6, legW: 18.6, prof: [[36, 0.74], [58, 0.8], [72, 0.86], [112, 0.88], [140, 0.77], [168, 0.68], [186, 0.79], [206, 1], [224, 1.05], [250, 1.05]] }
+    : { f: false, sh: SH, armK: 1, legC: 21, legW: 18, prof: [[36, 1], [112, 1], [140, 0.92], [168, 0.85], [186, 0.91], [214, 1], [250, 1]] }
 }
 function ratioAt(prof, y) {
   if (!prof) return 1
@@ -101,14 +101,21 @@ function place(P, region) {
   return ([x, y]) => [x * ratioAt(P.prof, y), y]
 }
 
+// 머리 약 8개 높이의 성인 비율. 근육과 몸 윤곽에 같은 변환을 적용한다.
+function anatomyPoint([x, y]) {
+  const height = y <= 58 ? y : y <= 232 ? 58 + (y - 58) * 0.8 : y - 34.8
+  const waist = y > 112 && y < 216 ? 1 + 0.1 * Math.sin(((y - 112) / 104) * Math.PI) : 1
+  return [x * waist, height]
+}
+
 // 몸 윤곽(살)
 const SIL = {
   torso: ['t', [[12, 42], [12.5, 58], [20, 65], [36, 69], [46, 72], [52, 78], [50, 96], [44, 108], [41, 124], [37, 146], [33, 168], [34, 186], [37, 200], [40, 216], [41, 232], [30, 242], [12, 244], [0, 245]]],
   arm: ['a', [[42, 72], [52, 72], [59, 80], [62, 98], [63, 124], [65, 148], [68, 166], [72, 188], [74, 212], [73, 228], [65, 230], [61, 212], [55, 190], [51, 170], [49, 150], [47, 128], [45, 110], [42, 90]]],
-  hand: ['a', [[64, 226], [74, 226], [77, 242], [76, 256], [71, 264], [66, 262], [63, 246]]],
+  hand: ['a', [[65, 224], [73, 224], [73.5, 231], [75, 239], [75.5, 250], [75, 254], [73.5, 255], [72.5, 253], [72, 241], [72, 256], [70.5, 258], [69, 257], [68.5, 241], [68, 258], [66.5, 260], [65, 258.5], [65, 241], [64.5, 253], [63, 255], [61.5, 253], [62, 239], [59.5, 244], [57.5, 245], [57, 243], [59, 237], [62, 232], [64, 229]]],
   leg: ['l', [[40, 224], [41, 250], [39, 280], [35, 306], [33, 322], [35, 344], [35, 362], [30, 390], [27, 408], [16, 410], [13, 390], [8, 362], [7, 340], [9, 322], [7, 300], [5, 270], [3, 248], [1, 240]]],
-  footF: ['l', [[27, 404], [29, 420], [25, 430], [12, 430], [11, 420], [14, 404]]],
-  footB: ['l', [[26, 404], [27, 420], [23, 428], [15, 428], [13, 420], [15, 404]]],
+  footF: ['l', [[26, 401], [27, 410], [30, 419], [30, 425], [28, 428], [25, 428], [23, 430], [19, 430], [17, 432], [12, 432], [9, 429], [10, 422], [13, 413], [15, 401]]],
+  footB: ['l', [[26, 401], [27, 412], [29, 422], [27, 428], [23, 430], [17, 429], [13, 426], [13, 420], [15, 411], [16, 401]]],
 }
 
 // 근육: [부위, id, 점, 결] - 결 = 각도(0 가로, 90 세로, 바깥쪽이 +x) 또는 [x, y] 모이는 점(부채꼴)
@@ -163,7 +170,7 @@ const BACK = [
   ['l', 'calf', [[22, 326], [34, 330], [35, 350], [29, 368], [23, 364], [22, 346]], 90],
 ]
 
-function smooth(pts, closed = true) {
+function smooth(pts, closed = true, tension = 0.17) {
   const n = pts.length
   let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`
   for (let i = 0; i < (closed ? n : n - 1); i++) {
@@ -171,7 +178,7 @@ function smooth(pts, closed = true) {
     const p1 = pts[i]
     const p2 = pts[(i + 1) % n]
     const p3 = pts[(i + 2) % n]
-    const t = 0.17
+    const t = tension
     d += ` C${(p1[0] + (p2[0] - p0[0]) * t).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) * t).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) * t).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) * t).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`
   }
   return closed ? `${d}Z` : d
@@ -209,46 +216,30 @@ function fibers(pts, fib) {
 }
 const segPath = (segs, side) => segs.map(([[a, b], [c, d]]) => `M${(side * a).toFixed(1)} ${b.toFixed(1)}L${(side * c).toFixed(1)} ${d.toFixed(1)}`).join('')
 
-function Head({ P, view }) {
-  const [rx, ry] = P.head
-  const cy = 24
-  const face = (
-    <g>
-      {[-1, 1].map((sd) => <ellipse key={sd} cx={sd * (rx - 0.5)} cy={cy + 3} rx={2.6} ry={4.6} fill={C.skin} stroke={C.outline} strokeWidth="0.9" />)}
-      <ellipse cx={0} cy={cy} rx={rx} ry={ry} fill={C.skin} stroke={C.outline} strokeWidth="1.1" />
-    </g>
-  )
-  if (!P.f) {
-    const hair = view === 'front'
-      ? `M${-rx - 0.5} ${cy - 3} Q${-rx} ${cy - ry - 4} 0 ${cy - ry - 3} Q${rx} ${cy - ry - 4} ${rx + 0.5} ${cy - 3} Q${rx - 3} ${cy - ry + 4} 0 ${cy - ry + 5} Q${-rx + 3} ${cy - ry + 4} ${-rx - 0.5} ${cy - 3}Z`
-      : `M${-rx - 0.5} ${cy + 6} Q${-rx - 1.5} ${cy - ry - 4} 0 ${cy - ry - 3} Q${rx + 1.5} ${cy - ry - 4} ${rx + 0.5} ${cy + 6} Q0 ${cy + ry - 4} ${-rx - 0.5} ${cy + 6}Z`
-    return <g>{face}<path d={hair} fill={C.hair} /></g>
-  }
-  if (view === 'front') {
-    return (
-      <g>
-        <path d={`M${-rx - 3} ${cy - 2} Q${-rx - 5} ${cy - ry - 7} 0 ${cy - ry - 5} Q${rx + 5} ${cy - ry - 7} ${rx + 3} ${cy - 2} L${rx + 5} ${cy + 32} Q${rx - 2} ${cy + 36} ${rx - 3} ${cy + 20} L${-rx + 3} ${cy + 20} Q${-rx + 2} ${cy + 36} ${-rx - 5} ${cy + 32}Z`} fill={C.hair} />
-        <ellipse cx={0} cy={cy + 1} rx={rx - 1} ry={ry - 1} fill={C.skin} stroke={C.outline} strokeWidth="1" />
-        <path d={`M${-rx} ${cy - 4} Q-2 ${cy - ry - 3} ${rx} ${cy - 6} Q${rx - 2} ${cy - ry - 5} 0 ${cy - ry - 4} Q${-rx + 1} ${cy - ry - 3} ${-rx} ${cy - 4}Z`} fill={C.hair} />
-      </g>
-    )
-  }
+function Head({ P }) {
+  const width = P.f ? 18 : 19
   return (
     <g>
-      <path d={`M-5 ${cy + 10} Q-9 ${cy + 34} 0 ${cy + 46} Q9 ${cy + 34} 5 ${cy + 10}Z`} fill={C.hair} />
-      <ellipse cx={0} cy={cy} rx={rx + 1.5} ry={ry + 1} fill={C.hair} />
+      <path d="M-8 43 L-9 56 Q0 63 9 56 L8 43" fill={C.skin} stroke={C.outline} strokeWidth="0.9" />
+      {[-1, 1].map((side) => (
+        <ellipse key={side} cx={side * width} cy="29" rx="2.4" ry="5.1" fill={C.skin} stroke={C.outline} strokeWidth="0.8" />
+      ))}
+      <path d={`M0 2 C${-width * 0.8} 2 ${-width - 1} 12 ${-width} 26 L${-width + 2} 37 Q-10 51 0 53 Q10 51 ${width - 2} 37 L${width} 26 C${width + 1} 12 ${width * 0.8} 2 0 2Z`}
+        fill={C.skin} stroke={C.outline} strokeWidth="1" />
+
     </g>
   )
 }
 
 function Figure({ view, P, target, uid, height = null }) {
   const sil = useMemo(() => {
-    const pl = (key) => SIL[key][1].map(place(P, SIL[key][0]))
+    const pl = (key) => SIL[key][1].map(place(P, SIL[key][0])).map(anatomyPoint)
     return { torso: pl('torso'), arm: pl('arm'), hand: pl('hand'), leg: pl('leg'), foot: pl(view === 'front' ? 'footF' : 'footB') }
   }, [P, view])
   const list = useMemo(
     () => (view === 'front' ? FRONT : BACK).map(([reg, id, pts, fib]) => {
-      const f = place(P, reg)
+      const position = place(P, reg)
+      const f = (point) => anatomyPoint(position(point))
       const pp = pts.map(f)
       const ff = Array.isArray(fib) ? f(fib) : fib
       return { id, pts: pp, fib: fibers(pp, ff) }
@@ -259,21 +250,46 @@ function Figure({ view, P, target, uid, height = null }) {
   // 살 윤곽: 굵은 선을 먼저 그리고 같은 모양을 선 없이 덮어 바깥 윤곽만 남긴다(조각 이음매가 안 보이게)
   const skinPieces = [
     ...[-1, 1].map((sd) => smooth(mirror(sil.arm, sd))),
-    ...[-1, 1].map((sd) => smooth(mirror(sil.hand, sd))),
+    ...[-1, 1].map((sd) => smooth(mirror(sil.hand, sd), true, 0.08)),
     ...[-1, 1].map((sd) => smooth(mirror(sil.leg, sd))),
     ...[-1, 1].map((sd) => smooth(mirror(sil.foot, sd))),
     smooth(whole(sil.torso)),
   ]
   const breast = P.f && view === 'front'
-    ? [-1, 1].map((sd) => smooth(mirror([[6, 104], [10, 118], [22, 128], [34, 122], [40, 106]].map(place(P, 't')), sd), false))
+    ? [-1, 1].map((sd) => smooth(mirror([[6, 104], [10, 118], [22, 128], [34, 122], [40, 106]].map(place(P, 't')).map(anatomyPoint), sd), false))
     : null
+  const contours = [
+    // 손목과 손바닥은 적은 선으로 연결한다.
+    ['a', [[65, 228], [69, 229], [73, 228]]],
+    ['a', [[63, 233], [64, 237], [63, 241]]],
+    ...(view === 'front' ? [
+      ['t', [[4, 66], [17, 67], [30, 70], [40, 74]]],
+      ['l', [[14, 318], [20, 316], [26, 319], [25, 326], [20, 330], [15, 326], [14, 318]]],
+      ['l', [[16, 393], [17, 407], [14, 419]]],
+      ['l', [[24, 394], [23, 407], [25, 420]]],
+      ['l', [[17, 422], [18, 428], [17, 431]]],
+      ['l', [[22, 422], [23, 427], [23, 430]]],
+      ['l', [[26, 420], [27, 424], [27, 428]]],
+    ] : [
+      ['t', [[1, 143], [1, 158], [1, 178], [1, 200]]],
+      ['l', [[13, 319], [20, 322], [29, 319]]],
+      ['l', [[19, 380], [20, 394], [20, 411]]],
+      ['l', [[24, 381], [23, 395], [23, 411]]],
+      ['l', [[16, 419], [20, 422], [25, 419]]],
+    ]),
+  ]
   return (
-    <svg viewBox="-84 0 168 434" role="img" aria-label={view === 'front' ? '앞모습' : '뒷모습'} style={{ height: height || 'min(330px, 70vw)', width: 'auto', display: 'block' }}>
-      {view === 'back' && P.f && <Head P={P} view={view} />}
+    <svg viewBox="-84 0 168 404" role="img" aria-label={view === 'front' ? '앞모습' : '뒷모습'} style={{ height: height || 'min(330px, 70vw)', width: 'auto', display: 'block' }}>
+      <g transform="translate(0 4)">
+      <g transform="scale(0.88 1)">
       {skinPieces.map((d, i) => <path key={`o${i}`} d={d} fill={C.skin} stroke={C.outline} strokeWidth="2.2" strokeLinejoin="round" />)}
       {skinPieces.map((d, i) => <path key={`f${i}`} d={d} fill={C.skin} />)}
-      {!(view === 'back' && P.f) && <Head P={P} view={view} />}
       <defs>
+        <linearGradient id={`${uid}${view}volume`} x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+          <stop offset="0" stopColor="#000" stopOpacity="0.16" />
+          <stop offset="0.4" stopColor="#fff" stopOpacity="0.15" />
+          <stop offset="1" stopColor="#000" stopOpacity="0.2" />
+        </linearGradient>
         {list.map((m, i) => [-1, 1].map((sd) => (
           <clipPath key={`c${i}${sd}`} id={`${uid}${view}${i}${sd < 0 ? 'l' : 'r'}`}>
             <path d={smooth(mirror(m.pts, sd))} />
@@ -287,6 +303,7 @@ function Figure({ view, P, target, uid, height = null }) {
           return (
             <g key={`${i}${sd}`} className={role === 'p' ? 'bt-mm-hot' : undefined}>
               <path d={d} fill={role === 'p' ? C.p : role === 's' ? C.s : C.base} />
+              <path d={d} fill={`url(#${uid}${view}volume)`} />
               <path
                 d={segPath(m.fib, sd)}
                 clipPath={`url(#${uid}${view}${i}${sd < 0 ? 'l' : 'r'})`}
@@ -301,6 +318,13 @@ function Figure({ view, P, target, uid, height = null }) {
         })
       )}
       {breast && breast.map((d, i) => <path key={`b${i}`} d={d} fill="none" stroke={C.outline} strokeOpacity="0.7" strokeWidth="1" strokeLinecap="round" />)}
+      {contours.map(([region, points], i) => [-1, 1].map((side) => (
+        <path key={`detail${i}${side}`} d={smooth(mirror(points.map(place(P, region)).map(anatomyPoint), side), false, 0.12)}
+          fill="none" stroke={C.outline} strokeOpacity="0.65" strokeWidth="0.65" strokeLinecap="round" strokeLinejoin="round" />
+      )))}
+      </g>
+      <Head P={P} />
+      </g>
     </svg>
   )
 }

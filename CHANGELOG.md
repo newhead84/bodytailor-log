@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-12] 근육 그림 인체 모형 비율로 다듬기(사용자 요청: 손발이 없어 어색함, 머리 작음): 머리 약 8등신·목·마네킹형 얼굴, 손가락 있는 손·발가락 선 있는 발, 무릎뼈·쇄골·발목 윤곽, 근육 좌우 명암, 허리 곡선. 여성은 머리카락 없이 몸매로 구분(사용자 확인). PC 폴더에서 GPT가 고친 옛 버전 파일을 최신 코드에 옮기고 11-11 기능(MuscleFigures·ATOM_FIGURE_IDS·targetsForExercises·height)을 다시 붙임 | MuscleMap.jsx
+[2026-11-11] 담당 트레이너 카드에 트레이너 프로필 표시(사용자 요청): 사진·직함·전문 분야·소개 3줄·경력 2줄·레슨 시간·프로필 전체 보기·인스타그램, 연결 해제는 아래 줄로. 프로필이 계정과 연결 안 됐으면 같은 이름 프로필(하나뿐일 때) | MyPageTab.jsx 담당 트레이너 카드, App.jsx onShowTrainerDirectory profileId
 [2026-11-11] 홍보 페이지 캡처 최신화: 트레이너 회원 화면·회원 처방 화면을 지금 버튼 문구로 다시 찍고, 06 근육 그림·07 체중 추이 기능 소개 추가(목업 데이터) | public/intro/index.html, public/intro/img/cap-trainer·cap-ptplan(교체)·cap-muscle·cap-weight(새).webp
 [2026-11-11] 용어 뜻 보기·관리자 거절 사유 창·옛 종목명 처방(사용자 요청: 용어는 바꾸지 않고 눌러서 뜻 보기): ① 점선 용어를 누르면 말풍선으로 뜻(볼륨·추정 1RM·RIR·본세트·탑세트·백오프세트·주간 세트·정체·디로드·분할·파트, 카드마다 처음 한 번) - HOME·NOTE·완료 요약·REPORT·MY·루틴 만들기·등급 안내, 버튼 '분할운동 템플릿에서 추가' → '분할 예시에서 추가' ② 관리자 거절: 브라우저 prompt 대신 확인창 안 입력칸(사유 선택, 취소하면 거절도 안 함) ③ 트레이너 처방·코치 처방 키도 읽을 때 새 종목명으로 | ui.jsx Term·ConfirmProvider input, utils/glossary.js(새), HomeTab·WorkoutInput·ExerciseCard·SetEditors·WorkoutCompleteModal·ReportSections·InsightCards·MyPageTab·RoutineManager·RoutineSetup·CoachProgramWizard·TierInfoScreen.jsx, AdminDashboard.jsx setStatus, exerciseLibrary.js normalizeExerciseKeyMap, storage.js getRoutineTemplates
 [2026-11-11] 자주 보는 화면 문구 다듬기(사용자 확인 목록 12개): 컨디션 나쁨 안내·트레이너 처방 줄·저장 실패·랭킹 기준·숨찬 운동 기준·로그 코치 꺼짐·화면 꺼짐 방지·담당 트레이너·회원권(MY·HOME 안내 두 곳)·완료 요약 통증·세트 짜는 방식 설명 | WorkoutInput.jsx, ExerciseCard.jsx, hooks/useWorkoutSession.js, ReportTab.jsx, ReportSections.jsx, MyPageTab.jsx, MembershipNotice.jsx, WorkoutCompleteModal.jsx, SetEditors.jsx
