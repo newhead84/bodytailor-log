@@ -277,7 +277,7 @@ export function MemberCarePanel({ u, note, admin, logs, onNotePatched, onContact
 
 // ───── 오늘 할 일 목록(첫 화면·회원 케어 공용) ─────
 // 같은 회원은 가장 급한 사유 하나로(나머지 사유는 작은 글씨로)
-export function buildCareQueue({ users, notes, today, pending = [], matchOf = () => null, expireSoonDays = 7 }) {
+export function buildCareQueue({ users, notes, today, pending = [], matchOf = () => null, expireSoonDays = 7, membership = true }) {
   const items = new Map()
   const push = (u, kind, prio, reason, extra = {}) => {
     const cur = items.get(u.uid)
@@ -302,8 +302,8 @@ export function buildCareQueue({ users, notes, today, pending = [], matchOf = ()
     else if (r?.level === 'mid') push(u, 'risk', 6, `이탈 주의 · ${r.reasons[0]}`, { risk: r })
     const nb = newbieOf(u, today, note, st)
     if (nb?.due) push(u, 'new', 4, `신규 ${nb.due}주차 확인 연락 · 지금까지 ${nb.days}일 운동`, { check: nb.due })
-    if (u.membershipEnd && u.membershipEnd >= today && u.membershipEnd <= addDays(today, expireSoonDays) && note?.renewal?.status !== 'renewed') push(u, 'expire', 5, `회원권 ${u.membershipEnd === today ? '오늘' : `${fmtYmd(u.membershipEnd)}`} 만료`)
-    if ((u.ptTotal || 0) > 0 && (u.ptRemaining ?? 0) === 0) push(u, 'pt', 7, 'PT 다 씀 · 재등록 안내')
+    if (membership && u.membershipEnd && u.membershipEnd >= today && u.membershipEnd <= addDays(today, expireSoonDays) && note?.renewal?.status !== 'renewed') push(u, 'expire', 5, `회원권 ${u.membershipEnd === today ? '오늘' : `${fmtYmd(u.membershipEnd)}`} 만료`)
+    if (membership && (u.ptTotal || 0) > 0 && (u.ptRemaining ?? 0) === 0) push(u, 'pt', 7, 'PT 다 씀 · 재등록 안내')
   })
   return [...items.values()].sort((a, b) => a.prio - b.prio || memberName(a.u).localeCompare(memberName(b.u), 'ko'))
 }

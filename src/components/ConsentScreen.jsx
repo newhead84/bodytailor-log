@@ -6,8 +6,10 @@ import { Check, ChevronDown, ExternalLink } from 'lucide-react'
 import { Button } from './ui'
 import { logout } from '../firebase'
 import { CONSENT_VERSION, OPERATOR, HEALTH_DISCLAIMER } from '../utils/legal'
+import { isGymMode, useAppSettings } from '../utils/appSettings'
 
-const ITEMS = [
+// [2026-11-13] 일반형(타입 2)이면 헬스장 회원 확인·담당 트레이너·PT 정산 문장을 뺀다(gym = 헬스장형)
+const consentItems = (gym) => [
   {
     id: 'age14',
     label: '만 14세 이상이에요',
@@ -17,8 +19,10 @@ const ITEMS = [
     id: 'privacy',
     label: '개인정보 수집·이용에 동의해요',
     detail: [
-      '수집 항목: 구글 계정 정보(이메일·이름·계정 식별값), 닉네임, 헬스장 회원 확인용 이름·휴대폰 번호(번호는 변환값과 뒤 4자리만 저장), 운동 기록, 문의 내용',
-      '목적: 헬스장 회원 확인, 운동 기록·통계·랭킹 제공, 문의 답변',
+      gym
+        ? '수집 항목: 구글 계정 정보(이메일·이름·계정 식별값), 닉네임, 헬스장 회원 확인용 이름·휴대폰 번호(번호는 변환값과 뒤 4자리만 저장), 운동 기록, 문의 내용'
+        : '수집 항목: 구글 계정 정보(이메일·이름·계정 식별값), 닉네임, 운동 기록, 문의 내용',
+      gym ? '목적: 헬스장 회원 확인, 운동 기록·통계·랭킹 제공, 문의 답변' : '목적: 운동 기록·통계·랭킹 제공, 문의 답변',
       '보관: 탈퇴할 때까지(MY › 설정 › 계정 삭제로 바로 지울 수 있어요)',
     ],
   },
@@ -29,9 +33,9 @@ const ITEMS = [
       '수집 항목: 성별, 나이, 몸무게, 키, 운동 목표, 주당 운동 일수(선택: 허리둘레, 인바디 체지방률·골격근량, 날짜별 체중, 체력 점검 기록, 운동 중 컨디션·통증 표시, 식단 제안 설정 - 직접 적을 때만)',
       '목적: 목표에 맞는 반복·휴식·세트 기준, 맨몸·보조 운동 부하, 신체 지표(허리/키 비율·체지방률·BMI) 계산, 하루 칼로리·단백질 목표와 식단 제안',
       '식단 제안은 알레르기·질환을 받지 않고, 고른 메뉴는 이 기기에만 보관해요.',
-      'PT 회원은 담당 트레이너가 이 정보(식단은 하루 칼로리·단백질 목표만)를 볼 수 있어요(연결이 끝나면 바로 막혀요).',
+      gym && 'PT 회원은 담당 트레이너가 이 정보(식단은 하루 칼로리·단백질 목표만)를 볼 수 있어요(연결이 끝나면 바로 막혀요).',
       '보관: 탈퇴할 때까지',
-    ],
+    ].filter(Boolean),
   },
   {
     id: 'overseas',
@@ -42,13 +46,17 @@ const ITEMS = [
       '왜 해외인가요: 로그인과 기록 저장을 구글의 클라우드 서비스(Firebase)로 하는데, 이 저장소가 미국 등 해외 데이터센터에 있어요. 우리나라 법은 이것도 "국외 이전"으로 보고 알리도록 해요.',
       '누가 받나요: Google LLC(Firebase: 로그인·기록 보관), Vercel Inc.(앱 화면 전달). 두 회사는 저장과 화면 전달만 맡아요.',
       '팔거나 광고에 쓰지 않아요: 운영자는 정보를 판매하거나 마케팅·광고에 쓰지 않고, 다른 회사에 넘기지 않아요.',
-      '어떻게 지키나요: 전송은 암호화되고, 본인·관리자·연결된 담당 트레이너만 볼 수 있게 접근 규칙을 걸어 둬요.',
-      '언제까지: 탈퇴할 때까지(탈퇴하면 운동 기록·신체 정보는 바로 지워요. PT 이용 기록과 관리 이력은 헬스장 정산·관리를 위해 정해진 기간 남아요)',
+      gym ? '어떻게 지키나요: 전송은 암호화되고, 본인·관리자·연결된 담당 트레이너만 볼 수 있게 접근 규칙을 걸어 둬요.' : '어떻게 지키나요: 전송은 암호화되고, 본인·관리자만 볼 수 있게 접근 규칙을 걸어 둬요.',
+      gym
+        ? '언제까지: 탈퇴할 때까지(탈퇴하면 운동 기록·신체 정보는 바로 지워요. PT 이용 기록과 관리 이력은 헬스장 정산·관리를 위해 정해진 기간 남아요)'
+        : '언제까지: 탈퇴할 때까지(탈퇴하면 운동 기록·신체 정보는 바로 지워요. 관리 이력은 정해진 기간 남아요)',
     ],
   },
 ]
 
 export default function ConsentScreen({ onAgree }) {
+  const gym = isGymMode(useAppSettings())
+  const ITEMS = consentItems(gym)
   const [checked, setChecked] = useState({})
   const [open, setOpen] = useState({})
   const [saving, setSaving] = useState(false)
@@ -74,7 +82,7 @@ export default function ConsentScreen({ onAgree }) {
       <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16, padding: 'calc(var(--safe-top, 0px) + 48px) 24px 32px', boxSizing: 'border-box' }}>
         <h1 className="text-keep-all" style={{ fontSize: 24, lineHeight: 1.35, margin: 0, color: 'var(--color-label-strong)' }}>만 14세 이상부터 쓸 수 있어요</h1>
         <p className="text-keep-all" style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--color-label-normal)' }}>
-          지금은 보호자 동의 절차가 없어 만 14세 미만은 가입할 수 없어요. 운동은 헬스장 트레이너와 함께해 주세요.
+          지금은 보호자 동의 절차가 없어 만 14세 미만은 가입할 수 없어요.{gym ? ' 운동은 헬스장 트레이너와 함께해 주세요.' : ''}
         </p>
         <Button full onClick={logout}>로그아웃</Button>
         <button type="button" onClick={() => setUnder14(false)} style={{ fontSize: 13, color: 'var(--color-label-neutral)', textDecoration: 'underline' }}>

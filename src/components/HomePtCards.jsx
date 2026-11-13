@@ -6,6 +6,7 @@ import { Card, Button, useConfirm } from './ui'
 import { getAppSettings, getUserDoc, listMyTrainees, listTrainerSchedulesByDates, trainerAddSchedule, trainerCompleteSchedule, trainerNoShowSchedule, logAction, invalidateTraineeSummary, getRecentPainFlags } from '../storage'
 import { todayStr } from '../utils/date'
 import { addDays, isTrainerAccount } from '../utils/member'
+import { isGymMode, managesMembership, useAppSettings } from '../utils/appSettings'
 
 const DAY = ['일', '월', '화', '수', '목', '금', '토']
 const fmtDay = (s) => {
@@ -15,12 +16,15 @@ const fmtDay = (s) => {
 const tsMs = (t) => (t?.toMillis ? t.toMillis() : typeof t?.seconds === 'number' ? t.seconds * 1000 : 0)
 
 export default function HomePtCards({ uid, userDoc }) {
-  if (!uid || !userDoc) return null
+  // [2026-11-13] 앱 운영 방식: 일반형이면 없음, 회원권·PT를 다른 시스템에서 관리하면 PT 일정 카드만 빼고 통증 알림(트레이너)은 그대로
+  const appCfg = useAppSettings()
+  const ptOn = managesMembership(appCfg)
+  if (!uid || !userDoc || !isGymMode(appCfg)) return null
   if (userDoc.role === '트레이너') {
     return (
       <>
         <TrainerPainAlerts uid={uid} />
-        <TrainerTodayPt uid={uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} />
+        {ptOn && <TrainerTodayPt uid={uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} />}
       </>
     )
   }
@@ -29,12 +33,12 @@ export default function HomePtCards({ uid, userDoc }) {
     return (
       <>
         <TrainerPainAlerts uid={uid} />
-        <TrainerTodayPt uid={uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} />
-        <PtChangeNotice uid={uid} change={userDoc.ptLastChange} />
+        {ptOn && <TrainerTodayPt uid={uid} trainerName={userDoc.signupInfo?.name || userDoc.nickname || ''} />}
+        {ptOn && <PtChangeNotice uid={uid} change={userDoc.ptLastChange} />}
       </>
     )
   }
-  return <PtChangeNotice uid={uid} change={userDoc.ptLastChange} />
+  return ptOn ? <PtChangeNotice uid={uid} change={userDoc.ptLastChange} /> : null
 }
 
 const KIND = { new: '새 PT 일정을 잡았어요', change: 'PT 일정을 바꿨어요', cancel: 'PT 일정을 취소했어요' }

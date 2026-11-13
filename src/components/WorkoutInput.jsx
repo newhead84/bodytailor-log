@@ -18,6 +18,7 @@ import { ExerciseCard, SortableExerciseItem, ExerciseGuideInfoButton } from './E
 import WorkoutCompleteModal from './WorkoutCompleteModal'
 import { REST_OPTIONS, EXTRA_CATEGORIES, truncatePartLabel, expandGripCandidates, formatClock } from './workoutSessionHelpers'
 import { useWorkoutSession } from '../hooks/useWorkoutSession'
+import { useFavorites } from '../utils/favorites'
 
 const WorkoutInput = forwardRef(function WorkoutInput(
   props,
@@ -26,6 +27,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
   const {
     activeRestSec, addExerciseToRoutine, addFreeExercise, addingExercise, addingFreeExercise, cardExt, celebration, comeback, completeExercise, completedExercises, condition, conditionLight, chooseCondition, chooseIntensity, todayIntensity, intensityAuto, confirmRemoveSet, copyLastSet, customExercises, dismissingGuideHint, elapsedSeconds, expandedExercise, finishWorkoutGuide, freeCategory, freeExercises, freePickerGuideName, gender, guideEl, guideSkipKeys, handleAddTodayToRoutine, handleCancelSession, handleDismissGuideHint, handleFinishWorkout, handleReorder, handleStartMain, handleStartWorkout, hasAnyRecord, hiddenToday, hideExerciseToday, howto, lastRecords, layoutEnabled, onGoToRoutineSetup, openExercise, partOrder, persistPartExercises, pickerGuideName, records, removeExerciseFromRoutine, removeFreeExercise, restActive, restKey, restNotificationEnabled, restSeconds, restSoundId, restWakeLockEnabled, rootRef, saving, selectPart, selectRoutine, selectedPart, selectedPartName, selectedTemplate, selectedTemplateId, sessionHeaderOpen, sessionPhase, sessionType, setAddingExercise, setAddingFreeExercise, setCelebration, setCondition, setConditionLight, setFreeCategory, setFreePickerGuideName, setHowto, setPickerGuideName, setRestActive, setRestSeconds, setSessionHeaderOpen, setSessionType, setToast, showGuideHint, swapExercise, templates, todayAtoms, toggleUncompleteExercise, totalVolume, trySaveSet, uid, updateSet, visibleExercises,
   } = useWorkoutSession(props, ref)
+  const favExercises = useFavorites('exercises') // [2026-11-13] 종목 추가 후보에서 즐겨찾기를 앞으로
   if (templates.length === 0) {
     return (
       <div style={{ padding: '40px 24px', textAlign: 'center' }}>
@@ -375,6 +377,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                     (key) => partOrder.includes(key) && !hiddenToday.includes(key)
                   )
                   if (candidates.length === 0) return null
+                  // [2026-11-13] 즐겨찾는 운동을 앞쪽에 별과 함께
+                  candidates.sort((x, y) => Number(favExercises.includes(y.guideName)) - Number(favExercises.includes(x.guideName)))
                   return (
                     <div key={atom} style={{ marginBottom: 10 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary-normal)', marginBottom: 6 }}>{atom}</div>
@@ -382,7 +386,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                         {candidates.map((c) => (
                           <React.Fragment key={c.key}>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <Chip onClick={() => addExerciseToRoutine(c.key)}>{c.label}</Chip>
+                              <Chip onClick={() => addExerciseToRoutine(c.key)}>{favExercises.includes(c.guideName) ? `★ ${c.label}` : c.label}</Chip>
                               <ExerciseGuideInfoButton
                                 name={c.guideName}
                                 open={pickerGuideName === c.key}

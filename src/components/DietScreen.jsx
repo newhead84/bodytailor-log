@@ -13,6 +13,8 @@ import { AVOID_LABEL, MODE_LABEL } from '../utils/nutrition/meals'
 import { FOOD_SOURCE } from '../utils/nutrition/foods'
 import { DRINKS, EATING_OUT, OUT_KINDS, eatenNutrition, eatingOutPortions } from '../utils/nutrition/eatingOut'
 import { useBackableScreen } from '../hooks/useBackableScreen'
+import FavStar from './FavStar'
+import { useFavorites } from '../utils/favorites'
 
 const STYLE_OPTIONS = [
   ['easy', '편의점·간편식 위주'],
@@ -107,6 +109,8 @@ function MealCard({ entry, onSwap, onPick }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <div style={{ fontSize: 18, fontWeight: 800, flex: 1, wordBreak: 'keep-all' }}>{meal.name}</div>
+        {/* [2026-11-13] 즐겨찾는 식단 */}
+        <FavStar kind="meals" id={meal.id} label={meal.name} />
       </div>
       {/* [2026-11-12] 바꾸기를 '다른 메뉴'(자동)와 '직접 고르기'로 나눔(사용자 요청) */}
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -369,13 +373,17 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
 }
 
 // [2026-11-12 신규] '직접 고르기': 이 끼니 목표에 가까운 순서로 메뉴 목록 + 종류 칩 + 이름 검색. 고르면 양은 자동으로 맞춤
-const MODE_FILTERS = [['all', '전체'], ['cvs', '편의점'], ['quick', '간편'], ['out', '외식'], ['cook', '요리']]
+// [2026-11-13] '★ 즐겨찾기' 칩 + 전체 보기에서는 즐겨찾기 메뉴를 위쪽에(각각 목표에 가까운 순서는 그대로)
+const MODE_FILTERS = [['all', '전체'], ['fav', '★ 즐겨찾기'], ['cvs', '편의점'], ['quick', '간편'], ['out', '외식'], ['cook', '요리']]
 function MealPicker({ target, prefs, dayKcal, currentId, onClose, onPick }) {
   const [mode, setMode] = useState('all')
   const [q, setQ] = useState('')
   const ranked = useMemo(() => rankMealsForSlot(target, prefs, { dayKcal }), [target, prefs, dayKcal])
   const query = q.trim().replace(/\s+/g, '')
-  const list = ranked.filter((x) => (mode === 'all' || x.meal.mode === mode) && (!query || x.meal.name.replace(/\s+/g, '').includes(query)))
+  const favMeals = useFavorites('meals')
+  const isFav = (x) => favMeals.includes(x.meal.id)
+  const matched = ranked.filter((x) => (mode === 'all' || (mode === 'fav' ? isFav(x) : x.meal.mode === mode)) && (!query || x.meal.name.replace(/\s+/g, '').includes(query)))
+  const list = mode === 'all' ? [...matched.filter(isFav), ...matched.filter((x) => !isFav(x))] : matched
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 85, background: 'var(--color-bg)', overflowY: 'auto', padding: '0 20px 40px', paddingBottom: 'calc(40px + var(--safe-bottom, 0px))' }}>
       <ScreenHeader title={`${target.label} 고르기`} onBack={onClose} />
@@ -394,15 +402,18 @@ function MealPicker({ target, prefs, dayKcal, currentId, onClose, onPick }) {
           <Chip key={k} active={mode === k} onClick={() => setMode(k)}>{l}</Chip>
         ))}
       </div>
-      {!list.length && <p style={{ fontSize: 14, color: 'var(--color-label-alternative)' }}>맞는 메뉴가 없어요. 다른 종류를 눌러 보세요.</p>}
+      {!list.length && <p style={{ fontSize: 14, color: 'var(--color-label-alternative)' }}>{mode === 'fav' && !favMeals.length ? '즐겨찾는 메뉴가 없어요. 메뉴 옆 별(☆)을 누르면 여기에 모여요.' : '맞는 메뉴가 없어요. 다른 종류를 눌러 보세요.'}</p>}
       {list.map((x, idx) => {
         const off = x.kcalOff
         const fitLabel = off <= 0.1 ? '잘 맞아요' : off <= 0.2 ? '조금 차이' : null
         return (
-          <button
+          <div
             key={x.meal.id}
+            style={{ display: 'flex', alignItems: 'center', marginBottom: 8, borderRadius: 'var(--radius-md)', border: x.meal.id === currentId ? '1px solid var(--color-fill-strong)' : '1px solid var(--card-border, var(--color-line))', background: 'var(--card-bg)' }}
+          >
+          <button
             onClick={() => onPick(x.meal.id)}
-            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 14px', marginBottom: 8, borderRadius: 'var(--radius-md)', border: x.meal.id === currentId ? '1px solid var(--color-fill-strong)' : '1px solid var(--card-border, var(--color-line))', background: 'var(--card-bg)', color: 'var(--color-label-normal)' }}
+            style={{ display: 'block', flex: 1, minWidth: 0, textAlign: 'left', padding: '12px 6px 12px 14px', color: 'var(--color-label-normal)' }}
           >
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 16, fontWeight: 700, flex: 1, wordBreak: 'keep-all' }}>{x.meal.name}</span>
@@ -419,6 +430,8 @@ function MealPicker({ target, prefs, dayKcal, currentId, onClose, onPick }) {
               {x.addon ? ` · + ${x.addon.unit}` : ''}
             </div>
           </button>
+          <FavStar kind="meals" id={x.meal.id} label={x.meal.name} style={{ padding: '0 14px 0 8px' }} />
+          </div>
         )
       })}
     </div>

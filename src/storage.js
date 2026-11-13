@@ -1083,6 +1083,22 @@ export async function adminUpdateMember(uid, patch, adminUid) {
   }
   await updateDoc(doc(db, 'users', uid), data)
 }
+// [2026-11-13] 앱 운영 방식 전환 때 일괄 처리(400명씩 나눠 일괄 쓰기)
+//  - 회원권 종료일 비우기: '회원권·PT는 다른 시스템에서 관리'를 켜면 만료 때문에 기록 저장이 막히지 않게(rules isApproved가 membershipEndAt을 봄)
+//  - 대기 회원 승인: 일반형으로 바꿀 때 남아 있는 승인 대기·거절 회원
+async function adminBatchUsers(uids, data) {
+  for (let i = 0; i < uids.length; i += 400) {
+    const batch = writeBatch(db)
+    uids.slice(i, i + 400).forEach((uid) => batch.update(doc(db, 'users', uid), data))
+    await batch.commit()
+  }
+}
+export function adminClearMembershipDates(uids) {
+  return adminBatchUsers(uids, { membershipStart: deleteField(), membershipEnd: deleteField(), membershipEndAt: deleteField(), statusUpdatedAt: serverTimestamp() })
+}
+export function adminApproveMany(uids, adminUid) {
+  return adminBatchUsers(uids, { memberStatus: 'approved', statusUpdatedAt: serverTimestamp(), approvedAt: serverTimestamp(), approvedBy: adminUid || null, reReviewRequested: false })
+}
 // [2026-11-01] 관리자 화면: 바뀐 회원 문서 하나만 다시 읽기(동작마다 전체 회원을 다시 읽지 않게)
 export async function adminGetUser(uid) {
   const snap = await getDoc(doc(db, 'users', uid))

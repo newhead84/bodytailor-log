@@ -9,6 +9,7 @@ import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerAvatar, TrainerTags } from './TrainerProfileView'
 import { instagramUrl } from '../utils/trainerProfile'
 import { membershipState, fmtYmd, isTrainerAccount, saveFailText } from '../utils/member'
+import { isGymMode, managesMembership, useAppSettings } from '../utils/appSettings'
 import { COACH_INTENSITIES, normalizeIntensity } from '../utils/strength'
 import { logsToCsv, downloadText } from '../utils/exportCsv'
 import { logout } from '../firebase'
@@ -204,8 +205,12 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
   // [2026-10-31 Phase2 P2-2] 담당 트레이너(활성 연결) - PT회원에게 표시, 회원이 직접 해제 가능
   const [trainerConn, setTrainerConn] = useState(null)
   const [trainerProfile, setTrainerProfile] = useState(null) // [2026-10-31] 담당 트레이너 프로필(사진)
+  // [2026-11-13] 앱 운영 방식: 일반형이면 트레이너 칸 없음(연결 읽기도 안 함), 회원권·PT 칸은 이 앱에서 관리할 때만
+  const appCfg = useAppSettings()
+  const gymOn = isGymMode(appCfg)
+  const msOn = managesMembership(appCfg)
   useEffect(() => {
-    if (!uid || !isActive || userDoc?.role === '트레이너') return // [2026-10-31] 관리자도 담당 트레이너를 가질 수 있음
+    if (!uid || !isActive || userDoc?.role === '트레이너' || !gymOn) return // [2026-10-31] 관리자도 담당 트레이너를 가질 수 있음
     let alive = true
     getMyTrainerConnection(uid)
       .then(async (c) => {
@@ -223,7 +228,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
     return () => {
       alive = false
     }
-  }, [uid, isActive, userDoc?.role])
+  }, [uid, isActive, userDoc?.role, gymOn])
   const [pickingSplitTemplate, setPickingSplitTemplate] = useState(false)
   const [addingTemplateKey, setAddingTemplateKey] = useState(null)
   const [templateError, setTemplateError] = useState('')
@@ -1363,7 +1368,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       {/* [2026-07-31 신규] MY탭 1:1 문의(⑩). role === '관리자'인 계정에서만 "문의 관리"
           진입점이 추가로 보인다. */}
       {/* [2026-10-31 Phase2 P2-2] 트레이너: 내 회원 / 회원: 담당 트레이너 */}
-      {isTrainerAccount(userDoc) && (
+      {gymOn && isTrainerAccount(userDoc) && (
         <>
           <SectionTitle>트레이너</SectionTitle>
           <Card onClick={onShowTrainees} style={{ marginBottom: 20 }}>
@@ -1372,7 +1377,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
           </Card>
         </>
       )}
-      {trainerConn && (
+      {gymOn && trainerConn && (
         <>
           <SectionTitle>담당 트레이너</SectionTitle>
           {/* [2026-11-11] 사용자 요청: 연결된 트레이너 프로필(직함·전문 분야·소개·경력·레슨 시간·인스타그램)을 카드에 바로 보여 준다 */}
@@ -1436,7 +1441,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
       {(() => {
         const ms = membershipState(userDoc)
         const pt = typeof userDoc?.ptTotal === 'number' && userDoc.ptTotal > 0
-        if (ms.kind === 'exempt' || (!ms.end && !pt)) return null
+        if (!msOn || ms.kind === 'exempt' || (!ms.end && !pt)) return null
         return (
           <>
             <SectionTitle>회원권</SectionTitle>
@@ -1462,7 +1467,7 @@ export default function MyPageTab({ uid, userDoc, routineTemplates, googlePhotoU
         )
       })()}
 
-      {userDoc?.role !== '트레이너' && (
+      {gymOn && userDoc?.role !== '트레이너' && (
         <Card onClick={() => onShowTrainerDirectory?.('')} style={{ marginBottom: 20 }}>
           <p className="text-keep-all" style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>트레이너 소개</p>
           <p className="text-keep-all" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-label-neutral)' }}>바디테일러 트레이너의 경력·전문 분야를 봐요.</p>

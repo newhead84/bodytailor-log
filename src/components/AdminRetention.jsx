@@ -7,6 +7,7 @@ import { SegmentBar } from './AdminCare'
 import { adminPtRange } from '../storage'
 import { isTrainerAccount, memberName } from '../utils/member'
 import { todayStr } from '../utils/date'
+import { isGymMode, useAppSettings } from '../utils/appSettings'
 import { retentionStats, trainerStats, isCareTarget } from '../utils/memberInsights'
 
 export function HealthKpis({ r, onGo }) {
@@ -30,6 +31,7 @@ export function HealthKpis({ r, onGo }) {
 }
 
 export default function RetentionTab({ users, conns, notes, onGo, onOpenMember }) {
+  const appCfg = useAppSettings() // [2026-11-13] 일반형이면 트레이너별 표 숨김
   const today = todayStr()
   const members = users.filter((u) => isGymMember(u) && isCareTarget(u))
   const r = useMemo(() => retentionStats(members, today, notes), [users, notes, today]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -100,6 +102,7 @@ export default function RetentionTab({ users, conns, notes, onGo, onOpenMember }
               ))}
             </div>
           </div>
+          {isGymMode(appCfg) && (
           <div className="adm-panel">
             <div className="adm-panel-h"><b>트레이너별 회원 관리</b><span style={muted}>담당 회원 기준</span></div>
             {!tRows.length ? <p style={{ ...muted, margin: 0, padding: 16 }}>트레이너가 없어요.</p> : (
@@ -128,6 +131,7 @@ export default function RetentionTab({ users, conns, notes, onGo, onOpenMember }
             )}
             <p className="text-keep-all" style={{ ...muted, margin: 0, padding: '0 16px 14px', fontSize: 13 }}>매출은 넣지 않았어요. 담당 회원의 운동 빈도와 위험 회원 수로 관리 상태를 봐요.</p>
           </div>
+          )}
         </div>
       </div>
     </div>

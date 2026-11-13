@@ -153,6 +153,9 @@ service cloud.firestore {
           d.diet.get('avoid', []) is list && d.diet.get('avoid', []).size() <= 10 &&
           d.diet.get('adj', 0) is int && d.diet.get('adj', 0) >= -300 && d.diet.get('adj', 0) <= 300 &&
           d.diet.get('adjAt', 0) is int && d.diet.get('plateauAskedAt', 0) is int)) &&
+        // [2026-11-13] 즐겨찾는 운동(이름)·식단(메뉴 id) 각 60개 이하
+        (!keys.hasAny(['favExercises']) || (d.favExercises is list && d.favExercises.size() <= 60)) &&
+        (!keys.hasAny(['favMeals']) || (d.favMeals is list && d.favMeals.size() <= 60)) &&
         // S3: 문의 간격 기록은 서버 시각으로만
         (!keys.hasAny(['lastInquiryAt']) || d.lastInquiryAt == request.time);
     }
@@ -220,7 +223,9 @@ service cloud.firestore {
       allow create: if isOwner(uid) &&
         request.resource.data.get('role', '일반회원') == '일반회원' &&
         request.resource.data.get('roleRequestStatus', 'none') == 'none' &&
-        request.resource.data.get('memberStatus', '') == 'pending' &&
+        // [2026-11-13] 일반형(settings/app.appMode == 'open')이면 가입과 동시에 승인 상태로 만들 수 있다
+        (request.resource.data.get('memberStatus', '') == 'pending' ||
+          (request.resource.data.get('memberStatus', '') == 'approved' && openSignupOk())) &&
         request.resource.data.get('tier', 'iron') == 'iron' &&
         request.resource.data.get('lifetimeBadges', []).size() == 0 &&
         request.resource.data.get('trainerProfile', null) == null &&
@@ -510,8 +515,26 @@ service cloud.firestore {
     match /settings/{sid} {
       allow read: if request.auth != null;
       // [2026-11-01] B16: 대시보드 기준값(운동 없음 일수·PT 적음 횟수·만료 임박 일수) 정수 1~365
-      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['ptDeductEnabled', 'noshowPolicy', 'updatedAt', 'staleDays', 'ptLowCount', 'expireSoonDays', 'riskAwayDays', 'riskHighDays']) &&
+      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['ptDeductEnabled', 'noshowPolicy', 'updatedAt', 'staleDays', 'ptLowCount', 'expireSoonDays', 'riskAwayDays', 'riskHighDays', 'gymEquip', 'appMode', 'membershipExternal']) &&
+        gymEquipOk() && appModeOk() &&
         settingNumOk('staleDays') && settingNumOk('ptLowCount') && settingNumOk('expireSoonDays') && settingNumOk('riskAwayDays') && settingNumOk('riskHighDays');
+    }
+    // [2026-11-13] 앱 운영 방식: 일반형이면 가입 즉시 승인(가입할 때 한 번만 읽음)
+    function openSignupOk() {
+      return exists(/databases/$(database)/documents/settings/app) &&
+        get(/databases/$(database)/documents/settings/app).data.get('appMode', 'gym') == 'open';
+    }
+    function appModeOk() {
+      let d = request.resource.data;
+      return (!('appMode' in d) || d.appMode in ['gym', 'open']) &&
+        (!('membershipExternal' in d) || d.membershipExternal is bool);
+    }
+    // [2026-11-13] 센터 보유 기구: 종류(12 이하)·머신·유산소 종목 이름(60 이하) 목록
+    function gymEquipOk() {
+      let d = request.resource.data;
+      return !('gymEquip' in d) || (d.gymEquip is map && d.gymEquip.keys().hasOnly(['kinds', 'items']) &&
+        d.gymEquip.get('kinds', []) is list && d.gymEquip.get('kinds', []).size() <= 12 &&
+        d.gymEquip.get('items', []) is list && d.gymEquip.get('items', []).size() <= 60);
     }
     function settingNumOk(k) {
       return !(k in request.resource.data) ||

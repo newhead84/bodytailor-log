@@ -8,6 +8,7 @@ import { ACTION, Badge, Bars, LogRow, isGymMember, muted, sectionTitle, selectSt
 import { adminGetGymStats, adminListLogs, adminPtRange, adminSaveNote, logAdmin } from '../storage'
 import { UserPlus, Clock, Dumbbell, Moon, CalendarDays, MessageSquare, Receipt, Handshake } from 'lucide-react'
 import { dashSetting } from './AdminTools'
+import { isGymMode, managesMembership, normalizeAppSettings } from '../utils/appSettings'
 import { daysBetween, fmtYmd, memberName, membershipState, MEMBER_STATUS, isTrainerAccount } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
 import { downloadText } from '../utils/exportCsv'
@@ -23,15 +24,19 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings
   const STALE_DAYS = dashSetting(settings, 'staleDays')
   const PT_LOW = dashSetting(settings, 'ptLowCount')
   const SOON = dashSetting(settings, 'expireSoonDays')
+  // [2026-11-13] 앱 운영 방식: 회원권·PT를 이 앱에서 관리하지 않으면 만료·PT 지표를 빼고 PT 기간 읽기도 하지 않는다
+  const cfg = normalizeAppSettings(settings)
+  const msOn = managesMembership(cfg)
   const ym = today.slice(0, 7)
   const [month, setMonth] = useState(null) // { sch, ses } 이번 달 PT
   useEffect(() => {
+    if (!msOn) return setMonth({ sch: [], ses: [] })
     const last = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate()
     // [2026-11-01] PT 탭과 같은 기간 캐시를 함께 쓴다(탭을 오갈 때 다시 읽지 않음, A27)
     adminPtRange(`${ym}-01`, `${ym}-${last}`)
       .then(setMonth)
       .catch(() => setMonth({ sch: [], ses: [] }))
-  }, [ym])
+  }, [ym, msOn])
   const members = users.filter(isGymMember)
   const byUid = Object.fromEntries(users.map((u) => [u.uid, u]))
   const expiring = members.filter((u) => u.membershipEnd && daysBetween(today, u.membershipEnd) >= 0 && daysBetween(today, u.membershipEnd) <= SOON)
@@ -57,9 +62,9 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings
     { key: 'ptAsk', label: 'PT 상담 신청', n: ptAsk.length, s: ptAsk.length ? '문의에서 답변·연락' : '새 신청 없음', alert: ptAsk.length > 0, go: () => onGo('inquiries') },
     // [2026-11-01] B4: 남은 PT가 없을 때 트레이너가 남긴 '완료(미결제)'(이번 달)
     { key: 'unpaid', label: '미결제 PT', n: month ? (month.ses || []).filter((x) => x.unpaid).length : '…', s: '결제 후 PT 관리에서 차감', alert: !!month && (month.ses || []).some((x) => x.unpaid), go: () => onGo('pt') },
-  ]
+  ].filter((k) => (msOn || !['expiring', 'ptLow', 'todayPt', 'unpaid'].includes(k.key)) && (isGymMode(cfg) || k.key !== 'ptAsk'))
   // [2026-11-11] 첫 화면 개편(사용자 선택: 오늘 할 일 중심) - 건강 지표 4개 → 오늘 할 일(연락 예정·이탈 위험·신규 확인·가입·만료·PT) | 회원 상태·오늘 PT·축하할 회원 → 운영 현황 숫자
-  const queue = buildCareQueue({ users, notes, today, pending, matchOf, expireSoonDays: SOON })
+  const queue = buildCareQueue({ users, notes, today, pending, matchOf, expireSoonDays: SOON, membership: msOn })
   const careMembers = members.filter(isCareTarget)
   const r = retentionStats(careMembers, today, notes)
   const cheers = careMembers
@@ -86,7 +91,7 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings
             <div className="adm-panel-h"><b>회원 상태</b><button type="button" className="adm-link" onClick={() => onGo('retention')}>유지·분석</button></div>
             <div style={{ padding: 16 }}><SegmentBar seg={r.seg} onPick={() => onGo('care')} /></div>
           </div>
-          <div className="adm-panel">
+          {msOn && <div className="adm-panel">
             <div className="adm-panel-h"><b>오늘 PT</b><button type="button" className="adm-link" onClick={() => onGo('pt')}>PT 관리</button></div>
             <div style={{ padding: '4px 16px 10px' }}>
               {!month ? <p style={muted}>불러오는 중…</p> : !todayPt.length ? <p style={{ ...muted, margin: '10px 0' }}>오늘 잡힌 PT가 없어요.</p> : todayPt.map((sc, i) => (
@@ -97,7 +102,7 @@ export function SummaryTab({ users, conns, inquiries, pending, matchOf, settings
                 </div>
               ))}
             </div>
-          </div>
+          </div>}
           <div className="adm-panel">
             <div className="adm-panel-h"><b>축하할 회원</b><button type="button" className="adm-link" onClick={() => onGo('care')}>모두 보기</button></div>
             <div style={{ padding: '4px 16px 10px' }}>

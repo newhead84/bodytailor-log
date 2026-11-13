@@ -1,3 +1,4 @@
+import { isGymMode, useAppSettings } from '../utils/appSettings'
 import React, { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button, BackButton } from './ui'
@@ -16,7 +17,7 @@ const GENDERS = ['남성', '여성']
 // [2026-10-29] 닉네임(랭킹에 보이는 이름 - 구글 실명이 그대로 노출되던 문제)과 주당 운동 목표 일수(출석 목표)를 추가.
 // [2026-10-30] 목표 7종·우선순위(GoalPicker) + 마지막에 맞춤 기준 요약(plan)
 // [2026-10-31 Phase2] 첫 단계 'member': 헬스장 회원 확인(이름·휴대폰 번호, 승인용)
-const STEPS = ['member', 'nickname', 'gender', 'age', 'weight', 'height', 'goals', 'days', 'plan']
+const ALL_STEPS = ['member', 'nickname', 'gender', 'age', 'weight', 'height', 'goals', 'days', 'plan']
 const TARGET_DAY_OPTIONS = [2, 3, 4, 5, 6]
 
 // [2026-11-01] 온보딩 진행 상태를 탭 세션(sessionStorage)에 보관해 새로고침해도 처음부터 다시 하지 않게(전체 점검 U22).
@@ -70,6 +71,9 @@ const stepVariants = {
 // 않는 순수 뷰어로 동작한다: 상단에 닫기 버튼이 뜨고, 마지막 단계에서 "시작하기"를 눌러도
 // onComplete(실제 Firestore 저장)를 호출하지 않고 그냥 onClose로 미리보기를 닫는다.
 export default function Onboarding({ onComplete, previewMode = false, onClose, initialNickname = '' }) {
+  // [2026-11-13] 일반형(타입 2)은 헬스장 회원 확인(이름·휴대폰) 단계 없이 닉네임부터
+  const appCfg = useAppSettings()
+  const STEPS = isGymMode(appCfg) ? ALL_STEPS : ALL_STEPS.slice(1)
   const [restored] = useState(() => (previewMode ? null : readProgress()))
   const [step, setStep] = useState(0)
   // 복원했으면 번호 입력 뒤 돌아갈 단계

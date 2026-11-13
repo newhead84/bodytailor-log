@@ -5,6 +5,7 @@ import { useMoment } from '../hooks/useMoment'
 import MembershipNotice from './MembershipNotice'
 import { TrainerGoalNotice } from './TrainerGoal'
 import HomePtCards from './HomePtCards'
+import { isGymMode, managesMembership, useAppSettings } from '../utils/appSettings'
 import { CoachProgramCard } from './CoachProgramCard'
 import DietHomeCard from './DietHomeCard'
 import { findCoachProgramTemplate } from '../utils/programBuilder'
@@ -99,10 +100,13 @@ export default function HomeTab({
   const [ptItems, setPtItems] = useState([])
   // [2026-10-31] 관리자도 PT를 받을 수 있어 트레이너만 제외
   const isStaff = userDoc?.role === '트레이너'
+  // [2026-11-13] 앱 운영 방식: PT 일정은 이 앱에서 회원권·PT를 관리할 때만 읽고 보여 준다(일반형·다른 시스템 관리면 읽기 없음)
+  const appCfg = useAppSettings()
+  const ptOn = managesMembership(appCfg)
   // [2026-11-10] 예전엔 기록을 저장할 때마다(logsVersion) PT 일정·완료 기록 전체를 다시 읽었다 → HOME을 볼 때 10분에 한 번만
   const ptFetchedAt = useRef(0)
   useEffect(() => {
-    if (!uid || isStaff || !isActive) return
+    if (!uid || isStaff || !isActive || !ptOn) return
     if (Date.now() - ptFetchedAt.current < 10 * 60 * 1000) return
     let alive = true
     Promise.all([listPtSchedules({ memberUid: uid }).catch(() => []), listPtSessions({ memberUid: uid }).catch(() => [])]).then(([sch, ses]) => {
@@ -116,7 +120,7 @@ export default function HomeTab({
     return () => {
       alive = false
     }
-  }, [uid, isStaff, isActive])
+  }, [uid, isStaff, isActive, ptOn])
   const ptByDate = useMemo(() => {
     const m = {}
     ptItems.forEach((it) => (m[it.date] = m[it.date] || []).push(it))
@@ -278,9 +282,9 @@ export default function HomeTab({
       {/* [2026-11-01] M7: 새 시즌 첫 접속 때 한 번 안내 */}
       <SeasonChangeNotice userDoc={userDoc} />
       {/* [2026-10-31] 회원권 종료 임박(D-7)·만료 안내 */}
-      <MembershipNotice userDoc={userDoc} />
+      {ptOn && <MembershipNotice userDoc={userDoc} />}
       {/* [2026-10-31] 담당 트레이너의 목표 제안(수락·거절)·직접 수정 알림 */}
-      <TrainerGoalNotice uid={uid} userDoc={userDoc} onChanged={onProfileUpdated} />
+      {isGymMode(appCfg) && <TrainerGoalNotice uid={uid} userDoc={userDoc} onChanged={onProfileUpdated} />}
       {/* [2026-11-01] PT 일정 변경 알림(회원)·오늘 PT(트레이너) */}
       <HomePtCards uid={uid} userDoc={userDoc} />
       {onOpenCoachProgram && !coachCardHidden && !isWorkoutInProgress && !findCoachProgramTemplate(routineTemplates) && (

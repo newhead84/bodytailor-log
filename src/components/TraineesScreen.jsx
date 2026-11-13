@@ -14,6 +14,7 @@ import RoutineSetup from './RoutineSetup'
 import TrainerPlanBadge from './TrainerPlanBadge'
 import { TrainerGoalEditor } from './TrainerGoal'
 import { useBackableScreen } from '../hooks/useBackableScreen'
+import { managesMembership, useAppSettings } from '../utils/appSettings'
 import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt, listPtSchedules, trainerAddSchedule, trainerDeleteSchedule, trainerMoveSchedule, trainerCompleteSchedule, trainerReopenSchedule, trainerNoShowSchedule, trainerListOverdueSchedules, logAction, listMyTrainees, listTrainerSchedulesByDates, getWorkoutLogsInRange, getRoutineTemplates, saveTrainerPlan, deleteRoutineTemplate, MAX_TRAINER_PLANS, getTraineeSummaries, invalidateTraineeSummary, getTrainerNote, saveTrainerNote, getLatestFitnessTests } from '../storage'
 import { fitnessDerived } from '../utils/fitnessCheck'
 import { dailyTargets, exerciseKcalPerDay } from '../utils/nutrition/targets'
@@ -133,6 +134,7 @@ function useWide(query = WIDE_QUERY) {
 const wideGrid = (left, right) => ({ display: 'grid', gridTemplateColumns: `minmax(0, ${left}fr) minmax(0, ${right}fr)`, gap: 20, alignItems: 'start', maxWidth: 1200, margin: '0 auto' })
 
 export default function TraineesScreen({ uid, trainerName = '', customExercises = {}, onClose }) {
+  const ptOn = managesMembership(useAppSettings())
   const wide = useWide()
   // [2026-11-03] 세로 태블릿(768~1099px)은 월 캘린더가 좁아져 위(캘린더)·아래(회원 타일)로 쌓는다
   const wideTwoCol = useWide('(min-width: 1100px)')
@@ -162,8 +164,9 @@ export default function TraineesScreen({ uid, trainerName = '', customExercises 
       })
   }, [uid])
 
+  // [2026-11-13] 회원권·PT를 다른 시스템에서 관리하면 PT 일정·차감 칸을 숨긴다(회원 기록·계획·메모는 그대로)
   if (sel) return <MemberLogs conn={sel} uid={uid} trainerName={trainerName || sel.trainerName} customExercises={customExercises} onBack={closeSel} wide={wide} />
-  const schedules = list && list.length > 0 && (
+  const schedules = ptOn && list && list.length > 0 && (
     <>
       <OverdueSchedules uid={uid} list={list} onOpen={setSel} />
       {wide ? <MonthSchedules uid={uid} trainerName={trainerName} list={list} onOpen={setSel} onItems={setWeekItems} /> : <WeekSchedules uid={uid} trainerName={trainerName} list={list} onOpen={setSel} onItems={setWeekItems} />}
@@ -333,6 +336,7 @@ function WeekSchedules({ uid, trainerName = '', list, onOpen, onItems }) {
 }
 
 function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = false }) {
+  const ptOn = managesMembership(useAppSettings())
   const confirmBox = useConfirm() // [2026-11-10] 브라우저 기본 알림창 대신 앱 확인창
   const [logs, setLogs] = useState(null)
   const [open, setOpen] = useState({})
@@ -408,7 +412,7 @@ function MemberLogs({ conn, uid, trainerName, customExercises, onBack, wide = fa
   const info = (
     <>
       <MemberBody member={member} memberUid={conn.memberUid} logs={logs} goalEditor={member ? <TrainerGoalEditor member={member} memberUid={conn.memberUid} memberName={conn.memberName} trainer={{ uid, name: trainerName }} onChanged={loadMember} /> : null} />
-      <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={() => { invalidateTraineeSummary(conn.memberUid); loadMember() }} />
+      {ptOn && <PtCard member={member} conn={conn} uid={uid} trainerName={trainerName} onChanged={() => { invalidateTraineeSummary(conn.memberUid); loadMember() }} />}
       <TrainerNoteCard uid={uid} memberUid={conn.memberUid} />
       <MemberPlans key={plansKey} conn={conn} uid={uid} onNew={() => setEditing('new')} onEdit={(t) => setEditing(t)} onLoaded={setMyPlans} />
     </>

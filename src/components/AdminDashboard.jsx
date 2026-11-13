@@ -27,7 +27,8 @@ import { CareTab, ContactDialog, buildCareQueue, RiskBadge } from './AdminCare'
 import RetentionTab from './AdminRetention'
 import NoticesTab from './AdminNotices'
 import { riskOf, segmentOf, activityStats, normalizeTags, SEGMENTS, isCareTarget, setRiskConfig } from '../utils/memberInsights'
-import { dashSetting } from './AdminTools'
+import { dashSetting, AppModeCard } from './AdminTools'
+import { isGymMode, managesMembership, normalizeAppSettings, setAppSettingsLocal, useAppSettings } from '../utils/appSettings'
 import { todayStr } from '../utils/date'
 
 // [2026-11-11] 운영자 관점 개편(사용자 선택: 오늘 할 일 중심): 회원 케어·유지·분석·공지·설문 추가, 메뉴를 하는 일 순서로
@@ -101,6 +102,7 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
       setUsers(u)
       setConns(c)
       setSettings(st || {})
+      setAppSettingsLocal(normalizeAppSettings(st)) // [2026-11-13] 관리자 기기의 운영 방식 보관본도 최신으로
       setNotes(nt || {})
       setInquiries(iq || [])
     } catch (err) {
@@ -363,6 +365,13 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
     await refreshUser(u.uid)
   }
 
+  // [2026-11-13] 앱 운영 방식에 따라 메뉴 숨김: 일반형 = 트레이너·PT·회원권·명단 / 회원권·PT 다른 시스템 = 재등록·PT
+  const cfg = normalizeAppSettings(settings)
+  const hiddenTabs = !isGymMode(cfg) ? ['renewal', 'pt', 'connect', 'trainers', 'roster'] : !managesMembership(cfg) ? ['renewal', 'pt'] : []
+  const nav = NAV.map((g) => ({ ...g, items: g.items.filter((k) => !hiddenTabs.includes(k)) })).filter((g) => g.items.length)
+  useEffect(() => {
+    if (hiddenTabs.includes(tab)) setTab('summary')
+  }, [hiddenTabs.join(), tab]) // eslint-disable-line react-hooks/exhaustive-deps
   const pageLabel = TABS.find((t) => t.key === tab)?.label || ''
   const go = (k) => {
     setTab(k)
@@ -378,7 +387,7 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
           <span className="adm-logo" aria-hidden="true">BT</span>
           <span><b>BodyTailor 관리</b><small>바디테일러 PT&amp;헬스</small></span>
         </div>
-        {NAV.map((g) => (
+        {nav.map((g) => (
           <React.Fragment key={g.group || 'top'}>
             {g.group && <div className="adm-grp">{g.group}</div>}
             {g.items.map((k) => {
@@ -600,6 +609,24 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
           />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <AppModeCard
+              users={users}
+              settings={settings}
+              admin={admin}
+              onUsersChanged={load}
+              onSettings={async (patch, label) => {
+                try {
+                  await adminSaveSettings(patch)
+                  setSettings((x) => ({ ...x, ...patch }))
+                  await log('settings', null, label)
+                  return true
+                } catch (err) {
+                  await fail(err, '설정 저장')
+                  return false
+                }
+              }}
+            />
+            {managesMembership(cfg) && (<>
             <Card>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ minWidth: 0 }}>
@@ -658,6 +685,7 @@ export default function AdminDashboard({ uid, onClose, onOpenOnboardingPreview }
               </div>
               {settings.noshowPolicy === 'deduct' && !settings.ptDeductEnabled && <p className="text-keep-all" style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--color-warning)' }}>PT 횟수 차감이 꺼져 있어 지금은 표시만 돼요. 위에서 차감을 켜 주세요.</p>}
             </Card>
+            </>)}
             <AdminTools
               users={users}
               notes={notes}
@@ -724,6 +752,8 @@ function MemberLine({ u, match }) {
 }
 
 function MembershipLine({ u }) {
+  const appCfg = useAppSettings()
+  if (!managesMembership(appCfg)) return null
   const ms = membershipState(u, todayStr())
   const pt = typeof u.ptTotal === 'number' && u.ptTotal > 0
   if (ms.kind === 'exempt' && !pt) return null
@@ -905,6 +935,10 @@ export const ADMIN_TRAINER = '관리자 + 트레이너'
 export const roleValueOf = (u) => (u.role === '관리자' && u.trainerEnabled === true ? ADMIN_TRAINER : MEMBER_ROLES.includes(u.role) ? u.role : '일반회원')
 function MembersTab({ users, notes = {}, conns, matchOf, busy, onStatus, onRole, selfUid, onMembership, onOpen, onCsv, initialEditing = '', q = '', onQ, hashOf, loadPrivates, admin, onBulkDone }) {
   const confirm = useConfirm()
+  // [2026-11-13] 앱 운영 방식: 회원권·PT 열은 이 앱에서 관리할 때만, 담당 트레이너 열은 헬스장형일 때만
+  const appCfg = useAppSettings()
+  const msOn = managesMembership(appCfg)
+  const gymOn = isGymMode(appCfg)
   const [filter, setFilter] = useState('all')
   const [editing, setEditing] = useState(initialEditing)
   // [2026-11-08] A-2: 승인 후 '연장하기'처럼 회원 탭이 열린 채로 편집 대상이 바뀌면 따라 연다
@@ -999,9 +1033,9 @@ function MembersTab({ users, notes = {}, conns, matchOf, busy, onStatus, onRole,
                 <th>관리 상태</th>
                 <th>승인 상태</th>
                 <th>역할</th>
-                <th>회원권</th>
-                <th>PT</th>
-                <th>담당 트레이너</th>
+                {msOn && <th>회원권</th>}
+                {msOn && <th>PT</th>}
+                {gymOn && <th>담당 트레이너</th>}
                 <th>마지막 운동</th>
                 <th aria-label="동작" />
               </tr>
@@ -1044,7 +1078,7 @@ function MembersTab({ users, notes = {}, conns, matchOf, busy, onStatus, onRole,
                           {[...MEMBER_ROLES, ADMIN_TRAINER].map((r) => <option key={r} value={r}>{r}{u.uid === selfUid && (r === '관리자' || r === ADMIN_TRAINER) ? ' (나)' : ''}</option>)}
                         </select>
                       </td>
-                      <td style={{ whiteSpace: 'nowrap' }} data-label="회원권">
+                      {msOn && <td style={{ whiteSpace: 'nowrap' }} data-label="회원권">
                         {ms.kind === 'exempt' ? <span style={{ color: 'var(--color-label-neutral)' }}>대상 아님</span> : u.membershipEnd ? (
                           <>
                             ~{fmtYmd(u.membershipEnd)}{' '}
@@ -1052,14 +1086,14 @@ function MembersTab({ users, notes = {}, conns, matchOf, busy, onStatus, onRole,
                             {u.pauseStart && u.pauseEnd && u.pauseEnd >= today ? <> <Badge>휴회</Badge></> : null}
                           </>
                         ) : <span style={{ color: 'var(--color-label-neutral)' }}>미설정</span>}
-                      </td>
-                      <td className="bt-num" style={{ whiteSpace: 'nowrap' }} data-label="PT">
+                      </td>}
+                      {msOn && <td className="bt-num" style={{ whiteSpace: 'nowrap' }} data-label="PT">
                         {(u.ptTotal || 0) > 0 ? <span style={{ color: (u.ptRemaining ?? 0) <= 3 ? 'var(--color-warning)' : undefined, fontWeight: 700 }}>{u.ptRemaining ?? 0}/{u.ptTotal}</span> : '-'}
-                      </td>
-                      <td data-label="담당 트레이너">{trainerOf[u.uid] || '-'}</td>
+                      </td>}
+                      {gymOn && <td data-label="담당 트레이너">{trainerOf[u.uid] || '-'}</td>}
                       <td style={{ whiteSpace: 'nowrap' }} data-label="마지막 운동">{u.activity?.lastDate ? fmtYmd(u.activity.lastDate) : '-'}</td>
                       <td onClick={stop} className="adm-cell-act" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        {canMs && <button type="button" className="adm-act" onClick={() => setEditing(editing === u.uid ? '' : u.uid)}>회원권·PT 등록</button>}
+                        {canMs && msOn && <button type="button" className="adm-act" onClick={() => setEditing(editing === u.uid ? '' : u.uid)}>회원권·PT 등록</button>}
                       </td>
                     </tr>
                     {editing === u.uid && (
@@ -1095,7 +1129,10 @@ function MembersTab({ users, notes = {}, conns, matchOf, busy, onStatus, onRole,
 
 // [2026-11-01] A39: 고른 회원 일괄 작업 - 회원권 N일 연장(사유), 승인 상태 변경, 담당 트레이너 배정. 한 명씩 저장하고 회원별 이력을 남긴다.
 function BulkBar({ picked, users, conns, admin, confirm, onClear, onDone }) {
-  const [mode, setMode] = useState('extend')
+  const appCfg = useAppSettings()
+  const msOn = managesMembership(appCfg)
+  const gymOn = isGymMode(appCfg)
+  const [mode, setMode] = useState(msOn ? 'extend' : 'status')
   const [days, setDays] = useState(7)
   const [reason, setReason] = useState('comp')
   const [status, setStatus] = useState('approved')
@@ -1156,9 +1193,9 @@ function BulkBar({ picked, users, conns, admin, confirm, onClear, onDone }) {
     <div className="adm-panel" style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
       <b style={{ fontSize: 15.5 }}>{picked.length}명 선택</b>
       <select aria-label="일괄 작업" value={mode} onChange={(e) => setMode(e.target.value)} style={inputStyle}>
-        <option value="extend">회원권 연장</option>
+        {msOn && <option value="extend">회원권 연장</option>}
         <option value="status">승인 상태 변경</option>
-        <option value="trainer">트레이너 배정</option>
+        {gymOn && <option value="trainer">트레이너 배정</option>}
       </select>
       {mode === 'extend' && (
         <>

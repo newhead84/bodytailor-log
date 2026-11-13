@@ -23,11 +23,16 @@ import {
   getComparisonGroupForExercise,
   getGripOptionNotes,
   getExerciseMovementPattern,
+  normalizeExerciseName,
 } from '../utils/exerciseLibrary'
 import { updateUserProfile, quickAddExerciseToRoutine } from '../storage'
 import ExerciseVideoLink from './ExerciseVideoLink'
 import { StretchGuide } from './StretchGuide'
 import TrainerStrip from './TrainerStrip'
+import FavStar from './FavStar'
+import { useFavorites } from '../utils/favorites'
+import { GYM_LABEL, gymStatus, isGymConfigured, useGymEquip } from '../utils/gymEquip'
+import { isGymMode, useAppSettings } from '../utils/appSettings'
 import ExerciseGuideSections from './ExerciseGuideSections'
 import { getEquipment, isMoreGuidesLoaded } from '../utils/exerciseGuides'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
@@ -147,6 +152,15 @@ function swapCandidates(name, guide, exclude = []) {
 }
 
 // swap: { from: 바꿀 종목명, exclude: 오늘 목록, onPick(name) } - 기록 중에 열었을 때만(운동명 누르기)
+// [2026-11-13] 센터 보유 기구 표시(작은 배지)
+function GymBadge({ small = false }) {
+  return (
+    <span style={{ fontSize: small ? 11 : 12, fontWeight: 700, padding: small ? '1px 6px' : '3px 8px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line-strong, var(--color-line))', color: 'var(--color-label-normal)', whiteSpace: 'nowrap' }}>
+      {GYM_LABEL}
+    </span>
+  )
+}
+
 export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, onOpenExercise, editor, backLabel = '부위별 목록으로', gender = null, swap = null, grip = null }) {
   const atom = getExerciseAtom(name)
   // [2026-10-31] 구조화 가이드 + 트레이너 수정본 병합 + 기구 태그(전 종목)
@@ -165,6 +179,7 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
   const color = getPartColor(atom)
   const [adding, setAdding] = useState(false)
   const [addResult, setAddResult] = useState(null) // { ok, alreadyAdded, templateTitle, partName, reason }
+  const gymHas = gymStatus(name, useGymEquip()) === 'have' // [2026-11-13] 센터 보유 기구
 
   async function handleAdd() {
     setAdding(true)
@@ -193,6 +208,8 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
         {alias && (
           <span style={{ fontSize: 13, color: 'var(--color-label-neutral)' }}>({alias})</span>
         )}
+        {/* [2026-11-13] 즐겨찾는 운동 */}
+        <FavStar kind="exercises" id={name} label={name} size={22} style={{ marginLeft: 'auto', alignSelf: 'center' }} />
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
         <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: `${color}22`, color }}>
@@ -201,6 +218,7 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
         <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
           {equipment}
         </span>
+        {gymHas && <GymBadge />}
         {guide?.level && (
           <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-bg-elevated)', color: 'var(--color-label-neutral)' }}>
             {guide.level}
@@ -212,6 +230,7 @@ export function ExerciseDetail({ uid, name, routineTemplates, onBack, onAdded, o
           </span>
         )}
       </div>
+      {gymHas && <p style={{ margin: '-6px 0 14px', fontSize: 12.5, color: 'var(--color-label-neutral)' }}>이 기구는 센터에 있어요.</p>}
 
       {swap && swap.from !== name && (
         <Button full onClick={() => swap.onPick(name)} style={{ marginBottom: 14 }}>
@@ -379,6 +398,11 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
   const [selectedExercise, setSelectedExercise] = useState(null)
   // [2026-11-01] 운동 가이드 상세도 기기 뒤로가기로 목록으로 돌아간다(HOWTO 탭을 보고 있을 때만)
   const closeDetail = React.useCallback(() => setSelectedExercise(null), [])
+  const listScrollRef = React.useRef(0) // [2026-11-13] 목록에서 상세로 들어갈 때의 스크롤 위치
+  const openFromList = (name) => {
+    listScrollRef.current = scrollContainerRef?.current?.scrollTop || 0
+    setSelectedExercise(name)
+  }
   useBackableScreen(!!selectedExercise && isActive, closeDetail)
   const [query, setQuery] = useState('')
   // [2026-10-30] 상단 전환: 운동 둘러보기 / 스트레칭
@@ -389,8 +413,10 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
   // 상세 콘텐츠 길이(설명 길이 등)에 따라 하단 "내 루틴에 추가" 버튼이 화면 경계에 걸쳐
   // 상단이 잘려 보이는 문제의 원인이었다. 목록↔상세 전환 시마다 맨 위로 리셋한다.
   // (탭을 재탭했을 때 스크롤 맨 위로 되돌리는 App.jsx의 기존 동작과는 별개 - 그건 그대로 둔다.)
-  useEffect(() => {
-    scrollContainerRef?.current?.scrollTo({ top: 0 })
+  // [2026-11-13] 단, 상세에서 목록으로 돌아올 때는 들어가기 직전 목록 위치로 되돌린다
+  // (예전엔 닫을 때도 맨 위로 가서 다시 스크롤해 내려가야 했음). 상세 → 다른 운동은 맨 위.
+  React.useLayoutEffect(() => {
+    scrollContainerRef?.current?.scrollTo({ top: selectedExercise ? 0 : listScrollRef.current })
   }, [selectedExercise, scrollContainerRef])
 
   const searchResults = useMemo(() => {
@@ -403,7 +429,14 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
     })
   }, [query])
 
-  const baseNames = searchResults ?? EXERCISE_LIBRARY[selectedAtom] ?? []
+  // 이름이 바뀐 종목은 새 이름으로, 목록에 없는 이름(사라진 종목)은 빼고 보여 준다
+  const appCfg = useAppSettings() // [2026-11-13] 일반형이면 트레이너 소개 줄 숨김
+  const favRaw = useFavorites('exercises')
+  const favNames = useMemo(() => [...new Set(favRaw.map((n) => normalizeExerciseName(n)).filter((n) => getExerciseAtom(n)))], [favRaw])
+  const gym = useGymEquip()
+  const gymOn = isGymConfigured(gym)
+  const FAV = '★ 즐겨찾기'
+  const baseNames = searchResults ?? (selectedAtom === FAV ? favNames : EXERCISE_LIBRARY[selectedAtom]) ?? []
   // [2026-10-31] 기구 필터 - 지금 목록에 있는 기구만 칩으로(전 종목 getEquipment 태그 사용)
   const [equip, setEquip] = useState('전체')
   const equipOptions = useMemo(() => {
@@ -412,8 +445,13 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
     const rank = (x) => (order.indexOf(x) < 0 ? 99 : order.indexOf(x))
     return [...set].sort((a, b) => rank(a) - rank(b))
   }, [baseNames])
-  const activeEquip = equipOptions.includes(equip) ? equip : '전체'
-  const listNames = activeEquip === '전체' ? baseNames : baseNames.filter((n) => getEquipment(n, getExerciseAtom(n)) === activeEquip)
+  // [2026-11-13] '보유 기구만' - 센터에 있는 기구 + 기구 없이 하는 종목
+  const GYM_FILTER = `${GYM_LABEL} 기구만`
+  const equipChips = gymOn ? [GYM_FILTER, ...equipOptions] : equipOptions
+  const activeEquip = equipChips.includes(equip) ? equip : '전체'
+  const listNames = activeEquip === '전체' ? baseNames
+    : activeEquip === GYM_FILTER ? baseNames.filter((n) => gymStatus(n, gym) !== 'none')
+    : baseNames.filter((n) => getEquipment(n, getExerciseAtom(n)) === activeEquip)
 
   if (selectedExercise) {
     return (
@@ -445,7 +483,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
       )}
 
       {/* [2026-10-31] 바디테일러 트레이너 소개(가로 카드) */}
-      <TrainerStrip onOpen={onShowTrainerDirectory} />
+      {isGymMode(appCfg) && <TrainerStrip onOpen={onShowTrainerDirectory} />}
 
       {/* [2026-10-30 신규] 운동 둘러보기 ↔ 스트레칭(불편한 부위 → 상황별) */}
       <div role="tablist" aria-label="HOWTO 보기" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: 4, marginBottom: 16, borderRadius: 'var(--radius-md)', background: 'var(--color-bg-elevated)' }}>
@@ -498,7 +536,7 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
 
       {!searchResults && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-          {BODY_PART_ATOMS.map((atom) => (
+          {[FAV, ...BODY_PART_ATOMS].map((atom) => (
             <Chip key={atom} active={selectedAtom === atom} onClick={() => setSelectedAtom(atom)}>
               {atom}
             </Chip>
@@ -506,9 +544,9 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
         </div>
       )}
 
-      {equipOptions.length > 1 && (
+      {(equipOptions.length > 1 || (gymOn && baseNames.length > 0)) && (
         <div aria-label="기구로 거르기" style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '-4px 0 14px', paddingBottom: 2 }}>
-          {['전체', ...equipOptions].map((e) => (
+          {['전체', ...equipChips].map((e) => (
             <button
               key={e}
               type="button"
@@ -523,7 +561,11 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
       )}
 
       {listNames.length === 0 ? (
-        <EmptyState title="검색 결과가 없어요" description="다른 이름이나 별칭으로 다시 검색해보세요." />
+        !searchResults && selectedAtom === FAV && !favNames.length ? (
+          <EmptyState title="즐겨찾는 운동이 없어요" description="운동 옆 별(☆)을 누르면 여기에 모여요." />
+        ) : (
+          <EmptyState title="검색 결과가 없어요" description={activeEquip === GYM_FILTER ? '센터에 있는 기구로 하는 종목이 없어요. 기구 칩을 바꿔 보세요.' : '다른 이름이나 별칭으로 다시 검색해보세요.'} />
+        )
       ) : (
         // [2026-10-28 리디자인] 종목마다 카드 → 하나의 목록 + 헤어라인 구분
         // [2026-11-08 모션] 부위·기구를 바꾸면 목록이 위에서부터 차례로 들어옴(key로 다시 재생, 검색 입력 중에는 재생 안 함)
@@ -532,13 +574,18 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
             const atom = getExerciseAtom(name)
             const alias = getExerciseAlias(name)
             const gripOptions = getGripOptions(name)
+            const atomShown = searchResults || selectedAtom === FAV
             return (
-              <button
+              // [2026-11-13] 행 = 상세 열기 버튼 + 즐겨찾기 별(버튼 안에 버튼을 두지 않게 나란히)
+              <div
                 key={name}
-                type="button"
-                onClick={() => setSelectedExercise(name)}
                 className={searchResults ? undefined : 'bt-row-in'}
-                style={{ animationDelay: `${Math.min(idx, 10) * 0.03}s`, display: 'block', width: '100%', textAlign: 'left', padding: '14px 16px', borderTop: idx ? '1px solid var(--color-line)' : 'none' }}
+                style={{ animationDelay: `${Math.min(idx, 10) * 0.03}s`, display: 'flex', alignItems: 'center', borderTop: idx ? '1px solid var(--color-line)' : 'none' }}
+              >
+              <button
+                type="button"
+                onClick={() => openFromList(name)}
+                style={{ display: 'block', flex: 1, minWidth: 0, textAlign: 'left', padding: '14px 4px 14px 16px' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <div>
@@ -547,8 +594,9 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
                       {alias && <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-label-neutral)' }}> · {alias}</span>}
                     </div>
                     <div style={{ fontSize: 12.5, marginTop: 2, color: 'var(--color-label-neutral)' }}>
-                      {searchResults && <span style={{ color: getPartColor(atom) }}>{atom} · </span>}
+                      {atomShown && <span style={{ color: getPartColor(atom) }}>{atom} · </span>}
                       {getEquipment(name, atom)}
+                      {gymStatus(name, gym) === 'have' && <span style={{ marginLeft: 6 }}><GymBadge small /></span>}
                     </div>
                     {gripOptions && (
                       <div style={{ fontSize: 12.5, color: 'var(--color-label-neutral)', marginTop: 2 }}>
@@ -559,6 +607,8 @@ export default function HowToTab({ uid, userDoc, routineTemplates, onProfileUpda
                   <ChevronRight size={18} strokeWidth={1.8} color="var(--color-label-neutral)" style={{ flexShrink: 0 }} />
                 </div>
               </button>
+              <FavStar kind="exercises" id={name} label={name} size={19} style={{ padding: '0 16px 0 10px' }} />
+              </div>
             )
           })}
         </Card>

@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react'
 import { Button, Card, useConfirm } from './ui'
 import { Badge, Bars, LogRow, fmtDate, fmtDateTime, muted, sectionTitle, selectStyle, statusOf } from './adminUi'
 import { adminListLogs, adminListMemberConnections, adminSaveNote, adminGetNote, adminSetPauses, adminEditSignupInfo, adminFindRosterByHash, adminTransferMembership, listPtSessions, listPtSchedules, logAdmin, adminUpdateMember } from '../storage'
+import { isGymMode, managesMembership, useAppSettings } from '../utils/appSettings'
 import { addDays, daysBetween, fmtYmd, memberName, membershipState, pausesOf, MEMBER_STATUS, isValidMobile, phoneHash, phoneLast4 } from '../utils/member'
 import { todayStr, weekStartStr } from '../utils/date'
 import { MemberCarePanel } from './AdminCare'
@@ -107,6 +108,10 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
     }
   }
   const inputStyle = { ...selectStyle, padding: '9px 10px', fontSize: 15.5, minWidth: 0 }
+  // [2026-11-13] 앱 운영 방식: 회원권·PT를 다른 시스템에서 관리하거나 일반형이면 회원권·PT·휴회 칸을 숨긴다(일반형은 트레이너 칸도)
+  const appCfg = useAppSettings()
+  const msOn = managesMembership(appCfg)
+  const gymOn = isGymMode(appCfg)
   const lab = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: 'var(--color-label-neutral)' }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -121,12 +126,13 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
           {u.createdAt && <span>가입 {fmtDate(u.createdAt)}</span>}
         </p>
         <SignupEditor key={u.signupInfo?.name || ''} u={u} admin={admin} confirm={confirm} onDone={() => onUserChanged?.(u.uid)} />
-        {u.role === '관리자' && <TrainerToggle u={u} admin={admin} confirm={confirm} activeConns={(conns || []).filter((c) => c.status === 'active' && c.trainerUid === u.uid).length} onDone={() => onUserChanged?.(u.uid)} />}
+        {gymOn && u.role === '관리자' && <TrainerToggle u={u} admin={admin} confirm={confirm} activeConns={(conns || []).filter((c) => c.status === 'active' && c.trainerUid === u.uid).length} onDone={() => onUserChanged?.(u.uid)} />}
       </Card>
 
       {/* [2026-11-11] 회원 케어: 위험 이유·신규 진행·태그·연락 기록·다음 연락·생애 기록 */}
       {u.role !== '트레이너' && !(u.role === '관리자' && !u.membershipEnd) && <MemberCarePanel u={u} note={note} admin={admin} logs={logs} onNotePatched={onNotePatched} onContact={onContact} />}
 
+      {msOn && (<>
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <p style={{ ...sectionTitle, margin: 0 }}>회원권·PT</p>
@@ -170,6 +176,8 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
         </div>
       </Card>
 
+      </>)}
+
       <Card>
         <p style={sectionTitle}>운동 출석 <span style={{ ...muted, fontWeight: 500 }}>(주별 운동한 날 수, 기록 내용은 보지 않아요)</span></p>
         <p style={{ margin: '0 0 8px', fontSize: 15.5 }}>
@@ -179,6 +187,7 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
         <Bars items={wkItems} unit="일" height={60} />
       </Card>
 
+      {msOn && (
       <Card>
         <p style={sectionTitle}>PT 이용 이력</p>
         {!pt ? <p style={muted}>불러오는 중…</p> : !pt.items.length ? <p style={muted}>아직 없어요.</p> : pt.items.slice(0, 20).map((x, i) => (
@@ -188,7 +197,9 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
           </div>
         ))}
       </Card>
+      )}
 
+      {gymOn && (
       <Card>
         <p style={sectionTitle}>담당 트레이너 이력</p>
         {!conns ? <p style={muted}>불러오는 중…</p> : !conns.length ? <p style={muted}>연결된 적 없어요.</p> : conns.map((c, i) => (
@@ -204,6 +215,7 @@ export default function AdminMemberDetail({ u, users = [], note, admin, onBack, 
           </div>
         ))}
       </Card>
+      )}
 
       <Card>
         <p style={sectionTitle}>관리자 메모 <span style={{ ...muted, fontWeight: 500 }}>(관리자만 봐요)</span></p>

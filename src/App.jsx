@@ -88,6 +88,8 @@ import { normalizeFontId, normalizeAccentId, DEFAULT_THEME, DEFAULT_LOG_MODE, DE
 import { setSfxEnabled } from './utils/sfx'
 import { setAlertLevels } from './utils/audioOut'
 import { setUpdateBusy } from './utils/appUpdate'
+import { syncFavoritesFromUser } from './utils/favorites'
+import { loadAppSettings, managesMembership, useAppSettings } from './utils/appSettings'
 
 // 인트로 화면 최소 노출 시간(ms). 인증 확인이 이보다 빨리 끝나도
 // 로고가 너무 짧게 깜빡이지 않도록 최소한 이만큼은 보여준다.
@@ -118,6 +120,17 @@ function readInitialTab() {
 export default function App() {
   const [authUser, setAuthUser] = useState(undefined) // undefined: 로딩중, null: 비로그인
   const [userDoc, setUserDoc] = useState(null)
+  // [2026-11-13] 앱 운영 방식(헬스장형·일반형, 회원권·PT를 다른 시스템에서 관리) - 회원권 만료 화면은 이 앱에서 관리할 때만
+  const appCfg = useAppSettings()
+  const membershipOn = managesMembership(appCfg)
+  useEffect(() => {
+    if (authUser?.uid) loadAppSettings() // 로그인 전에는 설정을 읽을 수 없어(규칙) 로그인 뒤에 한 번
+  }, [authUser?.uid])
+  // [2026-11-13] 즐겨찾는 운동·식단(★)을 화면들이 함께 보는 저장소에 맞춘다(로그아웃이면 비움)
+  useEffect(() => {
+    syncFavoritesFromUser(userDoc ? authUser?.uid : null, userDoc)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userDoc])
   const [routineTemplates, setRoutineTemplates] = useState(undefined) // undefined: 로딩중, []: 없음
   // [2026-11-02] 운동 알림을 눌러 앱을 새로 열면(/?tab=log) 기록 탭으로 시작(readInitialTab - 한 번만 읽고 주소의 ?tab은 지움)
   const [activeTab, setActiveTab] = useState(readInitialTab)
@@ -640,7 +653,11 @@ export default function App() {
       <ConsentScreen
         onAgree={async (consents) => {
           // [2026-11-01] S11: 새 계정은 동의하는 순간 문서를 만든다(14세 미만 선택 시 아무것도 남지 않음)
-          if (userDoc.__unsaved) await createUserDoc(authUser.uid, { consents })
+          // [2026-11-13] 일반형(타입 2)이면 가입과 동시에 승인(규칙이 settings/app.appMode를 확인)
+          if (userDoc.__unsaved) {
+            const cfg = await loadAppSettings({ fresh: true })
+            await createUserDoc(authUser.uid, { consents, ...(cfg.appMode === 'open' ? { memberStatus: 'approved' } : {}) })
+          }
           else await updateUserProfile(authUser.uid, { consents })
           await refreshUserDoc()
         }}
@@ -880,7 +897,7 @@ export default function App() {
       </div>
       <div ref={logScrollRef} style={tabWrapperStyle('log')}>
         {/* [2026-10-31] 회원권이 끝나면 새 운동 기록 대신 안내(진행 중 세션이 있으면 그대로 마무리할 수 있게 유지) */}
-        {isMembershipExpired(userDoc) && workoutPhase === 'idle' ? <MembershipNotice userDoc={userDoc} full /> : (
+        {membershipOn && isMembershipExpired(userDoc) && workoutPhase === 'idle' ? <MembershipNotice userDoc={userDoc} full /> : (
         <LogTab
           ref={logTabRef}
           uid={authUser.uid}
@@ -908,7 +925,7 @@ export default function App() {
           coachEnabled={userDoc.coachEnabled !== false}
           workoutGuideSeen={!!userDoc.workoutGuideSeen}
           gender={userDoc.onboarding?.gender || null}
-          membershipEnd={userDoc.role === '트레이너' || userDoc.role === '관리자' ? '' : userDoc.membershipEnd || ''}
+          membershipEnd={userDoc.role === '트레이너' || userDoc.role === '관리자' || !membershipOn ? '' : userDoc.membershipEnd || ''}
         />
         )}
       </div>
