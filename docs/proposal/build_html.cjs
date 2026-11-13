@@ -32,7 +32,7 @@ parts.push(`<header class="hero" data-edit-id="S01">
     ${t('S01-title', 'h1')}
     ${t('S01-sub', 'p', 'subt')}
     <dl class="meta">
-${range((n) => `S01-meta${n}-k`).map((i) => `      ${t(`S01-meta${i}-k`, 'dt')}${t(`S01-meta${i}-v`, 'dd')}`).join('\n')}
+${K.ids(/^S01-meta(\d+)-k$/).map((i) => `      ${t(`S01-meta${i}-k`, 'dt')}${t(`S01-meta${i}-v`, 'dd')}`).join('\n')}
     </dl>
     <nav class="toc" aria-label="목차">
       ${K.data.slides.filter((s) => s.nav).map((s) => `<a href="#${anchor[s.id]}">${K.esc(s.nav)}</a>`).join('')}
@@ -47,7 +47,7 @@ parts.push(sec('S02', 'beige', `${head('S02')}
 ${range((n) => `S02-step${n}-h`).map((i) => `        <div class="r">${t(`S02-step${i}-n`, 'div', 'n')}<div>${t(`S02-step${i}-h`, 'h3')}${t(`S02-step${i}-b`, 'p')}</div></div>`).join('\n')}
       </div>
       <div class="diffs">
-${range((n) => `S02-diff${n}-h`).map((i) => `        <div class="d ${i === 1 ? 'lime' : 'ink'}">${t(`S02-diff${i}-h`, 'b')}${t(`S02-diff${i}-b`, 'p')}</div>`).join('\n')}
+${range((n) => `S02-diff${n}-h`).map((i) => `        <div class="d ${['lime', 'ink', 'line'][(i - 1) % 3]}">${t(`S02-diff${i}-h`, 'b')}${t(`S02-diff${i}-b`, 'p')}</div>`).join('\n')}
       </div>
     </div>`, anchor.S02))
 
@@ -68,6 +68,17 @@ parts.push(sec('S04', 'beige', `${head('S04')}
     <div class="feats">
 ${range((n) => `S04-f${n}-h`).map((i) => `      <figure>${phone(`S04-f${i}-img`)}<figcaption>${t(`S04-f${i}-h`, 'b')}${t(`S04-f${i}-b`, 'span')}</figcaption></figure>`).join('\n')}
     </div>`, anchor.S04))
+
+// S15 브릿지: 일반 회원 → PT 상담
+{
+  const n = K.count((k) => `S15-s${k}-h`)
+  parts.push(sec('S15', 'beige', `${head('S15')}
+    ${t('S15-lead', 'p', 'lead')}
+    <div class="grid4 bridge">
+${range((k) => `S15-s${k}-h`).map((i) => `      <div class="c${i === n ? ' on' : ''}"><div class="n">${i}</div>${t(`S15-s${i}-h`, 'h3')}${t(`S15-s${i}-b`, 'p')}</div>`).join('\n')}
+    </div>
+    ${t('S15-note', 'p', 'after')}`))
+}
 
 // S05 차별점 2
 {
@@ -144,6 +155,13 @@ ${range((n) => `S10-row${n}-k`).map((i) => `      <div class="r">${t(`S10-row${i
     ${t('S10-note', 'p', 'lead')}
   </div>
 </section>`)
+
+// S16 앱 소개 홈페이지
+parts.push(sec('S16', 'beige', `${head('S16')}
+    <div class="compare">
+${range((n) => `S16-row${n}-k`).map((i) => `      <div class="r">${t(`S16-row${i}-k`, 'div', 'q')}${t(`S16-row${i}-v`, 'div', K.get(`S16-row${i}-v`).big ? 'u big url' : 'u')}</div>`).join('\n')}
+    </div>
+    <div class="note">${t('S16-note-h', 'b')} · ${t('S16-note')}</div>`))
 
 // S11 이름 사용
 parts.push(sec('S11', 'beige', `${head('S11')}

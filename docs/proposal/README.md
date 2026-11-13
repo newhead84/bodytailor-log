@@ -1,9 +1,9 @@
-# 바디테일러 도입 검토 제안서 원본 (2026-11-13, v2)
+# 바디테일러 도입 검토 제안서 원본 (2026-11-13, v3)
 
 앱 코드와 별개인 제안서 작업물. 인수인계: 프로젝트 문서 `claude/다음채팅_인수인계_제안서_20261113.md`. 만들거나 고칠 때는 `editable-proposal` 스킬을 따른다.
 
 ## 구조: 원본 하나 → PPT·HTML·Docs
-- `content.json` : **유일한 문구 원본.** 장(S01~S14)마다 항목에 ID(`S04-f2-h` 같은 이름)를 달았다. 문구는 여기서만 고친다.
+- `content.json` : **유일한 문구 원본.** 장(S01~S16, 순서는 slides 배열)마다 항목에 ID(`S04-f2-h` 같은 이름)를 달았다. 문구는 여기서만 고친다.
   - 표기: `{br}` = HTML에서만 줄바꿈(PPT·Docs는 띄어쓰기), `{br0}` = HTML에서만 줄바꿈(붙여 씀), `\n` = 모든 형식 줄바꿈, `==글==` = HTML 형광펜, `type: list` = 줄마다 항목 하나.
   - 장·항목을 늘려도 기존 ID는 바꾸지 않는다(새 항목은 다음 번호).
 - `content.cjs` : 원본 읽기 도우미(ID 중복 검사, 생성이 끝나면 쓰지 않은 ID가 있는지 검사).
@@ -20,8 +20,8 @@
 - `out/`은 만들어지는 결과물이라 커밋하지 않는다.
 
 ## 게시본
-- HTML: https://claude.ai/artifact/Teb39jA6BTkWVQBFeu3SDS (v2, 문구 편집 도구 포함)
-- Docs: https://claude.ai/artifact/R6687uGYMft4HoDCcooSYa (v2, 같은 원본으로 리뉴얼)
+- HTML: https://claude.ai/artifact/Teb39jA6BTkWVQBFeu3SDS (v3, 문구 편집 도구 포함)
+- Docs: https://claude.ai/artifact/R6687uGYMft4HoDCcooSYa (v3, rev 16)
 
 ## 수정 받는 법(사용자 안내)
 - PPT: 문구는 PowerPoint에서 바로 고치기. 사진·배치·색은 개체를 고르고 검토 > 새 메모(개체 이름은 홈 > 정렬 > 선택 창). 메모가 어려우면 노트에 `@수정 S04-f2-img: 다른 화면으로`.

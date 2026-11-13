@@ -25,6 +25,8 @@ const lines = (id) => plain(id).split('\n')
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const html = (id) => esc(get(id).text).replace(/\{br0?\}/g, '<br />').replace(/\n/g, '<br />').replace(/==([^=]+)==/g, '<mark>$1</mark>')
 // 같은 무리(S02-step1, S02-step2 …)가 몇 개인지
+// 같은 무리를 원본에 적힌 순서대로(중간에 끼운 새 항목도 그 자리에) : ids(/^S01-meta(\d+)-k$/) -> ['1','2','4','3']
+const ids = (re) => [...byId.keys()].map((k) => k.match(re)).filter(Boolean).map((m) => m[1])
 const count = (fmt) => { let n = 0; while (has(fmt(n + 1))) n++; return n }
 // 생성이 끝나면 원본의 모든 ID가 쓰였는지 확인(빠진 문구가 없게)
 const checkAllUsed = (label) => {
@@ -32,4 +34,4 @@ const checkAllUsed = (label) => {
   if (miss.length) throw new Error(`${label}: 원본에 있는데 쓰지 않은 ID ${miss.join(', ')}`)
 }
 
-module.exports = { data, get, has, plain, lines, esc, html, count, checkAllUsed }
+module.exports = { data, get, has, plain, lines, esc, html, ids, count, checkAllUsed }

@@ -13,7 +13,7 @@ const out = []
 const add = (sid, body) => out.push({ sid, md: `${h2(sid)}\n\n${body}` })
 
 // 표지 → 리드(제목 아래)
-out.push({ sid: 'S01', md: `${md('S01-to')} · **${md('S01-sub')}**\n\n${range((n) => `S01-meta${n}-k`).map((i) => `- **${md(`S01-meta${i}-k`)}**: ${md(`S01-meta${i}-v`)}`).join('\n')}` })
+out.push({ sid: 'S01', md: `${md('S01-to')} · **${md('S01-sub')}**\n\n${K.ids(/^S01-meta(\d+)-k$/).map((i) => `- **${md(`S01-meta${i}-k`)}**: ${K.lines(`S01-meta${i}-v`).join(" · ").replace(/~/g, "\\~")}`).join('\n')}` })
 
 add('S02', `${range((n) => `S02-step${n}-h`).map((i) => `${i}. **${md(`S02-step${i}-h`)}**: ${md(`S02-step${i}-b`)}`).join('\n')}
 
@@ -26,6 +26,12 @@ add('S04', `${md('S04-lead')}
 | 부가서비스 | 내용 |
 | --- | --- |
 ${range((n) => `S04-f${n}-h`).map((i) => `| ${md(`S04-f${i}-h`)} | ${md(`S04-f${i}-b`)} |`).join('\n')}`)
+
+add('S15', `${md('S15-lead')}
+
+${range((n) => `S15-s${n}-h`).map((i) => `${i}. **${md(`S15-s${i}-h`)}**: ${md(`S15-s${i}-b`)}`).join('\n')}
+
+${md('S15-note')}`)
 
 add('S05', range((n) => `S05-flow${n}-h`).map((i) => `${i}. **${md(`S05-flow${i}-h`)}**: ${md(`S05-flow${i}-b`)}`).join('\n'))
 
@@ -68,6 +74,9 @@ ${range((n) => `${sid}-row${n}-k`).map((i) => `| ${md(`${sid}-row${i}-k`)} | ${m
 add('S10', `${kv('S10', '업무', '맡는 곳')}
 
 ${md('S10-note')}`)
+add('S16', `${kv('S16', '항목', '내용')}
+
+**${md('S16-note-h')}**: ${md('S16-note')}`)
 add('S11', `${kv('S11', '항목', '내용')}
 
 **${md('S11-note-h')}**: ${md('S11-note')}`)
