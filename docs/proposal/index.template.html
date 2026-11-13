@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>BodyTailor Log 도입 검토 제안서 · 바디테일러 PT&amp;헬스</title>
+<title>BodyTailor Log 도입 검토 제안서 · 바디테일러 PT&amp;헬스</title><!-- 본문은 build_html.cjs가 content.json으로 만든다 -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&display=swap" />
@@ -241,230 +241,24 @@ footer{background:#141210;color:#a39b8f;font-size:13px;padding:28px 0 40px;borde
   .sum2,.probs,.reqg{grid-template-columns:1fr}
   .hero .meta{grid-template-columns:84px 1fr}
 }
+/* 진행 단계 아래 STEP 1·2 소제목 */
+.sub{margin-top:64px}
+.sub .mini{margin-bottom:6px}
+.subh{font-size:clamp(20px,2.4vw,26px);font-weight:800;line-height:1.35}
+.sub+.cols2{margin-top:20px}
+.box.metrics h3{margin-bottom:6px}
+/* 문구 편집 도구(인쇄·발표 때 숨김) */
+#edit-kit{position:fixed;right:16px;bottom:16px;z-index:99;display:flex;gap:8px;font:700 14px 'Paperlogy',sans-serif}
+#edit-kit button{font:inherit;padding:11px 16px;border-radius:999px;border:0;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#ek-toggle{background:#c8f53c;color:#11170a}
+#ek-copy{background:#141210;color:#f5efe6;border:1px solid #c8f53c}
+[data-editing] [data-kind=text]{outline:1px dashed currentColor;outline-offset:3px;cursor:text}
+[data-kind=text].ek-changed{background:rgba(200,245,60,.25)}
+@media print{#edit-kit{display:none}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 </style>
 </head>
 <body>
-
-<header class="hero">
-  <div class="bg" role="img" aria-label="바벨을 드는 사람"></div>
-  <div class="wrap">
-    <span class="tag">도입 검토 제안서</span>
-    <div class="to">바디테일러 PT&amp;헬스 대표님께 드리는 제안</div>
-    <h1>BodyTailor Log<br />트레이너 선사용 · 도입 제안</h1>
-    <p class="subt">혼자 하는 날도, 바디테일러 PT처럼</p>
-    <dl class="meta">
-      <dt>제안 내용</dt><dd>트레이너가 먼저 써 보고 → 도입 검토 → 회원 시범</dd>
-      <dt>차별점</dt><dd>일반 회원권 회원 부가서비스 · PT 회원 기록 데이터 공유</dd>
-      <dt>제안</dt><dd>2026년 11월 · MOON</dd>
-    </dl>
-    <nav class="toc" aria-label="목차">
-      <a href="#summary">요약</a><a href="#diff">차별점</a><a href="#trainers">트레이너 선사용</a><a href="#roadmap">진행 단계</a><a href="#ops">운영</a><a href="#request">요청 사항</a>
-    </nav>
-  </div>
-</header>
-
-<section class="beige" id="summary">
-  <div class="wrap">
-    <div class="label">SUMMARY</div>
-    <h2>트레이너가 먼저 써 보고,<br /><mark>도입은 그다음에</mark> 정합니다</h2>
-    <div class="sum2">
-      <div class="rows3">
-        <div class="r"><div class="n">01</div><div><h3>트레이너 선사용</h3><p>2~4주 · 트레이너가 직접 기록하고, 운동 가이드와 추천 기준을 검증합니다.</p></div></div>
-        <div class="r"><div class="n">02</div><div><h3>도입 검토</h3><p>트레이너 평가 결과로 대표님과 도입 여부·수정 사항을 정합니다.</p></div></div>
-        <div class="r"><div class="n">03</div><div><h3>회원 시범</h3><p>약 3개월 무료 · PT 회원부터 일반 회원권 회원으로 넓힙니다.</p></div></div>
-      </div>
-      <div class="diffs">
-        <div class="d lime"><b>차별점 1 · 일반 회원권 회원</b><p>PT를 받지 않아도 다음 무게 추천·자세 가이드·식단·리포트를 받는, 다른 헬스장에 없는 부가서비스</p></div>
-        <div class="d ink"><b>차별점 2 · PT 회원</b><p>혼자 운동한 날까지 기록이 데이터로 쌓여 담당 트레이너와 그대로 공유</p></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="band">
-  <div class="bg" style="background-image:url(img/photo-steps.webp)" role="img" aria-label="데드리프트 준비 자세"></div>
-  <div class="wrap">
-    <div class="label">WHY</div>
-    <h2>센터 밖으로 나가는 시간에<br />회원이 혼자 남습니다</h2>
-    <div class="probs">
-      <div><b>일반 회원권 회원</b><p>센터가 해 주는 것은 출입까지. 무엇을, 얼마나, 언제 올릴지는 혼자 정해야 해서 제자리에 머물거나 무리하기 쉽습니다.</p></div>
-      <div><b>PT 회원</b><p>수업 밖에서 한 운동은 메모·사진으로 흩어지고, 트레이너는 다음 수업 전에 회원이 무엇을 했는지 알기 어렵습니다.</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="beige" id="diff">
-  <div class="wrap">
-    <div class="label">DIFFERENCE 1 · 일반 회원권 회원</div>
-    <h2>일반 회원도 <mark>PT 받는 것처럼</mark></h2>
-    <p class="lead">PT를 받지 않는 회원에게 바디테일러에서만 받는 운동 부가서비스를 드립니다.</p>
-    <div class="feats">
-      <figure><div class="phone"><div class="screen"><img src="img/cap-coach.webp" alt="로그 코치 화면" /></div></div><figcaption><b>다음 무게 추천</b><span>지난 기록으로 오늘 무게·횟수, 컨디션에 맞춘 강도</span></figcaption></figure>
-      <figure><div class="phone"><div class="screen"><img src="img/cap-muscle.webp" alt="근육 그림 화면" /></div></div><figcaption><b>바디테일러 운동 가이드</b><span>근육 그림·자세, 트레이너가 다듬은 설명, 센터 보유 기구</span></figcaption></figure>
-      <figure><div class="phone"><div class="screen"><img src="img/cap-diet.webp" alt="식단 제안 화면" /></div></div><figcaption><b>식단 제안</b><span>식약처 자료로 끼니별 메뉴, 회식 날 요령</span></figcaption></figure>
-      <figure><div class="phone"><div class="screen"><img src="img/cap-report.webp" alt="리포트 화면" /></div></div><figcaption><b>리포트·랭킹</b><span>센터 회원끼리 시즌 랭킹, 성취, 체중·체력 변화</span></figcaption></figure>
-    </div>
-  </div>
-</section>
-
-<section class="beige">
-  <div class="wrap">
-    <div class="label">DIFFERENCE 2 · PT 회원</div>
-    <h2>PT 회원의 기록은<br /><mark>데이터가 되어 공유</mark>됩니다</h2>
-    <div class="duo">
-      <div class="phones">
-        <div class="phone"><div class="screen"><img src="img/cap-ptplan.webp" alt="트레이너 계획이 들어간 회원 기록 화면" /></div></div>
-        <div class="phone"><div class="screen"><img src="img/cap-trainer.webp" alt="트레이너가 보는 회원 화면" /></div></div>
-      </div>
-      <ol class="flow">
-        <li><i>1</i><div><b>회원이 기록</b><span>혼자 운동한 날도 세트·무게·횟수, 컨디션·통증까지</span></div></li>
-        <li><i>2</i><div><b>데이터로 정리</b><span>종목별 날짜 비교, 처방 대비 실제, 체중·체력 변화</span></div></li>
-        <li><i>3</i><div><b>트레이너가 확인</b><span>다음 수업 전 회원 화면에서 한눈에(읽기만)</span></div></li>
-        <li class="on"><i>4</i><div><b>계획·처방 전달</b><span>세트·횟수·강도 처방이 회원 기록 화면에 바로</span></div></li>
-      </ol>
-    </div>
-  </div>
-</section>
-
-<section class="role" id="trainers">
-  <div class="bg" role="img" aria-label="헬스장 기구"></div>
-  <div class="wrap">
-    <div class="label">WHY TRAINERS FIRST</div>
-    <h2>최고 전문가인 트레이너가<br />먼저 검증합니다</h2>
-    <div class="why3">
-      <div><span class="k">01</span><b>전문가 검증</b><p>운동 가이드·무게 추천 기준이 바디테일러 방식에 맞는지 트레이너가 먼저 확인합니다.</p></div>
-      <div><span class="k">02</span><b>수업에 쓸 수 있는지</b><p>회원 기록 보기와 계획 보내기가 실제 수업 준비 시간을 줄이는지 직접 써 봅니다.</p></div>
-      <div><span class="k">03</span><b>회원에게 권할 때 신뢰</b><p>트레이너가 써 보고 권하는 앱이어야 회원이 믿고 씁니다.</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="beige" id="roadmap">
-  <div class="wrap">
-    <div class="label">ROADMAP</div>
-    <h2>세 단계로, 결정은<br /><mark>트레이너 평가를 보고</mark> 합니다</h2>
-    <div class="tl">
-      <div class="ph main"><div class="top"><span>1단계</span><span>2~4주</span></div><h3>트레이너 선사용</h3><ul><li>트레이너 본인 운동 기록</li><li>운동 가이드·추천 기준 검증</li><li>테스트 회원으로 계획 보내기</li><li>센터 보유 기구 등록</li></ul></div>
-      <div class="gate"><i></i><small><b>도입 검토</b><br />트레이너 평가</small></div>
-      <div class="ph"><div class="top"><span>2단계</span><span>약 3개월 · 무료</span></div><h3>회원 시범</h3><ul><li>PT 회원부터 시작</li><li>일반 회원권 회원으로 확대</li><li>의견을 1~2주마다 반영</li></ul></div>
-      <div class="gate"><i></i><small><b>도입 결정</b><br />시범 지표</small></div>
-      <div class="ph"><div class="top"><span>3단계</span><span>결정 후</span></div><h3>정식 도입</h3><ul><li>전 회원 안내</li><li>운영 방안 A·B·C 중 선택</li><li>이름 사용 다시 협의</li></ul></div>
-    </div>
-    <div class="cols2">
-      <div class="box">
-        <div class="mini">STEP 1 · 트레이너 선사용</div>
-        <h3>트레이너가 할 일</h3>
-        <ul><li>본인 운동을 2주 이상 앱으로 기록</li><li>자주 쓰는 종목의 운동 가이드 확인·수정(앱에서 직접)</li><li>테스트 회원 계정에 계획 보내기 연습</li><li>센터 보유 기구 확인</li><li>불편한 점은 앱 1:1 문의로</li></ul>
-      </div>
-      <div class="box metrics">
-        <div class="mini">STEP 1 · 평가 항목 (0~10점 + 의견)</div>
-        <div class="m"><div class="k">01</div><div><b>쓰기 편한가</b><span>운동 중 기록이 번거롭지 않은지</span></div></div>
-        <div class="m"><div class="k">02</div><div><b>내용이 정확한가</b><span>운동 가이드·무게 추천이 바디테일러 기준에 맞는지</span></div></div>
-        <div class="m"><div class="k">03</div><div><b>수업에 도움이 되나</b><span>회원 기록 보기·계획 보내기로 준비 시간이 줄었는지</span></div></div>
-        <div class="m"><div class="k">04</div><div><b>회원에게 권하겠는가</b><span>일반 회원·PT 회원 각각에게</span></div></div>
-        <p class="foot">결과는 수정 목록과 함께 검토 회의 자료로 정리해 드립니다.</p>
-      </div>
-    </div>
-    <div class="cols2">
-      <div class="box">
-        <div class="mini">STEP 2 · 회원 시범</div>
-        <h3>운영 원칙</h3>
-        <ul><li>PT 회원부터 담당 트레이너와 함께 시작</li><li>한 달 뒤 일반 회원권 회원으로 확대</li><li>회원·센터 모두 무료, 광고 없음</li><li>의견은 1:1 문의·설문, 1~2주마다 반영</li><li>시범이 끝나도 회원 기록은 그대로</li></ul>
-      </div>
-      <div class="box metrics">
-        <div class="mini">STEP 2 · 평가 지표</div>
-        <div class="m"><div class="k">01</div><div><b>가입 회원 수</b><span>PT 회원·일반 회원권 회원 따로</span></div></div>
-        <div class="m"><div class="k">02</div><div><b>꾸준히 쓰는 비율</b><span>가입 4주 뒤에도 주 1회 이상 기록</span></div></div>
-        <div class="m"><div class="k">03</div><div><b>PT 회원 기록 공유</b><span>수업 밖 기록이 있는 PT 회원 비율</span></div></div>
-        <div class="m"><div class="k">04</div><div><b>트레이너 활용</b><span>계획을 보낸 트레이너·계획 수</span></div></div>
-        <div class="m"><div class="k">05</div><div><b>만족도</b><span>앱 설문 0~10점 평균과 의견</span></div></div>
-        <p class="foot">목표치는 도입 검토 회의에서 함께 정합니다.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="band" id="ops">
-  <div class="bg" style="background-image:url(img/photo-modes.webp)" role="img" aria-label="덤벨 랙"></div>
-  <div class="wrap">
-    <div class="label">ROLE</div>
-    <h2>출입·회원권은 지금 시스템,<br />운동 시간은 앱</h2>
-    <div class="split">
-      <div class="r"><span>출입·얼굴인식</span><b>회원관리 시스템</b></div>
-      <div class="r"><span>회원권·결제·예약</span><b>회원관리 시스템</b></div>
-      <div class="r"><span>운동 기록·코칭·식단</span><b class="app">BodyTailor Log</b></div>
-      <div class="r"><span>트레이너 계획·기록 공유</span><b class="app">BodyTailor Log</b></div>
-    </div>
-    <p class="lead">앱에도 회원권·PT 횟수 기능이 있지만, 스위치 하나로 꺼서 이중 관리를 막습니다.</p>
-  </div>
-</section>
-
-<section class="beige">
-  <div class="wrap">
-    <div class="label">NAME</div>
-    <h2>‘바디테일러 로그’ 이름 사용에<br />동의를 구합니다</h2>
-    <div class="compare">
-      <div class="r"><div class="q">쓰는 이름</div><div class="u big">BodyTailor Log / 바디테일러 로그</div></div>
-      <div class="r"><div class="q">쓰는 곳</div><div class="u">앱 화면·홈 화면 아이콘 이름, 앱 소개 페이지, 개인정보 처리방침의 운영자 표기</div></div>
-      <div class="r"><div class="q">쓰는 대상</div><div class="u">바디테일러 PT&amp;헬스 트레이너·회원</div></div>
-      <div class="r"><div class="q">기간</div><div class="u">트레이너 선사용·회원 시범 동안, 정식 도입 때 다시 협의</div></div>
-      <div class="r"><div class="q">다른 곳에 쓸 때</div><div class="u">다른 헬스장·일반 사용자용으로 넓히면 ‘바디테일러’ 이름은 쓰지 않고 별도 이름을 씁니다</div></div>
-    </div>
-    <div class="note"><b>확인이 필요한 점</b> · ‘바디테일러’ 상표 등록 여부와 로고·아이콘 사용 가능 여부. 트레이너 소개(사진·경력)는 트레이너별 동의를 받아 올립니다.</div>
-  </div>
-</section>
-
-<section class="beige">
-  <div class="wrap">
-    <div class="label">AFTER ADOPTION</div>
-    <h2>정식 도입 뒤에는<br />세 가지 중에서 함께 고릅니다</h2>
-    <div class="opts">
-      <div class="o"><div class="k">A</div><h3>무료 유지</h3><p class="d">바디테일러 회원 전용 무료 서비스</p><p class="c">센터 부담 없음</p><p class="x">회원이 늘어 무료 서버 한도(하루 읽기 5만·쓰기 2만 건)를 넘으면 서버 비용 발생</p></div>
-      <div class="o"><div class="k">B</div><h3>센터 월 이용료</h3><p class="d">센터가 월정액, 회원은 무료</p><p class="c">월 이용료(검토 후 협의)</p><p class="x">회원에게는 ‘바디테일러 회원 혜택’</p></div>
-      <div class="o"><div class="k">C</div><h3>회원 프리미엄</h3><p class="d">기록·기본 코칭은 무료, 일부 고급 기능만 유료</p><p class="c">센터 부담 없음</p><p class="x">결제 기능·약관을 새로 갖추고 회원 부담이 생김</p></div>
-    </div>
-    <p class="after">어느 쪽이든 회원 화면에는 광고를 넣지 않는 것을 권합니다.</p>
-  </div>
-</section>
-
-<section class="dark pvsec">
-  <div class="wrap">
-    <div class="label">PRIVACY</div>
-    <h2>회원 정보는 본인·관리자·<br />담당 트레이너만 봅니다</h2>
-    <div class="pv">
-      <div class="r"><b>접근 규칙</b><p>운동 기록·신체 정보는 본인, 관리자, 연결된 담당 트레이너만. 관리자는 기록 내용이 아니라 요약(마지막 운동일 등)만 봅니다.</p></div>
-      <div class="r"><b>동의와 탈퇴</b><p>가입 때 개인정보·신체 정보·해외 저장 동의를 따로 받고, 탈퇴하면 기록을 바로 지웁니다.</p></div>
-      <div class="r"><b>회원 시범 전 채울 것</b><p>처리방침의 운영자는 ‘바디테일러 PT&amp;헬스’. 개인정보 보호책임자 이름·연락처가 필요합니다(트레이너 선사용 단계에는 없어도 됨).</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="closing" id="request">
-  <div class="bg" role="img" aria-label="바벨을 드는 사람"></div>
-  <div class="wrap">
-    <div class="label" style="color:#c8f53c">REQUEST</div>
-    <h2>트레이너 선사용부터<br />시작하도록 정해 주세요</h2>
-    <div class="reqg">
-      <div>
-        <div class="gh">지금 정해 주실 것</div>
-        <div class="reqs1">
-          <label><input type="checkbox" /><div><b>트레이너 선사용 참여</b><span>참여 트레이너와 기간(2~4주)</span></div></label>
-          <label><input type="checkbox" /><div><b>검토 회의 일정</b><span>선사용이 끝나는 주</span></div></label>
-          <label><input type="checkbox" /><div><b>이름 사용 동의</b><span>‘바디테일러 로그’ 이름과 로고·아이콘</span></div></label>
-        </div>
-      </div>
-      <div>
-        <div class="gh">회원 시범 전에</div>
-        <div class="reqs1">
-          <label><input type="checkbox" /><div><b>개인정보 처리 주체</b><span>운영자 표기, 보호책임자 이름·연락처</span></div></label>
-          <label><input type="checkbox" /><div><b>회원 안내 협조</b><span>카운터 안내문·QR 포스터</span></div></label>
-        </div>
-      </div>
-    </div>
-    <p class="final"><b>정해 주시면</b> 트레이너 계정을 만들고 사용법을 30분 안내한 뒤 바로 선사용을 시작합니다.</p>
-  </div>
-</section>
-<footer><div class="wrap">BodyTailor Log · 바디테일러 PT&amp;헬스 도입 검토 제안서 · 2026년 11월 · 사진 Unsplash, 앱 화면은 목업 데이터</div></footer>
+<!--BODY-->
 </body>
 </html>
