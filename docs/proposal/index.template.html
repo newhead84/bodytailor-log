@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BodyTailor Log 도입 검토 제안서 · 바디테일러 PT&amp;헬스</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&display=swap" />
+<style>
+/*FONTS*/
+/* 홍보 페이지(/intro)와 같은 토큰: 다크·베이지 교차, 볼트 라임, 페이퍼로지 + Outfit 숫자 */
+.dark{--bg:#141210;--card:#1e1b18;--line:#2c2824;--t1:#f5efe6;--t2:#cfc6b8;--t3:#a39b8f;--acc:#c8f53c;--fill:#c8f53c;--onfill:#11170a}
+.beige{--bg:#f4ece1;--card:#fff9f1;--line:#e3d3bb;--t1:#2a2118;--t2:#5c5347;--t3:#6b6156;--acc:#4c6600;--fill:#c8f53c;--onfill:#11170a}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Paperlogy',system-ui,sans-serif;background:#141210;color:#f5efe6;word-break:keep-all;overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
+.num{font-family:'Outfit','Paperlogy',sans-serif;font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+section{padding:100px 0;background:var(--bg);color:var(--t1)}
+.label{font:700 13px 'Outfit','Paperlogy',sans-serif;letter-spacing:.06em;color:var(--acc)}
+h2{font-weight:800;font-size:clamp(28px,4.4vw,48px);line-height:1.22;letter-spacing:-.025em;margin-top:14px}
+.lead{font-size:clamp(16px,1.7vw,19px);line-height:1.75;color:var(--t2);margin-top:18px;max-width:640px}
+mark{background:linear-gradient(transparent 62%,var(--fill) 62%);color:inherit}
+
+/* 표지 */
+.hero{position:relative;min-height:100svh;display:flex;align-items:flex-end;color:#f5efe6;overflow:hidden;padding:0;background:#141210}
+.hero .bg{position:absolute;inset:0;background:url(img/photo-hero.webp) center/cover no-repeat}
+.hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,18,16,.3) 0%,rgba(20,18,16,.4) 40%,rgba(20,18,16,.94) 100%)}
+.hero .wrap{position:relative;z-index:2;width:100%;padding-bottom:clamp(56px,10vh,110px)}
+.hero .label{color:#c8f53c}
+.hero h1{font-weight:800;font-size:clamp(42px,7.6vw,92px);line-height:1.08;letter-spacing:-.03em;margin-top:16px}
+.hero h1 span{color:#c8f53c}
+.hero p{font-size:clamp(16px,1.8vw,20px);line-height:1.7;color:#e6dfd4;margin-top:22px;max-width:600px}
+.hero .meta{font-size:14px;color:#cfc6b8;margin-top:26px}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:30px}
+.toc a{font:700 14px 'Paperlogy',sans-serif;color:#f5efe6;text-decoration:none;padding:9px 14px;border-radius:999px;border:1px solid rgba(245,239,230,.4)}
+
+/* 요약 */
+.sum{display:grid;grid-template-columns:1fr auto;gap:56px;align-items:center;margin-top:48px}
+.rows3{display:flex;flex-direction:column}
+.rows3 .r{display:grid;grid-template-columns:80px 1fr;gap:16px;padding:22px 0;border-top:1px solid var(--line)}
+.rows3 .r:first-child{border-top:2px solid var(--t1)}
+.rows3 .n{font:800 42px/1 'Outfit',sans-serif;color:var(--acc);letter-spacing:-.04em}
+.rows3 h3{font-size:20px;font-weight:800}
+.rows3 p{font-size:16px;color:var(--t2);line-height:1.7;margin-top:6px}
+
+/* 휴대폰 */
+.phone{position:relative;width:min(260px,66vw);aspect-ratio:390/844;border-radius:40px;padding:9px;background:#0d0c0b;box-shadow:0 24px 50px rgba(0,0,0,.28),0 0 0 1px rgba(255,255,255,.07) inset;flex-shrink:0}
+.phone .screen{width:100%;height:100%;border-radius:31px;overflow:hidden;background:#f4ece1}
+.phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+
+/* 비교 표 */
+.compare{margin-top:44px;border-top:2px solid var(--t1)}
+.compare .r{display:grid;grid-template-columns:180px 1fr;gap:20px;padding:20px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.compare .q{font-size:15px;color:var(--t3);font-weight:600}
+.compare .u{font-size:clamp(16px,1.9vw,20px);font-weight:600;line-height:1.55}
+.compare .u.big{font-size:clamp(20px,2.4vw,26px);font-weight:800}
+.note{margin-top:28px;padding:20px 24px;border-radius:18px;background:var(--card);border:1px solid var(--line);font-size:15px;line-height:1.7;color:var(--t2)}
+.note b{color:var(--acc)}
+
+/* 사진 띠 */
+.band{position:relative;min-height:72vh;display:flex;align-items:center;color:#f5efe6;padding:90px 0;overflow:hidden;background:#141210}
+.band .bg{position:absolute;inset:0;background:center/cover no-repeat}
+.band::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(20,18,16,.9) 0%,rgba(20,18,16,.6) 55%,rgba(20,18,16,.25) 100%)}
+.band .wrap{position:relative;z-index:2;width:100%}
+.band .label{color:#c8f53c}
+.band h2{max-width:720px}
+.band .lead{color:#e6dfd4}
+.band .goal{margin-top:28px;font-size:17px;line-height:1.7;max-width:620px}
+.band .goal b{color:#c8f53c}
+
+/* 2x2 방향 */
+.grid4{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:44px}
+.grid4 .c{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:26px 28px}
+.grid4 .n{font:800 40px/1 'Outfit',sans-serif;color:var(--acc);letter-spacing:-.04em}
+.grid4 h3{font-size:21px;font-weight:800;margin-top:14px}
+.grid4 p{font-size:15.5px;color:var(--t2);line-height:1.7;margin-top:8px}
+
+/* 기능 */
+.feats{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:52px}
+.feats figure{display:flex;flex-direction:column;align-items:center;text-align:center}
+.feats .phone{width:100%;max-width:220px}
+.feats figcaption{margin-top:18px}
+.feats b{display:block;font-size:18px;font-weight:800}
+.feats span{display:block;font-size:14.5px;color:var(--t2);line-height:1.6;margin-top:6px}
+.duo{display:grid;grid-template-columns:auto 1fr;gap:56px;align-items:center;margin-top:52px}
+.duo .phones{display:flex;gap:18px}
+.duo .phones .phone{width:min(220px,40vw)}
+.duo h3{font-size:22px;font-weight:800;margin-top:26px}
+.duo h3:first-child{margin-top:0}
+.duo ul{list-style:none;margin-top:12px;display:flex;flex-direction:column;gap:9px}
+.duo li{font-size:16px;padding-left:20px;position:relative;color:var(--t2);line-height:1.6}
+.duo li::before{content:'';position:absolute;left:0;top:11px;width:10px;height:3px;background:var(--fill);border-radius:2px}
+
+/* 역할 나눔 */
+.role{position:relative;color:#f5efe6;overflow:hidden;background:#141210}
+.role .bg{position:absolute;inset:0;background:url(img/photo-trainer.webp) right center/cover no-repeat}
+.role::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(14,13,12,.95) 0%,rgba(14,13,12,.88) 50%,rgba(14,13,12,.45) 100%)}
+.role .wrap{position:relative;z-index:2}
+.role .label{color:#c8f53c}
+.split{margin-top:40px;max-width:640px;border-top:2px solid #f5efe6}
+.split .r{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:18px 0;border-bottom:1px solid rgba(245,239,230,.15);font-size:17px}
+.split .r b{font-weight:800;color:#cfc6b8}
+.split .r b.app{color:#c8f53c}
+.role .lead{color:#cfc6b8}
+
+/* 시범 타임라인 */
+.tl{display:grid;grid-template-columns:1fr 96px 1fr 96px 1fr;align-items:stretch;margin-top:48px}
+.tl .ph{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:24px 24px 26px}
+.tl .ph.main{background:var(--fill);border-color:var(--acc);color:var(--onfill)}
+.tl .ph h3{font-size:24px;font-weight:800}
+.tl .ph .s{font-size:14px;font-weight:600;color:var(--t2);margin-top:4px}
+.tl .ph.main .s{color:#2c3410}
+.tl .ph ul{list-style:none;margin-top:18px;display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--line);padding-top:16px}
+.tl .ph.main ul{border-color:rgba(17,23,10,.2)}
+.tl .ph li{font-size:15.5px;line-height:1.5}
+.tl .gate{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center}
+.tl .gate i{width:16px;height:16px;background:var(--acc);transform:rotate(45deg);display:block}
+.tl .gate small{font-size:12px;font-weight:700;color:var(--t2);width:90px;line-height:1.35}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:56px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:26px 28px}
+.box h3{font-size:19px;font-weight:800}
+.box ul{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.box li{font-size:15.5px;color:var(--t2);line-height:1.6;padding-left:20px;position:relative}
+.box li::before{content:'';position:absolute;left:0;top:10px;width:10px;height:3px;background:var(--fill);border-radius:2px}
+.metrics .m{display:grid;grid-template-columns:44px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.metrics .m:first-of-type{border-top:0}
+.metrics .m .k{font:800 22px/1.2 'Outfit',sans-serif;color:var(--acc)}
+.metrics .m b{display:block;font-size:16px;font-weight:800}
+.metrics .m span{display:block;font-size:14px;color:var(--t2);margin-top:2px}
+.metrics .foot{font-size:13px;color:var(--t3);margin-top:12px}
+
+/* 운영 방안 */
+.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:44px}
+.opts .o{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:26px}
+.opts .k{font:800 46px/1 'Outfit',sans-serif;color:var(--acc)}
+.opts h3{font-size:20px;font-weight:800;margin-top:14px}
+.opts .d{font-size:15.5px;line-height:1.6;margin-top:8px}
+.opts .c{font-size:14.5px;font-weight:800;color:var(--acc);margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.opts .x{font-size:14px;color:var(--t2);line-height:1.6;margin-top:6px}
+.after{font-size:15px;color:var(--t3);margin-top:22px}
+
+/* 개인정보 */
+.pv{margin-top:40px;max-width:760px}
+.pv .r{display:grid;grid-template-columns:150px 1fr;gap:20px;padding:20px 0;border-top:1px solid rgba(245,239,230,.15)}
+.pv .r b{font-size:17px;font-weight:800;color:#c8f53c}
+.pv .r p{font-size:16px;line-height:1.7;color:#e6dfd4}
+
+/* 요청 */
+.closing{background:#141210;color:#f5efe6;position:relative;overflow:hidden}
+.reqs{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:44px}
+.reqs label{display:flex;gap:16px;background:#1e1b18;border:1px solid #2c2824;border-radius:20px;padding:22px 24px;cursor:pointer}
+.reqs input{appearance:none;width:24px;height:24px;border:2px solid #c8f53c;border-radius:7px;flex-shrink:0;margin-top:2px;cursor:pointer;display:grid;place-items:center}
+.reqs input:checked{background:#c8f53c}
+.reqs input:checked::after{content:'';width:6px;height:11px;border:solid #11170a;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.reqs b{display:block;font-size:18px;font-weight:800}
+.reqs span{display:block;font-size:15px;color:#cfc6b8;line-height:1.6;margin-top:4px}
+.closing .final{margin-top:36px;font-size:18px;line-height:1.7;max-width:760px}
+.closing .final b{color:#c8f53c}
+footer{background:#141210;color:#a39b8f;font-size:13px;padding:28px 0 40px;border-top:1px solid #2c2824}
+
+@media (max-width:820px){
+  section{padding:76px 0}
+  .sum,.duo{grid-template-columns:1fr;gap:36px}
+  .sum .phone{margin:0 auto}
+  .grid4,.cols2,.reqs,.opts{grid-template-columns:1fr}
+  .feats{grid-template-columns:1fr 1fr;gap:30px 18px}
+  .compare .r,.pv .r{grid-template-columns:1fr;gap:6px}
+  .tl{grid-template-columns:1fr}
+  .tl .gate{flex-direction:row;padding:14px 0}
+  .tl .gate small{width:auto}
+  .duo .phones{justify-content:center}
+  .duo .phones .phone{width:min(170px,42vw)}
+  .rows3 .r{grid-template-columns:56px 1fr}
+  .rows3 .n{font-size:34px}
+}
+
+/* v2: 표지(제안서 표시) */
+.hero .tag{display:inline-block;font:800 15px 'Paperlogy',sans-serif;background:#c8f53c;color:#11170a;padding:9px 16px;border-radius:999px}
+.hero .to{font-size:15px;font-weight:600;color:#e6dfd4;margin-top:22px}
+.hero h1{font-size:clamp(38px,6.4vw,80px)}
+.hero .subt{font-size:clamp(20px,2.6vw,30px);font-weight:600;color:#c8f53c;margin-top:16px}
+.hero .meta{display:grid;grid-template-columns:110px 1fr;gap:8px 16px;margin-top:28px;padding-top:22px;border-top:1px solid rgba(245,239,230,.35);max-width:720px}
+.hero .meta dt{font-size:14px;font-weight:600;color:#c8f53c}
+.hero .meta dd{font-size:15px;color:#f5efe6}
+/* 요약 */
+.sum2{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;margin-top:44px;align-items:start}
+.diffs{display:flex;flex-direction:column;gap:16px}
+.diffs .d{border-radius:22px;padding:26px 28px}
+.diffs .d b{display:block;font-size:15px;font-weight:800}
+.diffs .d p{font-size:17px;line-height:1.65;margin-top:10px}
+.diffs .lime{background:#c8f53c;color:#11170a}
+.diffs .ink{background:#141210;color:#f5efe6}
+.diffs .ink b{color:#c8f53c}
+/* 문제 */
+.probs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:36px;max-width:900px}
+.probs div{background:rgba(30,27,24,.82);border:1px solid #3a342e;border-radius:20px;padding:24px 26px}
+.probs b{font-size:18px;font-weight:800;color:#c8f53c}
+.probs p{font-size:16px;line-height:1.7;color:#e6dfd4;margin-top:10px}
+.feats{margin-top:40px}
+/* PT 회원 흐름 */
+.flow{list-style:none;display:flex;flex-direction:column}
+.flow li{display:grid;grid-template-columns:44px 1fr;gap:16px;position:relative;padding-bottom:26px}
+.flow li:not(:last-child)::before{content:'';position:absolute;left:21px;top:46px;bottom:4px;width:2px;background:var(--line)}
+.flow i{width:44px;height:44px;border-radius:50%;background:#141210;color:#c8f53c;display:grid;place-items:center;font:800 18px 'Outfit',sans-serif;font-style:normal}
+.flow li.on i{background:#c8f53c;color:#11170a}
+.flow b{display:block;font-size:19px;font-weight:800;margin-top:4px}
+.flow span{display:block;font-size:15.5px;color:var(--t2);line-height:1.6;margin-top:4px}
+/* 왜 트레이너 먼저 */
+.why3{display:flex;flex-direction:column;gap:22px;margin-top:36px;max-width:620px}
+.why3 div{display:grid;grid-template-columns:56px 1fr;column-gap:12px}
+.why3 .k{font:800 28px/1 'Outfit',sans-serif;color:#c8f53c;grid-row:span 2}
+.why3 b{font-size:19px;font-weight:800}
+.why3 p{font-size:15.5px;color:#cfc6b8;line-height:1.65;margin-top:6px}
+/* 타임라인 v2 */
+.tl .ph .top{display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:var(--acc)}
+.tl .ph.main .top{color:#2c3410}
+.tl .ph h3{margin-top:8px}
+.tl .gate small b{font-size:13px;color:var(--t1)}
+.cols2+.cols2{margin-top:22px}
+.mini{font:700 12px 'Outfit','Paperlogy',sans-serif;letter-spacing:.04em;color:var(--acc);margin-bottom:8px}
+.box .mini+h3{margin-top:0}
+.metrics .mini{margin-bottom:6px}
+/* 개인정보·요청 */
+.pvsec .pv .r{border-color:var(--line)}
+.pvsec .pv .r b{color:var(--acc)}
+.pvsec .pv .r p{color:var(--t2)}
+.closing .bg{position:absolute;inset:0;background:url(img/photo-hero.webp) center/cover no-repeat;opacity:.28}
+.closing .wrap{position:relative;z-index:2}
+.reqg{display:grid;grid-template-columns:1.2fr 1fr;gap:28px;margin-top:40px}
+.reqg .gh{font-size:15px;font-weight:800;color:#c8f53c;margin-bottom:12px}
+.reqs1{display:flex;flex-direction:column;gap:12px}
+.reqs1 label{display:flex;gap:16px;background:rgba(30,27,24,.9);border:1px solid #2c2824;border-radius:18px;padding:18px 22px;cursor:pointer}
+.reqs1 input{appearance:none;width:24px;height:24px;border:2px solid #c8f53c;border-radius:7px;flex-shrink:0;margin-top:2px;cursor:pointer;display:grid;place-items:center}
+.reqs1 input:checked{background:#c8f53c}
+.reqs1 input:checked::after{content:'';width:6px;height:11px;border:solid #11170a;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.reqs1 b{display:block;font-size:17px;font-weight:800}
+.reqs1 span{display:block;font-size:14.5px;color:#cfc6b8;margin-top:4px}
+@media (max-width:820px){
+  .sum2,.probs,.reqg{grid-template-columns:1fr}
+  .hero .meta{grid-template-columns:84px 1fr}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="bg" role="img" aria-label="바벨을 드는 사람"></div>
+  <div class="wrap">
+    <span class="tag">도입 검토 제안서</span>
+    <div class="to">바디테일러 PT&amp;헬스 대표님께 드리는 제안</div>
+    <h1>BodyTailor Log<br />트레이너 선사용 · 도입 제안</h1>
+    <p class="subt">혼자 하는 날도, 바디테일러 PT처럼</p>
+    <dl class="meta">
+      <dt>제안 내용</dt><dd>트레이너가 먼저 써 보고 → 도입 검토 → 회원 시범</dd>
+      <dt>차별점</dt><dd>일반 회원권 회원 부가서비스 · PT 회원 기록 데이터 공유</dd>
+      <dt>제안</dt><dd>2026년 11월 · MOON</dd>
+    </dl>
+    <nav class="toc" aria-label="목차">
+      <a href="#summary">요약</a><a href="#diff">차별점</a><a href="#trainers">트레이너 선사용</a><a href="#roadmap">진행 단계</a><a href="#ops">운영</a><a href="#request">요청 사항</a>
+    </nav>
+  </div>
+</header>
+
+<section class="beige" id="summary">
+  <div class="wrap">
+    <div class="label">SUMMARY</div>
+    <h2>트레이너가 먼저 써 보고,<br /><mark>도입은 그다음에</mark> 정합니다</h2>
+    <div class="sum2">
+      <div class="rows3">
+        <div class="r"><div class="n">01</div><div><h3>트레이너 선사용</h3><p>2~4주 · 트레이너가 직접 기록하고, 운동 가이드와 추천 기준을 검증합니다.</p></div></div>
+        <div class="r"><div class="n">02</div><div><h3>도입 검토</h3><p>트레이너 평가 결과로 대표님과 도입 여부·수정 사항을 정합니다.</p></div></div>
+        <div class="r"><div class="n">03</div><div><h3>회원 시범</h3><p>약 3개월 무료 · PT 회원부터 일반 회원권 회원으로 넓힙니다.</p></div></div>
+      </div>
+      <div class="diffs">
+        <div class="d lime"><b>차별점 1 · 일반 회원권 회원</b><p>PT를 받지 않아도 다음 무게 추천·자세 가이드·식단·리포트를 받는, 다른 헬스장에 없는 부가서비스</p></div>
+        <div class="d ink"><b>차별점 2 · PT 회원</b><p>혼자 운동한 날까지 기록이 데이터로 쌓여 담당 트레이너와 그대로 공유</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="bg" style="background-image:url(img/photo-steps.webp)" role="img" aria-label="데드리프트 준비 자세"></div>
+  <div class="wrap">
+    <div class="label">WHY</div>
+    <h2>센터 밖으로 나가는 시간에<br />회원이 혼자 남습니다</h2>
+    <div class="probs">
+      <div><b>일반 회원권 회원</b><p>센터가 해 주는 것은 출입까지. 무엇을, 얼마나, 언제 올릴지는 혼자 정해야 해서 제자리에 머물거나 무리하기 쉽습니다.</p></div>
+      <div><b>PT 회원</b><p>수업 밖에서 한 운동은 메모·사진으로 흩어지고, 트레이너는 다음 수업 전에 회원이 무엇을 했는지 알기 어렵습니다.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="beige" id="diff">
+  <div class="wrap">
+    <div class="label">DIFFERENCE 1 · 일반 회원권 회원</div>
+    <h2>일반 회원도 <mark>PT 받는 것처럼</mark></h2>
+    <p class="lead">PT를 받지 않는 회원에게 바디테일러에서만 받는 운동 부가서비스를 드립니다.</p>
+    <div class="feats">
+      <figure><div class="phone"><div class="screen"><img src="img/cap-coach.webp" alt="로그 코치 화면" /></div></div><figcaption><b>다음 무게 추천</b><span>지난 기록으로 오늘 무게·횟수, 컨디션에 맞춘 강도</span></figcaption></figure>
+      <figure><div class="phone"><div class="screen"><img src="img/cap-muscle.webp" alt="근육 그림 화면" /></div></div><figcaption><b>바디테일러 운동 가이드</b><span>근육 그림·자세, 트레이너가 다듬은 설명, 센터 보유 기구</span></figcaption></figure>
+      <figure><div class="phone"><div class="screen"><img src="img/cap-diet.webp" alt="식단 제안 화면" /></div></div><figcaption><b>식단 제안</b><span>식약처 자료로 끼니별 메뉴, 회식 날 요령</span></figcaption></figure>
+      <figure><div class="phone"><div class="screen"><img src="img/cap-report.webp" alt="리포트 화면" /></div></div><figcaption><b>리포트·랭킹</b><span>센터 회원끼리 시즌 랭킹, 성취, 체중·체력 변화</span></figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="beige">
+  <div class="wrap">
+    <div class="label">DIFFERENCE 2 · PT 회원</div>
+    <h2>PT 회원의 기록은<br /><mark>데이터가 되어 공유</mark>됩니다</h2>
+    <div class="duo">
+      <div class="phones">
+        <div class="phone"><div class="screen"><img src="img/cap-ptplan.webp" alt="트레이너 계획이 들어간 회원 기록 화면" /></div></div>
+        <div class="phone"><div class="screen"><img src="img/cap-trainer.webp" alt="트레이너가 보는 회원 화면" /></div></div>
+      </div>
+      <ol class="flow">
+        <li><i>1</i><div><b>회원이 기록</b><span>혼자 운동한 날도 세트·무게·횟수, 컨디션·통증까지</span></div></li>
+        <li><i>2</i><div><b>데이터로 정리</b><span>종목별 날짜 비교, 처방 대비 실제, 체중·체력 변화</span></div></li>
+        <li><i>3</i><div><b>트레이너가 확인</b><span>다음 수업 전 회원 화면에서 한눈에(읽기만)</span></div></li>
+        <li class="on"><i>4</i><div><b>계획·처방 전달</b><span>세트·횟수·강도 처방이 회원 기록 화면에 바로</span></div></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="role" id="trainers">
+  <div class="bg" role="img" aria-label="헬스장 기구"></div>
+  <div class="wrap">
+    <div class="label">WHY TRAINERS FIRST</div>
+    <h2>최고 전문가인 트레이너가<br />먼저 검증합니다</h2>
+    <div class="why3">
+      <div><span class="k">01</span><b>전문가 검증</b><p>운동 가이드·무게 추천 기준이 바디테일러 방식에 맞는지 트레이너가 먼저 확인합니다.</p></div>
+      <div><span class="k">02</span><b>수업에 쓸 수 있는지</b><p>회원 기록 보기와 계획 보내기가 실제 수업 준비 시간을 줄이는지 직접 써 봅니다.</p></div>
+      <div><span class="k">03</span><b>회원에게 권할 때 신뢰</b><p>트레이너가 써 보고 권하는 앱이어야 회원이 믿고 씁니다.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="beige" id="roadmap">
+  <div class="wrap">
+    <div class="label">ROADMAP</div>
+    <h2>세 단계로, 결정은<br /><mark>트레이너 평가를 보고</mark> 합니다</h2>
+    <div class="tl">
+      <div class="ph main"><div class="top"><span>1단계</span><span>2~4주</span></div><h3>트레이너 선사용</h3><ul><li>트레이너 본인 운동 기록</li><li>운동 가이드·추천 기준 검증</li><li>테스트 회원으로 계획 보내기</li><li>센터 보유 기구 등록</li></ul></div>
+      <div class="gate"><i></i><small><b>도입 검토</b><br />트레이너 평가</small></div>
+      <div class="ph"><div class="top"><span>2단계</span><span>약 3개월 · 무료</span></div><h3>회원 시범</h3><ul><li>PT 회원부터 시작</li><li>일반 회원권 회원으로 확대</li><li>의견을 1~2주마다 반영</li></ul></div>
+      <div class="gate"><i></i><small><b>도입 결정</b><br />시범 지표</small></div>
+      <div class="ph"><div class="top"><span>3단계</span><span>결정 후</span></div><h3>정식 도입</h3><ul><li>전 회원 안내</li><li>운영 방안 A·B·C 중 선택</li><li>이름 사용 다시 협의</li></ul></div>
+    </div>
+    <div class="cols2">
+      <div class="box">
+        <div class="mini">STEP 1 · 트레이너 선사용</div>
+        <h3>트레이너가 할 일</h3>
+        <ul><li>본인 운동을 2주 이상 앱으로 기록</li><li>자주 쓰는 종목의 운동 가이드 확인·수정(앱에서 직접)</li><li>테스트 회원 계정에 계획 보내기 연습</li><li>센터 보유 기구 확인</li><li>불편한 점은 앱 1:1 문의로</li></ul>
+      </div>
+      <div class="box metrics">
+        <div class="mini">STEP 1 · 평가 항목 (0~10점 + 의견)</div>
+        <div class="m"><div class="k">01</div><div><b>쓰기 편한가</b><span>운동 중 기록이 번거롭지 않은지</span></div></div>
+        <div class="m"><div class="k">02</div><div><b>내용이 정확한가</b><span>운동 가이드·무게 추천이 바디테일러 기준에 맞는지</span></div></div>
+        <div class="m"><div class="k">03</div><div><b>수업에 도움이 되나</b><span>회원 기록 보기·계획 보내기로 준비 시간이 줄었는지</span></div></div>
+        <div class="m"><div class="k">04</div><div><b>회원에게 권하겠는가</b><span>일반 회원·PT 회원 각각에게</span></div></div>
+        <p class="foot">결과는 수정 목록과 함께 검토 회의 자료로 정리해 드립니다.</p>
+      </div>
+    </div>
+    <div class="cols2">
+      <div class="box">
+        <div class="mini">STEP 2 · 회원 시범</div>
+        <h3>운영 원칙</h3>
+        <ul><li>PT 회원부터 담당 트레이너와 함께 시작</li><li>한 달 뒤 일반 회원권 회원으로 확대</li><li>회원·센터 모두 무료, 광고 없음</li><li>의견은 1:1 문의·설문, 1~2주마다 반영</li><li>시범이 끝나도 회원 기록은 그대로</li></ul>
+      </div>
+      <div class="box metrics">
+        <div class="mini">STEP 2 · 평가 지표</div>
+        <div class="m"><div class="k">01</div><div><b>가입 회원 수</b><span>PT 회원·일반 회원권 회원 따로</span></div></div>
+        <div class="m"><div class="k">02</div><div><b>꾸준히 쓰는 비율</b><span>가입 4주 뒤에도 주 1회 이상 기록</span></div></div>
+        <div class="m"><div class="k">03</div><div><b>PT 회원 기록 공유</b><span>수업 밖 기록이 있는 PT 회원 비율</span></div></div>
+        <div class="m"><div class="k">04</div><div><b>트레이너 활용</b><span>계획을 보낸 트레이너·계획 수</span></div></div>
+        <div class="m"><div class="k">05</div><div><b>만족도</b><span>앱 설문 0~10점 평균과 의견</span></div></div>
+        <p class="foot">목표치는 도입 검토 회의에서 함께 정합니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="ops">
+  <div class="bg" style="background-image:url(img/photo-modes.webp)" role="img" aria-label="덤벨 랙"></div>
+  <div class="wrap">
+    <div class="label">ROLE</div>
+    <h2>출입·회원권은 지금 시스템,<br />운동 시간은 앱</h2>
+    <div class="split">
+      <div class="r"><span>출입·얼굴인식</span><b>회원관리 시스템</b></div>
+      <div class="r"><span>회원권·결제·예약</span><b>회원관리 시스템</b></div>
+      <div class="r"><span>운동 기록·코칭·식단</span><b class="app">BodyTailor Log</b></div>
+      <div class="r"><span>트레이너 계획·기록 공유</span><b class="app">BodyTailor Log</b></div>
+    </div>
+    <p class="lead">앱에도 회원권·PT 횟수 기능이 있지만, 스위치 하나로 꺼서 이중 관리를 막습니다.</p>
+  </div>
+</section>
+
+<section class="beige">
+  <div class="wrap">
+    <div class="label">NAME</div>
+    <h2>‘바디테일러 로그’ 이름 사용에<br />동의를 구합니다</h2>
+    <div class="compare">
+      <div class="r"><div class="q">쓰는 이름</div><div class="u big">BodyTailor Log / 바디테일러 로그</div></div>
+      <div class="r"><div class="q">쓰는 곳</div><div class="u">앱 화면·홈 화면 아이콘 이름, 앱 소개 페이지, 개인정보 처리방침의 운영자 표기</div></div>
+      <div class="r"><div class="q">쓰는 대상</div><div class="u">바디테일러 PT&amp;헬스 트레이너·회원</div></div>
+      <div class="r"><div class="q">기간</div><div class="u">트레이너 선사용·회원 시범 동안, 정식 도입 때 다시 협의</div></div>
+      <div class="r"><div class="q">다른 곳에 쓸 때</div><div class="u">다른 헬스장·일반 사용자용으로 넓히면 ‘바디테일러’ 이름은 쓰지 않고 별도 이름을 씁니다</div></div>
+    </div>
+    <div class="note"><b>확인이 필요한 점</b> · ‘바디테일러’ 상표 등록 여부와 로고·아이콘 사용 가능 여부. 트레이너 소개(사진·경력)는 트레이너별 동의를 받아 올립니다.</div>
+  </div>
+</section>
+
+<section class="beige">
+  <div class="wrap">
+    <div class="label">AFTER ADOPTION</div>
+    <h2>정식 도입 뒤에는<br />세 가지 중에서 함께 고릅니다</h2>
+    <div class="opts">
+      <div class="o"><div class="k">A</div><h3>무료 유지</h3><p class="d">바디테일러 회원 전용 무료 서비스</p><p class="c">센터 부담 없음</p><p class="x">회원이 늘어 무료 서버 한도(하루 읽기 5만·쓰기 2만 건)를 넘으면 서버 비용 발생</p></div>
+      <div class="o"><div class="k">B</div><h3>센터 월 이용료</h3><p class="d">센터가 월정액, 회원은 무료</p><p class="c">월 이용료(검토 후 협의)</p><p class="x">회원에게는 ‘바디테일러 회원 혜택’</p></div>
+      <div class="o"><div class="k">C</div><h3>회원 프리미엄</h3><p class="d">기록·기본 코칭은 무료, 일부 고급 기능만 유료</p><p class="c">센터 부담 없음</p><p class="x">결제 기능·약관을 새로 갖추고 회원 부담이 생김</p></div>
+    </div>
+    <p class="after">어느 쪽이든 회원 화면에는 광고를 넣지 않는 것을 권합니다.</p>
+  </div>
+</section>
+
+<section class="dark pvsec">
+  <div class="wrap">
+    <div class="label">PRIVACY</div>
+    <h2>회원 정보는 본인·관리자·<br />담당 트레이너만 봅니다</h2>
+    <div class="pv">
+      <div class="r"><b>접근 규칙</b><p>운동 기록·신체 정보는 본인, 관리자, 연결된 담당 트레이너만. 관리자는 기록 내용이 아니라 요약(마지막 운동일 등)만 봅니다.</p></div>
+      <div class="r"><b>동의와 탈퇴</b><p>가입 때 개인정보·신체 정보·해외 저장 동의를 따로 받고, 탈퇴하면 기록을 바로 지웁니다.</p></div>
+      <div class="r"><b>회원 시범 전 채울 것</b><p>처리방침의 운영자는 ‘바디테일러 PT&amp;헬스’. 개인정보 보호책임자 이름·연락처가 필요합니다(트레이너 선사용 단계에는 없어도 됨).</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="closing" id="request">
+  <div class="bg" role="img" aria-label="바벨을 드는 사람"></div>
+  <div class="wrap">
+    <div class="label" style="color:#c8f53c">REQUEST</div>
+    <h2>트레이너 선사용부터<br />시작하도록 정해 주세요</h2>
+    <div class="reqg">
+      <div>
+        <div class="gh">지금 정해 주실 것</div>
+        <div class="reqs1">
+          <label><input type="checkbox" /><div><b>트레이너 선사용 참여</b><span>참여 트레이너와 기간(2~4주)</span></div></label>
+          <label><input type="checkbox" /><div><b>검토 회의 일정</b><span>선사용이 끝나는 주</span></div></label>
+          <label><input type="checkbox" /><div><b>이름 사용 동의</b><span>‘바디테일러 로그’ 이름과 로고·아이콘</span></div></label>
+        </div>
+      </div>
+      <div>
+        <div class="gh">회원 시범 전에</div>
+        <div class="reqs1">
+          <label><input type="checkbox" /><div><b>개인정보 처리 주체</b><span>운영자 표기, 보호책임자 이름·연락처</span></div></label>
+          <label><input type="checkbox" /><div><b>회원 안내 협조</b><span>카운터 안내문·QR 포스터</span></div></label>
+        </div>
+      </div>
+    </div>
+    <p class="final"><b>정해 주시면</b> 트레이너 계정을 만들고 사용법을 30분 안내한 뒤 바로 선사용을 시작합니다.</p>
+  </div>
+</section>
+<footer><div class="wrap">BodyTailor Log · 바디테일러 PT&amp;헬스 도입 검토 제안서 · 2026년 11월 · 사진 Unsplash, 앱 화면은 목업 데이터</div></footer>
+</body>
+</html>
