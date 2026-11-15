@@ -60,7 +60,16 @@ const L = (slide, id, o) => { // 목록: 줄마다 글머리표
 }
 // 자리표시자(제목·라벨)는 pptxgenjs가 개체 이름을 덮어써서, 저장 뒤 순서대로 이름을 다시 넣는다(renamePlaceholders)
 const phNames = []
-const P = (slide, id, placeholder) => { (phNames[slide._slideNum - 1] ||= []).push(id); slide.addText(runs(id), { placeholder }) }
+// 제목이 한 줄에 안 들어가면(30자 넘음) HTML처럼 {br} 자리에서 두 줄로, 글자는 26pt
+const isLongTitle = (id) => /-title$/.test(id) && K.get(id).text.includes('{br}') && K.plain(id).length > 30
+const titleRuns = (id) => {
+  const parts = K.get(id).text.replace(/==/g, '').split(/\{br0?\}/)
+  return parts.map((t, i) => ({ text: t.trim(), options: { breakLine: i < parts.length - 1 } }))
+}
+const P = (slide, id, placeholder) => {
+  (phNames[slide._slideNum - 1] ||= []).push(id)
+  slide.addText(isLongTitle(id) ? titleRuns(id) : runs(id), isLongTitle(id) ? { placeholder, fontSize: 26 } : { placeholder })
+}
 const head = (slide, sid) => { P(slide, `${sid}-label`, 'label'); P(slide, `${sid}-title`, 'title') }
 const IM = (slide, id, o) => { const it = K.get(id); slide.addImage({ path: IMG(it.ppt), altText: it.alt, objectName: id, ...o }) }
 const phone = (slide, id, x, y, h) => IM(slide, id, { x, y, h, w: h * (416 / 870) })
@@ -102,15 +111,16 @@ pres.addSection({ title: '요약' })
 {
   const s = slideOf('S02', 'LIGHT', '요약')
   head(s, 'S02')
+  const top = isLongTitle('S02-title') ? 1.95 : 1.72
   for (let i = 1; i <= K.count((n) => `S02-step${n}-h`); i++) {
-    const y = 1.72 + (i - 1) * 1.08
+    const y = top + (i - 1) * 1.04
     T(s, `S02-step${i}-n`, { x: 0.6, y: y - 0.04, w: 0.8, h: 0.55, fontFace: FH, fontSize: 28, color: OLIVE })
     T(s, `S02-step${i}-h`, { x: 1.4, y, w: 3.6, h: 0.3, fontFace: FS, fontSize: 16, color: INK })
     T(s, `S02-step${i}-b`, { x: 1.4, y: y + 0.36, w: 3.6, h: 0.55, fontSize: 12, color: T2, lineSpacingMultiple: 1.12 })
   }
-  const nd = K.count((n) => `S02-diff${n}-h`), dh = (3.2 - (nd - 1) * 0.12) / nd
+  const nd = K.count((n) => `S02-diff${n}-h`), dh = (4.95 - top - (nd - 1) * 0.12) / nd
   for (let i = 1; i <= nd; i++) {
-    const y = 1.72 + (i - 1) * (dh + 0.12), kind = ['lime', 'ink', 'card'][(i - 1) % 3]
+    const y = top + (i - 1) * (dh + 0.12), kind = ['lime', 'ink', 'card'][(i - 1) % 3]
     const fill = kind === 'lime' ? C.accent1 : kind === 'ink' ? DARKBG : CARD
     shape(s, 'ROUNDED_RECTANGLE', `S02-diff${i}-box`, { x: 5.35, y, w: 4.05, h: dh, rectRadius: 0.12, fill: { color: fill }, line: { color: kind === 'card' ? LINE : fill, width: kind === 'card' ? 0.75 : 0 } })
     T(s, `S02-diff${i}-h`, { x: 5.6, y: y + 0.14, w: 3.6, h: 0.28, fontFace: FS, fontSize: 12.5, color: kind === 'ink' ? LIME : kind === 'card' ? OLIVE : INK })
@@ -298,8 +308,8 @@ pres.addSection({ title: '운영' })
   T(s, 'S11-note', { x: 2.25, y: 4.0, w: 6.95, h: 0.9, fontSize: 12.5, color: INK, valign: 'middle', lineSpacingMultiple: 1.1 })
 }
 
-// S12 운영 방안
-{
+// S12 운영 방안(2026-11-15 사용자 요청으로 원본에서 뺌, 원본에 다시 넣으면 다시 나옴)
+if (K.hasSlide('S12')) {
   const s = slideOf('S12', 'LIGHT', '운영')
   head(s, 'S12')
   for (let i = 1; i <= K.count((n) => `S12-op${n}-h`); i++) {

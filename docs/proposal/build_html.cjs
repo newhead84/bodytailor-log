@@ -170,8 +170,8 @@ ${range((n) => `S11-row${n}-k`).map((i) => `      <div class="r">${t(`S11-row${i
     </div>
     <div class="note">${t('S11-note-h', 'b')} · ${t('S11-note')}</div>`))
 
-// S12 운영 방안
-parts.push(sec('S12', 'beige', `${head('S12')}
+// S12 운영 방안(원본에 있을 때만)
+if (K.hasSlide('S12')) parts.push(sec('S12', 'beige', `${head('S12')}
     <div class="opts">
 ${range((n) => `S12-op${n}-h`).map((i) => { const p = `S12-op${i}`; return `      <div class="o">${t(`${p}-k`, 'div', 'k')}${t(`${p}-h`, 'h3')}${t(`${p}-d`, 'p', 'd')}${t(`${p}-c`, 'p', 'c')}${t(`${p}-x`, 'p', 'x')}</div>` }).join('\n')}
     </div>

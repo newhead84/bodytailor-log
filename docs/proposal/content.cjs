@@ -18,6 +18,7 @@ const get = (id) => {
   return it
 }
 const has = (id) => byId.has(id)
+const hasSlide = (sid) => data.slides.some((x) => x.id === sid) // 원본에서 장을 빼면 그 장은 만들지 않는다
 // PPT·Docs용 글: 표기 지우기
 const plain = (id) => get(id).text.replace(/\{br0\}/g, '').replace(/\{br\}/g, ' ').replace(/==/g, '')
 const lines = (id) => plain(id).split('\n')
@@ -34,4 +35,4 @@ const checkAllUsed = (label) => {
   if (miss.length) throw new Error(`${label}: 원본에 있는데 쓰지 않은 ID ${miss.join(', ')}`)
 }
 
-module.exports = { data, get, has, plain, lines, esc, html, ids, count, checkAllUsed }
+module.exports = { data, get, has, hasSlide, plain, lines, esc, html, ids, count, checkAllUsed }

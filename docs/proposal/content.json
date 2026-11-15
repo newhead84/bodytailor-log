@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "BodyTailor Log 도입 검토 제안서",
-    "version": 3,
+    "version": 4,
     "updated": "2026-11-13",
     "htmlTitle": "BodyTailor Log 도입 검토 제안서 · 바디테일러 PT&헬스",
     "footerPpt": "BodyTailor Log · 바디테일러 PT&헬스 제안서",
@@ -31,7 +31,7 @@
       "id": "S02", "kind": "summary", "nav": "요약",
       "items": [
         { "id": "S02-label", "type": "text", "text": "SUMMARY" },
-        { "id": "S02-title", "type": "text", "text": "트레이너가 먼저 써 보고,{br}==도입은 그 다음에== 정합니다" },
+        { "id": "S02-title", "type": "text", "text": "전문 트레이너가 먼저 써 보고,{br}==도입은 그 다음에== 정하셔도 됩니다!" },
         { "id": "S02-step1-n", "type": "text", "text": "01" },
         { "id": "S02-step1-h", "type": "text", "text": "트레이너 선사용" },
         { "id": "S02-step1-b", "type": "text", "text": "2~4주 · 트레이너가 직접 기록하고, 운동 가이드와 추천 기준을 검증합니다." },
@@ -55,7 +55,7 @@
         { "id": "S03-bg", "type": "image", "ppt": "bg-steps.jpg", "web": "photo-steps.webp", "alt": "데드리프트 준비 자세" },
         { "id": "S03-label", "type": "text", "text": "WHY" },
         { "id": "S03-title", "type": "text", "text": "혼자 운동하는 회원은{br}방향과 동기를 잃기 쉽습니다" },
-        { "id": "S03-g1-h", "type": "text", "text": "일반 회원권 회원" },
+        { "id": "S03-g1-h", "type": "text", "text": "일반 회원" },
         { "id": "S03-g1-b", "type": "text", "text": "무엇을, 얼마나, 언제 올릴지 혼자 정해야 해서 제자리에 머물거나 무리하기 쉽고, 변화가 안 보이면 발길이 뜸해집니다. 도움이 필요해도 PT 상담까지 가는 계기가 적습니다." },
         { "id": "S03-g2-h", "type": "text", "text": "PT 회원" },
         { "id": "S03-g2-b", "type": "text", "text": "PT 외에 개인적으로 수행한 운동은 메모·사진으로 흩어지고, 트레이너는 다음 수업 전에 회원이 무엇을 했는지 알기 어렵습니다." }
@@ -65,20 +65,20 @@
       "id": "S04", "kind": "diff1", "nav": "차별점",
       "items": [
         { "id": "S04-label", "type": "text", "text": "DIFFERENCE 1 · 일반 회원권 회원" },
-        { "id": "S04-title", "type": "text", "text": "혼자 운동해도 ==꾸준히 오게==" },
-        { "id": "S04-lead", "type": "text", "text": "PT를 받지 않는 회원도 기록이 쌓이는 재미와 다음 목표가 보이게 해, 센터에 꾸준히 나오도록 돕습니다." },
+        { "id": "S04-title", "type": "text", "text": "혼자 운동해도 ==보다 동기부여가 되도록==" },
+        { "id": "S04-lead", "type": "text", "text": "PT를 받지 않는 회원도 기록이 쌓이는 재미와 다음 목표가 보이게 해,{br}센터에 꾸준히 나오도록 돕습니다." },
         { "id": "S04-f1-img", "type": "image", "ppt": "phone-coach.png", "web": "cap-coach.webp", "alt": "로그 코치 화면" },
         { "id": "S04-f1-h", "type": "text", "text": "다음 무게 추천" },
-        { "id": "S04-f1-b", "type": "text", "text": "지난 기록으로 오늘 무게·횟수, 컨디션에 맞춘 강도" },
+        { "id": "S04-f1-b", "type": "text", "text": "지난 기록으로 오늘 무게·횟수,\n컨디션에 맞춘 강도" },
         { "id": "S04-f2-img", "type": "image", "ppt": "phone-muscle.png", "web": "cap-muscle.webp", "alt": "근육 그림 화면" },
         { "id": "S04-f2-h", "type": "text", "text": "바디테일러 운동 가이드" },
         { "id": "S04-f2-b", "type": "text", "text": "근육 그림·자세, 트레이너가 다듬은 설명, 센터 보유 기구" },
         { "id": "S04-f3-img", "type": "image", "ppt": "phone-diet.png", "web": "cap-diet.webp", "alt": "식단 제안 화면" },
         { "id": "S04-f3-h", "type": "text", "text": "식단 제안" },
-        { "id": "S04-f3-b", "type": "text", "text": "식약처 자료로 끼니별 메뉴, 회식 날 요령" },
+        { "id": "S04-f3-b", "type": "text", "text": "식약처 자료로 끼니별 메뉴,\n회식 날 요령" },
         { "id": "S04-f4-img", "type": "image", "ppt": "phone-report.png", "web": "cap-report.webp", "alt": "리포트 화면" },
         { "id": "S04-f4-h", "type": "text", "text": "레벨·랭킹·성취" },
-        { "id": "S04-f4-b", "type": "text", "text": "센터 회원끼리 시즌 랭킹, 레벨·성취, 주간 목표 달성" }
+        { "id": "S04-f4-b", "type": "text", "text": "센터 회원끼리 시즌 랭킹, 레벨·성취,\n주간 목표 달성" }
       ]
     },
     {
@@ -86,7 +86,7 @@
       "items": [
         { "id": "S15-label", "type": "text", "text": "BRIDGE · 일반 회원 → PT" },
         { "id": "S15-title", "type": "text", "text": "혼자 운동하던 회원을{br}==PT 상담으로== 이어 줍니다" },
-        { "id": "S15-lead", "type": "text", "text": "판매 권유가 아니라, 회원 기록에 근거가 있을 때 트레이너를 안내합니다." },
+        { "id": "S15-lead", "type": "text", "text": "억지로 권하지 않아도, 기록을 보다 도움이 필요해진 순간 회원이 자연스럽게 PT 상담으로 이어집니다." },
         { "id": "S15-s1-h", "type": "text", "text": "기록하고 꾸준히" },
         { "id": "S15-s1-b", "type": "text", "text": "혼자 운동한 날도 앱에 기록하고, 레벨·랭킹으로 계속 나옵니다" },
         { "id": "S15-s2-h", "type": "text", "text": "코치의 신호" },
@@ -95,7 +95,7 @@
         { "id": "S15-s3-b", "type": "text", "text": "앱 안 트레이너 소개(전문 분야·경력)에서 맞는 트레이너를 고릅니다" },
         { "id": "S15-s4-h", "type": "text", "text": "PT 상담 신청" },
         { "id": "S15-s4-b", "type": "text", "text": "앱에서 바로 신청하면 관리자 문의함에 ‘PT 상담’으로 들어옵니다" },
-        { "id": "S15-note", "type": "text", "text": "트레이너 소개 내용과 사진은 트레이너별 동의를 받아 올립니다." }
+        { "id": "S15-note", "type": "text", "text": "현재 앱 내 트레이너 소개 내용과 사진은 블로그 자료 참고 임의 반영" }
       ]
     },
     {
@@ -133,7 +133,7 @@
       "id": "S07", "kind": "roadmap", "nav": "진행 단계",
       "items": [
         { "id": "S07-label", "type": "text", "text": "ROADMAP" },
-        { "id": "S07-title", "type": "text", "text": "세 단계로, 결정은{br}==트레이너 평가를 보고== 합니다" },
+        { "id": "S07-title", "type": "text", "text": "세 단계로, 결정은{br}==트레이너 평가를 보고== 정합니다" },
         { "id": "S07-st1-n", "type": "text", "text": "1단계" },
         { "id": "S07-st1-d", "type": "text", "text": "2~4주" },
         { "id": "S07-st1-h", "type": "text", "text": "트레이너 선사용" },
@@ -149,7 +149,7 @@
         { "id": "S07-st3-n", "type": "text", "text": "3단계" },
         { "id": "S07-st3-d", "type": "text", "text": "점검 후" },
         { "id": "S07-st3-h", "type": "text", "text": "운영 방식 결정" },
-        { "id": "S07-st3-list", "type": "list", "text": "운영 방안 A·B·C 중 선택\n이름 사용 다시 협의\n전 회원 안내 계속" }
+        { "id": "S07-st3-list", "type": "list", "text": "운영 방식 협의\n이름 사용 다시 협의\n전 회원 안내 계속" }
       ]
     },
     {
@@ -158,7 +158,7 @@
         { "id": "S08-label", "type": "text", "text": "STEP 1 · 트레이너 선사용" },
         { "id": "S08-title", "type": "text", "text": "트레이너는 이렇게 써 보고, 이렇게 평가합니다" },
         { "id": "S08-todo-h", "type": "text", "text": "트레이너가 할 일" },
-        { "id": "S08-todo", "type": "list", "text": "본인 운동을 2주 이상 앱으로 기록\n자주 쓰는 종목의 운동 가이드 확인·수정(앱에서 직접)\n테스트 회원 계정에 계획 보내기 연습\n센터 보유 기구 확인\n불편한 점은 앱 1:1 문의로" },
+        { "id": "S08-todo", "type": "list", "text": "본인 운동을 2주 이상 앱으로 기록\n자주 쓰는 종목의 운동 가이드 확인·수정(앱에서 직접 또는 요청)\n테스트 회원 계정에 계획 보내기 연습\n센터 보유 기구 확인\n불편한 점은 앱 1:1 문의로" },
         { "id": "S08-ev-h", "type": "text", "text": "평가 항목 (0~10점 + 의견)" },
         { "id": "S08-ev1-h", "type": "text", "text": "쓰기 편한가" },
         { "id": "S08-ev1-b", "type": "text", "text": "운동 중 기록이 번거롭지 않은지" },
@@ -221,7 +221,7 @@
         { "id": "S16-row2-k", "type": "text", "text": "담긴 내용" },
         { "id": "S16-row2-v", "type": "text", "text": "앱 기능·로그 코치·트레이너 소개·자주 묻는 질문, 바디테일러 블로그·인스타그램 연결" },
         { "id": "S16-row3-k", "type": "text", "text": "쓰는 곳" },
-        { "id": "S16-row3-v", "type": "text", "text": "카운터 QR 포스터, 인스타그램 프로필 링크, 회원 안내 문자" },
+        { "id": "S16-row3-v", "type": "text", "text": "네이버지도 업체정보 홈페이지 연동, 안내데스크 QR 포스터로 바로 접속" },
         { "id": "S16-row4-k", "type": "text", "text": "비용" },
         { "id": "S16-row4-v", "type": "text", "text": "제작·수정·호스팅 무상, 주소도 무료 주소라 현재 기준 비용 없음" },
         { "id": "S16-note-h", "type": "text", "text": "함께 바뀝니다" },
@@ -246,29 +246,6 @@
       ]
     },
     {
-      "id": "S12", "kind": "options",
-      "items": [
-        { "id": "S12-label", "type": "text", "text": "AFTER ADOPTION" },
-        { "id": "S12-title", "type": "text", "text": "3개월 점검 뒤 운영 방식은{br}세 가지 중에서 함께 고릅니다" },
-        { "id": "S12-op1-k", "type": "text", "text": "A" },
-        { "id": "S12-op1-h", "type": "text", "text": "무료 유지" },
-        { "id": "S12-op1-d", "type": "text", "text": "바디테일러 회원 전용 무료 서비스" },
-        { "id": "S12-op1-c", "type": "text", "text": "센터 부담 없음" },
-        { "id": "S12-op1-x", "type": "text", "text": "회원이 늘어 무료 서버 한도(하루 읽기 5만·쓰기 2만 건)를 넘으면 서버 비용 발생" },
-        { "id": "S12-op2-k", "type": "text", "text": "B" },
-        { "id": "S12-op2-h", "type": "text", "text": "센터 월 이용료" },
-        { "id": "S12-op2-d", "type": "text", "text": "센터가 월정액, 회원은 무료" },
-        { "id": "S12-op2-c", "type": "text", "text": "센터 월 [금액]" },
-        { "id": "S12-op2-x", "type": "text", "text": "회원에게는 ‘바디테일러 회원 혜택’" },
-        { "id": "S12-op3-k", "type": "text", "text": "C" },
-        { "id": "S12-op3-h", "type": "text", "text": "회원 프리미엄" },
-        { "id": "S12-op3-d", "type": "text", "text": "기록·기본 코칭은 무료, 일부 고급 기능만 유료" },
-        { "id": "S12-op3-c", "type": "text", "text": "회원 월 [금액] · 센터 부담 없음" },
-        { "id": "S12-op3-x", "type": "text", "text": "결제 기능·약관을 새로 갖추고 회원 부담이 생김" },
-        { "id": "S12-foot", "type": "text", "text": "어느 쪽이든 회원 화면에는 광고를 넣지 않는 것을 권합니다." }
-      ]
-    },
-    {
       "id": "S13", "kind": "privacy",
       "items": [
         { "id": "S13-label", "type": "text", "text": "PRIVACY" },
@@ -286,7 +263,7 @@
       "items": [
         { "id": "S14-bg", "type": "image", "ppt": "bg-close.jpg", "web": "photo-hero.webp", "alt": "바벨을 드는 사람" },
         { "id": "S14-label", "type": "text", "text": "REQUEST" },
-        { "id": "S14-title", "type": "text", "text": "트레이너 선사용부터{br}시작하도록 정해 주세요" },
+        { "id": "S14-title", "type": "text", "text": "트레이너 선 사용부터{br}정해주시면 바로 사용 가능" },
         { "id": "S14-g1-h", "type": "text", "text": "지금 정해 주실 것" },
         { "id": "S14-g1-r1-h", "type": "text", "text": "트레이너 선사용 참여" },
         { "id": "S14-g1-r1-b", "type": "text", "text": "참여 트레이너와 기간(2~4주)" },
@@ -300,7 +277,7 @@
         { "id": "S14-g2-r2-h", "type": "text", "text": "회원 안내 협조" },
         { "id": "S14-g2-r2-b", "type": "text", "text": "카운터 안내문·홈페이지 QR 포스터" },
         { "id": "S14-final-h", "type": "text", "text": "정해 주시면" },
-        { "id": "S14-final", "type": "text", "text": "트레이너 계정을 만들고 사용법을 30분 안내한 뒤 바로 선사용을 시작합니다." }
+        { "id": "S14-final", "type": "text", "text": "트레이너 계정을 만들고 사용법을 안내한 뒤 바로 선사용을 시작합니다." }
       ]
     }
   ]
