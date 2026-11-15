@@ -54,7 +54,8 @@ def from_pptx(path):
             txt = sh.text_frame.text
             if sh.name in items:
                 seen.add(sh.name)
-                if norm(txt) != norm(plain(items[sh.name]['text'])):
+                src = items[sh.name]['text']  # 긴 제목은 PPT에서도 {br} 자리에서 두 줄
+                if norm(txt) not in (norm(plain(src)), norm(re.sub(r'\s*\n\s*', '\n', shown_html(src)))):
                     edits.append({'id': sh.name, 'text': txt})
             elif not re.match(r'S\d\d-', sh.name) and txt.strip():
                 edits.append({'id': f'NEW:S{i:02d}', 'text': txt, 'where': f'{i}장 새 글상자 {sh.name}'})

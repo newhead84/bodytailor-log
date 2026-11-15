@@ -58,7 +58,7 @@ ${md('S08-foot')}`)
 
 add('S09', `**${md('S09-pr-h')}**
 
-${bullets('S09-pr')}
+${bullets('S09-pr')}${K.count((n) => `S09-mt${n}-h`) ? `
 
 **${md('S09-mt-h')}**
 
@@ -66,7 +66,7 @@ ${bullets('S09-pr')}
 | --- | --- |
 ${range((n) => `S09-mt${n}-h`).map((i) => `| ${md(`S09-mt${i}-h`)} | ${md(`S09-mt${i}-b`)} |`).join('\n')}
 
-${md('S09-foot')}`)
+${md('S09-foot')}` : ''}`)
 
 const kv = (sid, a, b) => `| ${a} | ${b} |
 | --- | --- |

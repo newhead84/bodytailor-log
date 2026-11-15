@@ -1,4 +1,4 @@
-# 바디테일러 도입 검토 제안서 원본 (2026-11-15, v4)
+# 바디테일러 도입 검토 제안서 원본 (2026-11-15, v5)
 
 앱 코드와 별개인 제안서 작업물. 인수인계: 프로젝트 문서 `claude/다음채팅_인수인계_제안서_20261113.md`. 만들거나 고칠 때는 `editable-proposal` 스킬을 따른다.
 
@@ -20,8 +20,8 @@
 - `out/`은 만들어지는 결과물이라 커밋하지 않는다.
 
 ## 게시본
-- HTML: https://claude.ai/artifact/Teb39jA6BTkWVQBFeu3SDS (v4, 문구 편집 도구 포함)
-- Docs: https://claude.ai/artifact/R6687uGYMft4HoDCcooSYa (v4, rev 27)
+- HTML: https://claude.ai/artifact/Teb39jA6BTkWVQBFeu3SDS (v5, 문구 편집 도구 포함)
+- Docs: https://claude.ai/artifact/R6687uGYMft4HoDCcooSYa (v5, rev 30)
 
 ## 수정 받는 법(사용자 안내)
 - PPT: 문구는 PowerPoint에서 바로 고치기. 사진·배치·색은 개체를 고르고 검토 > 새 메모(개체 이름은 홈 > 정렬 > 선택 창). 메모가 어려우면 노트에 `@수정 S04-f2-img: 다른 화면으로`.

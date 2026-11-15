@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "BodyTailor Log 도입 검토 제안서",
-    "version": 4,
+    "version": 5,
     "updated": "2026-11-13",
     "htmlTitle": "BodyTailor Log 도입 검토 제안서 · 바디테일러 PT&헬스",
     "footerPpt": "BodyTailor Log · 바디테일러 PT&헬스 제안서",
@@ -86,11 +86,11 @@
       "items": [
         { "id": "S15-label", "type": "text", "text": "BRIDGE · 일반 회원 → PT" },
         { "id": "S15-title", "type": "text", "text": "혼자 운동하던 회원을{br}==PT 상담으로== 이어 줍니다" },
-        { "id": "S15-lead", "type": "text", "text": "억지로 권하지 않아도, 기록을 보다 도움이 필요해진 순간 회원이 자연스럽게 PT 상담으로 이어집니다." },
+        { "id": "S15-lead", "type": "text", "text": "억지로 권하지 않아도, 기록을 보다 도움이 필요해지는 순간{br}자연스럽게 PT 상담으로 이어집니다." },
         { "id": "S15-s1-h", "type": "text", "text": "기록하고 꾸준히" },
         { "id": "S15-s1-b", "type": "text", "text": "혼자 운동한 날도 앱에 기록하고, 레벨·랭킹으로 계속 나옵니다" },
         { "id": "S15-s2-h", "type": "text", "text": "코치의 신호" },
-        { "id": "S15-s2-b", "type": "text", "text": "자세 확인이 필요한 종목, 통증 반복, 정체가 보이면 ‘트레이너와 상의’를 안내" },
+        { "id": "S15-s2-b", "type": "text", "text": "자세 확인이 필요한 종목, 통증 반복, 정체 시 ‘트레이너와 상의’를 안내" },
         { "id": "S15-s3-h", "type": "text", "text": "트레이너 소개" },
         { "id": "S15-s3-b", "type": "text", "text": "앱 안 트레이너 소개(전문 분야·경력)에서 맞는 트레이너를 고릅니다" },
         { "id": "S15-s4-h", "type": "text", "text": "PT 상담 신청" },
@@ -177,21 +177,7 @@
         { "id": "S09-label", "type": "text", "text": "STEP 2 · 회원 무료 사용" },
         { "id": "S09-title", "type": "text", "text": "도입을 정하면, 회원은 무료로 사용합니다" },
         { "id": "S09-pr-h", "type": "text", "text": "운영 원칙" },
-        { "id": "S09-pr", "type": "list", "text": "PT 회원부터 담당 트레이너와 함께 시작\n한 달 뒤 일반 회원권 회원으로 확대\n회원·센터 모두 무료, 광고 없음\n의견은 1:1 문의·설문, 1~2주마다 반영\n운영 방식이 바뀌어도 회원 기록은 그대로" },
-        { "id": "S09-mt-h", "type": "text", "text": "3개월 점검 지표" },
-        { "id": "S09-mt1-h", "type": "text", "text": "가입 회원 수" },
-        { "id": "S09-mt1-b", "type": "text", "text": "PT 회원·일반 회원권 회원 따로" },
-        { "id": "S09-mt2-h", "type": "text", "text": "꾸준히 쓰는 비율" },
-        { "id": "S09-mt2-b", "type": "text", "text": "가입 4주 뒤에도 주 1회 이상 기록" },
-        { "id": "S09-mt3-h", "type": "text", "text": "PT 회원 기록 공유" },
-        { "id": "S09-mt3-b", "type": "text", "text": "수업 밖 기록이 있는 PT 회원 비율" },
-        { "id": "S09-mt4-h", "type": "text", "text": "트레이너 활용" },
-        { "id": "S09-mt4-b", "type": "text", "text": "계획을 보낸 트레이너·계획 수" },
-        { "id": "S09-mt5-h", "type": "text", "text": "만족도" },
-        { "id": "S09-mt5-b", "type": "text", "text": "앱 설문 0~10점 평균과 의견" },
-        { "id": "S09-mt6-h", "type": "text", "text": "PT 상담 연결" },
-        { "id": "S09-mt6-b", "type": "text", "text": "앱에서 들어온 PT 상담 신청 수" },
-        { "id": "S09-foot", "type": "text", "text": "목표치는 도입 검토 회의에서 함께 정합니다." }
+        { "id": "S09-pr", "type": "list", "text": "PT 회원부터 담당 트레이너와 함께 시작\n한 달 뒤 일반 회원권 회원으로 확대\n회원·센터 모두 무료, 광고 없음\n의견은 1:1 문의·설문, 1~2주마다 반영\n운영 방식이 바뀌어도 회원 기록은 그대로" }
       ]
     },
     {

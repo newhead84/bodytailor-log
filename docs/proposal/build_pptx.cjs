@@ -54,7 +54,10 @@ const runs = (id) => {
   return ls.length === 1 ? ls[0] : ls.map((t, i) => ({ text: t, options: { breakLine: i < ls.length - 1 } }))
 }
 const T = (slide, id, o) => slide.addText(runs(id), { isTextBox: true, margin: 0, fontFace: FB, valign: 'top', objectName: id, ...o })
+const twoCols = new Set() // 두 단 글상자(저장 뒤 bodyPr numCol=2를 넣음)
 const L = (slide, id, o) => { // 목록: 줄마다 글머리표
+  if (o.columns === 2) twoCols.add(id)
+  delete o.columns
   const ls = K.lines(id)
   slide.addText(ls.map((t, k) => ({ text: t, options: { bullet: { indent: 12 }, breakLine: k < ls.length - 1 } })), { isTextBox: true, margin: 0, fontFace: FB, valign: 'top', objectName: id, ...o })
 }
@@ -243,22 +246,30 @@ pres.addSection({ title: '진행 방식' })
   T(s, 'S08-foot', { x: 4.9, y: 4.8, w: 4.5, h: 0.24, fontSize: 10.5, color: T2 })
 }
 
-// S09 회원 시범
+// S09 회원 무료 사용 (점검 지표는 2026-11-15 사용자 요청으로 원본에서 뺌 - 지표가 없으면 운영 원칙을 장 전체 폭으로)
 {
   const s = slideOf('S09', 'LIGHT', '진행 방식')
   head(s, 'S09')
-  card(s, 'S09-pr-box', 0.6, 1.7, 3.9, 3.3, false)
-  T(s, 'S09-pr-h', { x: 0.85, y: 1.88, w: 3.4, h: 0.3, fontFace: FS, fontSize: 15, color: INK })
-  L(s, 'S09-pr', { x: 0.85, y: 2.3, w: 3.45, h: 2.5, fontSize: 12, color: T2, paraSpaceAfter: 6, lineSpacingMultiple: 1.05 })
-  T(s, 'S09-mt-h', { x: 4.85, y: 1.72, w: 4.5, h: 0.3, fontFace: FS, fontSize: 15, color: INK })
-  const nm = K.count((n) => `S09-mt${n}-h`), st = Math.min(0.55, 2.7 / nm)
-  for (let i = 1; i <= nm; i++) {
-    const y = 2.1 + (i - 1) * st
-    s.addText(`0${i}`, { isTextBox: true, margin: 0, objectName: `S09-mt${i}-num`, x: 4.85, y, w: 0.6, h: 0.42, fontFace: FH, fontSize: 18, color: OLIVE, valign: 'top' })
-    T(s, `S09-mt${i}-h`, { x: 5.5, y: y + 0.01, w: 3.9, h: 0.25, fontFace: FS, fontSize: 13, color: INK })
-    T(s, `S09-mt${i}-b`, { x: 5.5, y: y + 0.27, w: 3.9, h: 0.22, fontSize: 10.5, color: T2 })
+  const nm = K.count((n) => `S09-mt${n}-h`)
+  if (!nm) {
+    card(s, 'S09-pr-box', 0.6, 1.7, 8.8, 2.6, false)
+    T(s, 'S09-pr-h', { x: 0.9, y: 1.95, w: 8.2, h: 0.32, fontFace: FS, fontSize: 16, color: INK })
+    // 목록은 한 개체(S09-pr), 한 단(두 단 numCol은 LibreOffice PDF에 안 먹어 PPT·PDF가 달라짐)
+    L(s, 'S09-pr', { x: 0.9, y: 2.45, w: 8.2, h: 1.7, fontSize: 13.5, color: T2, paraSpaceAfter: 8, lineSpacingMultiple: 1.05})
+  } else {
+    card(s, 'S09-pr-box', 0.6, 1.7, 3.9, 3.3, false)
+    T(s, 'S09-pr-h', { x: 0.85, y: 1.88, w: 3.4, h: 0.3, fontFace: FS, fontSize: 15, color: INK })
+    L(s, 'S09-pr', { x: 0.85, y: 2.3, w: 3.45, h: 2.5, fontSize: 12, color: T2, paraSpaceAfter: 6, lineSpacingMultiple: 1.05 })
+    T(s, 'S09-mt-h', { x: 4.85, y: 1.72, w: 4.5, h: 0.3, fontFace: FS, fontSize: 15, color: INK })
+    const st = Math.min(0.55, 2.7 / nm)
+    for (let i = 1; i <= nm; i++) {
+      const y = 2.1 + (i - 1) * st
+      s.addText(`0${i}`, { isTextBox: true, margin: 0, objectName: `S09-mt${i}-num`, x: 4.85, y, w: 0.6, h: 0.42, fontFace: FH, fontSize: 18, color: OLIVE, valign: 'top' })
+      T(s, `S09-mt${i}-h`, { x: 5.5, y: y + 0.01, w: 3.9, h: 0.25, fontFace: FS, fontSize: 13, color: INK })
+      T(s, `S09-mt${i}-b`, { x: 5.5, y: y + 0.27, w: 3.9, h: 0.22, fontSize: 10.5, color: T2 })
+    }
+    T(s, 'S09-foot', { x: 4.85, y: 4.88, w: 4.5, h: 0.22, fontSize: 10.5, color: T2 })
   }
-  T(s, 'S09-foot', { x: 4.85, y: 4.88, w: 4.5, h: 0.22, fontSize: 10.5, color: T2 })
 }
 
 // 표: 원본 S10-row1-k/v … → 행. 표 개체 이름은 '<장>-table', 칸은 행·열 순서로 원본 ID와 대응
@@ -368,6 +379,7 @@ const renamePlaceholders = async (f) => {
     xml = xml.replace(/<p:cNvPr id="(\d+)" name="Text \d+"><\/p:cNvPr><p:cNvSpPr\/><p:nvPr><p:ph/g, (m, id) => `<p:cNvPr id="${id}" name="${want[k++]}"></p:cNvPr><p:cNvSpPr/><p:nvPr><p:ph`)
     if (k !== want.length) throw new Error(`${name}: 자리표시자 ${k}개, 이름 ${want.length}개`)
     xml = xml.replace(/name="Slide Number Placeholder \d+"/g, `name="${sid}-pageno"`)
+    for (const id of twoCols) xml = xml.replace(new RegExp(`(name="${id}"[\\s\\S]*?<a:bodyPr)`), '$1 numCol="2" spcCol="457200"')
     zip.file(name, xml)
   }
   fs.writeFileSync(f, await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }))

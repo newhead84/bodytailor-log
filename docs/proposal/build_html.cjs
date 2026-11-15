@@ -135,12 +135,12 @@ ${metrics('S08', 'ev', 'S08-ev-h', 'S08-foot')}
       ${t('S09-label', 'div', 'mini')}
       ${t('S09-title', 'h3', 'subh')}
     </div>
-    <div class="cols2">
+    <div class="cols2${K.count((x) => `S09-mt${x}-h`) ? '' : ' one'}">
       <div class="box">
         ${t('S09-pr-h', 'h3')}
         ${ul('S09-pr')}
       </div>
-${metrics('S09', 'mt', 'S09-mt-h', 'S09-foot')}
+${K.count((x) => `S09-mt${x}-h`) ? metrics('S09', 'mt', 'S09-mt-h', 'S09-foot') : ''}
     </div>`, anchor.S07))
 }
 
