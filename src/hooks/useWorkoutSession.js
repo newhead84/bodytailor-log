@@ -1037,6 +1037,7 @@ export function useWorkoutSession(props, ref) {
   const [setTips, setSetTips] = useState({})
   // [2026-11-02 로그 코치] '플랜대로 하기'로 정한 오늘 세트 수(applied) - 코치 한마디 줄의 기준. 운동 중 증량 제안 횟수(강도별 제한)
   const [coachPlans, setCoachPlans] = useState({})
+  const [tipApplied, setTipApplied] = useState({}) // [2026-11-16] 종목별 '코치 제안 적용' 기록 { n: 그때 저장한 본세트 수, weight }
   const [tipUps, setTipUps] = useState({})
   // [2026-11-03 최근 연구] 한 부위 오늘 세트가 SESSION_SET_CAP을 넘었다고 이미 안내한 부위(세션당 한 번)
   const [capWarned, setCapWarned] = useState({})
@@ -1064,7 +1065,20 @@ export function useWorkoutSession(props, ref) {
         .filter((ex) => ex.sets.length),
     [records]
   )
-  const weekCounts = useMemo(() => (coachEnabled ? weekAtomSets(coachLogs, liveExercises) : {}), [coachEnabled, coachLogs, liveExercises])
+  // [2026-11-16] 오늘의 플랜이 이 종목에서 방금 저장한 세트 때문에 바뀌지 않게, 주간 세트 채우기 계산은 '이 종목을 뺀' 이번 주 세트로 한다
+  // (예전엔 이 종목의 저장 세트가 들어가 세트를 저장할 때마다 +1세트·세트별 횟수가 달라졌다). 다른 종목을 저장하면 달라지는 것은 그대로.
+  const weekCountsCache = {}
+  function weekCountsFor(key) {
+    if (!coachEnabled) return {}
+    if (!weekCountsCache[key]) {
+      const others = Object.entries(records)
+        .filter(([k]) => k !== key)
+        .map(([k, sets]) => ({ name: parseExerciseKey(k).name, sets: (sets || []).filter((st) => st.saved) }))
+        .filter((ex) => ex.sets.length)
+      weekCountsCache[key] = weekAtomSets(coachLogs, others)
+    }
+    return weekCountsCache[key]
+  }
   // 오늘의 플랜 = 추천(suggestNextSet) + 권장 세트 수 + 쉬어 가는 주(무게 10%↓·세트 1개↓) 또는 주간 세트 채우기(+1세트)
   function coachPlanFor(key) {
     const sug = suggestionFor(key)
@@ -1093,7 +1107,7 @@ export function useWorkoutSession(props, ref) {
       notes.push({ text: `${deload.hardWeeks}주 넘게 세게 이어 왔어요 → 이번 주는 무게 10%쯤·세트 1개 줄여 회복해요(쉬어 가는 주). 다음 주에 다시 올리면 더 잘 올라가요` })
     } else if (!deload) {
       // [2026-11-07] 내리기·복귀 날이나 코치 프로그램이 세트를 정해 둔 종목에는 주간 세트 채우기(+1세트)를 넣지 않는다
-      const short = sug.kind !== 'decrease' && !sug.comeback && !sug.sessionAdj && !sug.painRepeat && !getProgramRx(name, settingFor(key)) ? weeklyShortfall(name, weekCounts) : null
+      const short = sug.kind !== 'decrease' && !sug.comeback && !sug.sessionAdj && !sug.painRepeat && !getProgramRx(name, settingFor(key)) ? weeklyShortfall(name, weekCountsFor(key)) : null
       if (short && targets.length <= recommendedSetCount(name, settingFor(key))) {
         // [2026-11-10 T-6] 세트를 더하는 날은 운동량이 한 번에 뛰지 않게: 더한 세트는 목표 하한 횟수,
         // '같은 무게로 횟수 늘리기'면 +1회는 첫 세트에만(나머지는 지난번 횟수). 예: 8·8·8·7 → 9·8·8·7·8(예전 9·9·9·8·8)
@@ -1132,6 +1146,8 @@ export function useWorkoutSession(props, ref) {
     if (!tip) return
     const sets = records[key] || []
     const idx = sets.findIndex((st) => !st.saved && st.type !== 'warmup')
+    // [2026-11-16] 코치가 고쳐 준 다음 세트 무게는 '코치 한마디' 줄이 그 값으로 고정해 보여 준다(몇 세트 저장했을 때의 제안인지 함께 기억)
+    setTipApplied((a) => ({ ...a, [key]: { n: sets.filter((st) => st.saved && st.type !== 'warmup' && st.type !== 'drop').length, weight: tip.weight } }))
     // 무게만 바꾼 행은 아직 안 한 세트(planned)로 둔다 - 체크(V)해야 기록·볼륨에 들어감
     setRecords((r) => {
       const cur = r[key] || []
@@ -1333,6 +1349,7 @@ export function useWorkoutSession(props, ref) {
       showWarmupRamp: hasWarmupRamp(name),
       coachPlan: coachPlans[key] || null,
       plannedCount: plannedCountFor(key),
+      tipApplied: tipApplied[key] || null,
       planTargets: coachPlanFor(key)?.targets || [],
       planWeight: coachPlanFor(key)?.weight,
       planWeights: coachPlanFor(key)?.weights || [],

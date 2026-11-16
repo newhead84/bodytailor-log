@@ -702,12 +702,17 @@ export function ExerciseCard({
             const working = (sets || []).filter((st) => st.type !== 'warmup' && st.type !== 'drop')
             const doneN = working.filter((st) => st.saved).length
             const total = ext.plannedCount || 0
-            const nextRow = working.find((st) => !st.saved)
             if (!total) return null
+            // [2026-11-16] '이번엔 ○kg × N회'는 코치가 정한 값(오늘의 플랜 세트별 목표, 코치 제안을 적용했으면 그 무게)이다.
+            // 예전에는 다음 세트 입력칸의 값을 그대로 보여 줘서 사용자가 칸을 고칠 때마다 코치 말이 따라 바뀌었다.
+            const planReps = ext.planTargets?.[doneN]
+            const tipW = ext.tipApplied && ext.tipApplied.n === doneN ? ext.tipApplied.weight : null
+            const planW = tipW ?? ext.planWeights?.[doneN] ?? ext.planWeight
+            const hasNow = planReps != null && planW != null && planW !== ''
             const text =
               doneN >= total
                 ? `오늘 플랜 ${total}세트 끝! 여기서 마무리해도 충분해요`
-                : `${doneN + 1}세트째(총 ${total}${ext.coachPlan?.applied ? '' : ', 지난번과 같게'})${nextRow && nextRow.weight !== '' && nextRow.reps !== '' ? ` · 이번엔 ${formatLoad(exName, nextRow.weight)} × ${nextRow.reps}회` : ''}${doneN + 1 === total ? ' · 마지막 세트는 무게 그대로' : ''}`
+                : `${doneN + 1}세트째(총 ${total}${ext.coachPlan?.applied ? '' : ', 지난번과 같게'})${hasNow ? ` · 이번엔 ${formatLoad(exName, planW)} × ${planReps}회` : ''}${doneN + 1 === total ? ' · 마지막 세트는 무게 그대로' : ''}`
             return (
               // [2026-11-10] 이름표를 왼쪽에 두면 본문이 좁은 칸에서 여러 줄로 꺾여 이름표 위로 → 본문이 카드 폭 전체를 씀
               <div className="bt-enter" role="status" style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--color-bg-elevated)' }}>

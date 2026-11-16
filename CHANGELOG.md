@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-16] 코치 한마디 고정(사용자 신고: 칸을 고칠 때마다 코칭값이 바뀜): ① ExerciseCard 플랜 카드를 닫은 뒤 "이번엔 ○kg × N회"가 다음 세트 입력칸 값을 그대로 보여 주던 것을 오늘의 플랜 세트별 목표(코치 제안을 적용했으면 그 무게)로 고정 ② 주간 세트 채우기 계산에서 이 종목의 방금 저장 세트를 빼서(weekCountsFor) 세트를 저장할 때마다 플랜 세트 수·횟수가 달라지던 문제 수정 | components/ExerciseCard.jsx, hooks/useWorkoutSession.js
+
 [2026-11-16] 닫힘 동작(apple-design '들어온 길로 나가기', 사용자 확정): 휴식 타이머·확인창·자동 저장 검토 팝업이 열릴 때만 움직이고 닫힐 때는 한 프레임에 사라지던 것을, 들어온 길을 거꾸로 0.16~0.18초 동안 나가게 함. 답(확인창)·타이머 정지는 바로 처리하고 화면만 늦게 지움, 퇴장 중에는 눌림을 막지 않음(pointer-events none), 퇴장 중 새 휴식·새 확인창이 열리면 바로 되돌림, 동작 줄이기 설정이면 바로 사라짐 | hooks/useLeave.js(신규), RestTimer.jsx, ui.jsx ConfirmProvider, AutoSavedReview.jsx, designStyles.css bt-exit-down·bt-exit-pop·bt-exit-fade
 
 [2026-11-15] 제안서 맞춤 보완(브릿지·정체·체중 변화): ① 운동 완료 '오늘 몸 상태'·REPORT 정체 카드에 PT 상담으로 이어 주는 한 줄(담당 트레이너 없으면 'PT 상담 알아보기' → 트레이너 소개, PT 회원은 '다음 수업 때 말해 주세요', 트레이너·관리자·일반형은 숨김) ② 정체 대처에서 트레이너 자세 확인을 맨 앞으로 ③ 트레이너 회원 화면 '체중 변화'(최근 8주 체중 기록, 추가 읽기 없음) ④ 제안서 v6: S13 탈퇴 문구(PT 이용 기록은 정산용으로 남김) | PtBridgeLine.jsx(신규)·WorkoutCompleteModal·WorkoutInput·InsightCards RecoveryCard·ReportTab·App·strength.js stallOptions·TraineesScreen MemberBody weightChangeText·docs/proposal/content.json
