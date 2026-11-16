@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-16] 종목 완료 응원 토스트가 상단 타이머 바에 가림(사용자 신고): 토스트가 top 70px 고정이라 아이폰 안전 영역(약 47px)+타이머 바 40px(펼치면 +48px)보다 위에 놓여 바(zIndex 60) 아래에 깔렸다 → 탭 영역이 바 아래 끝 위치를 CSS 변수(--timer-bar-bottom)로 내려 주고 토스트는 그 아래 12px에 뜬다 | App.jsx(tabWrapperStyle), components/WorkoutInput.jsx
+
 [2026-11-16] 코치 한마디 고정(사용자 신고: 칸을 고칠 때마다 코칭값이 바뀜): ① ExerciseCard 플랜 카드를 닫은 뒤 "이번엔 ○kg × N회"가 다음 세트 입력칸 값을 그대로 보여 주던 것을 오늘의 플랜 세트별 목표(코치 제안을 적용했으면 그 무게)로 고정 ② 주간 세트 채우기 계산에서 이 종목의 방금 저장 세트를 빼서(weekCountsFor) 세트를 저장할 때마다 플랜 세트 수·횟수가 달라지던 문제 수정 | components/ExerciseCard.jsx, hooks/useWorkoutSession.js
 
 [2026-11-16] 닫힘 동작(apple-design '들어온 길로 나가기', 사용자 확정): 휴식 타이머·확인창·자동 저장 검토 팝업이 열릴 때만 움직이고 닫힐 때는 한 프레임에 사라지던 것을, 들어온 길을 거꾸로 0.16~0.18초 동안 나가게 함. 답(확인창)·타이머 정지는 바로 처리하고 화면만 늦게 지움, 퇴장 중에는 눌림을 막지 않음(pointer-events none), 퇴장 중 새 휴식·새 확인창이 열리면 바로 되돌림, 동작 줄이기 설정이면 바로 사라짐 | hooks/useLeave.js(신규), RestTimer.jsx, ui.jsx ConfirmProvider, AutoSavedReview.jsx, designStyles.css bt-exit-down·bt-exit-pop·bt-exit-fade

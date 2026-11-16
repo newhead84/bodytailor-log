@@ -66,7 +66,8 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           className={String(setToast).startsWith('신기록') ? 'bt-set-toast bt-shine' : 'bt-set-toast'}
           style={{
             position: 'fixed',
-            top: 70,
+            // [2026-11-16] 예전 top: 70은 아이폰 안전 영역(약 47px)+타이머 바 40px = 87px, 펼치면 135px이라 바(zIndex 60) 아래에 가려졌다
+            top: 'calc(var(--timer-bar-bottom, var(--safe-top, 0px)) + 12px)',
             left: '50%',
             zIndex: 50,
             padding: '10px 18px',
