@@ -206,6 +206,8 @@ export function useWorkoutSession(props, ref) {
   const sessionBestRef = useRef({})
   // [2026-10-27 리뉴얼 W3] 슈퍼세트: { [종목키]: 짝 종목키 } (양방향). 짝 종목 세트까지 하고 나서 휴식 시작.
   const [supersets, setSupersets] = useState({})
+  // [2026-10-30 추천 고도화] 운동 중 세트 단위 조정 제안(방금 저장한 본세트가 목표 범위를 크게 벗어났을 때) - { [key]: { weight, kind, reason } }
+  const [setTips, setSetTips] = useState({})
   const [saving, setSaving] = useState(false)
   // [2026-07-28] 운동완료 축하 팝업(획득 XP 표시). null이면 미노출.
   const [celebration, setCelebration] = useState(null) // { xpEarned } | null
@@ -1036,8 +1038,6 @@ export function useWorkoutSession(props, ref) {
   function dismissSuggestion(key) {
     setDismissedSuggestions((d) => (d[key] ? d : { ...d, [key]: true }))
   }
-  // [2026-10-30 추천 고도화] 운동 중 세트 단위 조정 제안(방금 저장한 본세트가 목표 범위를 크게 벗어났을 때) - { [key]: { weight, kind, reason } }
-  const [setTips, setSetTips] = useState({})
   // [2026-11-02 로그 코치] '플랜대로 하기'로 정한 오늘 세트 수(applied) - 코치 한마디 줄의 기준. 운동 중 증량 제안 횟수(강도별 제한)
   const [coachPlans, setCoachPlans] = useState({})
   const [tipApplied, setTipApplied] = useState({}) // [2026-11-16] 종목별 '코치 제안 적용' 기록 { n: 그때 저장한 본세트 수, weight }
