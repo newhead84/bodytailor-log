@@ -428,6 +428,7 @@ export function useWorkoutSession(props, ref) {
     setSupersets(draft.supersets || {})
     setCoachPlans(draft.coachPlans || {})
     setTipUps(draft.tipUps || {})
+    setSetTips(draft.setTips || {}) // [2026-11-16] 앱을 껐다 켜도 방금 세트의 코치 제안 카드를 유지
     setCondition(normalizeCondition(draft.condition))
     setConditionLight(!!draft.conditionLight)
     setSessionIntensityState(draft.sessionIntensity && COACH_INTENSITIES.some((c) => c.id === draft.sessionIntensity) ? draft.sessionIntensity : null)
@@ -673,6 +674,7 @@ export function useWorkoutSession(props, ref) {
       supersets,
       coachPlans, // [2026-11-03] 앱을 껐다 켜도 '플랜대로 하기'로 정한 세트 수·증량 제안 횟수를 기억
       tipUps,
+      setTips, // [2026-11-16] 방금 세트 코치 제안(앱을 껐다 켜면 사라지던 것)
       condition, // [2026-11-09] 운동 시작 전 컨디션
       conditionLight,
       sessionIntensity, // [2026-11-12] 오늘 강도
@@ -727,6 +729,7 @@ export function useWorkoutSession(props, ref) {
     freeExercises,
     freeCategory,
     supersets,
+    setTips,
     condition,
     conditionLight,
     sessionIntensity,
@@ -1131,9 +1134,14 @@ export function useWorkoutSession(props, ref) {
     const patch = feelPatch(id)
     patchSet(key, idx, patch, { keepAuto: true })
     const tip = adviseAfterFeel(parseExerciseKey(key).name, { ...set, ...patch }, settingFor(key))
+    // [2026-11-16] 몸 상태 안내가 방금 세트 제안(올리기·내리기 등)을 덮어쓴 뒤 '괜찮음'으로 되돌리면 제안이 통째로 사라지던 문제(사용자 신고: 코치 한마디 제안 카드가 사라짐)
+    // → 덮기 전 제안을 base로 들고 있다가 몸 상태 안내가 없어지면 그 제안을 되살린다.
     setSetTips((t) => {
-      if (tip) return { ...t, [key]: { ...tip, feel: true } }
-      if (!t[key]?.feel) return t
+      const cur = t[key]
+      const base = cur?.feel ? cur.base || null : cur || null
+      if (tip) return { ...t, [key]: { ...tip, feel: true, base } }
+      if (!cur?.feel) return t
+      if (base) return { ...t, [key]: base }
       const { [key]: _, ...rest } = t
       return rest
     })

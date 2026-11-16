@@ -2,6 +2,8 @@
 
 (20줄 초과로 src/App.jsx 상단 주석에서 이 파일로 분리됨)
 
+[2026-11-16] 코치 한마디 제안 카드가 사라지는 경우 보완(사용자 신고): ① 방금 세트 몸 상태(자세 흔들림·통증)가 증량·감량 제안을 덮은 뒤 '괜찮음'으로 되돌리면 제안이 통째로 사라지던 것 → 덮기 전 제안을 base로 들고 있다 되살림 ② 앱을 껐다 켜거나 새로고침하면 제안 카드가 사라지던 것 → 진행 세션 임시 저장(draft)에 setTips 포함 | hooks/useWorkoutSession.js
+
 [2026-11-16] 종목 완료 응원 토스트가 상단 타이머 바에 가림(사용자 신고): 토스트가 top 70px 고정이라 아이폰 안전 영역(약 47px)+타이머 바 40px(펼치면 +48px)보다 위에 놓여 바(zIndex 60) 아래에 깔렸다 → 탭 영역이 바 아래 끝 위치를 CSS 변수(--timer-bar-bottom)로 내려 주고 토스트는 그 아래 12px에 뜬다 | App.jsx(tabWrapperStyle), components/WorkoutInput.jsx
 
 [2026-11-16] 코치 한마디 고정(사용자 신고: 칸을 고칠 때마다 코칭값이 바뀜): ① ExerciseCard 플랜 카드를 닫은 뒤 "이번엔 ○kg × N회"가 다음 세트 입력칸 값을 그대로 보여 주던 것을 오늘의 플랜 세트별 목표(코치 제안을 적용했으면 그 무게)로 고정 ② 주간 세트 채우기 계산에서 이 종목의 방금 저장 세트를 빼서(weekCountsFor) 세트를 저장할 때마다 플랜 세트 수·횟수가 달라지던 문제 수정 | components/ExerciseCard.jsx, hooks/useWorkoutSession.js
