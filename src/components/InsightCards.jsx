@@ -26,6 +26,7 @@ import {
 } from '../utils/strength'
 import { ExerciseName } from '../utils/exerciseName'
 import { MuscleFigures, ATOM_FIGURE_IDS } from './MuscleMap'
+import PtBridgeLine from './PtBridgeLine'
 
 export function startOfWeekStr(d = new Date(), offsetWeeks = 0) {
   const date = new Date(d)
@@ -288,7 +289,7 @@ function nearFailureShare(logs) {
   return logged >= 6 ? hard / logged : null
 }
 
-export function RecoveryCard({ logs }) {
+export function RecoveryCard({ logs, userDoc = null, onConsultPt = null }) {
   const sorted = useMemo(() => [...(logs || [])].sort((a, b) => (a.date < b.date ? -1 : 1)), [logs])
   const plateaus = useMemo(() => detectPlateaus(sorted).slice(0, 3), [sorted])
   const hardWeeks = useMemo(() => consecutiveHardWeeks(sorted), [sorted])
@@ -325,6 +326,13 @@ export function RecoveryCard({ logs }) {
             <Disclosure label="대처 방법">
               수면·식사를 점검하고, 무게를 5–10% 낮춰 반복 수를 다시 쌓거나 비슷한 대체 종목으로 2–4주 바꿔보세요.
             </Disclosure>
+            {/* [2026-11-15] 제안서 S15: 정체는 자세·프로그램 문제일 때가 많아 트레이너에게 이어 준다 */}
+            <PtBridgeLine
+              userDoc={userDoc}
+              onConsult={onConsultPt}
+              consultText="정체가 길어지면 트레이너에게 자세·프로그램을 확인받아요"
+              trainerText="담당 트레이너도 이 기록을 봐요. 다음 수업 때 같이 정해 봐요"
+            />
           </div>
         )}
       </Card>

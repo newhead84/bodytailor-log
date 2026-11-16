@@ -5,6 +5,7 @@ import { Button, TierEmblem, Burst, Shine, ScreenCelebration, Term } from './ui'
 import { CountUp } from '../hooks/useCountUp'
 import { StretchSuggest } from './StretchGuide'
 import { getLevelInfo } from '../utils/tier'
+import PtBridgeLine from './PtBridgeLine'
 
 // [2026-07-28] 운동완료 축하 팝업. 격려 문구 + 획득 XP + 체크마크 애니메이션.
 // 배경을 눌러도 닫히지 않게(다음 행동 유도) 버튼으로만 닫는다.
@@ -12,7 +13,7 @@ import { getLevelInfo } from '../utils/tier'
 // Lv 진행 막대(저장 전 → 후로 차오름). Lv이 오르면 "레벨 업", 단계가 바뀌면 "OO 달성" 표시.
 import PostWorkoutMeal from './PostWorkoutMeal'
 
-export default function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateForAdd, onAddToRoutine, onClose, uid = null, userDoc = null }) {
+export default function WorkoutCompleteModal({ xpEarned, summary, pendingRoutineAdd, templateForAdd, onAddToRoutine, onClose, uid = null, userDoc = null, onConsultPt = null }) {
   const [addState, setAddState] = useState('idle') // idle | adding | done
   const hasPendingCandidates = !!(templateForAdd && pendingRoutineAdd?.length)
   const before = getLevelInfo(summary?.xpBefore || 0)
@@ -160,6 +161,13 @@ export default function WorkoutCompleteModal({ xpEarned, summary, pendingRoutine
                 ? '통증이 심했다면 트레이너와 상의하고, 며칠 지나도 아프면 진료를 받아 보세요. 다음 플랜에서 다시 알려 드려요'
                 : '다음 운동 플랜에서 다시 알려 드려요. 그 종목은 무게를 올리지 않고 자세부터 확인해요'}
             </p>
+            {/* [2026-11-15] 제안서 S15 브릿지: 담당 트레이너 없으면 PT 상담 알아보기, PT 회원이면 다음 수업 때 말하기 */}
+            <PtBridgeLine
+              userDoc={userDoc}
+              onConsult={onConsultPt ? () => { onClose(); onConsultPt() } : null}
+              consultText="계속되면 트레이너에게 한 번 봐 달라고 해요"
+              style={{ marginTop: 8 }}
+            />
           </div>
         )}
         {/* [2026-10-30] 오늘 쓴 부위 쿨다운(정적) 스트레칭 3개 */}

@@ -474,6 +474,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
           onClose={() => setCelebration(null)}
           uid={uid}
           userDoc={props.userDoc}
+          onConsultPt={props.onShowTrainerDirectory ? () => props.onShowTrainerDirectory('') : null}
         />
       )}
 

@@ -583,11 +583,13 @@ function heavierWeight(name, w, setting) {
 }
 function stallOptions(name, setting, repMin, repMax) {
   const opts = []
+  // [2026-11-15] 제안서 S15: 정체는 자세 문제일 때도 많아 트레이너 확인을 맨 앞에(예전엔 마지막 줄 끝에 묻혀 있었음)
+  opts.push('자세 확인받기: 정체는 자세가 조금씩 흐트러져 생길 때도 많아요. 트레이너에게 한 세트만 봐 달라고 해요')
   opts.push('강도 한 단계 올리기: MY › 설정 › 로그 코치에서 강도를 \'세게\'로 바꾸면 증량 기준이 조금 느슨해져요(마지막 세트는 한계 가까이)')
   if (repMin > 4) opts.push(`목표 횟수 바꾸기: 3–4주 동안 ${Math.max(3, repMin - 2)}–${Math.max(repMin, repMax - 2)}회로 조금 더 무겁게 해 보세요`)
   opts.push('이 종목만 1주 가볍게: 무게를 약 10% 낮추고 세트를 1개 줄여 회복한 뒤 다시 올려요')
   opts.push('비슷한 종목으로 바꾸기: 4–6주 다른 기구·그립으로 같은 부위를 자극해 보세요')
-  opts.push('잠·식사·쉬는 날이 부족하지 않은지도 살펴보세요. 자세가 걱정되면 트레이너에게 한 번 확인받는 것도 좋아요')
+  opts.push('잠·식사·쉬는 날이 부족하지 않은지도 살펴보세요')
   return opts
 }
 

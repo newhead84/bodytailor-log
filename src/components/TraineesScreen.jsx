@@ -19,7 +19,8 @@ import { getUserDoc, getAppSettings, listPtSessions, trainerUsePt, trainerUndoPt
 import { fitnessDerived } from '../utils/fitnessCheck'
 import { dailyTargets, exerciseKcalPerDay } from '../utils/nutrition/targets'
 import { dietPrefs, dietProfile } from '../utils/nutrition/dietState'
-import { toLocalDateStr, weekStartStr } from '../utils/date'
+import { toLocalDateStr, weekStartStr, todayStr } from '../utils/date'
+import { cleanWeightLog } from '../utils/weightLog'
 import { membershipState, isPausedOn, pausesOf, addDays } from '../utils/member'
 import { normalizeGoals } from '../utils/goals'
 import { getExerciseInputType } from '../utils/exerciseLibrary'
@@ -980,6 +981,21 @@ function MemberPlans({ conn, uid, onNew, onEdit, onLoaded }) {
   )
 }
 
+// [2026-11-15] 체중 변화 한 줄: 최근 8주 안 첫 기록 → 마지막 기록(8주 안에 2개 미만이면 마지막 두 기록). 기록 1개 이하면 null
+function weightChangeText(raw, today = todayStr()) {
+  const list = cleanWeightLog(raw)
+  if (list.length < 2) return null
+  const since = toLocalDateStr(new Date(new Date(`${today}T00:00:00`).getTime() - 56 * 86400000))
+  const inWin = list.filter((x) => x.d >= since)
+  const pts = inWin.length >= 2 ? inWin : list.slice(-2)
+  const a = pts[0]
+  const b = pts[pts.length - 1]
+  const diff = Math.round((b.kg - a.kg) * 10) / 10
+  const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`
+  const change = diff === 0 ? '그대로' : `${diff > 0 ? '+' : '−'}${Math.abs(diff)}kg`
+  return `${md(a.d)} ${a.kg}kg → ${md(b.d)} ${b.kg}kg (${change}) · 기록 ${pts.length}번`
+}
+
 // [2026-10-31] 회원 신체정보·목표 - 온보딩/MY 프로필 값 그대로
 // [2026-10-31] goalEditor: 트레이너 목표 제안·바로 바꾸기(TrainerGoal.jsx)
 function MemberBody({ member, memberUid, goalEditor, logs = null }) {
@@ -1009,6 +1025,7 @@ function MemberBody({ member, memberUid, goalEditor, logs = null }) {
     bm.bmi && `BMI ${bm.bmi.text}`,
   ].filter(Boolean)
   const goals = normalizeGoals(o.goals)
+  const weightChange = weightChangeText(member.weightLog)
   const row = (k, v) => (
     <div style={{ display: 'flex', gap: 12, fontSize: 13.5, lineHeight: 1.5 }}>
       <span style={{ flexShrink: 0, width: 64, color: 'var(--color-label-neutral)' }}>{k}</span>
@@ -1019,6 +1036,8 @@ function MemberBody({ member, memberUid, goalEditor, logs = null }) {
     <Card style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {row('신체정보', body.length ? body.join(' · ') : '입력 안 함')}
+        {/* [2026-11-15] 제안서 S05 '체중 변화': 회원이 REPORT·MY에 적은 체중 기록(users.weightLog, 추가 읽기 없음) */}
+        {weightChange && row('체중 변화', weightChange)}
         {metric.length > 0 && row('신체 지표', `${metric.join(' · ')}${bm.fat && bm.inbodyAt ? ` (인바디 ${bm.inbodyAt})` : ''}`)}
         {row('운동 목표', goals.length ? goals.map((g, i) => `${i + 1}. ${g}`).join('  ') : '입력 안 함')}
         {row('주간 목표', `주 ${member.weeklyTargetDays || 3}일`)}

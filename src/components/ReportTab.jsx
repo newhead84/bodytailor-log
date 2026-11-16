@@ -36,7 +36,7 @@ function startOfWeek(d) {
   return date
 }
 
-export default function ReportTab({ onProfileUpdated = null, liveExercises = null, uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true, onOpenFitness = null }) {
+export default function ReportTab({ onProfileUpdated = null, liveExercises = null, uid, userDoc, targetSessionsPerWeek = 3, logsVersion, onShowTierInfo, isActive = true, onOpenFitness = null, onShowTrainerDirectory = null }) {
   // [2026-11-07] 이 탭은 숨겨진 채 앱 시작과 함께 렌더되므로, 처음 열 때까지는 랭킹·인기 운동·통계 기록을 읽지 않는다
   // (앱 열기마다 읽기 약 50~150 절약, Spark 한도). 한 번 열린 뒤에는 예전처럼 동작한다.
   const [everActive, setEverActive] = useState(!!isActive)
@@ -293,7 +293,7 @@ export default function ReportTab({ onProfileUpdated = null, liveExercises = nul
           <MuscleSetsCard logs={logs} liveExercises={liveExercises} gender={userDoc?.onboarding?.gender || null} />
           <StrengthTrendCard logs={logs} isActive={isActive} />
           <WeightTrendCard uid={uid} userDoc={userDoc} onSaved={onProfileUpdated} />
-          <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} />
+          <RecoveryCard logs={logs.filter((l) => !l.isBackfilled)} userDoc={userDoc} onConsultPt={onShowTrainerDirectory ? () => onShowTrainerDirectory('') : null} />
           <WeeklySetsHeatmap logs={logs} />
           <CardioCard logs={logs} liveExercises={liveExercises} />
           {getTrainingProfile().showBoneCard && <BoneHealthCard logs={logs} />}

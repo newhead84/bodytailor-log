@@ -1,6 +1,7 @@
 /**
  * CHANGELOG: 이 파일 상단 주석이 20줄을 넘어 CHANGELOG.md(저장소 루트)로 분리했습니다.
- * 최신 변경: [2026-11-12] 오늘 강도(기록 화면·컨디션 연동)·그립별 근육 표시·± 스크롤 버그.
+ * 최신 변경: [2026-11-15] 제안서 맞춤 보완: 코치 신호 → PT 상담 연결, 정체 시 트레이너 확인 먼저, 트레이너 화면 체중 변화.
+ *            직전: [2026-11-12] 오늘 강도(기록 화면·컨디션 연동)·그립별 근육 표시·± 스크롤 버그.
  *            직전: [2026-11-12] 어시스트 풀업·친업 5kg 단위(2.5kg로 기록한 기구는 유지).
  *            직전: [2026-11-12] 새 버전 자동 적용·식단 직접 고르기·회식 날 계획·세트 완료음·휴식 카운트다운.
  *            직전: [2026-11-12] 식단 4단계·마무리(운동 시간 맞춤·정체 안내·운동 후 끼니·트레이너 식단 목표·치킨·피자·회식 날 요령·용어 뜻).
@@ -912,6 +913,7 @@ export default function App() {
           onSessionPhaseChange={setWorkoutPhase}
           onSessionTimingChange={setSessionTiming}
           onLiveExercisesChange={setLiveExercises}
+          onShowTrainerDirectory={(uid, profileId) => setTrainerDir({ uid: uid || '', profileId: profileId || '' })}
           customExercises={userDoc.customExercises || {}}
           onGoToRoutineSetup={() => setManagingRoutines(true)}
           guideHintDismissed={!!userDoc.exerciseGuideHintDismissed}
@@ -940,6 +942,7 @@ export default function App() {
             logsVersion={logsVersion}
             onShowTierInfo={() => setShowTierInfo(true)}
             onOpenFitness={() => setShowFitness(true)}
+            onShowTrainerDirectory={(uid, profileId) => setTrainerDir({ uid: uid || '', profileId: profileId || '' })}
             isActive={activeTab === 'report'}
           />
         </Suspense>
