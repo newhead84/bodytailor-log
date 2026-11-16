@@ -396,6 +396,48 @@ button:active:not(:disabled) {
 .bt-slide-up {
   animation: bt-slide-up 0.28s var(--ease-out) both;
 }
+/* [2026-11-16] 닫힘 동작: 들어온 길을 거꾸로 짧게(hooks/useLeave.js LEAVE_MS 180ms 안에 끝나게).
+   bt-exit-down = bt-slide-up의 반대, bt-exit-pop = bt-pop-in의 반대, bt-exit-fade = bt-fade-in의 반대 */
+@keyframes bt-exit-down {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes bt-exit-pop {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes bt-exit-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.bt-exit-down {
+  animation: bt-exit-down 0.18s ease-in both;
+  pointer-events: none;
+}
+.bt-exit-pop {
+  animation: bt-exit-pop 0.16s ease-in both;
+  pointer-events: none;
+}
+.bt-exit-fade {
+  animation: bt-exit-fade 0.16s ease-in both;
+  pointer-events: none;
+}
 .bt-row-in {
   animation: bt-row-in 0.22s var(--ease-out) both;
 }

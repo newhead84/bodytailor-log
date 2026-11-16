@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { audioCtx, audioOut, resetAudio, vibrateAlert, vibrationPattern } from '../utils/audioOut'
+import { useLeave } from '../hooks/useLeave'
 
 // [2026-07-28] 알림음 5종 추가(사용자가 MY탭에서 선택, userDoc.restTimerSoundId로 저장).
 // 별도 음원 파일 없이 Web Audio API 오실레이터 파형/주파수 조합만으로 구현(오프라인에서도 항상 동작).
@@ -184,6 +185,9 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   const overtimeAlertCountRef = useRef(0)
   const preAlertedRef = useRef(false)
   const wakeLockRef = useRef(null)
+  // [2026-11-16] 닫힘 동작: 건너뛰기·자동 종료 때 아래로 내려가며 사라진 뒤 onCancel(타이머·화면 꺼짐 방지는 바로 멈춤).
+  // 내려가는 중에 새 휴식이 시작되면(resetKey 바뀜) 아래 effect가 cancel()로 되돌린다.
+  const { leaving, leave, cancel: cancelLeave } = useLeave(() => onCancel?.())
 
   function computeSignedRemaining() {
     return Math.round((endAtRef.current - Date.now()) / 1000)
@@ -236,6 +240,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   }
 
   useEffect(() => {
+    cancelLeave()
     finishedRef.current = false
     overtimeAlertCountRef.current = 0
     preAlertedRef.current = false
@@ -265,7 +270,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
           // 알림을 다 썼으면 사용자가 닫지 않아도 타이머를 자동 종료한다.
           clearInterval(intervalRef.current)
           releaseWakeLock()
-          onCancel?.()
+          leave()
         } else if (Date.now() - lastOvertimeAlertRef.current >= OVERTIME_REPEAT_MS) {
           lastOvertimeAlertRef.current = Date.now()
           overtimeAlertCountRef.current += 1
@@ -295,7 +300,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   function handleDismiss() {
     clearInterval(intervalRef.current)
     releaseWakeLock()
-    onCancel?.()
+    leave()
   }
 
   const isNegative = remaining < 0
@@ -307,7 +312,7 @@ export default function RestTimer({ seconds, resetKey, notificationEnabled, wake
   const progress = startSeconds > 0 ? Math.max(0, Math.min(1, remaining / startSeconds)) : 0
   return (
     <div
-      className="bt-slide-up"
+      className={leaving ? 'bt-exit-down' : 'bt-slide-up'}
       style={{
         position: 'fixed',
         overflow: 'hidden',

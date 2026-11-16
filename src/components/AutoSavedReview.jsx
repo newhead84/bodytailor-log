@@ -15,6 +15,7 @@ import { estimateCaloriesV2 } from '../utils/calories'
 import { confirmSetValues, prevTopWeight } from '../utils/inputCheck'
 import { ExerciseName } from '../utils/exerciseName'
 import { saveFailText } from '../utils/member'
+import { useLeave } from '../hooks/useLeave'
 
 const inputStyle = {
   width: '100%',
@@ -56,6 +57,8 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved,
   const [exercises, setExercises] = useState(() => (editable ? notice.exercises.map((ex) => ({ ...ex, sets: ex.sets.map((s) => ({ ...s })) })) : []))
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState('')
+  // [2026-11-16] 닫힘 동작: 닫기·저장 뒤 아래로 내려가며 사라진 다음 onClose(기록 삭제는 부모가 바로 정리하므로 그대로)
+  const { leaving, leave } = useLeave(() => onClose?.())
 
   const cleaned = useMemo(
     () =>
@@ -91,7 +94,7 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved,
   async function handleClose() {
     if (busy) return
     if (dirty && !(await confirm('고친 내용을 저장하지 않고 닫을까요?', { okLabel: '닫기', cancelLabel: '계속 고치기' }))) return
-    onClose?.()
+    leave()
   }
 
   async function handleSave() {
@@ -117,7 +120,7 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved,
         caloriesKcal: estimateCaloriesV2(getBodyweightKg(), cleaned, totalDurationSec),
       })
       onSaved?.()
-      onClose?.()
+      leave()
     } catch (err) {
       console.error('자동 저장 기록 수정 실패:', err)
       setError(saveFailText(err))
@@ -140,9 +143,9 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved,
 
   if (!notice || typeof document === 'undefined') return null
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="자동 저장된 운동 확인" style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(20,16,10,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+    <div role="dialog" aria-modal="true" aria-label="자동 저장된 운동 확인" className={leaving ? 'bt-exit-fade' : undefined} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(20,16,10,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div
-        className="bt-slide-up"
+        className={leaving ? 'bt-exit-down' : 'bt-slide-up'}
         style={{
           width: '100%',
           maxWidth: 520,
@@ -256,7 +259,7 @@ export default function AutoSavedReview({ uid, notice, onClose, onUndo, onSaved,
               </Button>
             </>
           ) : (
-            <Button style={{ flex: 1, minWidth: 0 }} disabled={!!busy} onClick={onClose}>
+            <Button style={{ flex: 1, minWidth: 0 }} disabled={!!busy} onClick={leave}>
               확인
             </Button>
           )}

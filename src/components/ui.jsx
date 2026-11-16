@@ -2,6 +2,7 @@ import React from 'react'
 import { ACCENT_OPTIONS } from '../utils/fonts'
 import { createPortal } from 'react-dom'
 import { useBackableScreen } from '../hooks/useBackableScreen'
+import { LEAVE_MS, prefersReducedMotion } from '../hooks/useLeave'
 import { glossaryText } from '../utils/glossary'
 // [2026-10-29] platinum.png('PLATINUM' 글자 일러스트)는 단계명 변경으로 미사용 - 파일은 보관
 
@@ -300,6 +301,19 @@ const ConfirmContext = React.createContext(null)
 export function ConfirmProvider({ children }) {
   const [state, setState] = React.useState(null) // { message, resolve }
   const [inputText, setInputText] = React.useState('')
+  // [2026-11-16] 닫힘 동작: 답은 바로 돌려주고(다음 동작이 기다리지 않게), 화면에서는 방금 창이 작아지며 사라진다.
+  // 사라지는 중에 새 확인창이 열리면 새 창을 바로 보여 준다. 동작 줄이기 설정이면 바로 사라진다.
+  const [leaving, setLeaving] = React.useState(null)
+  const leaveTimer = React.useRef(null)
+  const closeBox = React.useCallback((s) => {
+    clearTimeout(leaveTimer.current)
+    if (s && !prefersReducedMotion()) {
+      setLeaving(s)
+      leaveTimer.current = setTimeout(() => setLeaving(null), LEAVE_MS)
+    }
+    setState(null)
+  }, [])
+  React.useEffect(() => () => clearTimeout(leaveTimer.current), [])
 
   // [2026-10-27] 선택적으로 버튼 문구를 바꿀 수 있다: confirm(msg, { okLabel, cancelLabel })
   const confirm = React.useCallback((message, options = {}) => {
@@ -307,14 +321,17 @@ export function ConfirmProvider({ children }) {
       // [2026-10-29] dismissValue: 바깥(배경)을 눌러 닫았을 때 돌려줄 값(기본 false). 두 버튼이 모두
       // "진행" 의미인 확인창(예: 체크한 세트만 / 함께 저장)은 null을 받아 작업 자체를 멈춘다.
       // [2026-11-11] input: { placeholder, maxLength } - 입력칸이 있는 확인창(브라우저 prompt 대신). 확인 = 입력한 글(비어도 ''), 취소·닫기 = false
+      clearTimeout(leaveTimer.current)
+      setLeaving(null)
       setState({ message, resolve, okLabel: options.okLabel, cancelLabel: options.cancelLabel, dismissValue: 'dismissValue' in options ? options.dismissValue : false, input: options.input || null })
       setInputText('')
     })
   }, [])
 
   function respond(result) {
-    state?.resolve(result)
-    setState(null)
+    if (!state) return
+    state.resolve(result)
+    closeBox({ ...state, inputText })
   }
 
   // [2026-11-01] 열리면 첫 버튼(취소)에 포커스, Escape·기기 뒤로가기는 바깥을 눌러 닫은 것과 같게(취소)
@@ -325,8 +342,8 @@ export function ConfirmProvider({ children }) {
     const s = stateRef.current
     if (!s) return
     s.resolve(s.dismissValue)
-    setState(null)
-  }, [])
+    closeBox(s)
+  }, [closeBox])
   useBackableScreen(!!state, dismiss)
   React.useEffect(() => {
     if (!state) return
@@ -341,14 +358,18 @@ export function ConfirmProvider({ children }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [state, dismiss])
 
+  const view = state || leaving
+  const isLeaving = !state && !!leaving
+  const viewText = isLeaving ? leaving.inputText || '' : inputText
   return (
     <ConfirmContext.Provider value={confirm}>
       {children}
-      {state && (
+      {view && (
         <div
           role="dialog"
           aria-modal="true"
-          className="bt-fade-in"
+          aria-hidden={isLeaving || undefined}
+          className={isLeaving ? 'bt-exit-fade' : 'bt-fade-in'}
           style={{
             position: 'fixed',
             inset: 0,
@@ -360,12 +381,12 @@ export function ConfirmProvider({ children }) {
             zIndex: 500,
             padding: 24,
           }}
-          onClick={() => respond(state.dismissValue)}
+          onClick={() => state && respond(state.dismissValue)}
         >
           <div
             ref={boxRef}
             onClick={(e) => e.stopPropagation()}
-            className="bt-pop-in"
+            className={isLeaving ? 'bt-exit-pop' : 'bt-pop-in'}
             style={{
               width: '100%',
               maxWidth: 320,
@@ -380,29 +401,29 @@ export function ConfirmProvider({ children }) {
               className="text-keep-all"
               style={{ margin: '0 0 18px', fontSize: 'var(--fs-body1)', lineHeight: 'var(--lh-body1)', color: 'var(--color-label-strong)', whiteSpace: 'pre-line' }}
             >
-              {state.message}
+              {view.message}
             </p>
-            {state.input && (
+            {view.input && (
               <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value.slice(0, state.input.maxLength || 200))}
-                placeholder={state.input.placeholder || ''}
+                value={viewText}
+                onChange={(e) => setInputText(e.target.value.slice(0, view.input.maxLength || 200))}
+                placeholder={view.input.placeholder || ''}
                 rows={3}
-                maxLength={state.input.maxLength || 200}
+                maxLength={view.input.maxLength || 200}
                 style={{ width: '100%', boxSizing: 'border-box', margin: '-6px 0 4px', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-line)', background: 'var(--color-bg)', color: 'var(--color-label-strong)', fontSize: 15, lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical' }}
               />
             )}
-            {state.input && (
+            {view.input && (
               <p className="bt-num" style={{ margin: '0 0 14px', fontSize: 12, textAlign: 'right', color: 'var(--color-label-neutral)' }}>
-                {inputText.length}/{state.input.maxLength || 200}
+                {viewText.length}/{view.input.maxLength || 200}
               </p>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <Button variant="ghost" full onClick={() => respond(false)}>
-                {state.cancelLabel || '취소'}
+                {view.cancelLabel || '취소'}
               </Button>
-              <Button variant="primary" full onClick={() => respond(state.input ? inputText.trim() : true)}>
-                {state.okLabel || '확인'}
+              <Button variant="primary" full onClick={() => state && respond(state.input ? inputText.trim() : true)}>
+                {view.okLabel || '확인'}
               </Button>
             </div>
           </div>
