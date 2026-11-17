@@ -384,6 +384,33 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
     }
 
+    // [2026-11-17 신규] 내 식단: 내 음식(uf0~uf59)·내 조합(uc0~uc29). 문서 ID가 칸 번호라 개수 상한(60·30)을 규칙이 막는다.
+    // 본인만 읽고 쓴다. isApproved()는 get() 한도(일괄 쓰기 20문서) 때문에 쓰지 않는다(개인 식단 메모라 승인과 무관).
+    function dietNum(v, hi) {
+      return (v is int || v is float) && v >= 0 && v <= hi;
+    }
+    function dietFoodOk(d, id) {
+      return id.matches('uf([0-9]|[1-5][0-9])') &&
+        d.keys().hasOnly(['kind', 'name', 'unit', 'kcal', 'p', 'c', 'f', 'na', 'at']) &&
+        d.keys().hasAll(['kind', 'name', 'unit', 'kcal', 'p', 'c', 'f', 'at']) &&
+        d.kind == 'food' && d.name is string && d.name.size() >= 1 && d.name.size() <= 20 &&
+        d.unit is string && d.unit.size() >= 1 && d.unit.size() <= 8 &&
+        dietNum(d.kcal, 3000) && dietNum(d.p, 300) && dietNum(d.c, 300) && dietNum(d.f, 300) &&
+        (!('na' in d) || dietNum(d.na, 10000)) && d.at == request.time;
+    }
+    function dietComboOk(d, id) {
+      return id.matches('uc([0-9]|[12][0-9])') &&
+        d.keys().hasOnly(['kind', 'name', 'list', 'at']) &&
+        d.keys().hasAll(['kind', 'name', 'list', 'at']) &&
+        d.kind == 'combo' && d.name is string && d.name.size() >= 1 && d.name.size() <= 20 &&
+        d.list is list && d.list.size() >= 1 && d.list.size() <= 12 && d.at == request.time;
+    }
+    match /dietCustom/{uid}/items/{itemId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) &&
+        (dietFoodOk(request.resource.data, itemId) || dietComboOk(request.resource.data, itemId));
+    }
+
     // [2026-10-27 신규] activeSessions/{uid} - 진행 중 운동 세션 서버 백업(본인만, 크기 제한)
     match /activeSessions/{uid} {
       allow read, delete: if isOwner(uid);

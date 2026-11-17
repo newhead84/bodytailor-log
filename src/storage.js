@@ -1861,6 +1861,15 @@ export async function deleteMyAccountData(uid, onProgress) {
   await deleteAllDocs(collection(db, 'workoutLogs', uid, 'logs'), onProgress, '운동 기록')
   onProgress?.('루틴을 지우는 중…')
   await deleteAllDocs(collection(db, 'routineTemplates', uid, 'templates'), onProgress, '루틴')
+  // [2026-11-17] 내 식단(내 음식·내 조합). 규칙 게시 전에는 읽기가 거부될 수 있어 건너뛴다
+  try {
+    await deleteAllDocs(collection(db, 'dietCustom', uid, 'items'), onProgress, '내 식단')
+  } catch (e) {
+    console.warn('내 식단 삭제 건너뜀:', e?.code || e)
+  }
+  try {
+    localStorage.removeItem(`bt-diet-custom:${uid}`)
+  } catch {}
   // [2026-11-07] 체력 점검 규칙을 게시하기 전(옛 규칙)에는 읽기가 거부된다 - 탈퇴가 멈추지 않게 건너뛴다
   try {
     await deleteAllDocs(collection(db, 'fitnessTests', uid, 'tests'), onProgress, '체력 점검')

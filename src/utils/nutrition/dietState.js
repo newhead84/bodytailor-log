@@ -1,6 +1,7 @@
 // [2026-11-12] 식단 제안: 사용자 문서·운동 기록 → 오늘 목표·식단. 고른 메뉴는 이 기기에만 보관(localStorage bt-diet:{uid}).
 import { dailyTargets, splitMeals, exerciseKcalPerDay, weeklyWeightChangePct, trendAdjustment, dietDirection } from './targets'
 import { buildDayPlan } from './plan'
+import { loadUserMeals } from './combos'
 import { OUT_KINDS, OUT_MIN_SHARE, OUT_PLAN_MAX_EXTRA, OUT_PLAN_RATIO, eatenNutrition, eatingOutPortions, walkKcalPerMin } from './eatingOut'
 import { isBeginnerAccount } from '../goals'
 
@@ -116,6 +117,7 @@ export function applyWorkoutTiming(mealTargets, timing, dayKcal) {
 }
 
 export function computeDiet(userDoc, logs, { uid, date, history } = {}) {
+  if (uid) loadUserMeals(uid) // [2026-11-17] 내 조합을 계산에 쓰는 등록부에 올림
   const prefs = dietPrefs(userDoc)
   const profile = dietProfile(userDoc)
   const targets = dailyTargets(profile, prefs, { exerciseKcal: exerciseKcalPerDay(logs || []) })

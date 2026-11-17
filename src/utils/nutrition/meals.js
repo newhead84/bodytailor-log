@@ -13,12 +13,12 @@ export const FOOD_TAGS = {
   spicy: ['kimchi', 'gochujang', 'soup_yukgaejang', 'jjigae_sundubu', 'lunchbox_jeyuk', 'd_chicken_stew', 'd_dakgalbi', 'd_kimchi_jjigae_tuna', 'd_sundubu', 'd_squid_stirfry', 'd_bibim_noodle', 'd_haejangguk', 'd_jeyuk', 'd_jeyuk_bowl', 'd_jjamppong', 'd_budae', 'd_kimchi_pork', 'd_yukgaejang', 'd_tteokbokki', 'd_rabokki', 'd_malatang', 'd_nakji', 'd_jukkumi', 'd_bibim_naeng', 'd_jjolmyeon', 'd_burrito'],
 }
 export const AVOID_LABEL = { pork: '돼지고기', beef: '소고기', seafood: '해산물', dairy: '유제품', egg: '달걀', wheat: '밀가루', spicy: '매운 음식' }
-export const MODE_LABEL = { cvs: '편의점', quick: '간편', out: '외식', cook: '요리' }
+export const MODE_LABEL = { cvs: '편의점', quick: '간편', out: '외식', cook: '요리', combo: '조합', mine: '내 조합', general: '일반식' }
 
 const m = (id, name, slot, mode, minutes, items, extra = {}) => ({ id, name, slot, mode, minutes, items, ...extra })
 const i = (food, g, unit) => ({ food, g, ...(unit ? { unit } : {}) })
 
-export const MEALS = [
+const BASE_MEALS = [
   // ── 아침 ──
   m('b_yogurt_granola', '그릭요거트 그래놀라 볼', ['breakfast', 'snack'], 'quick', 2, [i('greek_yogurt', 150), i('granola', 30), i('blueberry', 50)], { tip: '요거트는 무가당으로, 단맛은 과일로' }),
   m('b_cvs_egg_banana', '구운란·바나나·우유', ['breakfast'], 'cvs', 0, [i('egg_roasted', 100, '2개'), i('banana', 100, '1개'), i('lowfat_milk', 200, '1팩')]),
@@ -231,3 +231,13 @@ export const MEALS = [
   m('o_korean_buffet', '한식뷔페 고르는 법', ['lunch'], 'out', 0, [i('rice_multi', 150, '잡곡밥 2/3'), i('chicken_breast', 80, '고기 반찬'), i('egg', 50, '달걀 반찬'), i('bean_sprout', 70, '나물'), i('kimchi', 40, '1접시')], { tip: '접시 반은 채소, 1/4은 고기·달걀·두부, 1/4은 밥', src: '재료 합산(대표 구성)' }),
   m('o_poke_bowl', '포케 가게(현미·연어·두부)', ['lunch', 'dinner'], 'out', 0, [i('salmon', 100, '연어 100g'), i('tofu', 80, '두부 80g'), i('rice_brown', 150, '현미밥 2/3공기'), i('lettuce', 80), i('avocado', 35, '아보카도 1/4개'), i('soy_sauce', 10)], { tip: '소스는 따로 달라고 해서 반만', src: '재료 합산(대표 구성)' }),
 ]
+
+// [2026-11-17] 식단 종류 다양화: 새 재료의 안 먹는 것 태그, 기본 조합·추가 메뉴를 메뉴 목록 끝에 붙임
+FOOD_TAGS.dairy.push('protein_powder', 'whey_wpc', 'whey_wpi', 'whey_wph', 'casein', 'yogurt_plain', 'milk_skim', 'cheese_string')
+FOOD_TAGS.egg.push('egg_fried', 'egg_soft')
+FOOD_TAGS.wheat.push('bagel_whole')
+import { COMBO_AND_EXTRA } from './mealsExtra'
+import { DB_MEALS } from './mealsDb'
+import { DB_TAGS } from './foodsDb'
+Object.entries(DB_TAGS).forEach(([k, ids]) => FOOD_TAGS[k].push(...ids))
+export const MEALS = [...BASE_MEALS, ...COMBO_AND_EXTRA, ...DB_MEALS]

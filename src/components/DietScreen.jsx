@@ -8,12 +8,14 @@ import { todayStr } from '../utils/date'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { saveFailText } from '../utils/member'
 import { computeDiet, dietPrefs, pendingAdjustment, pickSlot, plateauInfo, readDietHistory, rememberPlan, rerollSlot, setEatingOut } from '../utils/nutrition/dietState'
-import { itemLine, dayGapTip, rankMealsForSlot } from '../utils/nutrition/plan'
+import { itemLine, dayGapTip, rankMealsForSlot, estimateNote } from '../utils/nutrition/plan'
 import { AVOID_LABEL, MODE_LABEL } from '../utils/nutrition/meals'
 import { FOOD_SOURCE } from '../utils/nutrition/foods'
 import { DRINKS, EATING_OUT, OUT_KINDS, eatenNutrition, eatingOutPortions } from '../utils/nutrition/eatingOut'
 import { useBackableScreen } from '../hooks/useBackableScreen'
 import FavStar from './FavStar'
+import ComboBuilder from './ComboBuilder'
+import { pullCustom } from '../utils/nutrition/customSync'
 import { useFavorites } from '../utils/favorites'
 
 const STYLE_OPTIONS = [
@@ -88,7 +90,7 @@ function Setup({ initial, onSave, saving, error }) {
 
 const pillBtn = { flexShrink: 0, padding: '6px 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', background: 'transparent', color: 'var(--color-label-normal)', fontSize: 13, fontWeight: 700 }
 
-function MealCard({ entry, onSwap, onPick }) {
+function MealCard({ entry, onSwap, onPick, onCombo, combos = [] }) {
   const { target, meal, scale, nutrition, addon } = entry
   if (entry.out) return <OutMealCard entry={entry} />
   if (!meal) {
@@ -116,6 +118,7 @@ function MealCard({ entry, onSwap, onPick }) {
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
         <button onClick={onSwap} style={pillBtn}>다른 메뉴</button>
         <button onClick={onPick} style={pillBtn}>직접 고르기</button>
+        <button onClick={() => onCombo(null)} style={pillBtn}>조합 만들기</button>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
         {target.timing && (
@@ -124,6 +127,7 @@ function MealCard({ entry, onSwap, onPick }) {
           </span>
         )}
         <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)' }}>{MODE_LABEL[meal.mode]}</span>
+        {meal.when && <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)' }}>{meal.when === 'pre' ? '운동 전 추천' : '운동 후 추천'}</span>}
         {meal.minutes > 0 && <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)' }}>{meal.minutes}분</span>}
         {scale !== 1 && (
           <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)' }}>{meal.items.some((x) => !x.unit) ? '양' : '밥'} {scale}배</span>
@@ -149,6 +153,20 @@ function MealCard({ entry, onSwap, onPick }) {
       )}
       {meal.tip && <div style={{ fontSize: 13, marginTop: 6, color: 'var(--color-label-normal)' }}>{meal.tip}</div>}
       {meal.src && <div style={{ fontSize: 12, marginTop: 4, color: 'var(--color-label-alternative)' }}>영양값: {meal.src}</div>}
+      {estimateNote(meal) && <div style={{ fontSize: 12, marginTop: 4, color: 'var(--color-label-alternative)' }}>{estimateNote(meal)}</div>}
+      {!!combos.length && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-line)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>이런 조합도 있어요</div>
+          {combos.map((x) => (
+            <button key={x.meal.id} onClick={() => onCombo(x.meal)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 6, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'transparent', color: 'var(--color-label-normal)' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, wordBreak: 'keep-all' }}>{x.meal.name}</div>
+              <div className="bt-num" style={{ fontSize: 12, color: 'var(--color-label-alternative)' }}>
+                {num(x.nutrition.kcal)}kcal · 단백질 {Math.round(x.nutrition.p)}g · 목표의 {Math.round((x.nutrition.kcal / target.kcal) * 100)}%
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
       {meal.steps && (
         <Disclosure label="만드는 법" style={{ marginTop: 8 }}>
           <ol style={{ margin: 0, paddingLeft: 18, fontSize: 14, lineHeight: 1.7 }}>
@@ -172,6 +190,16 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
   const [adjNote, setAdjNote] = useState(null)
   const [pickFor, setPickFor] = useState(null) // 직접 고르기를 연 끼니 목표
   useBackableScreen(!!pickFor, () => setPickFor(null))
+  const [comboFor, setComboFor] = useState(null) // 조합 만들기를 연 끼니 { target, initial }
+  useBackableScreen(!!comboFor, () => setComboFor(null))
+  const [customVer, setCustomVer] = useState(0) // 계정의 내 음식·조합을 읽어 와 바뀌면 식단을 다시 계산
+  useEffect(() => {
+    let alive = true
+    pullCustom(uid).then((r) => alive && r.changed && setCustomVer((v) => v + 1))
+    return () => {
+      alive = false
+    }
+  }, [uid])
 
   useEffect(() => {
     let alive = true
@@ -197,7 +225,19 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid])
 
-  const diet = useMemo(() => (logs ? computeDiet(userDoc, logs, { uid, date, history }) : null), [userDoc, logs, uid, date, history])
+  const diet = useMemo(() => (logs ? computeDiet(userDoc, logs, { uid, date, history }) : null), [userDoc, logs, uid, date, history, customVer])
+  // [2026-11-17] 끼니마다 목표에 가장 잘 맞는 기본 조합 3개를 카드에 바로 보여 줌
+  const comboBySlot = useMemo(() => {
+    const m = {}
+    if (!diet) return m
+    diet.plan.meals.forEach((e) => {
+      if (e.out) return
+      m[e.target.key] = rankMealsForSlot(e.target, diet.prefs, { dayKcal: diet.targets.kcal })
+        .filter((x) => x.meal.mode === 'combo' && x.meal.id !== e.meal?.id && x.nutrition.kcal >= e.target.kcal * 0.7 && x.nutrition.kcal <= e.target.kcal * 1.3)
+        .slice(0, 3)
+    })
+    return m
+  }, [diet])
   useEffect(() => {
     if (diet?.plan) setHistory((h) => rememberPlan(uid, date, diet.plan, h))
   }, [diet, uid, date])
@@ -326,7 +366,7 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
             <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', marginBottom: 12 }}>체중을 주 2번 이상 적으면(REPORT 체중 추이) 2주마다 칼로리를 맞춰 드려요.</div>
           )}
           {diet.plan.meals.map((entry) => (
-            <MealCard key={entry.target.key} entry={entry} onSwap={() => setHistory((h) => rerollSlot(uid, date, entry.target.key, h))} onPick={() => setPickFor(entry.target)} />
+            <MealCard key={entry.target.key} entry={entry} onSwap={() => setHistory((h) => rerollSlot(uid, date, entry.target.key, h))} onPick={() => setPickFor(entry.target)} combos={comboBySlot[entry.target.key]} onCombo={(meal) => setComboFor({ target: entry.target, initial: meal ? { list: meal.list, presetId: meal.mode === 'combo' ? meal.id : null, mine: meal.mode === 'mine', id: meal.id, name: meal.name } : { list: [] } })} />
           ))}
           <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', margin: '4px 0 12px' }}>
             눈대중: 고기·생선 손바닥 크기 ≈ 단백질 20–25g · 밥 1공기 ≈ 300kcal · 제품마다 다르니 라벨을 확인하세요
@@ -355,6 +395,20 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
           </Disclosure>
         </>
       )}
+      {comboFor && diet && (
+        <ComboBuilder
+          uid={uid}
+          target={comboFor.target}
+          share={comboFor.target.kcal / Math.max(1, diet.targets.kcal)}
+          targets={diet.targets}
+          initial={comboFor.initial}
+          onClose={() => setComboFor(null)}
+          onApply={(id) => {
+            setHistory((h) => pickSlot(uid, date, comboFor.target.key, id, h))
+            setComboFor(null)
+          }}
+        />
+      )}
       {pickFor && diet && (
         <MealPicker
           target={diet.plan.meals.find((e) => e.target.key === pickFor.key)?.target || pickFor}
@@ -374,7 +428,7 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
 
 // [2026-11-12 신규] '직접 고르기': 이 끼니 목표에 가까운 순서로 메뉴 목록 + 종류 칩 + 이름 검색. 고르면 양은 자동으로 맞춤
 // [2026-11-13] '★ 즐겨찾기' 칩 + 전체 보기에서는 즐겨찾기 메뉴를 위쪽에(각각 목표에 가까운 순서는 그대로)
-const MODE_FILTERS = [['all', '전체'], ['fav', '★ 즐겨찾기'], ['cvs', '편의점'], ['quick', '간편'], ['out', '외식'], ['cook', '요리']]
+const MODE_FILTERS = [['all', '전체'], ['fav', '★ 즐겨찾기'], ['cvs', '편의점'], ['quick', '간편'], ['out', '외식'], ['general', '일반식'], ['cook', '요리'], ['combo', '조합'], ['mine', '내 조합']]
 function MealPicker({ target, prefs, dayKcal, currentId, onClose, onPick }) {
   const [mode, setMode] = useState('all')
   const [q, setQ] = useState('')
@@ -511,22 +565,8 @@ function EatingOutCard({ meals, out, onApply }) {
   const preview = mode === 'ate' ? eatenNutrition(kind, amount, drinks) : null
   return (
     <Card style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 15, fontWeight: 700 }}>치킨·피자·회식 날</div>
-      <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', margin: '2px 0 10px' }}>한 끼 {num(big)}kcal 안이면 이만큼</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {[
-          ['치킨', `${q.chickenG}g`],
-          ['피자', `${q.pizzaSlices}조각`],
-          ['삼겹살', `${q.samgyeopG}g`],
-          ['족발', `${q.jokbalG}g`],
-        ].map(([l, v]) => (
-          <div key={l} style={{ padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)' }}>
-            <div style={{ fontSize: 12, color: 'var(--color-label-alternative)' }}>{l}</div>
-            <div className="bt-num" style={{ fontSize: 18, fontWeight: 800 }}>약 {v}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 13, marginTop: 8, whiteSpace: 'pre-line' }}>{'쌈·샐러드 먼저 · 볶음밥·면은 나눠서\n술은 줄이고 물 같이 · 다음 날 굶지 않기'}</div>
+      <div style={{ fontSize: 15, fontWeight: 700 }}>오늘 회식이 있나요?</div>
+      <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', margin: '2px 0 10px' }}>있다고 알려 주면 그 끼니가 늘고 나머지 끼니가 줄어요</div>
       {out ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
           <span style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>오늘 식단에 {out.mode === 'plan' ? '계획' : '먹은 것'}을 넣었어요</span>
@@ -535,9 +575,9 @@ function EatingOutCard({ meals, out, onApply }) {
         </div>
       ) : (
         !mode && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <Button variant="ghost" onClick={() => open('plan')}>오늘 있어요</Button>
-            <Button variant="ghost" onClick={() => open('ate')}>이미 먹었어요</Button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button onClick={() => onApply({ mode: 'plan', kind: 'chicken', slotKey: defaultSlot })}>회식 있어요</Button>
+            <button onClick={() => open('ate')} style={pillBtn}>이미 먹었어요</button>
           </div>
         )
       )}
@@ -579,7 +619,26 @@ function EatingOutCard({ meals, out, onApply }) {
           </div>
         </div>
       )}
-      <EatingOutTips big={big} />
+      <Disclosure label="한 끼에 얼마나 먹어도 될까요" style={{ marginTop: 12 }}>
+        <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {[
+          ['치킨', `${q.chickenG}g`],
+          ['피자', `${q.pizzaSlices}조각`],
+          ['삼겹살', `${q.samgyeopG}g`],
+          ['족발', `${q.jokbalG}g`],
+        ].map(([l, v]) => (
+          <div key={l} style={{ padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)' }}>
+            <div style={{ fontSize: 12, color: 'var(--color-label-alternative)' }}>{l}</div>
+            <div className="bt-num" style={{ fontSize: 18, fontWeight: 800 }}>약 {v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 13, marginTop: 8, whiteSpace: 'pre-line' }}>{'쌈·샐러드 먼저 · 볶음밥·면은 나눠서\n술은 줄이고 물 같이 · 다음 날 굶지 않기'}</div>
+
+          <EatingOutTips big={big} />
+        </div>
+      </Disclosure>
     </Card>
   )
 }

@@ -1,6 +1,7 @@
 // [2026-11-12] 식단 제안: 끼니 목표에 맞춰 메뉴 고르기·양 맞추기 - 규칙 계산('AI' 아님)
 // 영양값은 foods.js(식약처 DB)에서 재료 g으로 계산한다. 제안 기록은 이 기기에만(localStorage, Firestore 읽기 없음).
-import { FOODS } from './foods'
+import { FOODS } from './foodsExtra'
+import { getUserMeals } from './combos'
 import { MEALS, FOOD_TAGS } from './meals'
 
 const KEYS = ['kcal', 'p', 'f', 'c', 'fiber', 'na']
@@ -35,6 +36,19 @@ export function mealNutrition(meal, scale = 1, addon = null) {
   })
   KEYS.forEach((k) => (sum[k] = Math.round(sum[k] * (k === 'kcal' || k === 'na' ? 1 : 10)) / (k === 'kcal' || k === 'na' ? 1 : 10)))
   return sum
+}
+
+// [2026-11-17] 고른 메뉴 id → 메뉴(기본 메뉴·기본 조합 + 내 조합)
+export function findMeal(id) {
+  return MEALS.find((x) => x.id === id) || getUserMeals().find((x) => x.id === id) || null
+}
+
+// 일부 재료가 평균·추정값이면 한 줄 안내(식약처 DB 값이 아닌 재료)
+export function estimateNote(meal) {
+  const its = meal?.items || []
+  if (its.some((it) => FOODS[it.food]?.alcohol)) return '술은 일반 영양 정보 기준 추정값이에요. 제품마다 달라 라벨을 확인하세요'
+  if (its.some((it) => FOODS[it.food]?.mine)) return '내가 입력한 값이 들어 있어요. 입력한 숫자 그대로 계산했어요'
+  return its.some((it) => FOODS[it.food]?.est) ? '일부 재료는 시판 제품 기준(추정)값이에요. 제품마다 달라 라벨을 확인하세요' : null
 }
 
 export function mealAvoidTags(meal) {
@@ -86,11 +100,11 @@ function slotNaBudget(slotTarget, dayKcal) {
 // 단백질이 8g 넘게 모자라면 덧붙임까지 넣고 계산한다.
 function scoreMeal(meal, slotTarget, avoid, naBudget, style = {}, usedFoods = null) {
   let best = null
-  const scales = meal.items.some(isScalable) ? SCALES : [1]
+  const scales = !meal.fixed && meal.items.some(isScalable) ? SCALES : [1]
   scales.forEach((s) => {
     const base = mealNutrition(meal, s)
     const short = slotTarget.protein - base.p
-    const addon = slotTarget.slot !== 'snack' && short >= 8 ? pickAddon(short, avoid, meal) : null
+    const addon = slotTarget.slot !== 'snack' && short >= 8 && !meal.fixed ? pickAddon(short, avoid, meal) : null // 조합(fixed)은 고른 양 그대로라 덧붙이지 않음
     const n = addon ? mealNutrition(meal, s, addon) : base
     const kcalOff = Math.abs(n.kcal - slotTarget.kcal) / slotTarget.kcal
     const pShort = Math.max(0, slotTarget.protein - n.p) / Math.max(1, slotTarget.protein)
@@ -98,7 +112,7 @@ function scoreMeal(meal, slotTarget, avoid, naBudget, style = {}, usedFoods = nu
     const score = kcalOff + pShort * 1.5 + naOver * 0.6 + (addon ? 0.15 : 0)
     if (!best || score < best.score) best = { s, n, base, addon, score, kcalOff }
   })
-  let score = best.score + (style[meal.mode] || 0)
+  let score = best.score + (style[meal.mode] || 0) + (meal.fixed ? 0.12 : 0) + (meal.casual ? 0.1 : 0) // 조합은 양을 맞출 수 없어 자동 고르기에서는 조금 뒤로
   // 하루 안 같은 주재료 반복 감점
   const main = meal.items[0]?.food
   if (usedFoods && usedFoods.includes(main)) score += 0.3
@@ -110,7 +124,7 @@ function scoreMeal(meal, slotTarget, avoid, naBudget, style = {}, usedFoods = nu
 export function rankMealsForSlot(slotTarget, prefs = {}, { dayKcal } = {}) {
   const avoid = prefs.avoid || []
   const naBudget = slotNaBudget(slotTarget, dayKcal)
-  return MEALS.filter((meal) => meal.slot.includes(slotTarget.slot) && !mealAvoidTags(meal).some((t) => avoid.includes(t)))
+  return [...MEALS, ...getUserMeals()].filter((meal) => meal.slot.includes(slotTarget.slot) && !mealAvoidTags(meal).some((t) => avoid.includes(t)))
     .map((meal) => scoreMeal(meal, slotTarget, avoid, naBudget))
     .sort((a, b) => a.fit - b.fit)
 }
@@ -157,7 +171,7 @@ export function buildDayPlan(mealTargets, prefs, { date, history = {}, saved = {
     const keep = saved[t.key]
     let pick = null
     if (keep?.id) {
-      const meal = MEALS.find((x) => x.id === keep.id)
+      const meal = findMeal(keep.id)
       // 직접 고른 메뉴(picked)와 앞서 고른 메뉴 모두 양은 지금 끼니 목표로 다시 맞춘다(회식 날 조정 등으로 목표가 바뀌어도 맞게).
       // 같은 목표면 처음 고를 때와 같은 배율이 나온다. 직접 고른 메뉴는 '안 먹는 것' 확인을 고를 때 했다.
       if (meal && (keep.picked || !mealAvoidTags(meal).some((tag) => (prefs.avoid || []).includes(tag)))) {
