@@ -50,6 +50,28 @@ export function adviceOption(list, nut, target) {
   return opts.find((o) => o.gain >= shortP * 0.8) || opts.sort((a, b) => b.gain - a.gain)[0] || null
 }
 
+// 기준: 지방은 목표의 130% 넘고 5g 넘게, 탄수화물은 130% 넘고 20g 넘게 많을 때 넘은 항목을 알린다
+// (가장 많이 보태는 재료 하나를 같이 말한다. 칼로리·단백질 안내가 먼저)
+const OVER_RATIO = 1.3
+const OVER_MIN = { f: 5, c: 20 }
+const shortFoodName = (id) => FOODS[id].name.replace(/\(.*?\)/g, '').trim()
+function overNutrient(list, nut, target) {
+  const rows = [['f', '지방', target.fat], ['c', '탄수화물', target.carb]]
+  let worst = null
+  rows.forEach(([k, label, tg]) => {
+    if (!tg) return
+    const diff = nut[k] - tg
+    if (nut[k] > tg * OVER_RATIO && diff >= OVER_MIN[k]) {
+      const ratio = nut[k] / tg
+      if (!worst || ratio > worst.ratio) worst = { k, label, diff, ratio }
+    }
+  })
+  if (!worst) return null
+  const top = list.map((x) => ({ x, v: ((FOODS[x.food]?.[worst.k] || 0) * gramOf(x.food, x.n)) / 100 })).sort((a, b) => b.v - a.v)[0]
+  const who = top && top.v > 0 ? ' ' + shortFoodName(top.x.food) + ' 양을 줄이거나 하나를 빼 보세요.' : ' 하나를 빼 보세요.'
+  return worst.label + '이 목표보다 ' + Math.round(worst.diff) + 'g 많아요(' + Math.round(worst.ratio * 100) + '%).' + who
+}
+
 export function adviceFor(list, nut, target) {
   const kcalOff = nut.kcal - target.kcal
   const shortP = target.protein - nut.p
@@ -60,6 +82,8 @@ export function adviceFor(list, nut, target) {
     return `단백질이 ${Math.round(shortP)}g 모자라요.`
   }
   if (kcalOff > target.kcal * 0.15) return `목표보다 ${num(Math.round(kcalOff))}kcal 많아요. 밥·고구마를 줄이거나 하나를 빼 보세요.`
+  const over = overNutrient(list, nut, target)
+  if (over) return over
   if (kcalOff < -target.kcal * 0.2) return `목표보다 ${num(Math.round(-kcalOff))}kcal 적어요. 과일이나 우유, 밥을 조금 더해도 좋아요.`
   return '목표에 잘 맞아요.'
 }
@@ -121,7 +145,7 @@ function ItemRow({ it, onDelta, onSet, onRemove }) {
 export default function ComboBuilder({ uid, target, share, targets, initial, onClose, onApply, onApplyList }) {
   const startList = useMemo(() => (initial?.list || []).filter((x) => FOOD_UNITS[x.food]).map((x) => ({ food: x.food, n: x.n })).slice(0, USER_COMBO_ITEMS_MAX), [initial])
   const [list, setList] = useState(startList)
-  const [meta, setMeta] = useState({ mine: !!initial?.mine, id: initial?.mine ? initial?.id || null : null, presetId: initial?.presetId || null, list0: startList })
+  const [meta, setMeta] = useState({ mine: !!initial?.mine, id: initial?.mine ? initial?.id || null : null, presetId: initial?.presetId || null, name0: initial?.mine ? initial?.name || '' : '', list0: startList })
   const [name, setName] = useState(initial?.mine ? initial.name || '' : '')
   const [q, setQ] = useState('')
   const [saved, setSaved] = useState(() => readUserCombos(uid))
@@ -170,7 +194,8 @@ export default function ComboBuilder({ uid, target, share, targets, initial, onC
   const autoName = () => list.slice(0, 2).map((x) => FOODS[x.food].name.replace(/\(.*?\)/g, '').trim()).join(' + ') || '내 조합'
   const unchanged = sig(meta.list0) === sig(list)
   const unchangedPreset = !!meta.presetId && unchanged
-  const unchangedMine = meta.mine && !!meta.id && unchanged
+  const nameChanged = meta.mine && !!meta.name0 && !!name.trim() && name.trim() !== meta.name0
+  const unchangedMine = meta.mine && !!meta.id && unchanged && !nameChanged
   const shortName = (id) => FOODS[id].name.replace(/\(.*?\)/g, '').trim()
 
   const save = () => {
@@ -178,13 +203,13 @@ export default function ComboBuilder({ uid, target, share, targets, initial, onC
       setMsg(`내 조합은 ${USER_COMBO_MAX}개까지 저장해요. 안 쓰는 조합을 지워 주세요(위 ★ 내 조합의 ×).`)
       return null
     }
-    const e = saveUserCombo(uid, { id: meta.mine ? meta.id : undefined, name: name.trim() || autoName(), list })
+    const e = saveUserCombo(uid, { id: meta.mine ? meta.id : undefined, name: name.trim() || (meta.mine ? meta.name0 : '') || autoName(), list })
     if (!e) {
       setMsg('저장하지 못했어요. 기기 저장 공간을 확인해 주세요.')
       return null
     }
     setSaved(readUserCombos(uid))
-    setMeta({ mine: true, id: e.id, presetId: null, list0: list })
+    setMeta({ mine: true, id: e.id, name0: e.name, presetId: null, list0: list })
     setMsg(`'${e.name}'을 내 조합에 저장하는 중…`)
     sync(`'${e.name}'을 내 조합에 저장했어요`)
     return e
@@ -197,7 +222,7 @@ export default function ComboBuilder({ uid, target, share, targets, initial, onC
       return onApply(meta.presetId)
     }
     if (unchangedMine) {
-      remember(name.trim() || initial?.name)
+      remember(meta.name0 || initial?.name)
       return onApply(meta.id)
     }
     const nm = name.trim() || (initial?.name ? (unchanged ? initial.name : `${initial.name.replace(/ 수정$/, '').slice(0, 15)} 수정`) : autoName())
@@ -241,13 +266,13 @@ export default function ComboBuilder({ uid, target, share, targets, initial, onC
     const next = cb.list.filter((x) => FOOD_UNITS[x.food]).map((x) => ({ food: x.food, n: x.n }))
     setList(next)
     setName(mine ? cb.name : '')
-    setMeta({ mine: !!mine, id: mine ? cb.id : null, presetId: null, list0: next })
+    setMeta({ mine: !!mine, id: mine ? cb.id : null, name0: mine ? cb.name : '', presetId: null, list0: next })
     setMsg('')
   }
   const fromScratch = () => {
     setList([])
     setName('')
-    setMeta({ mine: false, id: null, presetId: null, list0: [] })
+    setMeta({ mine: false, id: null, name0: '', presetId: null, list0: [] })
     setMsg('')
   }
   const recentShown = recent.filter((r) => !saved.some((cb) => sig(cb.list) === sig(r.list))).slice(0, 4)
@@ -275,6 +300,8 @@ export default function ComboBuilder({ uid, target, share, targets, initial, onC
                       aria-label={`${cb.name} 삭제`}
                       onClick={() => {
                         deleteUserCombo(uid, cb.id)
+                        // 지금 불러와 고치던 조합이면 연결을 끊는다(넣기는 화면의 재료 목록 그대로)
+                        if (meta.mine && meta.id === cb.id) setMeta({ mine: false, id: null, name0: '', presetId: null, list0: list })
                         setSaved(readUserCombos(uid))
                         sync('내 조합을 지웠어요')
                       }}

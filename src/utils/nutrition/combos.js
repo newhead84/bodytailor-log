@@ -134,7 +134,15 @@ export function qtyText(food, n) {
   if (!un) return `${Math.round(n * 100)}g`
   const p = qtyParts(food, n)
   if (p.half) return `반 ${p.suffix}`
-  return `${fmtN(p.amount)}${p.suffix}`
+  if (p.gram) return `${fmtN(p.amount)}${p.suffix}`
+  // 어색한 소수(2.3컵)는 보이지 않게: 10알 같은 개수 단위는 정수로, 1단위가 하나인 단위는 반 단위(0.5)면 그대로,
+  // 1단위 미만은 g로, 그 이상은 '약 2.5컵(345g)'처럼 g를 함께 보인다. 직접 입력 칸(qtyParts)은 정확한 값 그대로.
+  if (p.k > 1) return `${Math.round(p.amount)}${p.suffix}`
+  const half = n * 2
+  if (Math.abs(half - Math.round(half)) < 0.06 && n >= 1) return `${fmtN(Math.round(half) / 2)}${p.suffix}`
+  const grams = Math.round(n * un.g)
+  if (n < 1) return `${grams}g`
+  return `약 ${fmtN(Math.round(half) / 2)}${p.suffix}(${grams}g)`
 }
 // 칸 하나를 누를 때 바뀌는 단위 칸으로 맞춘다(0.8 → 위로 1, 아래로 0.5)
 export function stepValue(n, step, dir) {
@@ -282,9 +290,9 @@ export function cleanUserFood(raw) {
 }
 const cleanCombo = (raw) => {
   const list = (Array.isArray(raw?.list) ? raw.list : [])
-    .filter((it) => it && typeof it.food === 'string' && Number(it.n) > 0 && Number(it.n) <= 50)
+    .filter((it) => it && typeof it.food === 'string' && Number(it.n) >= 0.01 && Number(it.n) <= 50)
     .slice(0, USER_COMBO_ITEMS_MAX)
-    .map((it) => ({ food: it.food, n: Math.round(Number(it.n) * 10) / 10 }))
+    .map((it) => ({ food: it.food, n: Math.round(Number(it.n) * 100) / 100 }))
   const name = String(raw?.name || '').trim().slice(0, 20) || '내 조합'
   return list.length && raw?.id ? { id: String(raw.id), name, list } : null
 }

@@ -121,6 +121,19 @@ function MealCard({ entry, onRandom, onPick, onCombo, onUnfold, onPickId, getSim
         {/* [2026-11-13] 즐겨찾는 식단 */}
         {!String(meal.id).startsWith(ADHOC_PREFIX) && <FavStar kind="meals" id={meal.id} label={meal.name} />}
       </div>
+      {/* [2026-11-18] 내 조합은 맨 위(비슷한 메뉴 패널보다 위) */}
+      {!!mine.length && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 12, color: 'var(--color-label-alternative)', marginBottom: 4 }}>★ 내 조합 · 누르면 바로 넣어요</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {mine.map((x) => (
+              <button key={x.meal.id} onClick={() => onPickId(x.meal.id)} style={{ ...pillBtn, wordBreak: 'keep-all', textAlign: 'left' }}>
+                ★ {x.meal.name} <span className="bt-num" style={{ fontWeight: 500, color: 'var(--color-label-alternative)' }}>{num(x.nutrition.kcal)}kcal</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* [2026-11-18] '다른 메뉴' = 지금과 비슷한 메뉴 3개를 눌러서 고름(무작위는 패널 안 '아무거나'), '조합 만들기' = 지금 메뉴를 재료 1단위로 풀어서 시작 */}
       <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
         <button onClick={() => setOpen((o) => !o)} aria-expanded={open} style={open ? { ...pillBtn, border: '1px solid var(--color-fill-strong)' } : pillBtn}>다른 메뉴</button>
@@ -160,18 +173,6 @@ function MealCard({ entry, onRandom, onPick, onCombo, onUnfold, onPickId, getSim
             </button>
           ))}
           {!sim.items.length && <div style={{ fontSize: 13, color: 'var(--color-label-alternative)' }}>비슷한 메뉴가 없어요. 직접 고르기에서 찾아 보세요.</div>}
-        </div>
-      )}
-      {!!mine.length && (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 12, color: 'var(--color-label-alternative)', marginBottom: 4 }}>★ 내 조합 · 누르면 바로 넣어요</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {mine.map((x) => (
-              <button key={x.meal.id} onClick={() => onPickId(x.meal.id)} style={{ ...pillBtn, wordBreak: 'keep-all', textAlign: 'left' }}>
-                ★ {x.meal.name} <span className="bt-num" style={{ fontWeight: 500, color: 'var(--color-label-alternative)' }}>{num(x.nutrition.kcal)}kcal</span>
-              </button>
-            ))}
-          </div>
         </div>
       )}
       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>

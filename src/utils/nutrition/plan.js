@@ -63,7 +63,7 @@ export function mealToList(meal, scale = 1, addon = null) {
     ;(meal.items || []).forEach((it) => FOOD_UNITS[it.food] && add(it.food, itemGrams(it, scale) / FOOD_UNITS[it.food].g))
     if (addon && FOOD_UNITS[addon.food]) add(addon.food, addon.g / FOOD_UNITS[addon.food].g)
   }
-  return [...acc].map(([food, n]) => ({ food, n: Math.round(n * 10) / 10 })).filter((x) => x.n >= 0.1)
+  return [...acc].map(([food, n]) => ({ food, n: Math.round(n * 100) / 100 })).filter((x) => x.n >= 0.01)
 }
 
 // 일부 재료가 평균·추정값이면 한 줄 안내(식약처 DB 값이 아닌 재료)
