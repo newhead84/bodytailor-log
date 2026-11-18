@@ -132,7 +132,8 @@ export function qtyParts(food, n) {
 export function qtyText(food, n) {
   const un = FOOD_UNITS[food]
   if (!un) return `${Math.round(n * 100)}g`
-  const p = qtyParts(food, n)
+  const p = { ...qtyParts(food, n), ...unitParts(food) }
+  p.amount = Math.round(n * p.k * 10) / 10
   if (p.half) return `반 ${p.suffix}`
   if (p.gram) return `${fmtN(p.amount)}${p.suffix}`
   // 어색한 소수(2.3컵)는 보이지 않게: 10알 같은 개수 단위는 정수로, 1단위가 하나인 단위는 반 단위(0.5)면 그대로,
