@@ -7,8 +7,10 @@ import { getAllWorkoutLogs, updateUserProfile } from '../storage'
 import { todayStr } from '../utils/date'
 import { HEALTH_DISCLAIMER } from '../utils/legal'
 import { saveFailText } from '../utils/member'
-import { computeDiet, dietPrefs, pendingAdjustment, pickSlot, plateauInfo, readDietHistory, rememberPlan, rerollSlot, setEatingOut } from '../utils/nutrition/dietState'
-import { itemLine, dayGapTip, rankMealsForSlot, estimateNote } from '../utils/nutrition/plan'
+import { Shuffle } from 'lucide-react'
+import { computeDiet, dietPrefs, pendingAdjustment, pickAdhoc, pickSlot, plateauInfo, readDietHistory, recentMealIds, rememberPlan, rerollSlot, setEatingOut } from '../utils/nutrition/dietState'
+import { ADHOC_PREFIX, itemLine, dayGapTip, mealToList, rankMealsForSlot, estimateNote, similarMeals } from '../utils/nutrition/plan'
+import { FOODS } from '../utils/nutrition/foodsExtra'
 import { AVOID_LABEL, MODE_LABEL } from '../utils/nutrition/meals'
 import { FOOD_SOURCE } from '../utils/nutrition/foods'
 import { DRINKS, EATING_OUT, OUT_KINDS, eatenNutrition, eatingOutPortions } from '../utils/nutrition/eatingOut'
@@ -90,8 +92,13 @@ function Setup({ initial, onSave, saving, error }) {
 
 const pillBtn = { flexShrink: 0, padding: '6px 12px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--color-line)', background: 'transparent', color: 'var(--color-label-normal)', fontSize: 13, fontWeight: 700 }
 
-function MealCard({ entry, onSwap, onPick, onCombo, combos = [] }) {
+// 같은 칼로리·단백질 안의 비슷한 메뉴 한 줄(눌러서 바로 적용)
+const signed = (v, unit) => (Math.round(v) === 0 ? `±0${unit}` : `${v < 0 ? '−' : '+'}${Math.abs(Math.round(v))}${unit}`)
+
+function MealCard({ entry, onRandom, onPick, onCombo, onUnfold, onPickId, getSimilar, mine = [], combos = [] }) {
   const { target, meal, scale, nutrition, addon } = entry
+  const [open, setOpen] = useState(false)
+  const sim = useMemo(() => (open && meal ? getSimilar(entry) : null), [open, entry]) // eslint-disable-line react-hooks/exhaustive-deps
   if (entry.out) return <OutMealCard entry={entry} />
   if (!meal) {
     return (
@@ -112,14 +119,61 @@ function MealCard({ entry, onSwap, onPick, onCombo, combos = [] }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <div style={{ fontSize: 18, fontWeight: 800, flex: 1, wordBreak: 'keep-all' }}>{meal.name}</div>
         {/* [2026-11-13] 즐겨찾는 식단 */}
-        <FavStar kind="meals" id={meal.id} label={meal.name} />
+        {!String(meal.id).startsWith(ADHOC_PREFIX) && <FavStar kind="meals" id={meal.id} label={meal.name} />}
       </div>
-      {/* [2026-11-12] 바꾸기를 '다른 메뉴'(자동)와 '직접 고르기'로 나눔(사용자 요청) */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-        <button onClick={onSwap} style={pillBtn}>다른 메뉴</button>
+      {/* [2026-11-18] '다른 메뉴' = 지금과 비슷한 메뉴 3개를 눌러서 고름(무작위는 패널 안 '아무거나'), '조합 만들기' = 지금 메뉴를 재료 1단위로 풀어서 시작 */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+        <button onClick={() => setOpen((o) => !o)} aria-expanded={open} style={open ? { ...pillBtn, border: '1px solid var(--color-fill-strong)' } : pillBtn}>다른 메뉴</button>
         <button onClick={onPick} style={pillBtn}>직접 고르기</button>
-        <button onClick={() => onCombo(null)} style={pillBtn}>조합 만들기</button>
+        <button onClick={() => onUnfold(entry)} style={pillBtn}>조합 만들기</button>
       </div>
+      {open && sim && (
+        <div style={{ marginTop: 8, padding: 10, borderRadius: 'var(--radius-md)', background: 'var(--color-fill-normal, rgba(0,0,0,0.05))' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700 }}>비슷한 메뉴</span>
+            <button
+              onClick={() => {
+                setOpen(false)
+                onRandom()
+              }}
+              style={{ ...pillBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              <Shuffle size={14} aria-hidden /> 아무거나
+            </button>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--color-label-alternative)', marginBottom: 6 }}>
+            {sim.widened ? `비슷한 메뉴가 적어 범위를 넓혔어요 · 칼로리 ±${sim.kcalPct}% · 단백질 ±${sim.pGram}g` : `칼로리 ±${sim.kcalPct}% · 단백질 ±${sim.pGram}g 안, 차이가 작은 순`}
+          </div>
+          {sim.items.map((x) => (
+            <button
+              key={x.meal.id}
+              onClick={() => {
+                setOpen(false)
+                onPickId(x.meal.id)
+              }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 6, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--card-bg)', color: 'var(--color-label-normal)' }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 700, wordBreak: 'keep-all' }}>{x.meal.name}</div>
+              <div className="bt-num" style={{ fontSize: 12, color: 'var(--color-label-alternative)' }}>
+                {num(x.nutrition.kcal)}kcal · 단백질 {Math.round(x.nutrition.p)}g · 지금보다 {signed(x.nutrition.kcal - nutrition.kcal, 'kcal')} · {signed(x.nutrition.p - nutrition.p, 'g')}
+              </div>
+            </button>
+          ))}
+          {!sim.items.length && <div style={{ fontSize: 13, color: 'var(--color-label-alternative)' }}>비슷한 메뉴가 없어요. 직접 고르기에서 찾아 보세요.</div>}
+        </div>
+      )}
+      {!!mine.length && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 12, color: 'var(--color-label-alternative)', marginBottom: 4 }}>★ 내 조합 · 누르면 바로 넣어요</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {mine.map((x) => (
+              <button key={x.meal.id} onClick={() => onPickId(x.meal.id)} style={{ ...pillBtn, wordBreak: 'keep-all', textAlign: 'left' }}>
+                ★ {x.meal.name} <span className="bt-num" style={{ fontWeight: 500, color: 'var(--color-label-alternative)' }}>{num(x.nutrition.kcal)}kcal</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
         {target.timing && (
           <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--color-fill-strong)', color: 'var(--color-on-fill)', fontWeight: 700 }}>
@@ -232,12 +286,21 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
     if (!diet) return m
     diet.plan.meals.forEach((e) => {
       if (e.out) return
-      m[e.target.key] = rankMealsForSlot(e.target, diet.prefs, { dayKcal: diet.targets.kcal })
-        .filter((x) => x.meal.mode === 'combo' && x.meal.id !== e.meal?.id && x.nutrition.kcal >= e.target.kcal * 0.7 && x.nutrition.kcal <= e.target.kcal * 1.3)
-        .slice(0, 3)
+      const ranked = rankMealsForSlot(e.target, diet.prefs, { dayKcal: diet.targets.kcal })
+      // [2026-11-18] 단백질 조건 추가: 칼로리 70–130% 안이면서 단백질이 목표보다 5g 넘게 모자라지 않는 것만
+      m[e.target.key] = {
+        combos: ranked.filter((x) => x.meal.mode === 'combo' && x.meal.id !== e.meal?.id && x.nutrition.kcal >= e.target.kcal * 0.7 && x.nutrition.kcal <= e.target.kcal * 1.3 && x.nutrition.p >= e.target.protein - 5).slice(0, 3),
+        mine: ranked.filter((x) => x.meal.mode === 'mine' && x.meal.id !== e.meal?.id && x.nutrition.kcal >= e.target.kcal * 0.5 && x.nutrition.kcal <= e.target.kcal * 1.5).slice(0, 2),
+      }
     })
     return m
   }, [diet])
+  // '조합 만들기'를 지금 메뉴에서 시작: 재료를 1단위 목록으로 풀어 넘긴다
+  const unfoldEntry = (entry) => {
+    const meal = entry.meal
+    const list = mealToList(meal, entry.scale, entry.addon)
+    setComboFor({ target: entry.target, initial: { list, presetId: meal.mode === 'combo' ? meal.id : null, mine: meal.mode === 'mine' && !meal.adhoc, id: meal.id, name: meal.name } })
+  }
   useEffect(() => {
     if (diet?.plan) setHistory((h) => rememberPlan(uid, date, diet.plan, h))
   }, [diet, uid, date])
@@ -366,7 +429,7 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
             <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', marginBottom: 12 }}>체중을 주 2번 이상 적으면(REPORT 체중 추이) 2주마다 칼로리를 맞춰 드려요.</div>
           )}
           {diet.plan.meals.map((entry) => (
-            <MealCard key={entry.target.key} entry={entry} onSwap={() => setHistory((h) => rerollSlot(uid, date, entry.target.key, h))} onPick={() => setPickFor(entry.target)} combos={comboBySlot[entry.target.key]} onCombo={(meal) => setComboFor({ target: entry.target, initial: meal ? { list: meal.list, presetId: meal.mode === 'combo' ? meal.id : null, mine: meal.mode === 'mine', id: meal.id, name: meal.name } : { list: [] } })} />
+            <MealCard key={entry.target.key} entry={entry} onRandom={() => setHistory((h) => rerollSlot(uid, date, entry.target.key, h))} onPickId={(id) => setHistory((h) => pickSlot(uid, date, entry.target.key, id, h))} getSimilar={(en) => similarMeals(en, entry.target, diet.prefs, { dayKcal: diet.targets.kcal })} onUnfold={unfoldEntry} onPick={() => setPickFor(entry.target)} combos={comboBySlot[entry.target.key]?.combos} mine={comboBySlot[entry.target.key]?.mine} onCombo={(meal) => setComboFor({ target: entry.target, initial: meal ? { list: meal.list, presetId: meal.mode === 'combo' ? meal.id : null, mine: meal.mode === 'mine', id: meal.id, name: meal.name } : { list: [] } })} />
           ))}
           <div style={{ fontSize: 13, color: 'var(--color-label-alternative)', margin: '4px 0 12px' }}>
             눈대중: 고기·생선 손바닥 크기 ≈ 단백질 20–25g · 밥 1공기 ≈ 300kcal · 제품마다 다르니 라벨을 확인하세요
@@ -407,6 +470,10 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
             setHistory((h) => pickSlot(uid, date, comboFor.target.key, id, h))
             setComboFor(null)
           }}
+          onApplyList={(r) => {
+            setHistory((h) => pickAdhoc(uid, date, comboFor.target.key, r, h))
+            setComboFor(null)
+          }}
         />
       )}
       {pickFor && diet && (
@@ -415,6 +482,7 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
           prefs={diet.prefs}
           dayKcal={diet.targets.kcal}
           currentId={diet.plan.meals.find((e) => e.target.key === pickFor.key)?.meal?.id}
+          history={history}
           onClose={() => setPickFor(null)}
           onPick={(id) => {
             setHistory((h) => pickSlot(uid, date, pickFor.key, id, h))
@@ -428,16 +496,25 @@ export default function DietScreen({ uid, userDoc, onClose, onSaved }) {
 
 // [2026-11-12 신규] '직접 고르기': 이 끼니 목표에 가까운 순서로 메뉴 목록 + 종류 칩 + 이름 검색. 고르면 양은 자동으로 맞춤
 // [2026-11-13] '★ 즐겨찾기' 칩 + 전체 보기에서는 즐겨찾기 메뉴를 위쪽에(각각 목표에 가까운 순서는 그대로)
-const MODE_FILTERS = [['all', '전체'], ['fav', '★ 즐겨찾기'], ['cvs', '편의점'], ['quick', '간편'], ['out', '외식'], ['general', '일반식'], ['cook', '요리'], ['combo', '조합'], ['mine', '내 조합']]
-function MealPicker({ target, prefs, dayKcal, currentId, onClose, onPick }) {
+// [2026-11-18] 내 조합을 맨 앞에, '최근'(최근 고른 메뉴) 칩 추가, 재료 이름으로도 검색
+const MODE_FILTERS = [['all', '전체'], ['mine', '★ 내 조합'], ['recent', '최근'], ['fav', '★ 즐겨찾기'], ['cvs', '편의점'], ['quick', '간편'], ['out', '외식'], ['general', '일반식'], ['cook', '요리'], ['combo', '조합']]
+function MealPicker({ target, prefs, dayKcal, currentId, history, onClose, onPick }) {
   const [mode, setMode] = useState('all')
   const [q, setQ] = useState('')
   const ranked = useMemo(() => rankMealsForSlot(target, prefs, { dayKcal }), [target, prefs, dayKcal])
   const query = q.trim().replace(/\s+/g, '')
   const favMeals = useFavorites('meals')
   const isFav = (x) => favMeals.includes(x.meal.id)
-  const matched = ranked.filter((x) => (mode === 'all' || (mode === 'fav' ? isFav(x) : x.meal.mode === mode)) && (!query || x.meal.name.replace(/\s+/g, '').includes(query)))
-  const list = mode === 'all' ? [...matched.filter(isFav), ...matched.filter((x) => !isFav(x))] : matched
+  const recentIds = useMemo(() => recentMealIds(history), [history])
+  const hit = (x) => !query || x.meal.name.replace(/\s+/g, '').includes(query) || x.meal.items.some((it) => (FOODS[it.food]?.name || '').replace(/\s+/g, '').includes(query))
+  const matched = ranked.filter((x) => (mode === 'all' || mode === 'recent' || (mode === 'fav' ? isFav(x) : x.meal.mode === mode)) && hit(x))
+  const isMine = (x) => x.meal.mode === 'mine'
+  const list =
+    mode === 'all'
+      ? [...matched.filter(isMine), ...matched.filter((x) => !isMine(x) && isFav(x)), ...matched.filter((x) => !isMine(x) && !isFav(x))]
+      : mode === 'recent'
+        ? recentIds.map((id) => matched.find((x) => x.meal.id === id)).filter(Boolean)
+        : matched
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 85, background: 'var(--color-bg)', overflowY: 'auto', padding: '0 20px 40px', paddingBottom: 'calc(40px + var(--safe-bottom, 0px))' }}>
       <ScreenHeader title={`${target.label} 고르기`} onBack={onClose} />
@@ -447,7 +524,7 @@ function MealPicker({ target, prefs, dayKcal, currentId, onClose, onPick }) {
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="메뉴 이름 찾기"
+        placeholder="메뉴·재료 이름 찾기(예: 닭가슴살, 두부)"
         maxLength={20}
         style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-line)', background: 'var(--card-bg)', color: 'var(--color-label-normal)', fontSize: 15, marginBottom: 10 }}
       />
@@ -456,7 +533,7 @@ function MealPicker({ target, prefs, dayKcal, currentId, onClose, onPick }) {
           <Chip key={k} active={mode === k} onClick={() => setMode(k)}>{l}</Chip>
         ))}
       </div>
-      {!list.length && <p style={{ fontSize: 14, color: 'var(--color-label-alternative)' }}>{mode === 'fav' && !favMeals.length ? '즐겨찾는 메뉴가 없어요. 메뉴 옆 별(☆)을 누르면 여기에 모여요.' : '맞는 메뉴가 없어요. 다른 종류를 눌러 보세요.'}</p>}
+      {!list.length && <p style={{ fontSize: 14, color: 'var(--color-label-alternative)' }}>{mode === 'fav' && !favMeals.length ? '즐겨찾는 메뉴가 없어요. 메뉴 옆 별(☆)을 누르면 여기에 모여요.' : mode === 'mine' && !query ? '내 조합이 없어요. 카드의 조합 만들기에서 저장하면 여기에 모여요.' : mode === 'recent' && !query ? '최근 고른 메뉴가 없어요.' : '맞는 메뉴가 없어요. 다른 종류를 눌러 보세요.'}</p>}
       {list.map((x, idx) => {
         const off = x.kcalOff
         const fitLabel = off <= 0.1 ? '잘 맞아요' : off <= 0.2 ? '조금 차이' : null

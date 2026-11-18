@@ -1,6 +1,6 @@
 // [2026-11-12] 식단 제안: 사용자 문서·운동 기록 → 오늘 목표·식단. 고른 메뉴는 이 기기에만 보관(localStorage bt-diet:{uid}).
 import { dailyTargets, splitMeals, exerciseKcalPerDay, weeklyWeightChangePct, trendAdjustment, dietDirection } from './targets'
-import { buildDayPlan } from './plan'
+import { ADHOC_PREFIX, buildDayPlan } from './plan'
 import { loadUserMeals } from './combos'
 import { OUT_KINDS, OUT_MIN_SHARE, OUT_PLAN_MAX_EXTRA, OUT_PLAN_RATIO, eatenNutrition, eatingOutPortions, walkKcalPerMin } from './eatingOut'
 import { isBeginnerAccount } from '../goals'
@@ -191,6 +191,31 @@ export function pickSlot(uid, date, slotKey, mealId, history) {
   return next
 }
 
+// [2026-11-18] 조합 만들기에서 저장 없이 '넣기': 재료 목록을 그 끼니 기록에 같이 둔다(plan.js adhocMeal이 읽음)
+export function pickAdhoc(uid, date, slotKey, { name, list }, history) {
+  const day = { ...(history[date] || {}) }
+  day[slotKey] = { id: `${ADHOC_PREFIX}${slotKey}`, picked: true, reroll: day[slotKey]?.reroll || 0, name: String(name || '').slice(0, 20), list: (list || []).slice(0, 12).map((x) => ({ food: x.food, n: x.n })) }
+  const next = { ...history, [date]: day }
+  writeDietHistory(uid, next)
+  return next
+}
+
+// 최근 먹은(고른) 메뉴 id: 오늘 포함 최근 날짜부터, 중복·임시 조합·회식 칸 제외
+export function recentMealIds(history, max = 40) {
+  const out = []
+  Object.keys(history || {})
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort()
+    .reverse()
+    .forEach((d) =>
+      Object.entries(history[d] || {}).forEach(([k, x]) => {
+        if (k.startsWith('_') || !x?.id || String(x.id).startsWith(ADHOC_PREFIX) || out.includes(x.id) || out.length >= max) return
+        out.push(x.id)
+      })
+    )
+  return out
+}
+
 // 오늘 고른 메뉴를 기기에 남김(같은 날 다시 열어도 같은 식단, 14일 안 반복 피하기에 쓰임)
 export function rememberPlan(uid, date, plan, history) {
   if (!uid || !plan) return history
@@ -201,7 +226,7 @@ export function rememberPlan(uid, date, plan, history) {
     if (!x.meal || x.out) return
     const prev = day[x.target.key]
     if (!prev || prev.id !== x.meal.id || prev.scale !== x.scale) {
-      day[x.target.key] = { id: x.meal.id, scale: x.scale, reroll: prev?.reroll || 0, ...(prev?.exclude ? { exclude: prev.exclude } : {}), ...(prev?.picked && prev.id === x.meal.id ? { picked: true } : {}) }
+      day[x.target.key] = { id: x.meal.id, scale: x.scale, reroll: prev?.reroll || 0, ...(prev?.exclude ? { exclude: prev.exclude } : {}), ...(prev?.picked && prev.id === x.meal.id ? { picked: true } : {}), ...(prev?.list && prev.id === x.meal.id ? { list: prev.list, name: prev.name } : {}) }
       changed = true
     }
   })

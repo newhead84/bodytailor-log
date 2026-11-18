@@ -102,13 +102,43 @@ FOOD_CATEGORIES.forEach(([, list]) =>
     if (FOODS[food]) FOOD_UNITS[food] = { label, g, step, gram }
   })
 )
+// 분류에 없는 재료(일반 메뉴의 재료들)도 조합 만들기에서 현재 메뉴를 풀 때 쓰도록 10g 단위로 올린다(검색·분류 목록에는 안 나옴)
+Object.keys(FOODS).forEach((food) => {
+  if (!FOOD_UNITS[food] && !FOODS[food].mine) FOOD_UNITS[food] = { label: 'g', g: 10, step: 1, gram: true, hidden: true }
+})
 
+// 단위 글이 숫자로 시작하면('10알', '2알', '10피스') 그 숫자를 개수에 곱해 보여 준다: 1단위 = 10알, 2단위 = 20알
+// (예전에는 '1' + '10알' = '110알'로 붙어 나왔다. 2026-11-18 사용자 신고)
 const fmtN = (n) => String(Math.round(n * 10) / 10)
+export function unitParts(food) {
+  const un = FOOD_UNITS[food]
+  if (!un) return { k: 1, rest: 'g', gram: true, g: 1 }
+  if (un.gram) return { k: un.g, rest: 'g', gram: true, g: un.g }
+  const m = /^(\d+(?:\.\d+)?)(.*)$/.exec(un.label)
+  return m ? { k: Number(m[1]), rest: m[2], gram: false, g: un.g } : { k: 1, rest: un.label, gram: false, g: un.g }
+}
+// 화면에 보이는 수량: { amount(숫자), suffix(단위 글) }. 직접 입력 칸도 이 숫자를 쓴다.
+export function qtyParts(food, n) {
+  const p = unitParts(food)
+  return { amount: Math.round(n * p.k * 10) / 10, suffix: p.rest, half: !p.gram && p.k === 1 && n === 0.5 }
+}
 export function qtyText(food, n) {
   const un = FOOD_UNITS[food]
   if (!un) return `${Math.round(n * 100)}g`
-  if (un.gram) return `${Math.round(n * un.g)}g`
-  return n === 0.5 ? `반 ${un.label}` : `${fmtN(n)}${un.label}`
+  const p = qtyParts(food, n)
+  if (p.half) return `반 ${p.suffix}`
+  return `${fmtN(p.amount)}${p.suffix}`
+}
+// 칸 하나를 누를 때 바뀌는 단위 칸으로 맞춘다(0.8 → 위로 1, 아래로 0.5)
+export function stepValue(n, step, dir) {
+  const q = n / step
+  const v = dir > 0 ? (Math.floor(q + 1e-9) + 1) * step : (Math.ceil(q - 1e-9) - 1) * step
+  return Math.round(v * 100) / 100
+}
+// 단위가 작아(한 단위 16g 이하) 하나씩 누르기 번거로운 재료: 길게 누르면 5칸씩
+export const isSmallUnit = (food) => {
+  const un = FOOD_UNITS[food]
+  return !!un && !un.gram && un.g <= 16
 }
 
 // { food, n }[] → meal.items([{ food, g, unit }])
@@ -388,4 +418,36 @@ export function deleteUserCombo(uid, id) {
   const data = readCustom(uid)
   writeCustom(uid, { ...data, combos: data.combos.filter((x) => x.id !== id), dirty: data.dirty.filter((x) => x !== id), deleted: [...new Set([...data.deleted, id])] })
   loadUserMeals(uid)
+}
+
+// ── 최근 조합(이 기기에만, 최대 8개): 조합 만들기에서 '넣기'를 누른 것. 최근 재료 탭에도 쓴다 ──
+const RECENT_KEY = (uid) => `bt-diet-recent:${uid}`
+export const RECENT_MAX = 8
+export function readRecent(uid) {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENT_KEY(uid)) || '[]')
+    return (Array.isArray(v) ? v : [])
+      .map((x) => ({ name: String(x?.name || '').slice(0, 20) || '최근 조합', list: cleanCombo({ id: 'r', name: 'r', list: x?.list })?.list || [] }))
+      .filter((x) => x.list.length)
+      .slice(0, RECENT_MAX)
+  } catch {
+    return []
+  }
+}
+export function pushRecent(uid, { name, list }) {
+  const clean = cleanCombo({ id: 'r', name: 'r', list })
+  if (!uid || !clean) return
+  const sig = (l) => l.map((x) => `${x.food}:${x.n}`).join('|')
+  const next = [{ name: String(name || '').trim().slice(0, 20) || '최근 조합', list: clean.list }, ...readRecent(uid).filter((x) => sig(x.list) !== sig(clean.list))].slice(0, RECENT_MAX)
+  try {
+    localStorage.setItem(RECENT_KEY(uid), JSON.stringify(next))
+  } catch {
+    /* 저장 공간이 없으면 기록하지 않는다 */
+  }
+}
+// 최근 조합에 쓰인 재료(최근 것부터, 중복 없이)
+export function recentFoodIds(uid, max = 14) {
+  const out = []
+  readRecent(uid).forEach((r) => r.list.forEach((it) => !out.includes(it.food) && FOOD_UNITS[it.food] && !FOOD_UNITS[it.food].hidden && out.length < max && out.push(it.food)))
+  return out
 }

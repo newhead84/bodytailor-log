@@ -1,7 +1,7 @@
 // [2026-11-12] 식단 제안: 끼니 목표에 맞춰 메뉴 고르기·양 맞추기 - 규칙 계산('AI' 아님)
 // 영양값은 foods.js(식약처 DB)에서 재료 g으로 계산한다. 제안 기록은 이 기기에만(localStorage, Firestore 읽기 없음).
 import { FOODS } from './foodsExtra'
-import { getUserMeals } from './combos'
+import { FOOD_UNITS, comboItems, getUserMeals } from './combos'
 import { MEALS, FOOD_TAGS } from './meals'
 
 const KEYS = ['kcal', 'p', 'f', 'c', 'fiber', 'na']
@@ -40,7 +40,30 @@ export function mealNutrition(meal, scale = 1, addon = null) {
 
 // [2026-11-17] 고른 메뉴 id → 메뉴(기본 메뉴·기본 조합 + 내 조합)
 export function findMeal(id) {
+  if (String(id).startsWith(ADHOC_PREFIX)) return null // 임시 조합은 buildDayPlan이 history의 목록으로 만든다
   return MEALS.find((x) => x.id === id) || getUserMeals().find((x) => x.id === id) || null
+}
+
+// [2026-11-18] 조합 만들기에서 '넣기'만 누른(저장하지 않은) 조합: 그 끼니 기록(history)에 재료 목록을 같이 보관한다
+export const ADHOC_PREFIX = 'adhoc:'
+export function adhocMeal(slotKey, keep) {
+  const items = comboItems(keep.list)
+  if (!items.length) return null
+  return { id: `${ADHOC_PREFIX}${slotKey}`, name: keep.name || '내가 짠 조합', slot: ['breakfast', 'lunch', 'dinner', 'snack'], mode: 'mine', minutes: 0, items, fixed: true, list: keep.list, adhoc: true }
+}
+
+// [2026-11-18] 지금 메뉴를 조합 만들기 재료(1단위 목록)로 푼다. 조합은 고른 양 그대로, 일반 메뉴는 배율·덧붙인 단백질까지 g으로 환산.
+// 단위표에 없는 재료는 건너뛴다(조합 만들기에서 계산할 수 없음).
+export function mealToList(meal, scale = 1, addon = null) {
+  if (!meal) return []
+  const acc = new Map()
+  const add = (food, n) => acc.set(food, (acc.get(food) || 0) + n)
+  if (meal.fixed && meal.list) meal.list.forEach((it) => FOOD_UNITS[it.food] && add(it.food, it.n))
+  else {
+    ;(meal.items || []).forEach((it) => FOOD_UNITS[it.food] && add(it.food, itemGrams(it, scale) / FOOD_UNITS[it.food].g))
+    if (addon && FOOD_UNITS[addon.food]) add(addon.food, addon.g / FOOD_UNITS[addon.food].g)
+  }
+  return [...acc].map(([food, n]) => ({ food, n: Math.round(n * 10) / 10 })).filter((x) => x.n >= 0.1)
 }
 
 // 일부 재료가 평균·추정값이면 한 줄 안내(식약처 DB 값이 아닌 재료)
@@ -129,6 +152,24 @@ export function rankMealsForSlot(slotTarget, prefs = {}, { dayKcal } = {}) {
     .sort((a, b) => a.fit - b.fit)
 }
 
+// [2026-11-18] '다른 메뉴': 지금 메뉴와 칼로리 ±10%·단백질 ±5g 안의 메뉴를 차이순 3개(현재 메뉴 제외).
+// 모자라면 ±20%·8g → ±30%·12g로 넓히고 widened로 알린다.
+export function similarMeals(entry, slotTarget, prefs = {}, { dayKcal } = {}) {
+  const cur = entry.nutrition
+  if (!cur || !entry.meal) return { items: [], widened: false, kcalPct: 10, pGram: 5 }
+  const ranked = rankMealsForSlot(slotTarget, prefs, { dayKcal }).filter((x) => x.meal.id !== entry.meal.id)
+  const diff = (x) => Math.abs(x.nutrition.kcal - cur.kcal) / Math.max(1, cur.kcal) + Math.abs(x.nutrition.p - cur.p) / Math.max(10, cur.p)
+  const steps = [[10, 5], [20, 8], [30, 12]]
+  let last = { items: [], widened: false, kcalPct: 10, pGram: 5 }
+  for (let i = 0; i < steps.length; i += 1) {
+    const [kcalPct, pGram] = steps[i]
+    const items = ranked.filter((x) => Math.abs(x.nutrition.kcal - cur.kcal) <= (cur.kcal * kcalPct) / 100 && Math.abs(x.nutrition.p - cur.p) <= pGram).sort((a, b) => diff(a) - diff(b))
+    last = { items: items.slice(0, 3), widened: i > 0, kcalPct, pGram }
+    if (items.length >= 3) break
+  }
+  return last
+}
+
 // 한 끼 고르기
 // slotTarget: { slot, kcal, protein }, prefs: { style, avoid[], cookMin }, ctx: { date, history, usedFoods, reroll }
 export function chooseMeal(slotTarget, prefs = {}, ctx = {}) {
@@ -171,7 +212,7 @@ export function buildDayPlan(mealTargets, prefs, { date, history = {}, saved = {
     const keep = saved[t.key]
     let pick = null
     if (keep?.id) {
-      const meal = findMeal(keep.id)
+      const meal = keep.list && keep.id === `${ADHOC_PREFIX}${t.key}` ? adhocMeal(t.key, keep) : findMeal(keep.id)
       // 직접 고른 메뉴(picked)와 앞서 고른 메뉴 모두 양은 지금 끼니 목표로 다시 맞춘다(회식 날 조정 등으로 목표가 바뀌어도 맞게).
       // 같은 목표면 처음 고를 때와 같은 배율이 나온다. 직접 고른 메뉴는 '안 먹는 것' 확인을 고를 때 했다.
       if (meal && (keep.picked || !mealAvoidTags(meal).some((tag) => (prefs.avoid || []).includes(tag)))) {
