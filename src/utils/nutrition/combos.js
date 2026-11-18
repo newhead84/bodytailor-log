@@ -102,6 +102,13 @@ FOOD_CATEGORIES.forEach(([, list]) =>
     if (FOODS[food]) FOOD_UNITS[food] = { label, g, step, gram }
   })
 )
+// [2026-11-18] 한 단위 무게 보정(100g당 영양값은 식약처 CSV 그대로, 바뀌는 것은 '1개·한 줌·1피스'의 무게뿐).
+// 근거: 개당 무게는 식약처 CSV에 없어 코덱스가 식품안전나라·식약처 외식 영양성분 자료집으로 조사한 값. 100g당 kcal는 CSV로 대조(땅콩 볶은것 567·자몽 32·망고 57~61·초밥 모듬 154·연어 207·새우 130).
+// 땅콩 줌 15→30g(170kcal) · 사과 300→250g(중간 크기) · 자몽 300→250g · 망고 300→200g(껍질·씨 제외) · 연어·새우초밥 피스 20→30g · 냉동 피자 150g '판'→105g '조각(1/4판)'(시판 소형 1판 약 415g)
+const UNIT_FIX = { peanut: [null, 30], apple: [null, 250], r_grapefruit: [null, 250], r_mango: [null, 200], d_sushi_salmon: [null, 30], d_sushi_shrimp: [null, 30], p_pizza_frozen: ['조각(1/4판)', 105] }
+Object.entries(UNIT_FIX).forEach(([food, [label, g]]) => {
+  if (FOOD_UNITS[food]) FOOD_UNITS[food] = { ...FOOD_UNITS[food], g, ...(label ? { label } : {}) }
+})
 // 분류에 없는 재료(일반 메뉴의 재료들)도 조합 만들기에서 현재 메뉴를 풀 때 쓰도록 10g 단위로 올린다(검색·분류 목록에는 안 나옴)
 Object.keys(FOODS).forEach((food) => {
   if (!FOOD_UNITS[food] && !FOODS[food].mine) FOOD_UNITS[food] = { label: 'g', g: 10, step: 1, gram: true, hidden: true }
