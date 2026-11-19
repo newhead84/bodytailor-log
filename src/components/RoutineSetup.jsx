@@ -7,7 +7,8 @@ import {
   getExercisesForPart,
   getCustomExercisesForPart,
   getAtomsForPartName,
-  getAtomsForPart,
+  getAddableAtomsForPart,
+  getExerciseAtom,
   getPartColor,
   getGripOptions,
   getExerciseInputType,
@@ -78,7 +79,8 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
         prev.map((p, i) =>
           i !== idx
             ? p
-            : { name, atoms: draftAtoms, exercises: p.exercises.filter((ex) => stillAvailable.includes(parseExerciseKey(ex).name)) }
+            : // [2026-11-20] 유산소는 부위 조합과 상관없이 붙일 수 있으므로 부위를 바꿔도 남긴다
+              { name, atoms: draftAtoms, exercises: p.exercises.filter((ex) => stillAvailable.includes(parseExerciseKey(ex).name) || getExerciseAtom(parseExerciseKey(ex).name) === '유산소') }
         )
       )
     }
@@ -287,7 +289,7 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
 // 부위별로 "고른 종목"만 먼저 보여 주고 나머지는 "+ 종목 더 보기"로 접어 두며, 파트 상단에 검색칸을 둔다.
 // 검색어가 있으면 모든 부위에서 이름이 맞는 종목만 펼쳐 보여준다.
 function PartEditor({ part, customExercises, onToggle, onRemovePart, onEditAtoms }) {
-  const atoms = getAtomsForPart(part)
+  const atoms = getAddableAtomsForPart(part) // [2026-11-20] 유산소는 어느 파트에서나 고를 수 있게
   const [openAtoms, setOpenAtoms] = useState({})
   const [query, setQuery] = useState('')
   const q = query.trim().replace(/\s+/g, '')

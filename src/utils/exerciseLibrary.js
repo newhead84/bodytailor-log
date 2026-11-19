@@ -2480,6 +2480,13 @@ export function getAtomsForPart(part) {
   return out
 }
 
+// [2026-11-20] 종목을 더 고를 때의 부위: 파트 부위 + 유산소(사용자 신고: 분할 예시 파트에는 유산소가 없어 운동 중 유산소를 추가할 수 없었음).
+// 유산소는 어느 파트에서든 마무리로 붙일 수 있어 늘 맨 뒤에 보여 준다.
+export function getAddableAtomsForPart(part) {
+  const atoms = getAtomsForPart(part)
+  return atoms.includes('유산소') ? atoms : [...atoms, '유산소']
+}
+
 // 파트명(예: '등&이두&삼두', '가슴&하체' 등 '&'로 이어붙인 자유 조합명)을 받아 해당 파트에서
 // 골라야 할 운동명 목록을 반환한다. 매핑에 없는 이름은 안전하게 빈 배열을 반환한다.
 export function getExercisesForPart(partName) {

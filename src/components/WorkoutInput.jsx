@@ -12,7 +12,7 @@ import { CONDITIONS } from '../utils/sessionCoach'
 import IntensityPicker from './IntensityPicker'
 import { ExerciseGuidePanel } from './ExerciseGuideToggle'
 import logoMarkTransparent from '../assets/logo-mark-transparent.png'
-import { getAtomsForPart, getExercisesForPart, getCustomExercisesForPart } from '../utils/exerciseLibrary'
+import { getAddableAtomsForPart, getExercisesForPart, getCustomExercisesForPart } from '../utils/exerciseLibrary'
 import { parseExerciseKey } from '../utils/exerciseKey'
 import { ExerciseCard, SortableExerciseItem, ExerciseGuideInfoButton } from './ExerciseCard'
 import WorkoutCompleteModal from './WorkoutCompleteModal'
@@ -369,7 +369,7 @@ const WorkoutInput = forwardRef(function WorkoutInput(
                 </p>
                 {/* [2026-08-02 변경] 복합 파트(예: "등&이두")를 고르면 그동안 두 부위 종목이 구분
                     없이 한 줄에 섞여 나와 헷갈렸다(⑩). 부위(atom)별로 소제목을 달아 묶어서 보여준다. */}
-                {getAtomsForPart(selectedPart).map((atom) => {
+                {getAddableAtomsForPart(selectedPart).map((atom) => {
                   // [2026-08-05 수정] partOrder에 있어도 오늘 임시 숨김(hiddenToday) 상태인 종목은
                   // "이미 추가된 종목"이 아니라 "다시 꺼낼 수 있는 후보"로 노출해야 한다.
                   // [2026-08-10 변경] 그립옵션이 있는 종목은 그립별로 후보를 펼친다.
