@@ -37,13 +37,48 @@ export function feelPatch(id) {
   return { pain: null, form: null }
 }
 
+// [2026-11-19] 통증 이어받기(사용자 신고: 앞 세트가 아팠으면 다음 세트도 통증이어야 함, 사용자 선택 '통증만')
+// 저장하는 세트(idx)에 아직 통증 표시가 없으면, 그 앞에 저장한 본세트(웜업 제외)의 통증을 이어받는다.
+// 자세 흔들림은 세트마다 달라 이어받지 않는다. '괜찮음'으로 바꾸면 그 세트부터 끊긴다(그 세트 pain null).
+function lastWorkingBefore(sets, idx) {
+  for (let i = Math.min(idx, (sets || []).length) - 1; i >= 0; i--) {
+    const s = sets[i]
+    if (s?.saved && !isWarmupSet(s)) return s
+  }
+  return null
+}
+export function carriedPain(sets, idx) {
+  const cur = sets?.[idx]
+  if (!cur || isWarmupSet(cur) || cur.pain === 'mild' || cur.pain === 'strong') return null
+  const p = lastWorkingBefore(sets, idx)?.pain
+  return p === 'mild' || p === 'strong' ? p : null
+}
+// idx 세트까지 통증이 몇 세트 이어졌는지(웜업은 건너뜀)
+export function painStreak(sets, idx) {
+  let n = 0
+  for (let i = idx; i >= 0; i--) {
+    const s = sets?.[i]
+    if (!s || (i !== idx && !s.saved) || isWarmupSet(s)) continue
+    if (s.pain === 'mild' || s.pain === 'strong') n += 1
+    else break
+  }
+  return n
+}
+
 export const FORM_FIRST_LINE = '무게·횟수보다 자세가 먼저 · 무너지기 전에 멈춰요'
 
 const validW = (name, w) => isAssistedExercise(name) || w > 0 || allowsZeroWeight(name)
 
 // 방금 세트 몸 상태에 따른 다음 세트 안내(세트 단위 '코치 한마디'와 같은 모양: { weight?, kind, reason })
-export function adviseAfterFeel(name, set, setting) {
+// streak: 이 세트까지 통증이 이어진 세트 수(painStreak). 가볍게 했는데도 통증 조금이 이어지면(2세트 이상) 무게를 더 내리지 않고 멈춤 권유(사용자 선택)
+export function adviseAfterFeel(name, set, setting, { streak = 1 } = {}) {
   const feel = feelOf(set)
+  if (feel === 'mild' && streak >= 2) {
+    return {
+      kind: 'stop',
+      reason: `통증이 ${streak}세트째 이어져요 → 이 종목은 여기서 멈추고 대신 할 운동으로 바꿔요. 계속 아프면 트레이너와 상의해요`,
+    }
+  }
   if (feel === 'ok' || !set) return null
   const w = Number(set.weight)
   const hasW = set.weight !== '' && set.weight != null && Number.isFinite(w)

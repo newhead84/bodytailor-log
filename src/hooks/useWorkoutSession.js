@@ -5,7 +5,7 @@ import { useConfirm } from '../components/ui'
 import { deloadSignal, weekAtomSets, weeklyShortfall, cardioCoach, logsThisWeek, comebackStatus } from '../utils/coach'
 import { nextSetType, nextRir } from '../components/SetEditors'
 import { WORKOUT_GUIDE_VERSION } from '../components/WorkoutGuide'
-import { normalizeCondition, feelPatch, adviseAfterFeel, applySessionAdjust, sessionStrain, sessionAdjustLevel, lastIssueNote, sessionFeelSummary } from '../utils/sessionCoach'
+import { normalizeCondition, feelPatch, adviseAfterFeel, carriedPain, painStreak, applySessionAdjust, sessionStrain, sessionAdjustLevel, lastIssueNote, sessionFeelSummary } from '../utils/sessionCoach'
 import {
   suggestNextSet,
   adviseAfterSet,
@@ -1133,7 +1133,8 @@ export function useWorkoutSession(props, ref) {
     if (!set) return
     const patch = feelPatch(id)
     patchSet(key, idx, patch, { keepAuto: true })
-    const tip = adviseAfterFeel(parseExerciseKey(key).name, { ...set, ...patch }, settingFor(key))
+    const patchedSets = (records[key] || []).map((st, i) => (i === idx ? { ...st, ...patch } : st))
+    const tip = adviseAfterFeel(parseExerciseKey(key).name, { ...set, ...patch }, settingFor(key), { streak: painStreak(patchedSets, idx) })
     // [2026-11-16] 몸 상태 안내가 방금 세트 제안(올리기·내리기 등)을 덮어쓴 뒤 '괜찮음'으로 되돌리면 제안이 통째로 사라지던 문제(사용자 신고: 코치 한마디 제안 카드가 사라짐)
     // → 덮기 전 제안을 base로 들고 있다가 몸 상태 안내가 없어지면 그 제안을 되살린다.
     setSetTips((t) => {
@@ -1441,6 +1442,8 @@ export function useWorkoutSession(props, ref) {
       setRecords((r) => ({ ...r, [name]: r[name].map((st, i) => (i === idx ? { ...st, savedAt: Date.now() } : st)) }))
       return
     }
+    // [2026-11-19] 앞 본세트에 통증이 있었으면 이 세트도 같은 통증으로 저장(사용자 신고, '괜찮음'을 누르면 그 세트부터 해제)
+    const carry = savedSet ? carriedPain(records[name], idx) : null
     // [2026-11-08] 효과음(A 아케이드): 세트 저장 '띵', 신기록이면 팡파르
     let prSound = false
     if (savedSet && savedSet.type !== 'warmup' && getExerciseInputType(parseExerciseKey(name).name) === 'sets') {
@@ -1462,10 +1465,12 @@ export function useWorkoutSession(props, ref) {
     {
       // [2026-11-02 로그 코치] 이 세트 전에 저장한 본세트(웜업·드롭 제외)·오늘 목표 세트 수·이미 한 증량 제안 수를 함께 넘긴다
       const prevWorking = (records[name] || []).filter((st, i) => i !== idx && st.saved && st.type !== 'warmup' && st.type !== 'drop')
-      let tip = savedSet && coachEnabled && isBodyweightCoached(parseExerciseKey(name).name) ? adviseBodyweightSet(parseExerciseKey(name).name, savedSet, settingFor(name)) : savedSet && coachEnabled ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
+      // [2026-11-19] 앞 세트 통증을 이어받은 세트는 통증 안내가 먼저(올리기 제안 금지, 로그 코치를 꺼도 보임 - feel)
+      const painTip = carry ? adviseAfterFeel(parseExerciseKey(name).name, { ...savedSet, pain: carry, form: null }, settingFor(name), { streak: painStreak((records[name] || []).map((st, i) => (i === idx ? { ...st, pain: carry } : st)), idx) }) : null
+      let tip = painTip ? { ...painTip, feel: true, base: null } : savedSet && coachEnabled && isBodyweightCoached(parseExerciseKey(name).name) ? adviseBodyweightSet(parseExerciseKey(name).name, savedSet, settingFor(name)) : savedSet && coachEnabled ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
       // [2026-11-03 최근 연구] 오늘 이 부위 세트(보조 0.5세트로 계산)가 한 번 운동 상한(약 11세트)을 넘으면 한 번 안내(무게 제안이 있으면 그게 먼저)
       // [2026-11-10 T-8] 트레이너 계획으로 운동할 때는 세트 수를 트레이너가 정했으므로 이 안내를 넣지 않는다(처방 > 로그 코치)
-      if (coachEnabled && !programOff && savedSet && savedSet.type !== 'warmup' && (!tip || tip.weight == null)) {
+      if (coachEnabled && !programOff && !painTip && savedSet && savedSet.type !== 'warmup' && (!tip || tip.weight == null)) {
         const exs = Object.entries(records).map(([k, sets]) => {
           const nm = parseExerciseKey(k).name
           return { name: nm, sets: (sets || []).filter((st, i) => (k === name && i === idx) || st.saved) }
@@ -1501,7 +1506,7 @@ export function useWorkoutSession(props, ref) {
         const timed = s.cardioTimer?.startAt ? { durationMin: String(cardioTimerMinutes(s.cardioTimer)), cardioTimer: null } : {}
         // [2026-11-01] 횟수는 정수로 저장(8.5회 방지, 전체 점검 U16)
         const rounded = s.reps != null && s.reps !== '' ? { reps: roundReps(s.reps) } : {}
-        return { ...s, ...timed, ...rounded, saved: true, auto: false, planned: false, savedAt: Date.now() }
+        return { ...s, ...timed, ...rounded, ...(carry ? { pain: carry, form: null } : {}), saved: true, auto: false, planned: false, savedAt: Date.now() }
       })
       const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, preDropWeight, pain, form, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]

@@ -730,11 +730,15 @@ export function ExerciseCard({
             })
             if (li < 0) return null
             const cur = feelOf(sets[li])
+            // [2026-11-19] 앞 본세트 통증을 이어받은 세트면 그렇다고 알려 준다(괜찮으면 '괜찮음'으로 끊기)
+            let pi = -1
+            for (let i = li - 1; i >= 0; i--) if (sets[i]?.saved && sets[i].type !== 'warmup') { pi = i; break }
+            const carried = (cur === 'mild' || cur === 'strong') && pi >= 0 && feelOf(sets[pi]) === cur
             return (
               // [2026-11-10] 이름표 + 칩 4개가 한 줄에 안 들어가 '통증 심함' 하나만 다음 줄로 넘어가던 것(사용자 지적) →
               // 이름표는 위 한 줄, 칩 4개는 같은 폭 4칸(좁으면 칸 안에서 두 줄)
               <div role="group" aria-label="방금 세트 몸 상태" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>방금 세트</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-label-neutral)' }}>방금 세트{carried ? ' · 앞 세트 통증 이어짐' : ''}</span>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
                   {SET_FEELS.map((f) => (
                     <Chip key={f.id} active={cur === f.id} onClick={() => ext.onSetFeel(li, f.id)} className="text-keep-all" style={{ borderRadius: 'var(--radius-md)', padding: '6px 4px', fontSize: 12.5, lineHeight: 1.25, justifyContent: 'center', textAlign: 'center', whiteSpace: 'normal', minWidth: 0 }}>
