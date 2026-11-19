@@ -116,14 +116,23 @@ Object.keys(FOODS).forEach((food) => {
 
 // 단위 글이 숫자로 시작하면('10알', '2알', '10피스') 그 숫자를 개수에 곱해 보여 준다: 1단위 = 10알, 2단위 = 20알
 // (예전에는 '1' + '10알' = '110알'로 붙어 나왔다. 2026-11-18 사용자 신고)
-const fmtN = (n) => String(Math.round(n * 10) / 10)
+// 단위 글 4종류(2026-11-19 정리, 표시 규칙은 이 한 곳):
+//  ① gram: 'g'·'100g'·'80g' 칸(재료를 g으로 다룸)  ② 숫자+g/ml: '30g'·'20g'(그래놀라·다크초콜릿)  → ①②는 무게·부피: 1단위 = 숫자 × 1g, 표시는 양 그대로(예 69g)
+//  ③ 숫자+개수: '10알'·'2알'·'10피스' → 1단위 = 숫자 × 개수, 정수로(반올림하면 0이 되는 작은 양은 g로)
+//  ④ 숫자 없는 단위: 개·컵·공기·판·조각·팩·인분·잔(50ml)… → 반 단위(0.5)는 그대로, 1단위 미만은 g로, 그 이상 어색한 소수는 '약 2.5컵(230g)'
+// 규칙: 0이 보이지 않고, 표시와 영양 계산 값(n × 단위 g)이 크게 다르지 않으며, 2.3컵 같은 소수를 내지 않는다. 직접 입력 칸(qtyParts)은 정확한 값.
+const WEIGHT_LABEL = /^(\d+(?:\.\d+)?)\s*(g|ml)$/i
 export function unitParts(food) {
   const un = FOOD_UNITS[food]
   if (!un) return { k: 1, rest: 'g', gram: true, g: 1 }
   if (un.gram) return { k: un.g, rest: 'g', gram: true, g: un.g }
+  const w = WEIGHT_LABEL.exec(un.label)
+  if (w) return { k: Number(w[1]), rest: w[2].toLowerCase(), gram: true, g: un.g }
   const m = /^(\d+(?:\.\d+)?)(.*)$/.exec(un.label)
   return m ? { k: Number(m[1]), rest: m[2], gram: false, g: un.g } : { k: 1, rest: un.label, gram: false, g: un.g }
 }
+// 무게 글자: 10g 이상은 정수, 그보다 작으면 소수 첫째 자리(0.1g 미만도 0.1g로)
+const gText = (g, suffix = 'g') => (g >= 10 ? String(Math.round(g)) : String(Math.max(0.1, Math.round(g * 10) / 10))) + suffix
 // 화면에 보이는 수량: { amount(숫자), suffix(단위 글) }. 직접 입력 칸도 이 숫자를 쓴다.
 export function qtyParts(food, n) {
   const p = unitParts(food)
@@ -131,22 +140,23 @@ export function qtyParts(food, n) {
 }
 export function qtyText(food, n) {
   const un = FOOD_UNITS[food]
-  if (!un) return `${Math.round(n * 100)}g`
-  const p = { ...qtyParts(food, n), ...unitParts(food) }
-  p.amount = Math.round(n * p.k * 10) / 10
-  if (p.half) return `반 ${p.suffix}`
-  if (p.gram) return `${p.amount > 0 || n <= 0 ? fmtN(p.amount) : '0.1'}${p.suffix}`
-  // 어색한 소수(2.3컵)는 보이지 않게: 10알 같은 개수 단위는 정수로, 1단위가 하나인 단위는 반 단위(0.5)면 그대로,
-  // 1단위 미만은 g로, 그 이상은 '약 2.5컵(345g)'처럼 g를 함께 보인다. 직접 입력 칸(qtyParts)은 정확한 값 그대로.
+  if (!un) return gText(n * 100)
+  const p = unitParts(food)
+  if (n <= 0) return `0${p.rest}`
+  if (p.gram) return gText(n * p.k, p.rest) // ①②
   if (p.k > 1) {
-    if (Math.round(p.amount) >= 1 || n <= 0) return `${Math.round(p.amount)}${p.suffix}`
-    return `${Math.max(1, Math.round(n * un.g))}g` // 0.4알처럼 반올림하면 0이 되는 작은 양은 g로
+    // ③ 개수 단위
+    const c = Math.round(n * p.k)
+    return c >= 1 ? `${c}${p.rest}` : gText(n * un.g)
   }
-  const half = n * 2
-  if (Math.abs(half - Math.round(half)) < 0.06 && n >= 1) return `${fmtN(Math.round(half) / 2)}${p.suffix}`
-  const grams = Math.round(n * un.g)
-  if (n < 1) return `${grams}g`
-  return `약 ${fmtN(Math.round(half) / 2)}${p.suffix}(${grams}g)`
+  // ④ 숫자 없는 단위
+  if (n === 0.5) return `반 ${p.rest}`
+  if (n < 1) return gText(n * un.g)
+  const half = Math.round(n * 2) / 2
+  const fmt = (v) => String(Math.round(v * 10) / 10)
+  if (Math.abs(n - half) < 0.03) return `${fmt(half)}${p.rest}`
+  // 단위 글에 괄호가 이미 있으면(캔(355ml)) g는 ' · '로 이어 붙인다
+  return p.rest.includes(')') ? `약 ${fmt(half)}${p.rest} · ${gText(n * un.g)}` : `약 ${fmt(half)}${p.rest}(${gText(n * un.g)})`
 }
 // 칸 하나를 누를 때 바뀌는 단위 칸으로 맞춘다(0.8 → 위로 1, 아래로 0.5)
 export function stepValue(n, step, dir) {
