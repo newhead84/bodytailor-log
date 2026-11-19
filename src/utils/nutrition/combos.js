@@ -135,10 +135,13 @@ export function qtyText(food, n) {
   const p = { ...qtyParts(food, n), ...unitParts(food) }
   p.amount = Math.round(n * p.k * 10) / 10
   if (p.half) return `반 ${p.suffix}`
-  if (p.gram) return `${fmtN(p.amount)}${p.suffix}`
+  if (p.gram) return `${p.amount > 0 || n <= 0 ? fmtN(p.amount) : '0.1'}${p.suffix}`
   // 어색한 소수(2.3컵)는 보이지 않게: 10알 같은 개수 단위는 정수로, 1단위가 하나인 단위는 반 단위(0.5)면 그대로,
   // 1단위 미만은 g로, 그 이상은 '약 2.5컵(345g)'처럼 g를 함께 보인다. 직접 입력 칸(qtyParts)은 정확한 값 그대로.
-  if (p.k > 1) return `${Math.round(p.amount)}${p.suffix}`
+  if (p.k > 1) {
+    if (Math.round(p.amount) >= 1 || n <= 0) return `${Math.round(p.amount)}${p.suffix}`
+    return `${Math.max(1, Math.round(n * un.g))}g` // 0.4알처럼 반올림하면 0이 되는 작은 양은 g로
+  }
   const half = n * 2
   if (Math.abs(half - Math.round(half)) < 0.06 && n >= 1) return `${fmtN(Math.round(half) / 2)}${p.suffix}`
   const grams = Math.round(n * un.g)
