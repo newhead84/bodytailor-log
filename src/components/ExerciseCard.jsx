@@ -731,9 +731,8 @@ export function ExerciseCard({
             if (li < 0) return null
             const cur = feelOf(sets[li])
             // [2026-11-19] 앞 본세트 통증을 이어받은 세트면 그렇다고 알려 준다(괜찮으면 '괜찮음'으로 끊기)
-            let pi = -1
-            for (let i = li - 1; i >= 0; i--) if (sets[i]?.saved && sets[i].type !== 'warmup') { pi = i; break }
-            const carried = (cur === 'mild' || cur === 'strong') && pi >= 0 && feelOf(sets[pi]) === cur
+            // [2026-11-20] 저장 때 이어받은 표시(painCarried)로만 판단 - 칩을 직접 고르면 지워진다
+            const carried = (cur === 'mild' || cur === 'strong') && !!sets[li].painCarried
             return (
               // [2026-11-10] 이름표 + 칩 4개가 한 줄에 안 들어가 '통증 심함' 하나만 다음 줄로 넘어가던 것(사용자 지적) →
               // 이름표는 위 한 줄, 칩 4개는 같은 폭 4칸(좁으면 칸 안에서 두 줄)

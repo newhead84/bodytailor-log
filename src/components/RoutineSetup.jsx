@@ -8,7 +8,6 @@ import {
   getCustomExercisesForPart,
   getAtomsForPartName,
   getAddableAtomsForPart,
-  getExerciseAtom,
   getPartColor,
   getGripOptions,
   getExerciseInputType,
@@ -74,13 +73,19 @@ export default function RoutineSetup({ initialTemplate, customExercises, onSave,
         closePicker()
         return
       }
-      const stillAvailable = [...getExercisesForPart(name), ...getCustomExercisesForPart(customExercises, name)]
+      // [2026-11-20] 유산소는 부위 조합과 상관없이 붙일 수 있으므로 부위를 바꿔도 남긴다.
+      // 고르는 목록(PartEditor)과 같은 판정: 기본 유산소 + 내가 만든 유산소(코덱스 지적: 내가 만든 유산소가 지워지던 것)
+      const stillAvailable = [
+        ...getExercisesForPart(name),
+        ...getCustomExercisesForPart(customExercises, name),
+        ...getExercisesForPart('유산소'),
+        ...getCustomExercisesForPart(customExercises, '유산소'),
+      ]
       setParts((prev) =>
         prev.map((p, i) =>
           i !== idx
             ? p
-            : // [2026-11-20] 유산소는 부위 조합과 상관없이 붙일 수 있으므로 부위를 바꿔도 남긴다
-              { name, atoms: draftAtoms, exercises: p.exercises.filter((ex) => stillAvailable.includes(parseExerciseKey(ex).name) || getExerciseAtom(parseExerciseKey(ex).name) === '유산소') }
+            : { name, atoms: draftAtoms, exercises: p.exercises.filter((ex) => stillAvailable.includes(parseExerciseKey(ex).name)) }
         )
       )
     }

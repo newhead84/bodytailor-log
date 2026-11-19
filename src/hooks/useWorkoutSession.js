@@ -1003,7 +1003,7 @@ export function useWorkoutSession(props, ref) {
   function copyLastSet(name, idx) {
     setRecords((r) => {
       const sets = r[name]
-      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, preDropWeight, pain, form, ...base } = sets[idx] || {}
+      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, preDropWeight, pain, form, painCarried, ...base } = sets[idx] || {}
       // [2026-10-29] 미리 만든 행은 planned - 체크(V)·수정하지 않으면 완료 시 포함 여부를 묻는다(안 한 세트가 그대로 저장되던 문제).
       // "세트완료" 때 지워지는 auto 행과 달리 남겨 둔다.
       // 웜업·실패 세트를 복사하면 본세트로, 드롭 세트는 연속 드롭을 위해 그대로 둔다
@@ -1131,7 +1131,8 @@ export function useWorkoutSession(props, ref) {
   function setSetFeel(key, idx, id) {
     const set = records[key]?.[idx]
     if (!set) return
-    const patch = feelPatch(id)
+    // [2026-11-20] 칩을 직접 고르면 '앞 세트에서 이어받음' 표시를 지운다(코덱스 지적: 끊었다가 같은 정도를 다시 골라도 '이어짐'으로 보임)
+    const patch = { ...feelPatch(id), painCarried: false }
     patchSet(key, idx, patch, { keepAuto: true })
     const patchedSets = (records[key] || []).map((st, i) => (i === idx ? { ...st, ...patch } : st))
     const tip = adviseAfterFeel(parseExerciseKey(key).name, { ...set, ...patch }, settingFor(key), { streak: painStreak(patchedSets, idx) })
@@ -1467,7 +1468,9 @@ export function useWorkoutSession(props, ref) {
       const prevWorking = (records[name] || []).filter((st, i) => i !== idx && st.saved && st.type !== 'warmup' && st.type !== 'drop')
       // [2026-11-19] 앞 세트 통증을 이어받은 세트는 통증 안내가 먼저(올리기 제안 금지, 로그 코치를 꺼도 보임 - feel)
       const painTip = carry ? adviseAfterFeel(parseExerciseKey(name).name, { ...savedSet, pain: carry, form: null }, settingFor(name), { streak: painStreak((records[name] || []).map((st, i) => (i === idx ? { ...st, pain: carry } : st)), idx) }) : null
-      let tip = painTip ? { ...painTip, feel: true, base: null } : savedSet && coachEnabled && isBodyweightCoached(parseExerciseKey(name).name) ? adviseBodyweightSet(parseExerciseKey(name).name, savedSet, settingFor(name)) : savedSet && coachEnabled ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
+      const normalTip = savedSet && coachEnabled && isBodyweightCoached(parseExerciseKey(name).name) ? adviseBodyweightSet(parseExerciseKey(name).name, savedSet, settingFor(name)) : savedSet && coachEnabled ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
+      // [2026-11-20] 이어받은 통증을 '괜찮음'으로 지우면 원래 받았을 무게·횟수 안내가 되살아나게 base로 들고 있는다(코덱스 지적)
+      let tip = painTip ? { ...painTip, feel: true, base: normalTip } : normalTip
       // [2026-11-03 최근 연구] 오늘 이 부위 세트(보조 0.5세트로 계산)가 한 번 운동 상한(약 11세트)을 넘으면 한 번 안내(무게 제안이 있으면 그게 먼저)
       // [2026-11-10 T-8] 트레이너 계획으로 운동할 때는 세트 수를 트레이너가 정했으므로 이 안내를 넣지 않는다(처방 > 로그 코치)
       if (coachEnabled && !programOff && !painTip && savedSet && savedSet.type !== 'warmup' && (!tip || tip.weight == null)) {
@@ -1506,9 +1509,9 @@ export function useWorkoutSession(props, ref) {
         const timed = s.cardioTimer?.startAt ? { durationMin: String(cardioTimerMinutes(s.cardioTimer)), cardioTimer: null } : {}
         // [2026-11-01] 횟수는 정수로 저장(8.5회 방지, 전체 점검 U16)
         const rounded = s.reps != null && s.reps !== '' ? { reps: roundReps(s.reps) } : {}
-        return { ...s, ...timed, ...rounded, ...(carry ? { pain: carry, form: null } : {}), saved: true, auto: false, planned: false, savedAt: Date.now() }
+        return { ...s, ...timed, ...rounded, ...(carry ? { pain: carry, form: null, painCarried: true } : {}), saved: true, auto: false, planned: false, savedAt: Date.now() }
       })
-      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, preDropWeight, pain, form, ...base } = sets[idx]
+      const { saved, savedAt, auto, planned, rir, cardioTimer, autoField, preDropWeight, pain, form, painCarried, ...base } = sets[idx]
       const hasNext = !!sets[idx + 1]
       // 웜업 세트를 저장한 뒤 자동으로 생기는 다음 행은 본세트로 시작
       // [2026-10-29] 드롭(D)·실패(F) 세트 다음에 자동으로 생기는 행도 본세트로 시작(또 D/F로 기록되던 문제)
