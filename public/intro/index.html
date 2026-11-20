@@ -44,9 +44,11 @@ section{padding:110px 0}
 [data-tone]{position:relative;color:var(--t1)}
 [data-tone]>.wrap{position:relative;z-index:2}
 /* 사진 섹션 가장자리는 투명하게 녹여 바뀌는 배경색과 이어지게 */
-.hero .bg,.hero::after{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - var(--edge,90px)),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - var(--edge,90px)),transparent)}
 .band,.pt .bg,.pt::after{-webkit-mask-image:linear-gradient(to bottom,transparent,#000 var(--edge,90px),#000 calc(100% - var(--edge,90px)),transparent);mask-image:linear-gradient(to bottom,transparent,#000 var(--edge,90px),#000 calc(100% - var(--edge,90px)),transparent)}
-.label{font:700 13px 'Outfit','Paperlogy',sans-serif;letter-spacing:.04em;color:var(--acc)}
+.label{font:700 13px 'Outfit','Paperlogy',sans-serif;letter-spacing:.04em;color:var(--acc);display:flex;align-items:center;gap:10px}
+/* [2026-11-20] 섹션 라벨 앞 작은 라임 네모(들어올 때 톡 커짐) */
+.label::before{content:'';width:8px;height:8px;border-radius:2px;background:var(--fill);flex-shrink:0;transform:scale(0);transition:transform .5s cubic-bezier(.3,1.6,.5,1) .3s}
+.label.in::before,.hero.in .label::before{transform:none}
 h2{font-weight:800;font-size:clamp(30px,4.6vw,52px);line-height:1.2;letter-spacing:-.025em;margin-top:14px}
 .lead{font-size:clamp(16px,1.7vw,19px);line-height:1.75;color:var(--t2);margin-top:18px;max-width:620px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;font:800 16px 'Paperlogy',sans-serif;border-radius:14px;padding:16px 26px;background:var(--fill);color:var(--onfill);text-decoration:none;border:0;cursor:pointer;transition:transform .15s}
@@ -60,15 +62,32 @@ nav.solid{background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filte
 .brand img{width:30px;height:30px;border-radius:8px;display:block}
 nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14px;border-radius:10px;border:1px solid currentColor;opacity:.9}
 
-/* 히어로: 전면 사진 */
-.hero{position:relative;min-height:100svh;display:flex;align-items:flex-end;color:#f5efe6;overflow:hidden;padding:0}
-.hero .bg{position:absolute;inset:0;background:#141210 center/cover no-repeat;transform:scale(1.04);transition:transform 1.2s ease}
-.hero.in .bg{transform:scale(1)}
-.hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,18,16,.25) 0%,rgba(20,18,16,.35) 40%,rgba(20,18,16,.92) 100%)}
-.hero .wrap{position:relative;z-index:2;width:100%;padding-bottom:clamp(48px,9vh,96px)}
+/* [2026-11-20] 히어로: 둥근 액자 안 전면 운동 영상(Mixkit 무료 라이선스 #100549 랫풀다운). 첫 화면은 포스터 사진, 영상은 페이지를 다 읽은 뒤 불러옴.
+   영상 두 개를 겹쳐 끝 0.8초를 처음과 서서히 바꿔(교차 반복) 반복 이음새가 보이지 않게 함.
+   스크롤하면 액자가 조금 작아지고(--hp 0→1) 영상은 느리게 확대, 글씨는 위로 빠짐 */
+.hero{position:relative;min-height:100svh;display:flex;align-items:flex-end;color:#f5efe6;padding:0;--hp:0}
+.hero .frame{position:absolute;inset:12px;border-radius:26px;overflow:hidden;background:#0d0c0b;transform:scale(calc(1 - var(--hp) * .07));transform-origin:50% 0;will-change:transform}
+.hero .frame::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(13,12,11,.55) 0%,rgba(13,12,11,.18) 30%,rgba(13,12,11,.5) 62%,rgba(13,12,11,.93) 100%),linear-gradient(90deg,rgba(13,12,11,.55) 0%,rgba(13,12,11,0) 60%)}
+.hero .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:42% 50%;transform:scale(calc(1.12 + var(--hp) * .1));transition:transform 1.6s cubic-bezier(.2,.7,.2,1)}
+.hero.in .bg{transform:scale(calc(1 + var(--hp) * .1))}
+.hero .bg+.bg{opacity:0}
+.hero.moving .bg{transition:none}
+.hero .wrap{position:relative;z-index:2;width:100%;padding-bottom:clamp(56px,10vh,104px);padding-left:clamp(24px,4vw,56px);padding-right:clamp(24px,4vw,56px);max-width:none;transform:translateY(calc(var(--hp) * -60px));opacity:calc(1 - var(--hp) * 1.4)}
+/* 제목: 줄마다 아래에서 밀려 올라옴 */
+.ln{display:block;overflow:hidden;padding-bottom:.08em;margin-bottom:-.08em}
+.ln>span{display:inline-block;transform:translateY(105%);transition:transform 1.1s cubic-bezier(.2,.8,.2,1)}
+.hero.in .ln>span{transform:none}
+.hero.in .ln:nth-child(2)>span{transition-delay:.12s}
+/* 영상 멈춤 버튼(움직이는 배경은 멈출 수 있어야 함) */
+.vbtn{position:absolute;right:clamp(28px,4vw,56px);bottom:clamp(28px,5vh,52px);z-index:3;width:44px;height:44px;border-radius:999px;border:1px solid rgba(245,239,230,.4);background:rgba(13,12,11,.35);backdrop-filter:blur(6px);color:#f5efe6;display:grid;place-items:center;cursor:pointer;opacity:calc(1 - var(--hp) * 2)}
+.vbtn[hidden]{display:none}
+.vbtn svg{width:16px;height:16px}
+.scrollcue{position:absolute;left:50%;bottom:22px;z-index:3;width:1px;height:42px;background:rgba(245,239,230,.25);overflow:hidden;opacity:calc(1 - var(--hp) * 3)}
+.scrollcue::after{content:'';position:absolute;left:0;top:-50%;width:1px;height:50%;background:#c8f53c;animation:cue 1.8s cubic-bezier(.6,0,.4,1) infinite}
+@keyframes cue{to{top:100%}}
 .hero .label{color:#c8f53c}
 .hero h1{font-weight:800;font-size:clamp(40px,7.4vw,92px);line-height:1.08;letter-spacing:-.03em;margin-top:16px}
-.hero h1 span{color:#c8f53c}
+.hero h1 .hl{color:#c8f53c}
 .hero p{font-size:clamp(16px,1.8vw,20px);line-height:1.7;color:#e6dfd4;margin-top:22px;max-width:560px}
 .hero .row{display:flex;flex-wrap:wrap;align-items:center;gap:16px 20px;margin-top:30px}
 .hero small{font-size:13px;color:#cfc6b8;line-height:1.6}
@@ -114,7 +133,7 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
 .feat ul{list-style:none;margin-top:18px;display:flex;flex-direction:column;gap:9px}
 .feat li{font-size:15px;padding-left:20px;position:relative;color:var(--t1)}
 .feat li::before{content:'';position:absolute;left:0;top:9px;width:10px;height:3px;background:var(--fill);border-radius:2px}
-@media (max-width:820px){.feat,.feat.rev{grid-template-columns:1fr;gap:28px;padding:44px 0}.feat.rev .txt{order:0}.feat .phone{margin:0 auto}}
+@media (max-width:820px){.feat,.feat.rev{grid-template-columns:1fr;gap:52px;padding:48px 0}.feat.rev .txt{order:0}.feat .phone{margin:0 auto}}
 
 
 /* 헬스장 블로그·인스타 버튼 */
@@ -228,6 +247,63 @@ p,dd,.why,.foot{text-wrap:pretty}
 .rv.in{opacity:1;transform:none}
 .rv.d1{transition-delay:.07s}.rv.d2{transition-delay:.14s}.rv.d3{transition-delay:.21s}
 
+/* ===== [2026-11-20] 스크롤 역동감 ===== */
+/* 나타나기: 더 길고 부드럽게, 제목은 아래에서 닦아 올라오듯 */
+.rv{transform:translateY(36px);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
+/* 제목은 줄마다 가려진 틀 안에서 밀려 올라옴(줄 나누기는 스크립트가 <br> 기준으로) */
+h2.rv{opacity:1;transform:none}
+h2.rv .ln>span{transition-duration:1s}
+h2.rv.in .ln>span{transform:none}
+h2.rv .ln:nth-child(2)>span{transition-delay:.1s}
+.rv.d1{transition-delay:.08s}.rv.d2{transition-delay:.16s}.rv.d3{transition-delay:.24s}
+/* 흐름 표: 줄마다 차례로, 형광펜은 왼쪽에서 그어짐 */
+.compare.rv{transform:none;opacity:1}
+.compare .r{opacity:0;transform:translateX(-28px);transition:opacity .7s ease,transform .8s cubic-bezier(.2,.7,.2,1)}
+.compare.in .r{opacity:1;transform:none}
+.compare .r:nth-child(2){transition-delay:.1s}.compare .r:nth-child(3){transition-delay:.2s}.compare .r:nth-child(4){transition-delay:.3s}
+.compare .u em{background:linear-gradient(var(--fill),var(--fill)) 0 88%/0% 38% no-repeat;transition:background-size .9s cubic-bezier(.2,.7,.2,1) .5s}
+.compare.in .u em{background-size:100% 38%}
+.more .r{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .8s cubic-bezier(.2,.7,.2,1)}
+.more.in .r{opacity:1;transform:none}
+.more .r:nth-child(2){transition-delay:.08s}.more .r:nth-child(3){transition-delay:.16s}.more .r:nth-child(4){transition-delay:.24s}
+.more.rv{transform:none}
+/* 큰 글씨 띠: 스크롤 방향으로 흐름(장식, 내용은 아래 본문에 있음) */
+.marquee{overflow:hidden;white-space:nowrap;padding:0 0 72px;user-select:none;pointer-events:none}
+.marquee .track{display:inline-flex;align-items:center;gap:.32em;font-weight:800;font-size:clamp(60px,10.5vw,164px);line-height:1.05;letter-spacing:-.045em;will-change:transform}
+.marquee .o{color:transparent;-webkit-text-stroke:1.5px var(--t1)}
+.marquee i{display:inline-block;width:.32em;height:.32em;border-radius:.08em;background:var(--fill);flex-shrink:0}
+.closing .marquee{padding:0 0 64px}
+/* 사진 띠: 들어오면서 액자가 펴지고 사진은 더 느리게 움직임 */
+.band{--bv:1;clip-path:inset(calc(var(--bv) * 7%) calc(var(--bv) * 5%) round calc(var(--bv) * 36px))}
+.band .bg{inset:-14% 0}
+.band h2{font-size:clamp(34px,5.6vw,72px)}
+/* 상단 진행 막대 */
+nav .prog{position:absolute;left:0;bottom:-1px;height:2px;width:100%;background:#c8f53c;transform-origin:0 50%;transform:scaleX(var(--sp,0))}
+nav .go{background:#c8f53c;color:#11170a;border-color:#c8f53c;opacity:1}
+/* 기능 소개(PC): 휴대폰을 붙잡아 두고 글이 지나가면 화면이 바뀜 */
+.howphone{display:none}
+@media (min-width:821px){
+  #how .wrap{display:grid;grid-template-columns:1fr auto;column-gap:clamp(48px,7vw,110px)}
+  #how .feat,#how .feat.rev{display:flex;align-items:center;min-height:74vh;padding:0;border-top:0;opacity:.28;transition:opacity .5s ease,transform .9s cubic-bezier(.2,.7,.2,1)}
+  #how .feat.rv:not(.in){opacity:0}
+  #how .feat.on{opacity:1}
+  #how .feat .phone{display:none}
+  #how .feat .txt{order:0}
+  #how .feat h3{font-size:clamp(30px,3.6vw,44px)}
+  .howphone{display:block;position:sticky;top:max(84px,calc(50vh - (100vh - 150px) * .5));align-self:start;width:min(330px,calc((100vh - 150px) * 390 / 844));margin:0}
+  .howphone img{transform:translateY(24px) scale(.97);transition:opacity .45s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+  .howphone img.on{transform:none}
+  .howcount{position:absolute;left:calc(100% + 22px);top:50%;transform:translateY(-50%);font:600 13px 'Outfit',sans-serif;color:var(--t3);letter-spacing:.08em;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .howcount b{display:inline-block;color:var(--fill);font-size:22px;font-weight:800}
+  .howcount b.flip{animation:flip .45s cubic-bezier(.2,.8,.2,1)}
+  .howbar{width:2px;height:120px;background:var(--line);position:relative;overflow:hidden}
+  .howbar i{position:absolute;left:0;top:0;width:100%;height:100%;background:var(--fill);transform-origin:50% 0;transform:scaleY(var(--hv,0));transition:transform .4s ease}
+}
+@keyframes flip{from{transform:translateY(60%);opacity:0}to{transform:none;opacity:1}}
+/* 휴대폰 화면은 글보다 조금 느리게(떠 있는 느낌) */
+[data-float]{transform:translateY(var(--fy,0px));will-change:transform}
+.pt .bg{inset:-12% 0}
+
 @media (max-width:820px){
   section{padding:80px 0}
   .compare .r{grid-template-columns:1fr 1fr;gap:6px 16px}
@@ -242,11 +318,26 @@ p,dd,.why,.foot{text-wrap:pretty}
   .ptshots .phone{width:43vw;border-radius:26px;padding:6px}.ptshots .phone .screen{border-radius:21px}
   .band{min-height:52vh}
   nav{padding:12px 16px}
+  .hero .frame{inset:8px;border-radius:20px}
+  .hero .wrap{padding-left:24px;padding-right:24px;padding-bottom:88px}
+  .vbtn{right:22px;bottom:24px;width:40px;height:40px}
+  .scrollcue{display:none}
+  .marquee{padding-bottom:48px}
+  .marquee .o{-webkit-text-stroke-width:1.2px}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
   .rv{opacity:1;transform:none}
+  .hero .frame,.hero .wrap{transform:none;opacity:1}
   .hero .bg{transform:none}
+  .ln>span{transform:none}
+  .compare .r,.more .r{opacity:1;transform:none}
+  .compare .u em{background-size:100% 38%}
+  .label::before{transform:none}
+  .band{clip-path:none}
+  .band .bg,[data-float]{transform:none!important}
+  .howphone img{transform:none}
+  .scrollcue{display:none}
 }
 </style>
 </head>
@@ -254,13 +345,16 @@ p,dd,.why,.foot{text-wrap:pretty}
 <nav id="nav">
   <a class="brand" href="/intro/"><img src="/icon-192.png" alt="" width="30" height="30" />BodyTailor Log</a>
   <a class="go" href="/">시작하기</a>
+  <i class="prog" aria-hidden="true"></i>
 </nav>
 
 <header class="hero" id="hero" data-tone="dark">
-  <div class="bg" style="background-image:url('/intro/img/photo-hero.webp')"></div>
+  <div class="frame"><video class="bg" id="heroVideo" muted playsinline preload="none" poster="/intro/img/hero-pull-poster.webp" aria-hidden="true" disablepictureinpicture></video><video class="bg" id="heroVideo2" muted playsinline preload="none" aria-hidden="true" disablepictureinpicture></video></div>
+  <button class="vbtn" id="vbtn" type="button" aria-label="배경 영상 멈추기" hidden><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+  <span class="scrollcue" aria-hidden="true"></span>
   <div class="wrap">
     <div class="label rv">혼자 하는 날도, PT 받는 날도 이어지는 운동 기록</div>
-    <h1 class="rv d1">내 운동을 기록하면<br><span>다음 목표</span>가 보여요</h1>
+    <h1><span class="ln"><span>내 운동을 기록하면</span></span><span class="ln"><span><span class="hl">다음 목표</span>가 보여요</span></span></h1>
     <p class="rv d2"><span class="s">평소 하던 운동을 그대로 기록하세요.</span><span class="s nl"><span class="k">지난번의 나를 기준으로</span> <span class="k">오늘 몇 kg, 몇 번 할지</span> <span class="k">알려 줘서</span> <span class="k">조금씩 더 무거워지게</span> <span class="k">도와줘요.</span></span></p>
     <div class="row rv d3"><a class="btn" href="/">시작하기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><span class="social"><a class="sbtn" href="https://blog.naver.com/bodytailor" target="_blank" rel="noopener" aria-label="바디테일러 PT&amp;헬스 네이버 블로그"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="#03C75A"/><path d="M8 7h2.6l3.4 5V7H16.6v10H14l-3.4-5v5H8z" fill="#fff"/></svg>블로그</a><a class="sbtn" href="https://www.instagram.com/body_tailor_pt" target="_blank" rel="noopener" aria-label="바디테일러 PT&amp;헬스 인스타그램"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/></svg>인스타그램</a></span></div>
     <small class="rv d3 hnote">바디테일러 회원 전용 · 구글 계정으로 로그인 · 설치 없이 휴대폰 브라우저에서</small>
@@ -268,6 +362,7 @@ p,dd,.why,.foot{text-wrap:pretty}
 </header>
 
 <section id="diff" data-tone="beige">
+  <div class="marquee" data-marquee="-1" aria-hidden="true"><div class="track"><span>기록</span><i></i><span class="o">지난번의 나</span><i></i><span>다음 목표</span><i></i><span class="o">조금 더</span><i></i><span>기록</span><i></i><span class="o">지난번의 나</span><i></i><span>다음 목표</span><i></i><span class="o">조금 더</span><i></i></div></div>
   <div class="wrap">
     <div class="label rv">이렇게 이어져요</div>
     <h2 class="rv d1">계획은 나 또는 트레이너가,<br>기준은 내 기록이에요</h2>
@@ -291,14 +386,17 @@ p,dd,.why,.foot{text-wrap:pretty}
 
 <section id="how" data-tone="dark" style="padding-top:90px">
   <div class="wrap">
-    <div class="feat rv"><div class="txt"><div class="n">01</div><h3>하던 운동을 고르면<br>오늘 목표가 나와요</h3><p><span class="s">종목을 다 볼 필요 없어요.</span><span class="s"><span class="k">자주 하는 운동 몇 개로 루틴을 만들면</span> <span class="k">로그 코치가 지난 기록을 보고</span> <span class="k">오늘 무게·횟수·세트를 정해 줘요.</span></span><span class="s"><span class="k">"플랜대로 하기"를 누르면</span> <span class="k">세트마다 목표가 들어가요.</span></span></p><ul><li>세트별 목표 · 올리기까지 남은 횟수</li><li>강도는 살살부터 한계까지 5단계</li><li>직전 기록 바로 보기</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-list.webp" alt="기록 화면: 로그 코치 오늘의 플랜과 세트 입력"></div></div></div>
-    <div class="feat rev rv"><div class="txt"><div class="n">02</div><h3>세트 끝나면 체크,<br>휴식은 자동으로</h3><p><span class="s"><span class="k">체크하면 쉬는 시간이 바로 시작되고,</span> <span class="k">끝나면 알림으로 알려줘요.</span></span><span class="s">세트가 너무 쉽거나 힘들면 다음 세트 무게도 그 자리에서 제안해요.</span></p><ul><li>목표에 맞춘 휴식 시간</li><li>다음 세트 무게 조정</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-rest.webp" alt="세트 체크 후 휴식 타이머"></div></div></div>
-    <div class="feat rv"><div class="txt"><div class="n">03</div><h3>끝나면<br>한 장으로 정리</h3><p>운동 시간·볼륨(들어 올린 총무게)·신기록·레벨 진행을 보여 주고, 오늘 한 부위에 맞는 쿨다운 스트레칭도 추천해요.</p><ul><li>신기록 알림</li><li>레벨·시즌</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-done.webp" alt="운동 완료 요약"></div></div></div>
-    <div class="feat rev rv"><div class="txt"><div class="n">04</div><h3>캘린더에서<br>한 달이 한눈에</h3><p><span class="s">날짜마다 운동한 부위와 세트가 색으로 쌓여요.</span><span class="s">지난 기록도 캘린더에서 바로 고칠 수 있어요.</span></p><ul><li>부위별 색 표시</li><li>지난 기록 추가·수정</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-calendar.webp" alt="캘린더 화면"></div></div></div>
-    <div class="feat rv"><div class="txt"><div class="n">05</div><h3>기록이 쌓이면<br>리포트가 보여요</h3><p><span class="s"><span class="k">이번 주 요약과 건강 체력 4가지부터</span> <span class="k">근육별 주간 세트, 근력 추이,</span> <span class="k">기록이 제자리인(정체) 종목까지</span> <span class="k">한 화면에서 봐요.</span></span></p><ul><li>근육별 주간 세트</li><li>근력 추이·제자리 종목 찾기</li><li>최근 개인 기록</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-report.webp" alt="리포트 화면: 이번 주 요약과 건강 체력 4가지"></div></div></div>
-    <div class="feat rev rv"><div class="txt"><div class="n">06</div><h3>이번 주 쓴 근육을<br>그림으로</h3><p><span class="s"><span class="k">이번 주 한 세트가</span> <span class="k">어느 근육에 들어갔는지</span> <span class="k">앞·뒤 몸 그림에 색으로 보여요.</span></span><span class="s"><span class="k">많이 한 곳은 진하게,</span> <span class="k">아직 안 한 곳은 회색이라</span> <span class="k">빠진 부위가 바로 보여요.</span></span></p><ul><li>적정 세트를 채우면 진하게</li><li>용어는 눌러서 뜻 보기</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-muscle.webp" alt="리포트 화면: 근육별 주간 세트와 앞·뒤 근육 그림"></div></div></div>
-    <div class="feat rv"><div class="txt"><div class="n">07</div><h3>몸무게는<br>숫자보다 흐름으로</h3><p><span class="s"><span class="k">오늘 체중을 적으면</span> <span class="k">3개월·1년 그래프로 이어져요.</span></span><span class="s"><span class="k">하루하루 오르내림보다</span> <span class="k">한 달 전과 비교한 변화를 봐요.</span></span></p><ul><li>MY 프로필 몸무게와 함께 바뀜</li><li>PT 회원은 담당 트레이너도 함께 봐요</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-weight.webp" alt="리포트 화면: 체중 추이 그래프"></div></div></div>
-    <div class="feat rev rv"><div class="txt"><div class="n">08</div><h3>오늘 식단도<br>기록에 맞춰서</h3><p><span class="s"><span class="k">운동 기록과 체중 변화로</span> <span class="k">하루 칼로리·단백질을 정하고</span> <span class="k">끼니를 골라 드려요.</span></span><span class="s"><span class="k">편의점·간편식·식당 메뉴 고르는 법까지</span> <span class="k">요리를 못 해도 지킬 수 있게요.</span></span></p><ul><li>운동 전·후 끼니 표시</li><li>2주마다 체중 흐름으로 다시 맞춤</li><li>영양값은 식약처 식품영양성분 자료 기준</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-diet.webp" alt="오늘 식단 화면: 하루 칼로리·단백질 목표와 끼니"></div></div></div>
+    <div class="howlist">
+    <div class="feat rv"><div class="txt"><div class="n">01</div><h3>하던 운동을 고르면<br>오늘 목표가 나와요</h3><p><span class="s">종목을 다 볼 필요 없어요.</span><span class="s"><span class="k">자주 하는 운동 몇 개로 루틴을 만들면</span> <span class="k">로그 코치가 지난 기록을 보고</span> <span class="k">오늘 무게·횟수·세트를 정해 줘요.</span></span><span class="s"><span class="k">"플랜대로 하기"를 누르면</span> <span class="k">세트마다 목표가 들어가요.</span></span></p><ul><li>세트별 목표 · 올리기까지 남은 횟수</li><li>강도는 살살부터 한계까지 5단계</li><li>직전 기록 바로 보기</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-list.webp" alt="기록 화면: 로그 코치 오늘의 플랜과 세트 입력"></div></div></div>
+    <div class="feat rev rv"><div class="txt"><div class="n">02</div><h3>세트 끝나면 체크,<br>휴식은 자동으로</h3><p><span class="s"><span class="k">체크하면 쉬는 시간이 바로 시작되고,</span> <span class="k">끝나면 알림으로 알려줘요.</span></span><span class="s">세트가 너무 쉽거나 힘들면 다음 세트 무게도 그 자리에서 제안해요.</span></p><ul><li>목표에 맞춘 휴식 시간</li><li>다음 세트 무게 조정</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-rest.webp" alt="세트 체크 후 휴식 타이머"></div></div></div>
+    <div class="feat rv"><div class="txt"><div class="n">03</div><h3>끝나면<br>한 장으로 정리</h3><p>운동 시간·볼륨(들어 올린 총무게)·신기록·레벨 진행을 보여 주고, 오늘 한 부위에 맞는 쿨다운 스트레칭도 추천해요.</p><ul><li>신기록 알림</li><li>레벨·시즌</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-done.webp" alt="운동 완료 요약"></div></div></div>
+    <div class="feat rev rv"><div class="txt"><div class="n">04</div><h3>캘린더에서<br>한 달이 한눈에</h3><p><span class="s">날짜마다 운동한 부위와 세트가 색으로 쌓여요.</span><span class="s">지난 기록도 캘린더에서 바로 고칠 수 있어요.</span></p><ul><li>부위별 색 표시</li><li>지난 기록 추가·수정</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-calendar.webp" alt="캘린더 화면"></div></div></div>
+    <div class="feat rv"><div class="txt"><div class="n">05</div><h3>기록이 쌓이면<br>리포트가 보여요</h3><p><span class="s"><span class="k">이번 주 요약과 건강 체력 4가지부터</span> <span class="k">근육별 주간 세트, 근력 추이,</span> <span class="k">기록이 제자리인(정체) 종목까지</span> <span class="k">한 화면에서 봐요.</span></span></p><ul><li>근육별 주간 세트</li><li>근력 추이·제자리 종목 찾기</li><li>최근 개인 기록</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-report.webp" alt="리포트 화면: 이번 주 요약과 건강 체력 4가지"></div></div></div>
+    <div class="feat rev rv"><div class="txt"><div class="n">06</div><h3>이번 주 쓴 근육을<br>그림으로</h3><p><span class="s"><span class="k">이번 주 한 세트가</span> <span class="k">어느 근육에 들어갔는지</span> <span class="k">앞·뒤 몸 그림에 색으로 보여요.</span></span><span class="s"><span class="k">많이 한 곳은 진하게,</span> <span class="k">아직 안 한 곳은 회색이라</span> <span class="k">빠진 부위가 바로 보여요.</span></span></p><ul><li>적정 세트를 채우면 진하게</li><li>용어는 눌러서 뜻 보기</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-muscle.webp" alt="리포트 화면: 근육별 주간 세트와 앞·뒤 근육 그림"></div></div></div>
+    <div class="feat rv"><div class="txt"><div class="n">07</div><h3>몸무게는<br>숫자보다 흐름으로</h3><p><span class="s"><span class="k">오늘 체중을 적으면</span> <span class="k">3개월·1년 그래프로 이어져요.</span></span><span class="s"><span class="k">하루하루 오르내림보다</span> <span class="k">한 달 전과 비교한 변화를 봐요.</span></span></p><ul><li>MY 프로필 몸무게와 함께 바뀜</li><li>PT 회원은 담당 트레이너도 함께 봐요</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-weight.webp" alt="리포트 화면: 체중 추이 그래프"></div></div></div>
+    <div class="feat rev rv"><div class="txt"><div class="n">08</div><h3>오늘 식단도<br>기록에 맞춰서</h3><p><span class="s"><span class="k">운동 기록과 체중 변화로</span> <span class="k">하루 칼로리·단백질을 정하고</span> <span class="k">끼니를 골라 드려요.</span></span><span class="s"><span class="k">편의점·간편식·식당 메뉴 고르는 법까지</span> <span class="k">요리를 못 해도 지킬 수 있게요.</span></span></p><ul><li>운동 전·후 끼니 표시</li><li>2주마다 체중 흐름으로 다시 맞춤</li><li>영양값은 식약처 식품영양성분 자료 기준</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-diet.webp" alt="오늘 식단 화면: 하루 칼로리·단백질 목표와 끼니"></div></div></div>
+    </div>
+    <div class="howphone phone" id="howPhone" aria-hidden="true"><div class="screen"></div><div class="howcount"><b id="howN">01</b><span class="howbar"><i></i></span><span>08</span></div></div>
   </div>
 </section>
 
@@ -321,8 +419,8 @@ p,dd,.why,.foot{text-wrap:pretty}
     <div class="label rv">로그 코치</div>
     <h2 class="rv d1">질문 10개면<br>내 주간 프로그램</h2>
     <p class="lead rv d2"><span class="s"><span class="k">무엇부터 할지 막막하면</span> <span class="k">로그 코치에게 물어보세요.</span></span><span class="s nl"><span class="k">근력만이 아니라</span> <span class="k">유산소, 숨찬 운동, 코어·균형까지</span> <span class="k">고르게 챙겨요.</span></span></p>
-    <div class="feat rv" style="margin-top:48px"><div class="txt"><h3>몇 가지만 답하면<br>일주일 계획이 나와요</h3><p><span class="s"><span class="k">목표, 주당 일수, 한 번에 쓸 시간,</span> <span class="k">운동 경험, 잠 같은 질문 10개에 답하면</span> <span class="k">주간 프로그램을 짜 줘요.</span></span><span class="s"><span class="k">운동 중에는 로그 코치가</span> <span class="k">그 프로그램의 세트·횟수대로 안내해요.</span></span></p><ul><li>주당 일수·시간에 맞춘 분할</li><li>근력·유산소·인터벌(짧게 빠르게 반복)·코어를 한눈에</li><li>목표가 바뀌면 다시 만들기</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-coach.webp" alt="로그 코치가 짠 주간 프로그램"></div></div></div>
-    <div class="feat rev rv"><div class="txt"><h3>오래 쓰는 체력,<br>건강 체력 4가지</h3><p><span class="s"><span class="k">겉모습만이 아니라</span> <span class="k">나이 들어서도 들고, 오르고,</span> <span class="k">일어나는 힘을 챙겨요.</span></span><span class="s"><span class="k">리포트에서 이번 주 근력·유산소·</span><span class="k">숨찬 운동·코어·균형을 얼마나 채웠는지 보고,</span> <span class="k">석 달에 한 번 체력 점검으로</span> <span class="k">지난번의 나와 비교해요.</span></span></p><ul><li>매달리기·벽 앉기·들고 걷기·악력 등 6가지</li><li>점수를 매기지 않고 지난번과 비교만</li><li>PT 회원은 담당 트레이너도 함께 봐요</li></ul></div><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-fitness.webp" alt="체력 점검: 지난번과 비교"></div></div></div>
+    <div class="feat rv" style="margin-top:48px"><div class="txt"><h3>몇 가지만 답하면<br>일주일 계획이 나와요</h3><p><span class="s"><span class="k">목표, 주당 일수, 한 번에 쓸 시간,</span> <span class="k">운동 경험, 잠 같은 질문 10개에 답하면</span> <span class="k">주간 프로그램을 짜 줘요.</span></span><span class="s"><span class="k">운동 중에는 로그 코치가</span> <span class="k">그 프로그램의 세트·횟수대로 안내해요.</span></span></p><ul><li>주당 일수·시간에 맞춘 분할</li><li>근력·유산소·인터벌(짧게 빠르게 반복)·코어를 한눈에</li><li>목표가 바뀌면 다시 만들기</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-coach.webp" alt="로그 코치가 짠 주간 프로그램"></div></div></div>
+    <div class="feat rev rv"><div class="txt"><h3>오래 쓰는 체력,<br>건강 체력 4가지</h3><p><span class="s"><span class="k">겉모습만이 아니라</span> <span class="k">나이 들어서도 들고, 오르고,</span> <span class="k">일어나는 힘을 챙겨요.</span></span><span class="s"><span class="k">리포트에서 이번 주 근력·유산소·</span><span class="k">숨찬 운동·코어·균형을 얼마나 채웠는지 보고,</span> <span class="k">석 달에 한 번 체력 점검으로</span> <span class="k">지난번의 나와 비교해요.</span></span></p><ul><li>매달리기·벽 앉기·들고 걷기·악력 등 6가지</li><li>점수를 매기지 않고 지난번과 비교만</li><li>PT 회원은 담당 트레이너도 함께 봐요</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-fitness.webp" alt="체력 점검: 지난번과 비교"></div></div></div>
   </div>
 </section>
 
@@ -361,7 +459,7 @@ p,dd,.why,.foot{text-wrap:pretty}
   </div>
 </section>
 <section class="pt" id="pt" data-tone="dark">
-  <div class="bg" style="background-image:url('/intro/img/photo-trainer.webp')"></div>
+  <div class="bg" data-parallax style="background-image:url('/intro/img/photo-trainer.webp')"></div>
   <div class="wrap">
     <div>
       <div class="label rv">PT 회원이라면</div>
@@ -377,8 +475,8 @@ p,dd,.why,.foot{text-wrap:pretty}
       </dl>
     </div>
     <div class="ptshots rv d2">
-      <figure><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-trainer.webp" alt="트레이너 화면: 담당 회원의 운동 계획과 처방"></div></div><figcaption>트레이너 화면</figcaption></figure>
-      <figure><div class="phone"><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-ptplan.webp" alt="회원 화면: 트레이너 처방이 먼저 보이는 기록 화면"></div></div><figcaption>회원 화면</figcaption></figure>
+      <figure><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-trainer.webp" alt="트레이너 화면: 담당 회원의 운동 계획과 처방"></div></div><figcaption>트레이너 화면</figcaption></figure>
+      <figure><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-ptplan.webp" alt="회원 화면: 트레이너 처방이 먼저 보이는 기록 화면"></div></div><figcaption>회원 화면</figcaption></figure>
     </div>
   </div>
 </section>
@@ -402,6 +500,7 @@ p,dd,.why,.foot{text-wrap:pretty}
 </section>
 
 <section class="closing" data-tone="beige">
+  <div class="marquee" data-marquee="1" aria-hidden="true"><div class="track"><span class="o">오늘부터</span><i></i><span>고르고</span><i></i><span class="o">체크하고</span><i></i><span>다음엔 조금 더</span><i></i><span class="o">오늘부터</span><i></i><span>고르고</span><i></i><span class="o">체크하고</span><i></i><span>다음엔 조금 더</span><i></i></div></div>
   <div class="wrap">
     <h2 class="rv">오늘 하는 운동부터<br>기록해 보세요</h2>
     <div class="row rv d1"><a class="btn" href="/">시작하기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><span class="social"><a class="sbtn" href="https://blog.naver.com/bodytailor" target="_blank" rel="noopener" aria-label="바디테일러 PT&amp;헬스 네이버 블로그"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="#03C75A"/><path d="M8 7h2.6l3.4 5V7H16.6v10H14l-3.4-5v5H8z" fill="#fff"/></svg>블로그</a><a class="sbtn" href="https://www.instagram.com/body_tailor_pt" target="_blank" rel="noopener" aria-label="바디테일러 PT&amp;헬스 인스타그램"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/></svg>인스타그램</a></span></div>
@@ -412,7 +511,7 @@ p,dd,.why,.foot{text-wrap:pretty}
   BodyTailor Log · 바디테일러 PT&amp;헬스 회원용 운동 기록<br>
   <a href="/privacy/">개인정보 처리방침</a> · <a href="/oss-licenses.txt">오픈소스 라이선스</a> · 문의: 앱 MY › 1:1 문의, <a href="https://blog.naver.com/bodytailor" target="_blank" rel="noopener">네이버 블로그</a><br>
   앱의 추천과 안내는 일반적인 운동 정보이며 의학적 진단·치료를 대신하지 않아요. 통증이나 질환이 있으면 전문가와 상의하세요.<br>
-  사진: Unsplash
+  사진: Unsplash · 배경 영상: Mixkit
 </div></footer>
 
 <script>
@@ -443,17 +542,118 @@ function bodyColor(){
   const [a, b, t] = mix, e = t * t * (3 - 2 * t)
   return `rgb(${a.map((v, n) => Math.round(v + (b[n] - v) * e)).join(',')})`
 }
+// [2026-11-20] 스크롤 연동 연출: 히어로 액자(--hp)·진행 막대·사진 띠 펴짐(--bv)·휴대폰 떠 있기(--fy)·PC 기능 소개 화면 전환
+const clamp01 = v => Math.max(0, Math.min(1, v))
+const bands = [...document.querySelectorAll('.band')]
+const floats = [...document.querySelectorAll('[data-float]')]
+const howFeats = [...document.querySelectorAll('#how .feat')]
+const howPhone = document.getElementById('howPhone'), howN = document.getElementById('howN')
+const wide = matchMedia('(min-width:821px)')
+let howIdx = -1
+if (howPhone) howPhone.querySelector('.screen').innerHTML = howFeats.map((f, i) => { const im = f.querySelector('.phone img'); return `<img loading="lazy" src="${im.getAttribute('src')}" alt="">` }).join('')
+const howImgs = howPhone ? [...howPhone.querySelectorAll('img')] : []
+function setHow(i){
+  if (i === howIdx) return
+  howIdx = i
+  howFeats.forEach((f, k) => f.classList.toggle('on', k === i))
+  howImgs.forEach((im, k) => im.classList.toggle('on', k === i))
+  howN.textContent = String(i + 1).padStart(2, '0')
+  if (!reduce) { howN.classList.remove('flip'); void howN.offsetWidth; howN.classList.add('flip') }
+  howPhone.style.setProperty('--hv', (i + 1) / howFeats.length)
+}
+let ticking = false
 function onScroll(){
+  ticking = false
+  const H = innerHeight
   let tone = 'dark'
-  for (const el of toned) if (el.getBoundingClientRect().top < innerHeight * 0.55) tone = el.dataset.tone
+  for (const el of toned) if (el.getBoundingClientRect().top < H * 0.55) tone = el.dataset.tone
   if (document.body.className !== tone) document.body.className = tone
   document.body.style.backgroundColor = bodyColor()
-  nav.classList.toggle('solid', hero.getBoundingClientRect().bottom < 70)
-  if (!reduce) para.forEach(bg => { const r = bg.parentElement.getBoundingClientRect(); const p = (r.top + r.height / 2 - innerHeight / 2) / innerHeight; bg.style.transform = `translateY(${p * -40}px)` })
+  const hr = hero.getBoundingClientRect()
+  nav.classList.toggle('solid', hr.bottom < 70)
+  const doc = document.documentElement
+  nav.style.setProperty('--sp', (scrollY / Math.max(1, doc.scrollHeight - H)).toFixed(4))
+  if (wide.matches && howFeats.length) {
+    // 화면 가운데에 가장 가까운 기능 글을 고른다
+    let best = 0, bd = Infinity
+    howFeats.forEach((f, k) => { const r = f.getBoundingClientRect(), d = Math.abs(r.top + r.height / 2 - H / 2); if (d < bd) { bd = d; best = k } })
+    setHow(best)
+  }
+  if (reduce) return
+  hero.style.setProperty('--hp', clamp01(-hr.top / hr.height).toFixed(4))
+  para.forEach(bg => { const r = bg.parentElement.getBoundingClientRect(); if (r.bottom < -100 || r.top > H + 100) return; const p = (r.top + r.height / 2 - H / 2) / H; bg.style.transform = `translateY(${(p * -90).toFixed(1)}px) scale(1.06)` })
+  bands.forEach(b => { const r = b.getBoundingClientRect(); if (r.bottom < 0 || r.top > H) return; b.style.setProperty('--bv', clamp01((r.top - H * 0.15) / (H * 0.75)).toFixed(4)) })
+  floats.forEach(el => { const r = el.getBoundingClientRect(); if (r.bottom < -200 || r.top > H + 200) return; el.style.setProperty('--fy', ((r.top + r.height / 2 - H / 2) / H * 28).toFixed(1) + 'px') })
 }
-addEventListener('scroll', onScroll, { passive: true }); onScroll()
+addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll) } }, { passive: true })
+addEventListener('resize', onScroll)
+onScroll()
 requestAnimationFrame(() => hero.classList.add('in'))
+setTimeout(() => hero.classList.add('moving'), 1700)
+if (wide.matches && howFeats.length) setHow(Math.max(0, howIdx))
 
+// 큰 글씨 띠: 보일 때만 움직임. 천천히 흐르다가 스크롤하면 그만큼 더 밀림
+const marquees = [...document.querySelectorAll('[data-marquee]')].map(el => ({ el, track: el.querySelector('.track'), dir: +el.dataset.marquee, on: false, x: 0, last: scrollY }))
+if (!reduce && marquees.length) {
+  const mio = new IntersectionObserver(es => es.forEach(e => { const m = marquees.find(m => m.el === e.target); m.on = e.isIntersecting }), { rootMargin: '100px 0px' })
+  marquees.forEach(m => mio.observe(m.el))
+  let prev = performance.now()
+  const loop = now => {
+    const dt = Math.min(64, now - prev); prev = now
+    marquees.forEach(m => {
+      const dy = scrollY - m.last; m.last = scrollY
+      if (!m.on) return
+      const half = m.track.scrollWidth / 2
+      m.x += (dt * 0.04 + Math.abs(dy) * 0.9) * m.dir
+      m.x = ((m.x % half) + half) % half
+      m.track.style.transform = `translate3d(${(-m.x).toFixed(1)}px,0,0)`
+    })
+    requestAnimationFrame(loop)
+  }
+  requestAnimationFrame(loop)
+}
+
+// 히어로 영상: 움직임 줄이기·데이터 절약·느린 회선이면 포스터 사진만. 페이지를 다 읽은 뒤에 불러오고, 화면 밖에선 멈춤
+const vid = document.getElementById('heroVideo'), vbtn = document.getElementById('vbtn')
+const conn = navigator.connection || {}
+const slow = conn.saveData || /(^|-)2g$/.test(conn.effectiveType || '')
+let userPaused = false
+function setVBtn(paused){
+  vbtn.setAttribute('aria-label', paused ? '배경 영상 재생' : '배경 영상 멈추기')
+  vbtn.innerHTML = paused ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10-6.5a1 1 0 0 0 0-1.72l-10-6.5A1 1 0 0 0 8 5.5z"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>'
+}
+// 교차 반복: 지금 영상이 끝나기 약 1초 전에 다른 영상을 처음부터 틀어 0.8초 동안 위로 서서히 겹친 뒤 자리를 바꾼다
+const vids = [vid, document.getElementById('heroVideo2')]
+let cur = 0, fading = false
+function crossfade(){
+  const a = vids[cur], b = vids[1 - cur]
+  fading = true
+  b.currentTime = 0; b.play().catch(() => {})
+  a.style.zIndex = 0; b.style.zIndex = 1; b.style.opacity = 1
+  const done = () => { a.style.opacity = 0; a.pause(); cur = 1 - cur; fading = false }
+  if (b.animate) b.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 800, easing: 'linear' }).onfinish = done
+  else done()
+}
+function playV(){ vids[cur].play().catch(() => {}); if (fading) vids[1 - cur].play().catch(() => {}) }
+function pauseV(){ vids.forEach(v => v.pause()) }
+function startVideo(){
+  const src = innerWidth > 820 ? '/intro/img/hero-pull-720.mp4' : '/intro/img/hero-pull-360.mp4'
+  vids.forEach((v, i) => {
+    v.src = src
+    v.addEventListener('timeupdate', () => { if (i === cur && !fading && v.duration && v.currentTime >= v.duration - 1.05) crossfade() })
+    v.addEventListener('ended', () => { if (i === cur && !fading) crossfade() })
+  })
+  vids[1].preload = 'auto'
+  vid.play().then(() => { vbtn.hidden = false }).catch(() => {})
+  vbtn.onclick = () => { userPaused = !vids[cur].paused; if (userPaused) pauseV(); else playV(); setVBtn(userPaused) }
+  new IntersectionObserver(es => { if (userPaused) return; if (es[0].isIntersecting) playV(); else pauseV() }).observe(hero)
+}
+if (vid && !reduce && !slow) {
+  if (document.readyState === 'complete') setTimeout(startVideo, 300)
+  else addEventListener('load', () => setTimeout(startVideo, 300), { once: true })
+}
+
+document.querySelectorAll('h2.rv').forEach(h => { h.innerHTML = h.innerHTML.split(/<br\s*\/?>/i).map(x => `<span class="ln"><span>${x}</span></span>`).join('') })
 const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) } }), { threshold: .15 })
 document.querySelectorAll('.rv').forEach(el => io.observe(el))
 
