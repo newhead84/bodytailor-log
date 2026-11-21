@@ -573,7 +573,8 @@ if (!reduce && marquees.length) {
   let last = 0
   const loop = now => {
     const dt = last ? Math.min((now - last) / 1000, 0.05) : 0; last = now
-    const speed = Math.min(80, Math.max(36, innerWidth * 0.05))
+    // 화면 폭의 10%/초(PC 약 144px), 휴대폰은 64px/초로 하한, 아주 넓은 화면은 160px/초로 상한(2026-11-21 사용자: 너무 느리다)
+    const speed = Math.min(160, Math.max(64, innerWidth * 0.1))
     marquees.forEach(m => {
       if (!m.on || motionPaused) return
       const p = m.period
