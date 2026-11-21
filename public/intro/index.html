@@ -276,7 +276,8 @@ h2.rv .ln:nth-child(2)>span{transition-delay:.1s}
 .sub{font-size:clamp(20px,2.4vw,26px);font-weight:800;letter-spacing:-.02em;margin-top:72px}
 .subp{font-size:16px;color:var(--t2);line-height:1.7;margin-top:8px}
 .howhead{padding:40px 0 8px}
-.ptnote{font-size:14px;color:#bdb4a7;line-height:1.7;margin-top:22px}
+.ptnote,.dnote{font-size:14px;color:#bdb4a7;line-height:1.7;margin-top:22px}
+  .dnote{margin-top:14px}
 /* 상단 진행 막대 */
 nav .prog{position:absolute;left:0;bottom:-1px;height:2px;width:100%;background:#c8f53c;transform-origin:0 50%;transform:scaleX(var(--sp,0))}
 nav .go{background:#c8f53c;color:#11170a;border-color:#c8f53c;opacity:1}
@@ -391,7 +392,7 @@ nav .go{background:#c8f53c;color:#11170a;border-color:#c8f53c;opacity:1}
 <section id="work" data-tone="dark" style="padding-top:90px">
   <div class="wrap">
     <div class="feat rv"><div class="txt"><h3>하던 운동을 고르면<br>오늘 목표가 나와요</h3><p><span class="s"><span class="k">자주 하는 운동 몇 개로 루틴을 만들면</span> <span class="k">로그 코치가 지난 기록을 보고</span> <span class="k">오늘 무게·횟수·세트를 정해 줘요.</span></span></p><ul><li>세트별 목표 · 올리기까지 남은 횟수</li><li>직전 기록 바로 보기</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-list.webp" alt="기록 화면: 로그 코치 오늘의 플랜과 세트 입력"></div></div></div>
-    <div class="feat rev rv"><div class="txt"><h3>세트 끝나면 체크,<br>휴식은 자동으로</h3><p><span class="s"><span class="k">체크하면 쉬는 시간이 바로 시작되고,</span> <span class="k">끝나면 알림으로 알려줘요.</span></span><span class="s"><span class="k">지금 할 세트만 크게 띄워 두면</span> <span class="k">땀 묻은 손으로도 누르기 쉬워요.</span></span></p><ul><li>큰 숫자, 큰 버튼</li><li>목표에 맞춘 휴식 시간</li><li>다음 세트 무게 조정</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-focus.webp" alt="운동 기록 화면: 지금 할 세트를 크게 보여 주는 화면"></div></div></div>
+    <div class="feat rev rv"><div class="txt"><h3>세트 끝나면 체크,<br>휴식은 자동으로</h3><p><span class="s"><span class="k">체크하면 쉬는 시간이 바로 시작되고,</span> <span class="k">끝나면 알림으로 알려줘요.</span></span><span class="s"><span class="k">지금 할 세트만 크게 띄워 두면</span> <span class="k">땀 묻은 손으로도 누르기 쉬워요.</span></span></p><ul><li>큰 숫자, 큰 버튼</li><li>목표에 맞춘 휴식 시간</li><li>다음 세트 무게 조정</li></ul></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-focus.webp" alt="운동 기록 화면: 큰 무게·횟수 숫자, 세트 완료 버튼, 휴식 카운트다운"></div></div></div>
     <div class="feat rv"><div class="txt"><h3>끝나면<br>한 장으로 정리</h3><p><span class="s"><span class="k">운동 시간·볼륨(들어 올린 총무게)·신기록을 보여 주고,</span> <span class="k">오늘 한 부위에 맞는 쿨다운 스트레칭도 추천해요.</span></span></p></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-done.webp" alt="운동 완료 요약"></div></div></div>
   </div>
 </section>
@@ -404,7 +405,7 @@ nav .go{background:#c8f53c;color:#11170a;border-color:#c8f53c;opacity:1}
     <div class="feat rev rv"><div class="txt"><h3>리포트로<br>이번 주를 돌아봐요</h3><p><span class="s"><span class="k">이번 주 요약과 건강 체력 4가지,</span> <span class="k">근력 추이, 기록이 제자리인 종목까지</span> <span class="k">한 화면에서 봐요.</span></span></p></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-report.webp" alt="리포트 화면: 이번 주 요약과 건강 체력 4가지"></div></div></div>
     <div class="feat rv"><div class="txt"><h3>이번 주 쓴 근육을<br>그림으로</h3><p><span class="s"><span class="k">이번 주 한 세트가 어느 근육에 들어갔는지</span> <span class="k">앞·뒤 몸 그림에 색으로 보여요.</span></span><span class="s"><span class="k">아직 안 한 곳은 회색이라</span> <span class="k">빠진 부위가 바로 보여요.</span></span></p></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-muscle.webp" alt="리포트 화면: 근육별 주간 세트와 앞·뒤 근육 그림"></div></div></div>
     <div class="feat rev rv"><div class="txt"><h3>몸무게는<br>숫자보다 흐름으로</h3><p><span class="s"><span class="k">오늘 체중을 적으면</span> <span class="k">3개월·1년 그래프로 이어지고,</span> <span class="k">한 달 전과 비교한 변화를 봐요.</span></span></p></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-weight.webp" alt="리포트 화면: 체중 추이 그래프"></div></div></div>
-    <div class="feat rv"><div class="txt"><h3>오늘 식단도<br>기록에 맞춰서</h3><p><span class="s"><span class="k">운동 기록과 체중 변화로</span> <span class="k">하루 칼로리·단백질을 정하고</span> <span class="k">편의점·식당 메뉴까지 골라 드려요.</span></span></p></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-diet.webp" alt="오늘 식단 화면: 하루 칼로리·단백질 목표와 끼니"></div></div></div>
+    <div class="feat rv"><div class="txt"><h3>오늘 식단도<br>기록에 맞춰서</h3><p><span class="s"><span class="k">운동 기록과 체중 변화로</span> <span class="k">하루 칼로리·단백질을 정하고</span> <span class="k">편의점·식당 메뉴까지 골라 드려요.</span></span></p><p class="dnote">학술 자료와 공공 데이터로 계산한 일반 정보예요. 질환(신장·당뇨 등)·임신·수유 중이면 의사·영양사와 상담하세요.</p></div><div class="phone" data-float><div class="screen"><img class="on" loading="lazy" src="/intro/img/cap-diet.webp" alt="오늘 식단 화면: 하루 칼로리·단백질 목표와 끼니"></div></div></div>
     </div>
     <div class="howphone phone" id="howPhone" aria-hidden="true"><div class="screen"></div><div class="howcount"><span class="howbar"><i></i></span></div></div>
   </div>
