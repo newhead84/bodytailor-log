@@ -263,7 +263,7 @@ h2.rv .ln:nth-child(2)>span{transition-delay:.1s}
 .more .r:nth-child(2){transition-delay:.08s}.more .r:nth-child(3){transition-delay:.16s}.more .r:nth-child(4){transition-delay:.24s}
 .more.rv{transform:none}
 /* 큰 글씨 띠: 일정한 속도로 자동으로 흐름(장식, 내용은 아래 본문에 있음) */
-.marquee{overflow:hidden;white-space:nowrap;padding:0 0 72px;user-select:none}
+.marquee{overflow:hidden;white-space:nowrap;padding:0 0 72px;user-select:none;pointer-events:none}
 .marquee .track{display:inline-flex;align-items:center;gap:.32em;font-weight:800;font-size:clamp(60px,10.5vw,164px);line-height:1.05;letter-spacing:-.045em;will-change:transform}
 .marquee .o{color:transparent;-webkit-text-stroke:1.5px var(--t1)}
 .marquee i{display:inline-block;width:.32em;height:.32em;border-radius:.08em;background:var(--fill);flex-shrink:0}
@@ -553,8 +553,8 @@ setTimeout(() => hero.classList.add('moving'), 1700)
 if (wide.matches && howFeats.length) setHow(Math.max(0, howIdx))
 
 // 큰 글씨 띠: 보일 때 일정한 속도로 자동으로 흐름(휴대폰 약 36px/초, PC 약 72px/초).
-// 멈춤: 움직임 줄이기 설정, 화면 밖, 마우스를 올렸을 때, 히어로 멈춤 버튼(영상과 함께)
-const marquees = [...document.querySelectorAll('[data-marquee]')].map(el => { const track = el.querySelector('.track'), unit = [...track.children].slice(0, track.children.length / 2); return { el, track, unit, n: unit.length, dir: +el.dataset.marquee, on: false, hover: false, x: 0, period: 0 } })
+// 멈춤: 움직임 줄이기 설정, 화면 밖, 히어로 멈춤 버튼(영상과 함께). 마우스를 올려도 멈추지 않음(2026-11-21 사용자 요청)
+const marquees = [...document.querySelectorAll('[data-marquee]')].map(el => { const track = el.querySelector('.track'), unit = [...track.children].slice(0, track.children.length / 2); return { el, track, unit, n: unit.length, dir: +el.dataset.marquee, on: false, x: 0, period: 0 } })
 // 반복 거리를 재고, 넓은 화면에서 오른쪽이 비지 않게 묶음을 더 붙인다(장식이라 복제본도 aria-hidden 안에 있음)
 function measureMarquee(m){
   const kids = m.track.children
@@ -567,8 +567,6 @@ if (!reduce && marquees.length) {
   marquees.forEach(m => {
     measureMarquee(m)
     mio.observe(m.el)
-    m.el.addEventListener('mouseenter', () => { m.hover = true })
-    m.el.addEventListener('mouseleave', () => { m.hover = false })
   })
   addEventListener('resize', () => marquees.forEach(measureMarquee))
   if (document.fonts) document.fonts.ready.then(() => marquees.forEach(measureMarquee))
@@ -577,7 +575,7 @@ if (!reduce && marquees.length) {
     const dt = last ? Math.min((now - last) / 1000, 0.05) : 0; last = now
     const speed = Math.min(80, Math.max(36, innerWidth * 0.05))
     marquees.forEach(m => {
-      if (!m.on || m.hover || motionPaused) return
+      if (!m.on || motionPaused) return
       const p = m.period
       if (!p) return
       m.x += speed * dt * m.dir
