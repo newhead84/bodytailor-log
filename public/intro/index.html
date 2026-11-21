@@ -262,8 +262,8 @@ h2.rv .ln:nth-child(2)>span{transition-delay:.1s}
 .more.in .r{opacity:1;transform:none}
 .more .r:nth-child(2){transition-delay:.08s}.more .r:nth-child(3){transition-delay:.16s}.more .r:nth-child(4){transition-delay:.24s}
 .more.rv{transform:none}
-/* 큰 글씨 띠: 스크롤 방향으로 흐름(장식, 내용은 아래 본문에 있음) */
-.marquee{overflow:hidden;white-space:nowrap;padding:0 0 72px;user-select:none;pointer-events:none}
+/* 큰 글씨 띠: 일정한 속도로 자동으로 흐름(장식, 내용은 아래 본문에 있음) */
+.marquee{overflow:hidden;white-space:nowrap;padding:0 0 72px;user-select:none}
 .marquee .track{display:inline-flex;align-items:center;gap:.32em;font-weight:800;font-size:clamp(60px,10.5vw,164px);line-height:1.05;letter-spacing:-.045em;will-change:transform}
 .marquee .o{color:transparent;-webkit-text-stroke:1.5px var(--t1)}
 .marquee i{display:inline-block;width:.32em;height:.32em;border-radius:.08em;background:var(--fill);flex-shrink:0}
@@ -347,7 +347,7 @@ nav .go{background:#c8f53c;color:#11170a;border-color:#c8f53c;opacity:1}
 
 <header class="hero" id="hero" data-tone="dark">
   <div class="frame"><video class="bg" id="heroVideo" muted playsinline preload="none" poster="/intro/img/hero-pull-poster.webp" aria-hidden="true" disablepictureinpicture></video><video class="bg" id="heroVideo2" muted playsinline preload="none" aria-hidden="true" disablepictureinpicture></video></div>
-  <button class="vbtn" id="vbtn" type="button" aria-label="배경 영상 멈추기" hidden><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+  <button class="vbtn" id="vbtn" type="button" aria-label="배경 영상과 흐르는 글씨 멈추기" hidden><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
   <span class="scrollcue" aria-hidden="true"></span>
   <div class="wrap">
     <div class="label rv">혼자 하는 날도, PT 받는 날도 이어지는 운동 기록</div>
@@ -552,18 +552,25 @@ requestAnimationFrame(() => hero.classList.add('in'))
 setTimeout(() => hero.classList.add('moving'), 1700)
 if (wide.matches && howFeats.length) setHow(Math.max(0, howIdx))
 
-// 큰 글씨 띠: 보일 때, 스크롤한 만큼만 움직임(스크롤을 멈추면 같이 멈춤)
-const marquees = [...document.querySelectorAll('[data-marquee]')].map(el => ({ el, track: el.querySelector('.track'), dir: +el.dataset.marquee, on: false, x: 0, last: scrollY }))
+// 큰 글씨 띠: 보일 때 일정한 속도로 자동으로 흐름(휴대폰 약 36px/초, PC 약 72px/초).
+// 멈춤: 움직임 줄이기 설정, 화면 밖, 마우스를 올렸을 때, 히어로 멈춤 버튼(영상과 함께)
+const marquees = [...document.querySelectorAll('[data-marquee]')].map(el => ({ el, track: el.querySelector('.track'), dir: +el.dataset.marquee, on: false, hover: false, x: 0 }))
+let motionPaused = false
 if (!reduce && marquees.length) {
   const mio = new IntersectionObserver(es => es.forEach(e => { const m = marquees.find(m => m.el === e.target); m.on = e.isIntersecting }), { rootMargin: '100px 0px' })
-  marquees.forEach(m => mio.observe(m.el))
+  marquees.forEach(m => {
+    mio.observe(m.el)
+    m.el.addEventListener('mouseenter', () => { m.hover = true })
+    m.el.addEventListener('mouseleave', () => { m.hover = false })
+  })
+  let last = 0
   const loop = now => {
+    const dt = last ? Math.min((now - last) / 1000, 0.05) : 0; last = now
+    const speed = Math.min(80, Math.max(36, innerWidth * 0.05))
     marquees.forEach(m => {
-      const dy = scrollY - m.last; m.last = scrollY
-      if (!m.on) return
+      if (!m.on || m.hover || motionPaused) return
       const half = m.track.scrollWidth / 2
-      if (!dy) return
-      m.x += Math.abs(dy) * 0.9 * m.dir
+      m.x += speed * dt * m.dir
       m.x = ((m.x % half) + half) % half
       m.track.style.transform = `translate3d(${(-m.x).toFixed(1)}px,0,0)`
     })
@@ -578,7 +585,7 @@ const conn = navigator.connection || {}
 const slow = conn.saveData || /(^|-)2g$/.test(conn.effectiveType || '')
 let userPaused = false
 function setVBtn(paused){
-  vbtn.setAttribute('aria-label', paused ? '배경 영상 재생' : '배경 영상 멈추기')
+  vbtn.setAttribute('aria-label', paused ? '움직임 다시 재생' : '배경 영상과 흐르는 글씨 멈추기')
   vbtn.innerHTML = paused ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10-6.5a1 1 0 0 0 0-1.72l-10-6.5A1 1 0 0 0 8 5.5z"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>'
 }
 // 교차 반복: 지금 영상이 끝나기 약 1초 전에 다른 영상을 처음부터 틀어 0.8초 동안 위로 서서히 겹친 뒤 자리를 바꾼다
@@ -596,7 +603,12 @@ function crossfade(){
 }
 function playV(){ playing = true; vids[cur].play().catch(() => {}); if (fading) vids[1 - cur].play().catch(() => {}) }
 function pauseV(){ playing = false; vids.forEach(v => v.pause()) }
+// 멈춤 버튼: 영상과 흐르는 글씨를 함께 멈춤·재개
+let videoOn = false
+vbtn.onclick = () => { userPaused = !userPaused; motionPaused = userPaused; if (videoOn) { if (userPaused) pauseV(); else playV() } setVBtn(userPaused) }
+if (!reduce && marquees.length) vbtn.hidden = false
 function startVideo(){
+  videoOn = true
   const src = innerWidth > 820 ? '/intro/img/hero-pull-720.mp4' : '/intro/img/hero-pull-360.mp4'
   vids.forEach((v, i) => {
     v.src = src
@@ -606,7 +618,6 @@ function startVideo(){
   vids[1].preload = 'auto'
   playing = true
   vid.play().then(() => { vbtn.hidden = false }).catch(() => { playing = false })
-  vbtn.onclick = () => { userPaused = !vids[cur].paused; if (userPaused) pauseV(); else playV(); setVBtn(userPaused) }
   new IntersectionObserver(es => { if (userPaused) return; if (es[0].isIntersecting) playV(); else pauseV() }).observe(hero)
 }
 if (vid && !reduce && !slow) {
