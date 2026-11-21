@@ -554,24 +554,34 @@ if (wide.matches && howFeats.length) setHow(Math.max(0, howIdx))
 
 // 큰 글씨 띠: 보일 때 일정한 속도로 자동으로 흐름(휴대폰 약 36px/초, PC 약 72px/초).
 // 멈춤: 움직임 줄이기 설정, 화면 밖, 마우스를 올렸을 때, 히어로 멈춤 버튼(영상과 함께)
-const marquees = [...document.querySelectorAll('[data-marquee]')].map(el => ({ el, track: el.querySelector('.track'), dir: +el.dataset.marquee, on: false, hover: false, x: 0 }))
+const marquees = [...document.querySelectorAll('[data-marquee]')].map(el => { const track = el.querySelector('.track'), unit = [...track.children].slice(0, track.children.length / 2); return { el, track, unit, n: unit.length, dir: +el.dataset.marquee, on: false, hover: false, x: 0, period: 0 } })
+// 반복 거리를 재고, 넓은 화면에서 오른쪽이 비지 않게 묶음을 더 붙인다(장식이라 복제본도 aria-hidden 안에 있음)
+function measureMarquee(m){
+  const kids = m.track.children
+  m.period = kids[m.n].getBoundingClientRect().left - kids[0].getBoundingClientRect().left
+  while (m.period > 0 && kids.length / m.n < Math.ceil(innerWidth / m.period) + 1) m.unit.forEach(c => m.track.appendChild(c.cloneNode(true)))
+}
 let motionPaused = false
 if (!reduce && marquees.length) {
   const mio = new IntersectionObserver(es => es.forEach(e => { const m = marquees.find(m => m.el === e.target); m.on = e.isIntersecting }), { rootMargin: '100px 0px' })
   marquees.forEach(m => {
+    measureMarquee(m)
     mio.observe(m.el)
     m.el.addEventListener('mouseenter', () => { m.hover = true })
     m.el.addEventListener('mouseleave', () => { m.hover = false })
   })
+  addEventListener('resize', () => marquees.forEach(measureMarquee))
+  if (document.fonts) document.fonts.ready.then(() => marquees.forEach(measureMarquee))
   let last = 0
   const loop = now => {
     const dt = last ? Math.min((now - last) / 1000, 0.05) : 0; last = now
     const speed = Math.min(80, Math.max(36, innerWidth * 0.05))
     marquees.forEach(m => {
       if (!m.on || m.hover || motionPaused) return
-      const half = m.track.scrollWidth / 2
+      const p = m.period
+      if (!p) return
       m.x += speed * dt * m.dir
-      m.x = ((m.x % half) + half) % half
+      m.x = ((m.x % p) + p) % p
       m.track.style.transform = `translate3d(${(-m.x).toFixed(1)}px,0,0)`
     })
     requestAnimationFrame(loop)
@@ -616,8 +626,9 @@ function startVideo(){
     v.addEventListener('ended', () => { if (i === cur && !fading) crossfade() })
   })
   vids[1].preload = 'auto'
-  playing = true
-  vid.play().then(() => { vbtn.hidden = false }).catch(() => { playing = false })
+  vbtn.hidden = false
+  if (userPaused) { vid.preload = 'auto' }
+  else { playing = true; vid.play().catch(() => { playing = false }) }
   new IntersectionObserver(es => { if (userPaused) return; if (es[0].isIntersecting) playV(); else pauseV() }).observe(hero)
 }
 if (vid && !reduce && !slow) {
