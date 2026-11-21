@@ -67,7 +67,7 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
    스크롤하면 액자가 조금 작아지고(--hp 0→1) 영상은 느리게 확대, 글씨는 위로 빠짐 */
 .hero{position:relative;min-height:100svh;display:flex;align-items:flex-end;color:#f5efe6;padding:0;--hp:0}
 .hero .frame{position:absolute;inset:12px;border-radius:26px;overflow:hidden;background:#0d0c0b;transform:scale(calc(1 - var(--hp) * .07));transform-origin:50% 0;will-change:transform}
-.hero .frame::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(13,12,11,.55) 0%,rgba(13,12,11,.18) 30%,rgba(13,12,11,.5) 62%,rgba(13,12,11,.93) 100%),linear-gradient(90deg,rgba(13,12,11,.55) 0%,rgba(13,12,11,0) 60%)}
+.hero .frame::after{content:'';position:absolute;inset:0;z-index:2;background:linear-gradient(180deg,rgba(13,12,11,.55) 0%,rgba(13,12,11,.18) 30%,rgba(13,12,11,.5) 62%,rgba(13,12,11,.93) 100%),linear-gradient(90deg,rgba(13,12,11,.55) 0%,rgba(13,12,11,0) 60%)}
 .hero .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:42% 50%;transform:scale(calc(1.12 + var(--hp) * .1));transition:transform 1.6s cubic-bezier(.2,.7,.2,1)}
 .hero.in .bg{transform:scale(calc(1 + var(--hp) * .1))}
 .hero .bg+.bg{opacity:0}
@@ -79,11 +79,11 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
 .hero.in .ln>span{transform:none}
 .hero.in .ln:nth-child(2)>span{transition-delay:.12s}
 /* 영상 멈춤 버튼(움직이는 배경은 멈출 수 있어야 함) */
-.vbtn{position:absolute;right:clamp(28px,4vw,56px);bottom:clamp(28px,5vh,52px);z-index:3;width:44px;height:44px;border-radius:999px;border:1px solid rgba(245,239,230,.4);background:rgba(13,12,11,.35);backdrop-filter:blur(6px);color:#f5efe6;display:grid;place-items:center;cursor:pointer;opacity:calc(1 - var(--hp) * 2)}
+.vbtn{position:absolute;right:clamp(28px,4vw,56px);bottom:clamp(28px,5vh,52px);z-index:3;width:44px;height:44px;border-radius:999px;border:1px solid rgba(245,239,230,.4);background:rgba(13,12,11,.35);backdrop-filter:blur(6px);color:#f5efe6;display:grid;place-items:center;cursor:pointer}
 .vbtn[hidden]{display:none}
 .vbtn svg{width:16px;height:16px}
 .scrollcue{position:absolute;left:50%;bottom:22px;z-index:3;width:1px;height:42px;background:rgba(245,239,230,.25);overflow:hidden;opacity:calc(1 - var(--hp) * 3)}
-.scrollcue::after{content:'';position:absolute;left:0;top:-50%;width:1px;height:50%;background:#c8f53c;animation:cue 1.8s cubic-bezier(.6,0,.4,1) infinite}
+.scrollcue::after{content:'';position:absolute;left:0;top:-50%;width:1px;height:50%;background:#c8f53c;animation:cue 1.8s cubic-bezier(.6,0,.4,1) 2}
 @keyframes cue{to{top:100%}}
 .hero .label{color:#c8f53c}
 .hero h1{font-weight:800;font-size:clamp(40px,7.4vw,92px);line-height:1.08;letter-spacing:-.03em;margin-top:16px}
@@ -284,9 +284,11 @@ nav .go{background:#c8f53c;color:#11170a;border-color:#c8f53c;opacity:1}
 .howphone{display:none}
 @media (min-width:821px){
   #how .wrap{display:grid;grid-template-columns:1fr auto;column-gap:clamp(48px,7vw,110px)}
-  #how .feat,#how .feat.rev{display:flex;align-items:center;min-height:74vh;padding:0;border-top:0;opacity:.28;transition:opacity .5s ease,transform .9s cubic-bezier(.2,.7,.2,1)}
+  #how .feat,#how .feat.rev{display:flex;align-items:center;min-height:74vh;padding:0;border-top:0;opacity:.7;transition:opacity .5s ease,transform .9s cubic-bezier(.2,.7,.2,1)}
   #how .feat.rv:not(.in){opacity:0}
   #how .feat.on{opacity:1}
+  #how .feat .n{opacity:.3;transition:opacity .5s ease}
+  #how .feat.on .n{opacity:1}
   #how .feat .phone{display:none}
   #how .feat .txt{order:0}
   #how .feat h3{font-size:clamp(30px,3.6vw,44px)}
@@ -592,19 +594,18 @@ requestAnimationFrame(() => hero.classList.add('in'))
 setTimeout(() => hero.classList.add('moving'), 1700)
 if (wide.matches && howFeats.length) setHow(Math.max(0, howIdx))
 
-// 큰 글씨 띠: 보일 때만 움직임. 천천히 흐르다가 스크롤하면 그만큼 더 밀림
+// 큰 글씨 띠: 보일 때, 스크롤한 만큼만 움직임(스크롤을 멈추면 같이 멈춤)
 const marquees = [...document.querySelectorAll('[data-marquee]')].map(el => ({ el, track: el.querySelector('.track'), dir: +el.dataset.marquee, on: false, x: 0, last: scrollY }))
 if (!reduce && marquees.length) {
   const mio = new IntersectionObserver(es => es.forEach(e => { const m = marquees.find(m => m.el === e.target); m.on = e.isIntersecting }), { rootMargin: '100px 0px' })
   marquees.forEach(m => mio.observe(m.el))
-  let prev = performance.now()
   const loop = now => {
-    const dt = Math.min(64, now - prev); prev = now
     marquees.forEach(m => {
       const dy = scrollY - m.last; m.last = scrollY
       if (!m.on) return
       const half = m.track.scrollWidth / 2
-      m.x += (dt * 0.04 + Math.abs(dy) * 0.9) * m.dir
+      if (!dy) return
+      m.x += Math.abs(dy) * 0.9 * m.dir
       m.x = ((m.x % half) + half) % half
       m.track.style.transform = `translate3d(${(-m.x).toFixed(1)}px,0,0)`
     })
@@ -624,8 +625,9 @@ function setVBtn(paused){
 }
 // 교차 반복: 지금 영상이 끝나기 약 1초 전에 다른 영상을 처음부터 틀어 0.8초 동안 위로 서서히 겹친 뒤 자리를 바꾼다
 const vids = [vid, document.getElementById('heroVideo2')]
-let cur = 0, fading = false
+let cur = 0, fading = false, playing = false
 function crossfade(){
+  if (!playing) return
   const a = vids[cur], b = vids[1 - cur]
   fading = true
   b.currentTime = 0; b.play().catch(() => {})
@@ -634,8 +636,8 @@ function crossfade(){
   if (b.animate) b.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 800, easing: 'linear' }).onfinish = done
   else done()
 }
-function playV(){ vids[cur].play().catch(() => {}); if (fading) vids[1 - cur].play().catch(() => {}) }
-function pauseV(){ vids.forEach(v => v.pause()) }
+function playV(){ playing = true; vids[cur].play().catch(() => {}); if (fading) vids[1 - cur].play().catch(() => {}) }
+function pauseV(){ playing = false; vids.forEach(v => v.pause()) }
 function startVideo(){
   const src = innerWidth > 820 ? '/intro/img/hero-pull-720.mp4' : '/intro/img/hero-pull-360.mp4'
   vids.forEach((v, i) => {
@@ -644,7 +646,8 @@ function startVideo(){
     v.addEventListener('ended', () => { if (i === cur && !fading) crossfade() })
   })
   vids[1].preload = 'auto'
-  vid.play().then(() => { vbtn.hidden = false }).catch(() => {})
+  playing = true
+  vid.play().then(() => { vbtn.hidden = false }).catch(() => { playing = false })
   vbtn.onclick = () => { userPaused = !vids[cur].paused; if (userPaused) pauseV(); else playV(); setVBtn(userPaused) }
   new IntersectionObserver(es => { if (userPaused) return; if (es[0].isIntersecting) playV(); else pauseV() }).observe(hero)
 }

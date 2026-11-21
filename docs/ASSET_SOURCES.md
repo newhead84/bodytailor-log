@@ -8,6 +8,7 @@
 | `src/assets/app-icon-mark.png`, `src/assets/logo-mark-transparent.png`, `public/icon-*.png`, `public/apple-touch-icon.png`, `public/favicon-32.png` | 앱 아이콘·로고 | **확인 필요** - 제작자·제작 도구 | - | 운영자 답 대기 |
 | `public/trainers/*.webp` | 트레이너 프로필 기본 사진 | **확인 필요** - 헬스장(본인) 제공 사진인지 | 본인 초상 사용 동의 필요 - 퇴사 시 숨김 처리 | 운영자 답 대기 |
 | `public/intro/img/photo-*.webp` | 홍보 페이지 사진 | Unsplash | Unsplash License(상업 사용 가능, 출처 표기 의무 없음). 사진 속 상표 로고는 지움 | 사용 중 |
+| `public/intro/img/hero-pull-720.mp4`, `hero-pull-360.mp4`, `hero-pull-poster.webp` | 홍보 페이지 히어로 배경 영상(랫풀다운, 흑백)과 그 첫 장면 포스터 | Mixkit #100549 "Man working out on a lat pulldown machine" (https://mixkit.co/free-stock-video/man-working-out-on-a-lat-pulldown-machine-100549/). 720p·360p 원본 그대로, 포스터는 0초 장면을 webp로 뽑음 | Mixkit Stock Video Free License(상업 사용·수정 가능, 출처 표기 의무 없음). 푸터에 "배경 영상: Mixkit" 표기 | 사용 중 |
 | `public/intro/img/cap-*.webp`, `og.png` | 앱 화면 캡처·공유 이미지 | 직접 캡처(목업 데이터 - 실제 사용자 기록 아님) | 자체 제작 | 사용 중 |
 | 글꼴 Pretendard · Paperlogy · 나눔스퀘어 네오 · Outfit | 본문·숫자 글꼴(CDN) | 각 제작사 | SIL OFL 1.1(웹·상업 사용 가능, 폰트 파일 판매 금지) | 사용 중 |
 | lucide-react | 아이콘 | Lucide Contributors | ISC | 사용 중 |
