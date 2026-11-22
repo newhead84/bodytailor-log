@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { loginWithGoogle } from '../firebase'
 import { Button } from './ui'
 import appIconMark from '../assets/app-icon-mark.png'
@@ -6,6 +6,13 @@ import appIconMark from '../assets/app-icon-mark.png'
 export default function LoginScreen() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // [2026-11-22] 사용자 결정(A+C안): 휴대폰 브라우저로 열면 로그인 전에 전체 화면 설치 안내(public/install-guide.js, 소개 페이지 시트와 공용).
+  // 홈 화면 앱(standalone)·PC에서는 띄우지 않고, '설치 없이 브라우저에서 계속'을 누르면 7일 동안 다시 띄우지 않는다.
+  const [gate, setGate] = useState(() => typeof window !== 'undefined' && !!window.BTInstall?.shouldGate())
+  useEffect(() => {
+    if (!gate || !window.BTInstall) return undefined
+    return window.BTInstall.open({ mode: 'full', onSkip: () => setGate(false) })
+  }, [gate])
 
   async function handleLogin() {
     setError('')
