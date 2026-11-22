@@ -3,6 +3,7 @@
   "short_name": "BodyTailor",
   "start_url": "/",
   "display": "standalone",
+  "related_applications": [{ "platform": "webapp", "url": "https://bodytailor-log.vercel.app/manifest.json" }],
   "background_color": "#f4ece1",
   "theme_color": "#f4ece1",
   "icons": [
