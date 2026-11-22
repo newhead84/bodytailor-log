@@ -112,10 +112,16 @@ export default function InstallBanner() {
       setDeferredPrompt(null)
     }
     window.addEventListener('bt-install-prompt-used', used)
+    // [2026-11-22] 설치 안내에서 '설치 없이 브라우저에서 계속'을 누르면 같은 화면에서도 바로 숨김
+    function skipped() {
+      setDismissed(true)
+    }
+    window.addEventListener('bt-install-skip', skipped)
     return () => {
       window.removeEventListener('beforeinstallprompt', handler)
       window.removeEventListener('appinstalled', installed)
       window.removeEventListener('bt-install-prompt-used', used)
+      window.removeEventListener('bt-install-skip', skipped)
       clearTimeout(t)
     }
   }, [blocked])

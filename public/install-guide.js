@@ -34,6 +34,8 @@
   function recordSkip() {
     skippedNow = true
     try { var now = String(Date.now()); localStorage.setItem(SKIP_KEY, now); localStorage.setItem(BANNER_KEY, now) } catch (e) {}
+    // 같은 화면에 떠 있는 상단 배너(InstallBanner)도 바로 숨긴다(저장이 막힌 환경 포함)
+    dispatchEvent(new Event('bt-install-skip'))
   }
 
   var IN = { kakao: '카카오톡', line: '라인', instagram: '인스타그램', facebook: '페이스북', naver: '네이버 앱', band: '밴드', daum: '다음 앱', everytime: '에브리타임', tiktok: '틱톡' }
@@ -117,7 +119,7 @@
     box.innerHTML = '<div class="dim" data-close></div><div class="sh" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="btiT"><div class="grab" aria-hidden="true"></div><button class="x" type="button" data-close aria-label="닫기">×</button><img class="ic" src="/icon-192.png" alt="" width="60" height="60" /><div data-body></div><a class="skip" href="/" data-skip>설치 없이 브라우저에서 계속</a></div>'
     var sh = box.querySelector('.sh'), b = box.querySelector('[data-body]')
     var others = [].filter.call(document.body.children, function (el) { return el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE' })
-    var focusables = function () { return [].filter.call(sh.querySelectorAll('button,a[href]'), function (el) { return el.offsetParent !== null }) }
+    var focusables = function () { return [].filter.call(sh.querySelectorAll('button,a[href],input'), function (el) { return el.offsetParent !== null }) }
     // 주 버튼이 있으면 그 버튼, 없으면 대화상자 자체에 포커스(맨 아래 링크에 바로 테두리가 생기지 않게)
     var focusFirst = function () { var f = sh.querySelector('.b1'); if (f) f.focus(); else sh.focus() }
     var state = {
