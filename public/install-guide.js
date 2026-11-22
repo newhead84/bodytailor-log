@@ -16,9 +16,16 @@
   var deferred = null, installed = false, skippedNow = false, cur = null
 
   addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; if (cur && cur.view === 'manual') cur.render() })
+  // 설치 신호는 한 번만 쓸 수 있다: 상단 배너(InstallBanner)와 이 안내 중 한쪽이 쓰면 'bt-install-prompt-used'로 알려 둘 다 비운다
+  addEventListener('bt-install-prompt-used', function () { deferred = null; if (cur && cur.view === 'main' && !installed && os !== 'ios' && !inApp()) cur.render() })
   addEventListener('appinstalled', function () { deferred = null; installed = true; if (cur) cur.render('done') })
   try { if (navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(function (a) { if (a.length) installed = true }).catch(function () {}) } catch (e) {}
 
+  var FORCE_KEY = 'bt_install_gate_force'
+  var atApp = location.pathname === '/'
+  // 메뉴(공유 → 홈 화면에 추가, 바로가기 추가, Dock에 추가)로 저장하면 브라우저가 지금 주소를 아이콘으로 쓰는 경우가 있다.
+  // 소개 페이지에서 따라 하면 아이콘이 소개 페이지를 열 수 있으므로, 앱 첫 화면으로 보낸 뒤 같은 안내를 띄운다(한 번만 강제).
+  var TOAPP = '<h2 id="btiT">앱 화면에서 추가해 주세요</h2><p class="p">앱 첫 화면에서 추가해야 홈 화면 아이콘이 바로 앱으로 열려요. 누르면 앱 화면으로 가서 같은 방법을 알려 드려요.</p><button class="b1" type="button" data-toapp>앱 화면에서 설치하기</button>'
   function inApp() { return window.__btInApp && window.__btInApp.isInApp ? window.__btInApp : null }
   function skippedRecently() {
     if (skippedNow) return true
@@ -38,6 +45,7 @@
   function ill(svg, t) { return '<span class="ill" aria-hidden="true">' + (svg || '') + (t ? (svg ? '<i>' + t + '</i>' : t) : '') + '</span>' }
 
   function manual() {
+    if (!atApp && (os === 'android' || (os === 'mac' && br === 'safari'))) return TOAPP
     if (os === 'android') {
       var s = br === 'samsung' ? '아래쪽 <b>메뉴(≡)</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b>을 눌러요'
         : br === 'whale' ? '아래쪽 <b>메뉴(≡)</b> → <b>홈 화면에 추가</b>를 눌러요'
@@ -57,6 +65,7 @@
     }
     if (installed) return '<h2 id="btiT">이미 설치돼 있어요</h2><p class="p">홈 화면의 <b>BodyTailor</b> 아이콘으로 열어 주세요.</p>'
     if (os === 'ios') {
+      if (!atApp && br !== 'other' && br !== 'firefox' && br !== 'whale') return TOAPP
       if (br === 'safari') return '<h2 id="btiT">홈 화면에 추가해 주세요</h2><p class="p">아이폰은 사파리에서 세 번 누르면 앱처럼 설치돼요.</p><ol><li><span>아래쪽 <b>공유</b> 버튼을 눌러요</span>' + ill(SHARE) + '</li><li><span>목록을 내려 <b>홈 화면에 추가</b>를 눌러요</span>' + ill(PLUS, '홈 화면에 추가') + '</li><li><span>오른쪽 위 <b>추가</b>를 누르고, 홈 화면 아이콘으로 열어요</span>' + ill('', '추가') + '</li></ol>' + WHY
       if (br === 'chrome' || br === 'edge') return '<h2 id="btiT">홈 화면에 추가해 주세요</h2><p class="p">세 번 누르면 앱처럼 설치돼요.</p><ol><li><span>주소창 오른쪽 <b>공유</b> 버튼을 눌러요</span>' + ill(SHARE) + '</li><li><span><b>홈 화면에 추가</b>를 눌러요(안 보이면 목록을 내려 보세요)</span>' + ill(PLUS) + '</li><li><span><b>추가</b>를 누르고, 홈 화면 아이콘으로 열어요</span></li></ol>' + WHY
       return '<h2 id="btiT">사파리에서 열어 주세요</h2><p class="p">아이폰은 사파리에서 홈 화면에 추가할 수 있어요. 주소를 복사해 사파리에서 열어 주세요.</p>' + COPY
@@ -69,8 +78,10 @@
     '.bti .dim{position:absolute;inset:0;background:rgba(0,0,0,.6);opacity:0;transition:opacity .25s}' +
     '.bti .sh{position:relative;width:100%;max-width:480px;max-height:92vh;overflow:auto;overscroll-behavior:contain;background:#1e1b18;color:#f5efe6;border-radius:22px 22px 0 0;padding:14px 22px calc(22px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 40px rgba(0,0,0,.45);transform:translateY(24px);opacity:0;transition:transform .3s cubic-bezier(.2,.7,.2,1),opacity .25s;box-sizing:border-box}' +
     '.bti.on .dim{opacity:1}.bti.on .sh{transform:none;opacity:1}' +
-    '.bti.full{background:#141210;align-items:stretch;overflow:auto}.bti.full .dim,.bti.full .grab,.bti.full .x{display:none}' +
-    '.bti.full .sh{max-height:none;min-height:100%;background:none;box-shadow:none;border-radius:0;margin:0 auto;display:flex;flex-direction:column;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 40px) 26px calc(env(safe-area-inset-bottom,0px) + 28px)}' +
+    '.bti.full{background:#141210;align-items:flex-start;overflow:auto}.bti.full .dim,.bti.full .grab,.bti.full .x{display:none}' +
+    /* 짧은 화면(가로·큰 글씨)에서 위가 잘리지 않게: 가운데 정렬은 위아래 auto 여백으로(넘치면 위에서부터) */
+    '.bti.full .sh{max-height:none;min-height:100%;overflow:visible;background:none;box-shadow:none;border-radius:0;margin:0 auto;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top,0px) + 40px) 26px calc(env(safe-area-inset-bottom,0px) + 28px)}' +
+    '.bti.full .ic{margin-top:auto}.bti.full .skip{margin-bottom:auto}' +
     '@media (min-width:821px){.bti{align-items:center}.bti .sh{border-radius:22px;padding:24px 28px}.bti .grab{display:none}}' +
     '@media (prefers-reduced-motion:reduce){.bti .dim,.bti .sh{transition:none}}' +
     '.bti *{box-sizing:border-box;margin:0}' +
@@ -91,10 +102,11 @@
     '.bti .b1,.bti .b2{display:block;width:100%;padding:15px;border-radius:14px;font:inherit;font-weight:800;font-size:16.5px;text-align:center;cursor:pointer}' +
     '.bti .b1{border:0;background:#c8f53c;color:#11170a}' +
     '.bti .b2{border:1px solid #3a352f;background:none;color:#f5efe6;margin-top:10px;font-weight:600;font-size:15px}' +
+    '.bti .url{display:block;width:100%;margin-top:10px;padding:13px;border-radius:14px;border:1px solid #c8f53c;background:#141210;color:#f5efe6;font:inherit;font-size:14px;text-align:center}' +
     '.bti .n{font-size:13px;color:#a39b8f;text-align:center;margin-top:12px;line-height:1.55}' +
     '.bti .skip{display:block;width:max-content;max-width:100%;margin:14px auto 0;padding:6px 8px;font-size:13.5px;color:#a39b8f;text-decoration:underline;text-underline-offset:3px}' +
     '.bti :focus-visible{outline:2px solid #c8f53c;outline-offset:2px}' +
-    'html.bti-open,html.bti-open body{overflow:hidden}'
+    'html.bti-open,html.bti-open body{overflow:hidden}html.bti-open #bt-inapp-bar{display:none!important}'
 
   function open(opt) {
     opt = opt || {}
@@ -105,12 +117,11 @@
     box.innerHTML = '<div class="dim" data-close></div><div class="sh" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="btiT"><div class="grab" aria-hidden="true"></div><button class="x" type="button" data-close aria-label="닫기">×</button><img class="ic" src="/icon-192.png" alt="" width="60" height="60" /><div data-body></div><a class="skip" href="/" data-skip>설치 없이 브라우저에서 계속</a></div>'
     var sh = box.querySelector('.sh'), b = box.querySelector('[data-body]')
     var others = [].filter.call(document.body.children, function (el) { return el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE' })
-    var bar = document.getElementById('bt-inapp-bar'), barDisp = bar && bar.style.display
     var focusables = function () { return [].filter.call(sh.querySelectorAll('button,a[href]'), function (el) { return el.offsetParent !== null }) }
     // 주 버튼이 있으면 그 버튼, 없으면 대화상자 자체에 포커스(맨 아래 링크에 바로 테두리가 생기지 않게)
     var focusFirst = function () { var f = sh.querySelector('.b1'); if (f) f.focus(); else sh.focus() }
     var state = {
-      view: '',
+      view: '', full: full,
       render: function (v) {
         state.view = v || (deferred || installed || os === 'ios' || inApp() ? 'main' : 'manual')
         b.innerHTML = body(v)
@@ -118,7 +129,7 @@
       close: function () {
         if (cur !== state) return
         cur = null; box.remove(); document.documentElement.classList.remove('bti-open')
-        others.forEach(function (el) { el.inert = false }); if (bar) bar.style.display = barDisp
+        others.forEach(function (el) { el.inert = false })
         removeEventListener('keydown', onKey, true)
         if (opener && opener.focus && document.contains(opener)) opener.focus()
       },
@@ -133,30 +144,45 @@
       else if (!sh.contains(document.activeElement)) { e.preventDefault(); first.focus() }
     }
     box.addEventListener('click', function (e) {
-      var t = e.target.closest('[data-close],[data-prompt],[data-copy],[data-ext],[data-skip]'); if (!t) return
+      var t = e.target.closest('[data-close],[data-prompt],[data-copy],[data-ext],[data-skip],[data-toapp]'); if (!t) return
       if (t.hasAttribute('data-close')) return state.close()
       if (t.hasAttribute('data-skip')) { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); return skip() }
       if (t.hasAttribute('data-copy')) {
         var url = inApp() ? location.href : location.origin + (full ? '/' : '/intro/')
-        var done = function () { t.textContent = '복사했어요' }, fail = function () { t.textContent = url }
+        var done = function () { t.textContent = '복사했어요' }
+        var fail = function () {
+          var ta = document.createElement('textarea'); ta.value = url; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'
+          sh.appendChild(ta); ta.select(); var okc = false; try { okc = document.execCommand('copy') } catch (er) {} ta.remove()
+          if (okc) return done()
+          var inp = document.createElement('input'); inp.className = 'url'; inp.readOnly = true; inp.value = url; inp.setAttribute('aria-label', '이 주소를 길게 눌러 복사해 주세요')
+          t.replaceWith(inp); inp.focus(); inp.select()
+        }
         try { navigator.clipboard.writeText(url).then(done, fail) } catch (err) { fail() }
         return
       }
+      if (t.hasAttribute('data-toapp')) { try { sessionStorage.setItem(FORCE_KEY, '1') } catch (er) {} return location.replace('/') }
       if (t.hasAttribute('data-ext')) { var ia = inApp(); if (!ia || !ia.openExternal()) { var h = b.querySelector('[data-hint]'); if (h) h.style.color = '#c8f53c' } return }
       if (t.hasAttribute('data-prompt') && deferred) {
         var p = deferred; deferred = null
-        p.prompt()
+        p.prompt(); dispatchEvent(new Event('bt-install-prompt-used'))
         p.userChoice.then(function (r) { return r }, function () { return {} }).then(function (r) { if (cur === state) { state.render(r && r.outcome === 'accepted' ? 'done' : undefined); focusFirst() } })
       }
     })
     cur = state
     state.render()
     document.body.appendChild(box); document.documentElement.classList.add('bti-open')
-    others.forEach(function (el) { el.inert = true }); if (bar) bar.style.display = 'none'
+    others.forEach(function (el) { el.inert = true })
     addEventListener('keydown', onKey, true)
     if (full) box.classList.add('on'); else requestAnimationFrame(function () { box.classList.add('on') })
     focusFirst()
     return state.close
+  }
+
+  // 소개 페이지에서 '앱 화면에서 설치하기'로 넘어왔으면 로그인 여부와 상관없이 앱 첫 화면에서 바로 같은 안내를 띄운다(한 번만)
+  if (atApp && !standalone) {
+    var force = false
+    try { force = sessionStorage.getItem(FORCE_KEY) === '1'; sessionStorage.removeItem(FORCE_KEY) } catch (e) {}
+    if (force) { var go = function () { open({ mode: 'full' }) }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go() }
   }
 
   window.BTInstall = {
@@ -164,6 +190,6 @@
     isStandalone: function () { return standalone },
     // 앱 로그인 전 전체 화면 안내: 브라우저 모드의 휴대폰(아이폰·안드로이드·인앱)에서만, '브라우저에서 계속' 뒤 7일은 띄우지 않음.
     // PC는 띄우지 않는다(관리자·트레이너가 PC 브라우저로 쓰고, PC 설치를 권할 이유가 없음).
-    shouldGate: function () { return !standalone && (os === 'ios' || os === 'android' || !!inApp()) && !skippedRecently() },
+    shouldGate: function () { return !standalone && !(cur && cur.full) && (os === 'ios' || os === 'android' || !!inApp()) && !skippedRecently() },
   }
 })()

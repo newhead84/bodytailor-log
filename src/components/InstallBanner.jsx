@@ -80,6 +80,8 @@ export default function InstallBanner() {
     const sync = () => {
       setOnAdmin(window.location.pathname.startsWith('/admin'))
       setPlaceOk(!!window.__btMainTabs && !window.__btWorkoutActive && !hasOpenScreens())
+      // [2026-11-22] 로그인 전 설치 안내(install-guide.js)에서 '브라우저에서 계속'을 누른 숨김을 새로고침 없이도 반영
+      if (wasDismissed()) setDismissed(true)
     }
     sync()
     window.addEventListener('bt-route', sync)
@@ -105,9 +107,15 @@ export default function InstallBanner() {
       setDismissed(true)
     }
     window.addEventListener('appinstalled', installed)
+    // [2026-11-22] 설치 신호는 한 번만 쓸 수 있다: 로그인 전 설치 안내가 쓰면 이 배너의 것도 비워 수동 안내로
+    function used() {
+      setDeferredPrompt(null)
+    }
+    window.addEventListener('bt-install-prompt-used', used)
     return () => {
       window.removeEventListener('beforeinstallprompt', handler)
       window.removeEventListener('appinstalled', installed)
+      window.removeEventListener('bt-install-prompt-used', used)
       clearTimeout(t)
     }
   }, [blocked])
@@ -133,6 +141,7 @@ export default function InstallBanner() {
   async function handleInstall() {
     if (!deferredPrompt) return
     deferredPrompt.prompt()
+    window.dispatchEvent(new Event('bt-install-prompt-used'))
     const choice = await deferredPrompt.userChoice.catch(() => null)
     setDeferredPrompt(null)
     if (choice?.outcome === 'accepted') setDismissed(true)
