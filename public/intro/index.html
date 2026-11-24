@@ -145,7 +145,7 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
 .sbtn:hover{opacity:1}
 .sbtn svg{width:20px;height:20px;flex-shrink:0}
 .hero .sbtn{color:#f5efe6;border-color:rgba(245,239,230,.45)}
-.closing .sbtn{color:var(--t1);border-color:var(--line)}
+.closing .sbtn{color:#f5efe6;border-color:rgba(245,239,230,.45)}
 .hnote{display:block;font-size:13px;line-height:1.6;margin-top:14px;color:var(--t3)}
 .hero .hnote{color:#cfc6b8}
 /* 흐름 표(2열) */
@@ -208,10 +208,16 @@ nav .go{font:700 14px 'Paperlogy',sans-serif;text-decoration:none;padding:9px 14
 .faq details[open] summary::after{content:'−'}
 .faq p{color:var(--t2);line-height:1.75;margin-top:12px;font-size:16px;max-width:760px}
 
-.closing{padding:120px 0 140px}
+/* [2026-11-24] 마지막 영역: 트레드밀 배경 영상(Mixkit #47876 걷기 → #47879 달리기, 흑백, 끝이 처음 장면으로 이어지게 만들어 loop만으로 끊김 없음).
+   처음엔 포스터만, 영역 가까이 오면 영상을 불러옴. 어두운 막(평균 64%)으로 흰 글자 명암비 4.5:1 이상 */
+.closing{padding:120px 0 140px;overflow:hidden;background:#141210}
+.closing .cbg{position:absolute;inset:0;z-index:0;pointer-events:none}
+.closing .cbg video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 70%}
+.closing .cbg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(13,12,11,.6) 0%,rgba(13,12,11,.62) 50%,rgba(13,12,11,.7) 100%)}
+.closing>.marquee{position:relative;z-index:2}
 .closing h2{font-size:clamp(34px,5.6vw,68px)}
 .closing .row{display:flex;flex-wrap:wrap;gap:16px 20px;align-items:center;margin-top:30px}
-.closing small{font-size:13px;color:var(--t3)}
+.closing small,.closing .hnote{font-size:13px;color:#e9e2d7}
 footer{border-top:1px solid var(--line);padding:28px 20px 48px;font-size:13px;color:var(--t3);line-height:1.8}
 footer .wrap{padding:0}
 
@@ -465,7 +471,8 @@ nav .go{background:#c8f53c;color:#11170a;border-color:#c8f53c;opacity:1}
   </div>
 </section>
 
-<section class="closing" data-tone="beige">
+<section class="closing" id="closing" data-tone="dark">
+  <div class="cbg" aria-hidden="true"><video id="closeVideo" muted playsinline loop preload="none" poster="/intro/img/closing-run-poster.webp" disablepictureinpicture></video></div>
   <div class="marquee" data-marquee="1" aria-hidden="true"><div class="track"><span class="o">오늘부터</span><i></i><span>고르고</span><i></i><span class="o">체크하고</span><i></i><span>다음엔 조금 더</span><i></i><span class="o">오늘부터</span><i></i><span>고르고</span><i></i><span class="o">체크하고</span><i></i><span>다음엔 조금 더</span><i></i></div></div>
   <div class="wrap">
     <h2 class="rv">오늘 하는 운동부터<br>기록해 보세요</h2>
@@ -634,7 +641,7 @@ function playV(){ playing = true; vids[cur].play().catch(() => {}); if (fading) 
 function pauseV(){ playing = false; vids.forEach(v => v.pause()) }
 // 멈춤 버튼: 영상과 흐르는 글씨를 함께 멈춤·재개
 let videoOn = false
-vbtn.onclick = () => { userPaused = !userPaused; motionPaused = userPaused; if (videoOn) { if (userPaused) pauseV(); else playV() } setVBtn(userPaused) }
+vbtn.onclick = () => { userPaused = !userPaused; motionPaused = userPaused; if (videoOn) { if (userPaused) pauseV(); else playV() } setVBtn(userPaused); syncClose() }
 if (!reduce && marquees.length) vbtn.hidden = false
 function startVideo(){
   videoOn = true
@@ -653,6 +660,20 @@ function startVideo(){
 if (vid && !reduce && !slow) {
   if (document.readyState === 'complete') setTimeout(startVideo, 300)
   else addEventListener('load', () => setTimeout(startVideo, 300), { once: true })
+}
+// [2026-11-24] 마지막 영역 영상: 같은 조건(움직임 줄이기·데이터 절약·느린 회선이면 포스터만). 영역이 화면 아래 한 화면쯤 가까워지면 불러오고,
+// 보이는 동안만 재생. 히어로의 멈춤 버튼을 누르면 이 영상도 멈춤
+const cvid = document.getElementById('closeVideo')
+let cNear = false, cLoaded = false
+function syncClose(){ if (!cLoaded) return; if (cNear && !userPaused) cvid.play().catch(() => {}); else cvid.pause() }
+if (cvid && !reduce && !slow) {
+  new IntersectionObserver(es => {
+    if (!es[0].isIntersecting || cLoaded) return
+    cLoaded = true
+    cvid.src = innerWidth > 820 ? '/intro/img/closing-run-720.mp4' : '/intro/img/closing-run-360.mp4'
+    syncClose()
+  }, { rootMargin: '0px 0px 100% 0px' }).observe(cvid.parentNode)
+  new IntersectionObserver(es => { cNear = es[0].isIntersecting; syncClose() }).observe(cvid.parentNode)
 }
 
 document.querySelectorAll('h2.rv').forEach(h => { h.innerHTML = h.innerHTML.split(/<br\s*\/?>/i).map(x => `<span class="ln"><span>${x}</span></span>`).join('') })
