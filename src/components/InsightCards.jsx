@@ -23,6 +23,7 @@ import {
   lowerBodyLoadSets,
   LEG_FRONT,
   LEG_BACK,
+  SHIN_KEY,
   workingSetsOf,
 } from '../utils/strength'
 import { ExerciseName } from '../utils/exerciseName'
@@ -67,17 +68,21 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
     if (compact) return null
     const p = []
     const s = []
+    // [2026-11-24 코덱스 지적 ①] 그림은 종목별 기여로 칠한다: 전경골근(티비얼리스레이즈) 세트는 '하체 앞' 조각이 아니라 정강이 조각에.
+    // 세트 줄('하체 앞' 숫자)은 sets 그대로.
+    const figSets = fractionalSetsByAtom(weekLogs, { figure: true })
     atoms.forEach((a) => {
-      const v = sets[a] || 0
+      const v = figSets[a] || 0
       if (!(v > 0)) return
       const enough = a === '코어' ? v >= 4 : v >= getWeeklySetGuide(a).minEffective
       ;(enough ? p : s).push(...(ATOM_FIGURE_IDS[a] || []))
     })
+    if ((figSets[SHIN_KEY] || 0) >= getWeeklySetGuide(LEG_FRONT).minEffective) p.push('tib')
     // [2026-11-23] 부위에 들지 않는 작은 근육(전거근·정강이 등)은 이번 주 한 종목 기준으로 옅게
     const done = weekLogs.flatMap((l) => (l.exercises || []).filter((ex) => getExerciseInputType(ex?.name) !== 'cardio' && workingSetsOf(ex).length > 0))
-    minorIdsForExercises(done).forEach((id) => { if (!s.includes(id)) s.push(id) })
+    minorIdsForExercises(done).forEach((id) => { if (!s.includes(id) && !p.includes(id)) s.push(id) })
     return p.length || s.length ? { p, s } : null
-  }, [compact, sets, weekLogs]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [compact, weekLogs]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
       <SectionTitle

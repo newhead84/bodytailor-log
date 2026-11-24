@@ -4868,10 +4868,7 @@ export const MORE_GUIDES = {
   "cautions": [
    "정강이 앞이 찌르듯 아프면(정강이 통증) 멈추고, 발을 벽 가까이 둬 쉽게 해요."
   ],
-  "alternatives": [
-   "바벨시티드카프레이즈",
-   "레그프레스카프레이즈"
-  ]
+  "alternatives": []
  },
  "케이블외회전": {
   "level": "초급",

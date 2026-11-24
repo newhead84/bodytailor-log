@@ -1074,14 +1074,20 @@ export const LEG_BACK = '하체 뒤'
 // [2026-11-23] 정강이 앞(전경골근, 티비얼리스레이즈)은 종아리가 '하체 뒤'인 것과 짝으로 '하체 앞'에 센다(지금까지 이 근육을 쓰는 종목이 없어 기존 수치는 그대로)
 const FRONT_MUSCLES = ['대퇴사두', '내전근', '전경골근']
 const BACK_MUSCLES = ['대둔근', '중둔근', '소둔근', '햄스트링', '비복근', '가자미근']
-function legShares(name) {
+// [2026-11-24 코덱스 지적 ①] 근육 그림용 키: 전경골근 세트(그림에서 '하체 앞' 조각 대신 정강이 조각에 칠한다)
+export const SHIN_KEY = '전경골근'
+function legShares(name, figure = false) {
   const roles = EXERCISE_META[name]?.muscleRoles
   if (!roles) return null
   const has = (list, keys) => (list || []).some((m) => keys.some((k) => m.includes(k)))
   const share = (keys) => (has(roles.primary, keys) ? 1 : has(roles.synergist, keys) ? 0.5 : 0)
-  return { [LEG_FRONT]: share(FRONT_MUSCLES), [LEG_BACK]: share(BACK_MUSCLES) }
+  if (!figure) return { [LEG_FRONT]: share(FRONT_MUSCLES), [LEG_BACK]: share(BACK_MUSCLES) }
+  return { [LEG_FRONT]: share(FRONT_MUSCLES.filter((k) => k !== SHIN_KEY)), [LEG_BACK]: share(BACK_MUSCLES), [SHIN_KEY]: share([SHIN_KEY]) }
 }
-export function fractionalSetsByAtom(logs) {
+// opts.figure: 근육 그림용. 세트 통계('하체 앞' 줄)는 그대로 두고, 그림에서는 전경골근 기여를 '하체 앞'(대퇴사두·고관절 굽힘근·내전근 조각)에서 빼고
+// SHIN_KEY로 따로 센다(티비얼리스레이즈만 해도 허벅지 앞이 진하게 칠해지던 문제).
+export function fractionalSetsByAtom(logs, opts = {}) {
+  const figure = !!opts.figure
   const out = {}
   const add = (k, v) => {
     if (v > 0) out[k] = (out[k] || 0) + v
@@ -1095,9 +1101,10 @@ export function fractionalSetsByAtom(logs) {
       // [2026-11-07] 버티기(데드행·월싯)는 짧은 자극이라 등·하체 세트는 0.5로 센다(코어는 그대로)
       const n = workingSetsOf(ex).length * (isHoldExercise(ex.name) && atom !== '코어' ? 0.5 : 1)
       if (n === 0) return
-      const legs = legShares(ex.name)
+      const legs = legShares(ex.name, figure)
+      if (figure && legs) add(SHIN_KEY, n * legs[SHIN_KEY])
       if (atom === '하체') {
-        if (legs && (legs[LEG_FRONT] || legs[LEG_BACK])) {
+        if (legs && (legs[LEG_FRONT] || legs[LEG_BACK] || (figure && legs[SHIN_KEY]))) {
           add(LEG_FRONT, n * legs[LEG_FRONT])
           add(LEG_BACK, n * legs[LEG_BACK])
         } else add(LEG_FRONT, n) // 메타가 없는 커스텀 하체 종목
@@ -1346,19 +1353,30 @@ export function adviseBodyweightSet(name, set, setting, ctx = {}) {
   const u = hold ? '초' : '회'
   const r = Number(set.reps)
   if (!(r > 0)) return null
+  // [2026-11-24 코덱스 지적 ④] 드롭 세트는 플랜 세트 수에 세지 않는다(훅이 prevWorking에서 드롭을 빼는 것과 같은 기준)
+  if (set.type === 'drop') {
+    return { kind: 'info', reason: '드롭 세트 끝! 드롭은 종목의 마지막 세트로 쓰는 게 좋아요. 이 종목은 여기서 마무리해도 충분해요' }
+  }
   const [repMin, repMax] = getRepRange(name, setting)
   const it = intensityOf(setting)
-  const prev = (Array.isArray(ctx.prevWorking) ? ctx.prevWorking : []).filter((p) => Number(p.reps) > 0)
+  const prev = (Array.isArray(ctx.prevWorking) ? ctx.prevWorking : []).filter((p) => Number(p.reps) > 0 && p.type !== 'drop')
   const planned = Number(ctx.plannedCount) || 0
   const done = prev.length + 1
-  const failNote = failNoteFor(set, it)
+  // [2026-11-24 코덱스 지적 ⑤] 맨몸은 F와 RIR 0을 직접 판정하고 '한계까지'(max)에서만 생략한다.
+  // 무게 종목 failNoteFor는 '세게'에서 RIR 0을 목표 범위로 보고 막기 때문에 쓰지 않는다(무게 종목 규칙은 그대로).
+  const failNote = set.type === 'failure' || (set.rir !== '' && set.rir != null && Number(set.rir) === 0)
   if (planned && done === planned) {
     const all = [...prev.map((p) => Number(p.reps)), r]
     const harderTo = BODYWEIGHT_HARDER[name]
     const topped = all.every((x) => x >= repMax)
+    // [2026-11-24 코덱스 지적 ③] 오늘 세트에 자세 흔들림·통증 표시가 있으면 플래너(suggestBodyweight)가 다음엔 그대로(hold)라서 '어렵게 바꾸기'를 약속하지 않는다
+    const issue = [...prev, set].some(setHadIssue)
+    const nextNote = !topped ? '' : issue
+      ? ` · 모든 세트 상한(${repMax}${u})을 채웠지만 자세·통증 표시가 있어서 다음엔 같은 목표로 한 번 더 해요`
+      : ` · 모든 세트 상한(${repMax}${u})을 채웠으니 다음엔 '어렵게 바꾸기'${harderTo ? `(${harderTo})` : ''}가 나올 거예요`
     return {
       kind: 'done',
-      reason: `오늘 플랜 ${planned}세트 끝! ${failNote ? '한계까지 갔으니 여기서 마무리해요' : '여기서 마무리해도 충분해요'}${topped ? ` · 모든 세트 상한(${repMax}${u})을 채웠으니 다음엔 '어렵게 바꾸기'${harderTo ? `(${harderTo})` : ''}가 나올 거예요` : ''}`,
+      reason: `오늘 플랜 ${planned}세트 끝! ${failNote ? '한계까지 갔으니 여기서 마무리해요' : '여기서 마무리해도 충분해요'}${nextNote}`,
     }
   }
   if (failNote && it.id !== 'max') {
