@@ -1292,15 +1292,106 @@ function suggestBodyweightRaw(name, lastRecord, setting, opts = {}) {
       : `지난번 ${last.join('·')}${unit} → 세트마다 ${step}${unit}씩 더, 모든 세트 ${repMax}${unit}가 되면 어렵게 바꿔요`,
   }
 }
-// 운동 중 맨몸 종목 코치 한마디: 목표 상한보다 3(버티기 15초) 넘게 하면 천천히, 하한보다 많이 모자라면 같은 목표로
-export function adviseBodyweightSet(name, set, setting) {
+// [2026-11-24] 맨몸·코어 세트 중 자세 신호(사용자 신고: 캡틴체어 같은 코어 종목은 세트 중 코칭이 거의 없음).
+// 첫 본세트가 목표 범위 안일 때 한 번 보여 준다. 트레이너 검수가 필요한 초안(BODYWEIGHT_HARDER 단계표와 같은 처지).
+// 레그레이즈류 근거: 골반을 말지 않고 다리만 들면 복근보다 엉덩허리근(장요근)이 주로 일한다는 근전도 연구(근거 중간).
+export const BODYWEIGHT_FORM_CUE = {
+  캡틴스체어레그레이즈: '등은 등받이에 붙이고 골반을 말아 올려요. 다리를 휘두르거나 허리가 뜨면 그 세트는 거기서 멈춰요',
+  행잉레그레이즈: '골반을 말아 올리고, 몸이 앞뒤로 흔들리면 1초 멈췄다 다시 해요. 반동으로 올라가면 그 세트는 거기서 멈춰요',
+  크런치: '목을 손으로 당기지 말고 갈비뼈를 골반 쪽으로 말아요. 목이 먼저 들리면 그 세트는 거기서 멈춰요',
+  디클라인싯업: '반동 없이 등을 한 마디씩 말아 올라와요. 허리를 튕겨 올라오면 그 세트는 거기서 멈춰요',
+  러시안트위스트: '가슴을 편 채 팔이 아니라 몸통으로 돌려요. 등이 둥글게 말리면 그 세트는 거기서 멈춰요',
+  앱롤아웃: '허리가 아래로 처지면 그 세트는 거기서 멈추고, 다음 세트는 미는 거리를 줄여요',
+  미들플랭크로테이션: '엉덩이 높이를 그대로 두고 몸통만 돌려요. 엉덩이가 처지면 그 세트는 거기서 멈춰요',
+  팔로프프레스: '손이 몸 앞에서 끌려가지 않게 버텨요. 몸통이 돌아가면 그 세트는 거기서 멈춰요',
+  버드독: '팔다리를 뻗을 때 허리가 꺾이거나 골반이 돌아가면 그 세트는 거기서 멈춰요',
+  데드버그: '허리를 바닥에 붙인 채 팔다리를 내려요. 허리가 뜨면 내리는 범위를 줄여요',
+  플랭크: '엉덩이가 처지거나 들리면 거기서 끝이에요. 배·엉덩이에 힘을 준 채 숨은 계속 쉬어요',
+  사이드플랭크: '머리·골반·발이 한 줄이에요. 골반이 내려가면 거기서 끝이고, 숨은 계속 쉬어요',
+  '백플랭크(리버스플랭크)': '엉덩이를 들어 몸을 한 줄로 유지해요. 엉덩이가 내려가면 거기서 끝이에요',
+  데드행: '어깨를 귀 쪽으로 으쓱하지 말고 살짝 끌어내린 채 매달려요. 손이 미끄러지면 거기서 끝이에요',
+  월싯: '등을 벽에 붙이고 무릎은 발끝 쪽을 향하게요. 무릎이 안으로 모이면 거기서 끝이에요',
+  푸시업: '몸통을 한 판처럼 유지해요. 허리가 처지거나 엉덩이가 들리면 그 세트는 거기서 멈춰요',
+  인클라인푸시업: '몸통을 한 판처럼 유지해요. 허리가 처지면 그 세트는 거기서 멈춰요',
+  다이아몬드푸시업: '팔꿈치를 몸 옆으로 붙여 내려요. 허리가 처지면 그 세트는 거기서 멈춰요',
+  풀업: '반동 없이 가슴을 바 쪽으로 당겨요. 다리를 차서 올라가면 그 세트는 거기서 멈춰요',
+  친업: '반동 없이 가슴을 바 쪽으로 당겨요. 다리를 차서 올라가면 그 세트는 거기서 멈춰요',
+  체스트딥스: '어깨가 귀 쪽으로 솟거나 앞이 찌릿하면 내려가는 깊이를 줄여요',
+  벤치딥스: '어깨가 앞으로 말리거나 찌릿하면 내려가는 깊이를 줄여요',
+  백익스텐션: '몸이 일직선이 될 때까지만 올라와요. 허리를 뒤로 꺾으면 그 세트는 거기서 멈춰요',
+  피스톨스쿼트: '무릎이 안으로 모이거나 뒤꿈치가 뜨면 그 세트는 거기서 멈추고 깊이를 줄여요',
+  밴드풀어파트: '팔꿈치를 거의 편 채 날개뼈를 모아요. 어깨가 귀 쪽으로 솟으면 그 세트는 거기서 멈춰요',
+  '밴드외회전(로테이터커프)': '팔꿈치를 옆구리에 붙인 채 돌려요. 팔꿈치가 떨어지거나 몸통이 돌아가면 그 세트는 거기서 멈춰요',
+  티비얼리스레이즈: '발끝을 끝까지 들고 천천히 내려요. 무릎을 굽혀 반동을 쓰면 그 세트는 거기서 멈춰요',
+}
+function bodyweightFormCue(name, hold) {
+  return BODYWEIGHT_FORM_CUE[name] || (hold ? '몸이 흔들리거나 자세가 무너지면 거기서 끝이에요. 숨은 참지 말고 계속 쉬어요' : '반동 없이 끝까지 같은 자세로 해요. 자세가 무너지면 그 세트는 거기서 멈춰요')
+}
+// 버티기 종목의 '남길 시간'(1개 ≈ 5초로 옮김)
+const HOLD_SPARE = { easy2: '15~20초', easy: '10~15초', normal: '5~10초', hard: '0~5초' }
+const HOLD_HARDER_TEXT = {
+  데드행: '다음엔 시간 대신 어깨를 살짝 끌어내려(능동 매달리기) 더 단단히 버텨요',
+  월싯: '다음엔 시간 대신 무릎 각도를 조금 더 낮춰 버텨요',
+}
+// 운동 중 맨몸 종목 코치 한마디(한 세트에 한 줄).
+// [2026-11-24 보강, 사용자 확정 '추천대로'] 무게 종목 adviseAfterSetRaw와 같은 순서로 본다:
+//  ① 오늘 플랜 N세트 끝(그 세트에서 한 번) → ② 한계(F·RIR 0, 강도 '한계까지'면 생략) → 다음 세트는 1~2개(버티기 5~10초) 남기기(Grgic 외 2022, 한계 근접도 2023·2024)
+//  → ③ 첫 본세트보다 30% 넘게 감소 = 피로 신호, 마무리 권유(Pareja-Blanco 외 2017 근사. 무게로 조절할 수 없어 목표 범위 안이어도 적용)
+//  → ④ 상한 +2회(+10초) 이상 = 템포로 어렵게 → ⑤ 하한 −3회(−10초) 이하 = 휴식 30초 더·같은 목표
+//  → ⑥ 범위 안 한마디: 첫 본세트(자세 신호)와 마지막 바로 전 세트(강도)에만. 바로 앞 안내와 같으면 템포·호흡 문장으로 바꾼다.
+// ctx: { prevWorking: 이 세트 전에 저장한 본세트, plannedCount: 오늘 목표 세트 수(모르면 0), prevTip: 바로 앞 코치 한마디 }
+export function adviseBodyweightSet(name, set, setting, ctx = {}) {
   if (!isBodyweightCoached(name) || !set || isWarmupSet(set)) return null
   const hold = isHoldExercise(name)
+  const u = hold ? '초' : '회'
   const r = Number(set.reps)
   if (!(r > 0)) return null
   const [repMin, repMax] = getRepRange(name, setting)
-  const over = hold ? 15 : 3
-  if (r > repMax + over) return { kind: 'info', reason: hold ? `목표(${repMax}초)보다 훨씬 오래 버텼어요 → 다음엔 더 단단히(배·엉덩이 힘을 더 주고) 버텨 보세요` : `목표(${repMax}회)보다 ${r - repMax}회 더 했어요 → 다음 세트는 3초에 걸쳐 내리고 끝에서 1초 멈춰요` }
-  if (r < repMin - (hold ? 10 : 3)) return { kind: 'info', reason: `목표(${repMin}${hold ? '초' : '회'})보다 적었어요 → 괜찮아요, 다음 세트도 같은 목표로 자세 좋게` }
-  return null
+  const it = intensityOf(setting)
+  const prev = (Array.isArray(ctx.prevWorking) ? ctx.prevWorking : []).filter((p) => Number(p.reps) > 0)
+  const planned = Number(ctx.plannedCount) || 0
+  const done = prev.length + 1
+  const failNote = failNoteFor(set, it)
+  if (planned && done === planned) {
+    const all = [...prev.map((p) => Number(p.reps)), r]
+    const harderTo = BODYWEIGHT_HARDER[name]
+    const topped = all.every((x) => x >= repMax)
+    return {
+      kind: 'done',
+      reason: `오늘 플랜 ${planned}세트 끝! ${failNote ? '한계까지 갔으니 여기서 마무리해요' : '여기서 마무리해도 충분해요'}${topped ? ` · 모든 세트 상한(${repMax}${u})을 채웠으니 다음엔 '어렵게 바꾸기'${harderTo ? `(${harderTo})` : ''}가 나올 거예요` : ''}`,
+    }
+  }
+  if (failNote && it.id !== 'max') {
+    return { kind: 'info', reason: `한계까지 ${hold ? '버텼어요' : '갔어요'} → 다음 세트는 ${hold ? '5~10초 일찍' : '1~2개 남기고'} 끝내요 · 휴식 30초 더` }
+  }
+  const first = prev[0]
+  if (first && r < Number(first.reps) * 0.7) {
+    return {
+      kind: 'info',
+      reason: `첫 세트 ${Number(first.reps)}${u} → 이번 ${r}${u}, 30% 넘게 줄었어요(피로가 쌓였다는 신호) → ${hold ? '' : '남은 세트는 지금 횟수에 맞추거나 '}여기서 마무리해도 좋아요`,
+    }
+  }
+  if (r >= repMax + (hold ? 10 : 2)) {
+    return {
+      kind: 'info',
+      reason: hold
+        ? `목표(${repMax}초)보다 오래 버텼어요 → ${HOLD_HARDER_TEXT[name] || '다음엔 시간 대신 더 단단히(배·엉덩이에 힘을 더 주고) 버텨요'}`
+        : `목표(${repMax}회)보다 ${r - repMax}회 더 했어요 → 다음 세트는 3초에 걸쳐 내리고 끝에서 1초 멈춰요`,
+    }
+  }
+  if (r <= repMin - (hold ? 10 : 3)) {
+    return { kind: 'info', reason: `목표(${repMin}${u})보다 ${repMin - r}${u} 적었어요 → 휴식 30초 더 하고, 다음 세트도 자세 좋게 ${repMin}${u}를 노려요` }
+  }
+  // 범위 안 한마디: 첫 본세트와 마지막 바로 전 세트에만(플랜 세트 수를 모르면 첫 본세트에만)
+  const firstSet = done === 1
+  const beforeLast = planned >= 3 && done === planned - 1
+  if (!firstSet && !beforeLast) return null
+  let reason
+  if (firstSet) reason = bodyweightFormCue(name, hold)
+  else if (r > repMax) reason = `${r}${u}, 상한(${repMax}${u})을 채웠어요. 남은 세트도 채우면 다음엔 어렵게 바꿔요`
+  else if (r < repMin) reason = `${r}${u}, 목표 하한(${repMin}${u})에 조금 모자라요. 마지막 세트도 자세 좋게 해요`
+  else if (hold) reason = it.id === 'max' ? `${r}초, 목표 안이에요. 마지막 세트는 자세가 무너지기 직전까지 버텨요` : `${r}초, 목표 안이에요. 남은 세트도 버틸 수 있는 시간보다 ${HOLD_SPARE[it.id] || '5~10초'} 일찍 끝내요`
+  else reason = it.id === 'max' ? `${r}회, 목표 안이에요. 마지막 세트는 자세가 무너지기 직전까지 해요` : `${r}회, 목표 안이에요. 남은 세트도 마지막 ${it.rir.replace('–', '~')}개는 남기고 끝내요`
+  if (ctx.prevTip?.reason === reason) reason = hold ? '배·엉덩이 힘은 그대로 두고, 숨은 참지 말고 계속 쉬어요' : '내릴 때 2초 천천히, 올릴 때 숨을 내쉬어요'
+  return { kind: 'info', reason }
 }

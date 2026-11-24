@@ -1127,6 +1127,12 @@ export function useWorkoutSession(props, ref) {
   function plannedCountFor(key) {
     return coachPlans[key]?.count || defaultPlannedCount(suggestionFor(key), parseExerciseKey(key).name, settingFor(key))
   }
+  // [2026-11-24] 맨몸 종목 오늘 목표 세트 수(코치 한마디 '플랜 끝'·'마지막 전 세트'용): 적용한 플랜 → 오늘 맨몸 플랜 → 처방 → 모름(0)
+  // plannedCountFor는 무게 종목 추천(suggestNextSet) 기준이라 맨몸에서는 0이 되므로 따로 둔다(카드 표시에는 쓰지 않음)
+  function bwPlannedCount(key) {
+    const rx = getProgramRx(parseExerciseKey(key).name, settingFor(key))
+    return coachPlans[key]?.count || bwPlanFor(key)?.setTargets?.length || (Number(rx?.sets) >= 1 ? Math.round(Number(rx.sets)) : 0)
+  }
   // [2026-11-09] 방금 세트 몸 상태 표시 → 세트에 pain·form 저장 + 다음 세트 안내
   function setSetFeel(key, idx, id) {
     const set = records[key]?.[idx]
@@ -1468,7 +1474,7 @@ export function useWorkoutSession(props, ref) {
       const prevWorking = (records[name] || []).filter((st, i) => i !== idx && st.saved && st.type !== 'warmup' && st.type !== 'drop')
       // [2026-11-19] 앞 세트 통증을 이어받은 세트는 통증 안내가 먼저(올리기 제안 금지, 로그 코치를 꺼도 보임 - feel)
       const painTip = carry ? adviseAfterFeel(parseExerciseKey(name).name, { ...savedSet, pain: carry, form: null }, settingFor(name), { streak: painStreak((records[name] || []).map((st, i) => (i === idx ? { ...st, pain: carry } : st)), idx) }) : null
-      const normalTip = savedSet && coachEnabled && isBodyweightCoached(parseExerciseKey(name).name) ? adviseBodyweightSet(parseExerciseKey(name).name, savedSet, settingFor(name)) : savedSet && coachEnabled ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
+      const normalTip = savedSet && coachEnabled && isBodyweightCoached(parseExerciseKey(name).name) ? adviseBodyweightSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: bwPlannedCount(name), prevTip: setTips[name] }) : savedSet && coachEnabled ? adviseAfterSet(parseExerciseKey(name).name, savedSet, settingFor(name), { prevWorking, plannedCount: plannedCountFor(name), upsGiven: tipUps[name] || 0 }) : null
       // [2026-11-20] 이어받은 통증을 '괜찮음'으로 지우면 원래 받았을 무게·횟수 안내가 되살아나게 base로 들고 있는다(코덱스 지적)
       let tip = painTip ? { ...painTip, feel: true, base: normalTip } : normalTip
       // [2026-11-03 최근 연구] 오늘 이 부위 세트(보조 0.5세트로 계산)가 한 번 운동 상한(약 11세트)을 넘으면 한 번 안내(무게 제안이 있으면 그게 먼저)

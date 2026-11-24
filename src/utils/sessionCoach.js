@@ -4,9 +4,9 @@
 //  3) 오늘 쌓인 피로: 같은 부위(주동근·보조근이 겹치는 종목)에서 실패·자세 흔들림·통증이 있었으면 다음 종목 플랜을 낮춘다.
 // 원칙: 횟수·무게를 채우기보다 자세가 먼저. 통증이 심하면 멈춤 안내(앱은 진단하지 않음 - 트레이너·진료 권유).
 // 규칙 계산이라 'AI' 표현은 쓰지 않는다(CLAUDE.md 로그 코치).
-import { getExerciseAtom, getSynergistAtoms } from './exerciseLibrary'
+import { getExerciseAtom, getSynergistAtoms, getExerciseInputType } from './exerciseLibrary'
 import { getRepRange, lighterBy, loadWithText, isWarmupSet } from './strength'
-import { allowsZeroWeight, isAssistedExercise } from './load'
+import { allowsZeroWeight, isAssistedExercise, isHoldExercise } from './load'
 
 export const CONDITIONS = [
   { id: 'good', label: '좋음' },
@@ -98,6 +98,15 @@ export function adviseAfterFeel(name, set, setting, { streak = 1 } = {}) {
     }
   }
   // 자세 흔들림
+  // [2026-11-24] 맨몸·버티기 종목은 무게가 없어 '같은 무게로'가 맞지 않았다 → 횟수(버티기는 초)로 말한다
+  if (getExerciseInputType(name) === 'reps') {
+    return {
+      kind: 'info',
+      reason: isHoldExercise(name)
+        ? '자세가 흔들렸어요 → 다음 세트는 5–10초 일찍 끝내도 괜찮아요. 시간보다 자세가 먼저예요'
+        : '자세가 흔들렸어요 → 다음 세트는 1–2개 덜 해도 괜찮아요. 횟수보다 자세가 먼저예요',
+    }
+  }
   const [repMin] = getRepRange(name, setting)
   const short = Number(set.reps) > 0 && Number(set.reps) < repMin
   const nw = hasW && short ? lighterBy(name, w, 0.1) : null
