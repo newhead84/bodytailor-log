@@ -51,7 +51,31 @@ const MAP = [
   [/^복직근|^복횡근|^코어$/, ['abs']],
   [/복사근$/, ['obl']],
   [/^비복근|^가자미근/, ['calf']],
+  [/^전경골근/, ['tib']],
+  [/^비골근/, ['per']],
+  [/^전거근/, ['serr']],
+  [/^대퇴근막장근/, ['tfl']],
+  [/^봉공근/, ['sart']],
 ]
+// [2026-11-23] 그림에만 칠하는 작은 보조 근육(사용자 지적: 운동을 골고루 해도 늘 회색인 근육이 있음).
+// 분수 세트(주동 1.0·보조 0.5)는 의미 있게 훈련되는 근육만 세는 것이 관행이라 muscleRoles·주간 통계는 그대로 두고,
+// 운동학적으로 분명히 함께 일하는 작은 근육만 '같이 써요'(옅은 빨강)로 그린다. 근거가 약한 종목은 넣지 않는다.
+//  - 비골근: 발목을 펴는(발바닥 쪽으로 미는) 힘을 보탬 → 카프레이즈
+//  - 전거근: 팔을 머리 위로 올릴 때 견갑을 위로 돌리고, 밀 때 견갑을 앞으로 내밈 → 푸시업, 머리 위 프레스(머신도 등받이가 견갑을 막지 않음)
+//  - 대퇴근막장근: 고관절을 굽힌 채 벌리기·고관절 굽히기 → 앉아서 하는 힙어브덕션, 다리를 들어 올리는 레그레이즈
+//  - 봉공근: 무릎 굽히기·고관절 굽히기를 보탬 → 레그컬, 레그레이즈(다리를 움직임). 디클라인싯업은 상체가 움직이고
+//    장요근·대퇴직근이 주로 일해 근거가 약해 뺌
+const FIGURE_EXTRA = {
+  바벨스탠딩카프레이즈: ['per'], 바벨시티드카프레이즈: ['per'], 레그프레스카프레이즈: ['per'],
+  푸시업: ['serr'], 인클라인푸시업: ['serr'], 다이아몬드푸시업: ['serr'],
+  덤벨숄더프레스: ['serr'], 원암덤벨숄더프레스: ['serr'], 바벨오버헤드프레스: ['serr'], 아놀드프레스: ['serr'],
+  스미스숄더프레스: ['serr'], 숄더프레스머신: ['serr'], '숄더프레스머신(원암)': ['serr'],
+  '힙어브덕션머신(아웃타이)': ['tfl'],
+  행잉레그레이즈: ['tfl', 'sart'], 캡틴스체어레그레이즈: ['tfl', 'sart'],
+  라잉레그컬: ['sart'], 시티드레그컬: ['sart'],
+}
+// 직접 훈련하는 종목이 없는 조각(목 옆 흉쇄유돌근): 근육색 대신 살색에 가깝게 그려 '운동 대상 아님'으로 보이게
+const NOT_TRAINED = ['scm']
 // 칩: 쉬운 이름 + 해부학 이름(작게)
 const LABEL = {
   pecU: ['윗가슴', '대흉근 상부'], pec: ['가슴', '대흉근'], tri: ['팔 뒤', '삼두근'], deltF: ['어깨 앞', '전면삼각근'],
@@ -60,6 +84,8 @@ const LABEL = {
   trapM: ['등 가운데', '승모근 중·하부·능형근'], erector: ['허리', '척추기립근'], gmed: ['엉덩이 옆', '중둔근'], glute: ['엉덩이', '대둔근'],
   ham: ['허벅지 뒤', '햄스트링'], quad: ['허벅지 앞', '대퇴사두근'], add: ['허벅지 안쪽', '내전근'], hipflex: ['고관절 앞', '장요근'],
   fore: ['아래팔', '전완근'], abs: ['복근', '복직근'], obl: ['옆구리', '복사근'], calf: ['종아리', '비복근·가자미근'],
+  tib: ['정강이 앞', '전경골근'], per: ['종아리 바깥', '비골근'], serr: ['갈비 옆', '전거근'], tfl: ['엉덩이 옆 앞', '대퇴근막장근'],
+  sart: ['허벅지 앞 띠', '봉공근'], scm: ['목 옆', '흉쇄유돌근'],
 }
 function toIds(list) {
   const out = []
@@ -73,7 +99,7 @@ export function muscleTargets(name, grip = null) {
   const r = getMuscleRoles(name, grip)
   if (!r) return null
   const p = toIds(r.primary)
-  const s = toIds(r.synergist).filter((x) => !p.includes(x))
+  const s = [...toIds(r.synergist), ...(FIGURE_EXTRA[name] || [])].filter((x, i, a) => !p.includes(x) && a.indexOf(x) === i)
   return p.length || s.length ? { p, s } : null
 }
 
@@ -300,6 +326,7 @@ function Figure({ view, P, target, uid, height = null }) {
         [-1, 1].map((sd) => {
           const role = roleOf(m.id)
           const d = smooth(mirror(m.pts, sd))
+          if (NOT_TRAINED.includes(m.id)) return <path key={`${i}${sd}`} d={d} fill={C.skin} stroke={C.outline} strokeOpacity="0.45" strokeWidth="0.6" strokeLinejoin="round" />
           return (
             <g key={`${i}${sd}`} className={role === 'p' ? 'bt-mm-hot' : undefined}>
               <path d={d} fill={role === 'p' ? C.p : role === 's' ? C.s : C.base} />
@@ -384,6 +411,17 @@ export const ATOM_FIGURE_IDS = {
   '하체 앞': ['quad', 'hipflex', 'add'],
   '하체 뒤': ['glute', 'gmed', 'ham', 'calf'],
   코어: ['abs', 'obl', 'erector'],
+}
+// [2026-11-23] 리포트 부위에 들지 않는 작은 조각(전거근·대퇴근막장근·봉공근·전경골근·비골근)은 부위 대신
+// 그 주에 한 종목의 그림 조각(muscleTargets)으로 칠한다(부위 기준으로 칠하면 스쿼트만 해도 정강이가 칠해짐).
+const ATOM_IDS = new Set(Object.values(ATOM_FIGURE_IDS).flat())
+export function minorIdsForExercises(exercises) {
+  const out = []
+  ;(exercises || []).forEach((ex) => {
+    const t = muscleTargets(ex?.name, ex?.grip || null)
+    if (t) [...t.p, ...t.s].forEach((id) => { if (!ATOM_IDS.has(id) && !out.includes(id)) out.push(id) })
+  })
+  return out
 }
 // [2026-11-11] 이름표 없이 앞·뒤 그림만(작게 쓰는 곳: 리포트 근육별 주간 세트, 코치 프로그램 파트)
 export function MuscleFigures({ target, gender, height = 160, labels = true, style }) {

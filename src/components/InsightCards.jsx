@@ -23,9 +23,10 @@ import {
   lowerBodyLoadSets,
   LEG_FRONT,
   LEG_BACK,
+  workingSetsOf,
 } from '../utils/strength'
 import { ExerciseName } from '../utils/exerciseName'
-import { MuscleFigures, ATOM_FIGURE_IDS } from './MuscleMap'
+import { MuscleFigures, ATOM_FIGURE_IDS, minorIdsForExercises } from './MuscleMap'
 import PtBridgeLine from './PtBridgeLine'
 
 export function startOfWeekStr(d = new Date(), offsetWeeks = 0) {
@@ -47,10 +48,11 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
   const [week, setWeek] = useState(0)
   // [2026-10-29] 이번 주 보기에는 지금 진행 중인 운동에서 체크한 세트도 더한다(저장 전이라 0으로 보이던 문제)
   const hasLive = week === 0 && Array.isArray(liveExercises) && liveExercises.length > 0
-  const sets = useMemo(
-    () => fractionalSetsByAtom([...logsInWeek(logs, week), ...(hasLive ? [{ date: toLocalDateStr(new Date()), exercises: liveExercises }] : [])]),
+  const weekLogs = useMemo(
+    () => [...logsInWeek(logs, week), ...(hasLive ? [{ date: toLocalDateStr(new Date()), exercises: liveExercises }] : [])],
     [logs, week, hasLive, liveExercises]
   )
+  const sets = useMemo(() => fractionalSetsByAtom(weekLogs), [weekLogs])
   // [2026-10-29] 하체는 앞·뒤로 나눠 표시
   const atoms = BODY_PART_ATOMS.filter((a) => a !== '유산소').flatMap((a) => (a === '하체' ? [LEG_FRONT, LEG_BACK] : [a]))
   const rows = compact ? atoms.filter((a) => (sets[a] || 0) > 0).sort((a, b) => (sets[b] || 0) - (sets[a] || 0)).slice(0, 5) : atoms
@@ -71,8 +73,11 @@ export function MuscleSetsCard({ logs, liveExercises = null, compact = false, ti
       const enough = a === '코어' ? v >= 4 : v >= getWeeklySetGuide(a).minEffective
       ;(enough ? p : s).push(...(ATOM_FIGURE_IDS[a] || []))
     })
+    // [2026-11-23] 부위에 들지 않는 작은 근육(전거근·정강이 등)은 이번 주 한 종목 기준으로 옅게
+    const done = weekLogs.flatMap((l) => (l.exercises || []).filter((ex) => getExerciseInputType(ex?.name) !== 'cardio' && workingSetsOf(ex).length > 0))
+    minorIdsForExercises(done).forEach((id) => { if (!s.includes(id)) s.push(id) })
     return p.length || s.length ? { p, s } : null
-  }, [compact, sets]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [compact, sets, weekLogs]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
       <SectionTitle

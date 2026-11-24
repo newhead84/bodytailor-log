@@ -301,7 +301,8 @@ export function getRepRange(name, setting) {
   // [2026-11-10] 맨몸 코칭: 데드행은 20–45초, 무게 없는 코어·밴드 종목은 12–20회
   if (name === '데드행') return [20, 45]
   if (isHoldExercise(name)) return [30, 60]
-  if (getExerciseInputType(name) === 'reps' && (getExerciseAtom(name) === '코어' || EXERCISE_META[name]?.equipment === 'band')) return [12, 20]
+  // [2026-11-23] 맨몸 티비얼리스레이즈도 작은 근육 고반복이라 12–20회
+  if (getExerciseInputType(name) === 'reps' && (getExerciseAtom(name) === '코어' || EXERCISE_META[name]?.equipment === 'band' || name === '티비얼리스레이즈')) return [12, 20]
   const pr = getTrainingProfile()
   return isCompoundExercise(name) ? [pr.compound.repMin, pr.compound.repMax] : [pr.iso.repMin, pr.iso.repMax]
 }
@@ -1070,7 +1071,8 @@ export function usesBarbellPlates(name) {
 // '등'인 힌지 종목도 주동근에 둔근이 있으면 '하체 뒤' 1.0으로 센다.
 export const LEG_FRONT = '하체 앞'
 export const LEG_BACK = '하체 뒤'
-const FRONT_MUSCLES = ['대퇴사두', '내전근']
+// [2026-11-23] 정강이 앞(전경골근, 티비얼리스레이즈)은 종아리가 '하체 뒤'인 것과 짝으로 '하체 앞'에 센다(지금까지 이 근육을 쓰는 종목이 없어 기존 수치는 그대로)
+const FRONT_MUSCLES = ['대퇴사두', '내전근', '전경골근']
 const BACK_MUSCLES = ['대둔근', '중둔근', '소둔근', '햄스트링', '비복근', '가자미근']
 function legShares(name) {
   const roles = EXERCISE_META[name]?.muscleRoles
