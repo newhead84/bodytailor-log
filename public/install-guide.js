@@ -1,6 +1,7 @@
 /* [2026-11-22] 홈 화면 설치 안내(공용): 소개 페이지 '앱 설치하기' 시트(A안)와 앱 로그인 전 전체 화면 안내(C안)가 같은 내용·문구를 쓴다.
  * 문구·기기 분기를 바꿀 때는 이 파일만 고친다. 두 페이지 모두 <head>에서 동기 로드(설치 신호 beforeinstallprompt를 일찍 잡기 위해).
- *  - 안드로이드·PC 크롬/엣지: 설치 신호가 오면 '설치' 버튼, 안 오면(삼성 인터넷·웨일·파이어폭스·이미 설치 등) 메뉴 경로 안내
+ *  - 안드로이드: 설치 신호가 오면 '설치' 버튼, 안 오면(삼성 인터넷·웨일·파이어폭스·이미 설치 등) 메뉴 경로 안내
+ *  - PC(확실한 데스크톱만, 2026-11-24): 설치 신호가 와도 PC 설치 대신 '휴대폰에서 설치해 주세요' + 앱 주소 QR(/install-qr.svg)·주소 복사
  *  - 아이폰: 사파리·크롬·엣지는 공유 → 홈 화면에 추가 3단계, 그 밖 iOS 브라우저는 사파리로 열기(아이폰은 설치 여부를 알 수 없음)
  *  - 인앱 브라우저(inapp.js의 window.__btInApp): 기본 브라우저로 열기·주소 복사
  *  - 이미 설치(안드로이드 크롬 getInstalledRelatedApps, manifest related_applications): 아이콘으로 열기 안내
@@ -12,6 +13,10 @@
   var ua = navigator.userAgent || ''
   var os = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'ios' : /Android/i.test(ua) ? 'android' : /Macintosh/.test(ua) ? 'mac' : 'desktop'
   var br = /SamsungBrowser/i.test(ua) ? 'samsung' : /Whale/i.test(ua) ? 'whale' : /EdgiOS|EdgA|Edg\//i.test(ua) ? 'edge' : /FxiOS|Firefox/i.test(ua) ? 'firefox' : /CriOS|Chrome/i.test(ua) ? 'chrome' : /Safari/i.test(ua) ? 'safari' : 'other'
+  // [2026-11-24] PC(윈도·맥·리눅스 데스크톱)는 앱을 설치하지 않고 휴대폰 설치를 안내한다(QR). 휴대폰에는 QR이 절대 나오면 안 되므로
+  // 확실한 PC만 고른다: 데스크톱 UA + 모바일 표시 없음 + 마우스·터치패드(any-pointer: fine). 안드로이드 '데스크톱 사이트' 보기처럼 애매하면 PC로 보지 않는다.
+  var pc = (os === 'desktop' || os === 'mac') && /Windows NT|Macintosh|X11|CrOS/.test(ua) && !/Mobi|Android|Tablet|iPhone|iPad/i.test(ua) &&
+    !(navigator.userAgentData && navigator.userAgentData.mobile) && !!(window.matchMedia && matchMedia('(any-pointer: fine)').matches)
   var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true
   var deferred = null, installed = false, skippedNow = false, cur = null
 
@@ -47,7 +52,7 @@
   function ill(svg, t) { return '<span class="ill" aria-hidden="true">' + (svg || '') + (t ? (svg ? '<i>' + t + '</i>' : t) : '') + '</span>' }
 
   function manual() {
-    if (!atApp && (os === 'android' || (os === 'mac' && br === 'safari'))) return TOAPP
+    if (!atApp && os === 'android') return TOAPP
     if (os === 'android') {
       var s = br === 'samsung' ? '아래쪽 <b>메뉴(≡)</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b>을 눌러요'
         : br === 'whale' ? '아래쪽 <b>메뉴(≡)</b> → <b>홈 화면에 추가</b>를 눌러요'
@@ -55,7 +60,7 @@
         : '오른쪽 위 <b>메뉴(⋮)</b> → <b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 눌러요'
       return '<h2 id="btiT">홈 화면에 설치해 주세요</h2><p class="p">브라우저 메뉴에서 설치할 수 있어요.</p>' + WHY + '<ol><li><span>' + s + '</span></li><li><span>홈 화면의 <b>BodyTailor</b> 아이콘으로 열어요</span></li></ol><p class="n">이미 설치했다면 홈 화면의 BodyTailor 아이콘으로 여세요.</p>'
     }
-    if (os === 'mac' && br === 'safari') return '<h2 id="btiT">Dock에 추가해 앱처럼 쓰세요</h2><p class="p">메뉴 막대에서 <b>파일</b> → <b>Dock에 추가</b>를 누르면 돼요.<br>휴대폰에서는 이 주소를 열어 홈 화면에 설치해 주세요.</p>' + COPY
+    // 확실한 PC가 아닌 그 밖의 기기(판정이 애매한 경우): QR 없이 주소만
     return '<h2 id="btiT">휴대폰에서 설치해 주세요</h2><p class="p">휴대폰에서 이 주소를 열고 \'앱 설치하기\'를 누르면 홈 화면에 설치돼요.</p>' + COPY
   }
   function body(v) {
@@ -65,6 +70,8 @@
       var menu = ia.kind === 'kakao' || ia.kind === 'line' ? '⋮ 메뉴 → \'다른 브라우저로 열기\'' : '⋯ 메뉴 → \'브라우저에서 열기\' 또는 \'Safari로 열기\''
       return '<h2 id="btiT">' + (IN[ia.kind] || '이 앱') + ' 안에서는 설치할 수 없어요</h2><p class="p">기본 브라우저(크롬·사파리)로 연 뒤 홈 화면에 설치해 주세요. 구글 로그인도 기본 브라우저에서만 돼요.</p><button class="b1" type="button" data-ext>기본 브라우저로 열기</button>' + COPY + '<p class="n" data-hint>안 열리면 오른쪽 위 ' + menu + '</p>'
     }
+    // PC: 설치 신호가 와도 PC 설치 버튼 대신 휴대폰 설치 안내(QR은 앱 첫 화면 주소, 찍으면 휴대폰에서 설치 안내가 바로 뜬다)
+    if (pc) return '<h2 id="btiT">휴대폰에서 설치해 주세요</h2><p class="p">BodyTailor는 운동하면서 휴대폰으로 기록하는 앱이에요.<br>휴대폰 카메라로 QR을 찍으면 설치 방법이 바로 나와요.</p><img class="qr" src="/install-qr.svg" width="176" height="176" alt="BodyTailor 앱 주소 QR 코드" />' + COPY
     if (installed) return '<h2 id="btiT">이미 설치돼 있어요</h2><p class="p">홈 화면의 <b>BodyTailor</b> 아이콘으로 열어 주세요.</p>'
     if (os === 'ios') {
       if (!atApp && br !== 'other' && br !== 'firefox' && br !== 'whale') return TOAPP
@@ -105,6 +112,7 @@
     '.bti .b1{border:0;background:#c8f53c;color:#11170a}' +
     '.bti .b2{border:1px solid #3a352f;background:none;color:#f5efe6;margin-top:10px;font-weight:600;font-size:15px}' +
     '.bti .url{display:block;width:100%;margin-top:10px;padding:13px;border-radius:14px;border:1px solid #c8f53c;background:#141210;color:#f5efe6;font:inherit;font-size:14px;text-align:center}' +
+    '.bti .qr{display:block;width:176px;height:176px;margin:0 auto 4px;border-radius:14px;background:#fff}' +
     '.bti .n{font-size:13px;color:#a39b8f;text-align:center;margin-top:12px;line-height:1.55}' +
     '.bti .skip{display:block;width:max-content;max-width:100%;margin:14px auto 0;padding:6px 8px;font-size:13.5px;color:#a39b8f;text-decoration:underline;text-underline-offset:3px}' +
     '.bti :focus-visible{outline:2px solid #c8f53c;outline-offset:2px}' +
